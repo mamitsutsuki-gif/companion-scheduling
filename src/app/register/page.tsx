@@ -12,6 +12,23 @@ import { FormEvent, useMemo, useState } from "react";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { getFirebaseAuthClient } from "@/lib/firebase-client";
 
+function firebaseRegisterErrorMessage(error: unknown) {
+  const code = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
+  if (code === "auth/operation-not-allowed") {
+    return "Firebase Authentication でメール/パスワードログインが無効です。管理画面で有効化してください。";
+  }
+  if (code === "auth/email-already-in-use") {
+    return "このメールアドレスは既に使用されています。";
+  }
+  if (code === "auth/invalid-email") {
+    return "メールアドレスの形式が正しくありません。";
+  }
+  if (code === "auth/weak-password") {
+    return "パスワードが弱すぎます。8文字以上で設定してください。";
+  }
+  return "登録に失敗しました。入力内容とFirebase設定を確認してください。";
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -66,9 +83,9 @@ export default function RegisterPage() {
           router.push("/dashboard");
           router.refresh();
           return;
-        } catch {
+        } catch (error) {
           setLoading(false);
-          setError("登録に失敗しました。メール形式またはパスワードを確認してください。");
+          setError(firebaseRegisterErrorMessage(error));
           return;
         }
       }
