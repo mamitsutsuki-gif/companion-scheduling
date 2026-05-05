@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
 
   const email = profile.email.trim().toLowerCase();
   const googleSub = profile.sub;
+  const requestedRole = payload.role === "PARTNER" ? "PARTNER" : payload.role === "CLIENT" ? "CLIENT" : null;
   let user:
     | {
         id: string;
@@ -59,9 +60,37 @@ export async function GET(request: NextRequest) {
           ? raw.role
           : ("CLIENT" as const);
       user = { id: d.id, role };
+    } else if (requestedRole) {
+      const display = profile.name?.trim() || email.split("@")[0] || "Googleユーザー";
+      const ref = users.doc();
+      await ref.set(
+        {
+          email,
+          displayName: display.slice(0, 80),
+          role: requestedRole,
+          googleSub,
+          firebaseUid: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true },
+      );
+      user = { id: ref.id, role: requestedRole };
     }
   } else {
     user = await prisma.user.findFirst({ where: { email, googleSub } });
+    if (!user && requestedRole) {
+      const display = profile.name?.trim() || email.split("@")[0] || "Googleユーザー";
+      user = await prisma.user.create({
+        data: {
+          email,
+          displayName: display.slice(0, 80),
+          role: requestedRole,
+          googleSub,
+          passwordHash: null,
+        },
+      });
+    }
   }
 
   if (!user) return redirectLogin(request, "oauth_not_allowed");
