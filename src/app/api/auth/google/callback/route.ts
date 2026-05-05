@@ -39,7 +39,12 @@ export async function GET(request: NextRequest) {
 
   const email = profile.email.trim().toLowerCase();
   const googleSub = profile.sub;
-  const requestedRole = payload.role === "PARTNER" ? "PARTNER" : payload.role === "CLIENT" ? "CLIENT" : null;
+  const requestedRole =
+    payload.allowCreate && payload.role === "PARTNER"
+      ? "PARTNER"
+      : payload.allowCreate && payload.role === "CLIENT"
+        ? "CLIENT"
+        : null;
   let user:
     | {
         id: string;

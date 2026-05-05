@@ -18,9 +18,6 @@ function firebaseRegisterErrorMessage(error: unknown) {
       ? String((error as { message?: unknown }).message ?? "")
       : "";
   const code = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
-  if (message.includes("NEXT_PUBLIC_FIREBASE_")) {
-    return "App Hosting の環境変数 NEXT_PUBLIC_FIREBASE_* が不足しています。Firebase Webアプリの値を設定してください。";
-  }
   if (code === "auth/operation-not-allowed") {
     return "Firebase Authentication でメール/パスワードログインが無効です。管理画面で有効化してください。";
   }
@@ -36,7 +33,7 @@ function firebaseRegisterErrorMessage(error: unknown) {
   if (code === "auth/weak-password") {
     return "パスワードが弱すぎます。8文字以上で設定してください。";
   }
-  return "登録に失敗しました。入力内容とFirebase設定を確認してください。";
+  return `登録に失敗しました（${code || "unknown"}）。入力内容と設定を確認してください。`;
 }
 
 export default function RegisterPage() {
@@ -45,7 +42,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<"PARTNER" | "CLIENT">("PARTNER");
   const googleHref = useMemo(
-    () => `/api/auth/google?next=/dashboard&role=${encodeURIComponent(role)}`,
+    () => `/api/auth/google?next=/dashboard&role=${encodeURIComponent(role)}&register=1`,
     [role],
   );
 

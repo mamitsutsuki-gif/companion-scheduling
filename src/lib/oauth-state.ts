@@ -7,7 +7,11 @@ function secret() {
 }
 
 /** Google OAuth の state に埋め込む（改ざん防止・10分有効）。 */
-export async function sealOAuthState(payload: { next?: string; role?: "PARTNER" | "CLIENT" }) {
+export async function sealOAuthState(payload: {
+  next?: string;
+  role?: "PARTNER" | "CLIENT";
+  allowCreate?: boolean;
+}) {
   return await new SignJWT({ ...payload, v: 1 })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -17,13 +21,14 @@ export async function sealOAuthState(payload: { next?: string; role?: "PARTNER" 
 
 export async function openOAuthState(
   token: string,
-): Promise<{ next?: string; role?: "PARTNER" | "CLIENT" } | null> {
+): Promise<{ next?: string; role?: "PARTNER" | "CLIENT"; allowCreate?: boolean } | null> {
   try {
     const { payload } = await jwtVerify(token, secret(), { algorithms: ["HS256"] });
     if (payload.v !== 1) return null;
     const next = typeof payload.next === "string" ? payload.next : undefined;
     const role = payload.role === "PARTNER" || payload.role === "CLIENT" ? payload.role : undefined;
-    return { next, role };
+    const allowCreate = payload.allowCreate === true;
+    return { next, role, allowCreate };
   } catch {
     return null;
   }

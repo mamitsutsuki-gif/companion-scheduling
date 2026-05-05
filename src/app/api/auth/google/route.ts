@@ -15,7 +15,12 @@ export async function GET(request: NextRequest) {
     const next = request.nextUrl.searchParams.get("next") ?? "/dashboard";
     const rawRole = request.nextUrl.searchParams.get("role");
     const role = rawRole === "PARTNER" || rawRole === "CLIENT" ? rawRole : undefined;
-    const state = await sealOAuthState({ next: next.startsWith("/") ? next : "/dashboard", role });
+    const allowCreate = request.nextUrl.searchParams.get("register") === "1";
+    const state = await sealOAuthState({
+      next: next.startsWith("/") ? next : "/dashboard",
+      role,
+      allowCreate,
+    });
     return NextResponse.redirect(googleAuthorizationUrl(state));
   } catch (e) {
     const origin = resolvedAppOrigin(request);
