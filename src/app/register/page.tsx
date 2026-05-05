@@ -13,9 +13,19 @@ import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { getFirebaseAuthClient } from "@/lib/firebase-client";
 
 function firebaseRegisterErrorMessage(error: unknown) {
+  const message =
+    typeof error === "object" && error && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : "";
   const code = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
+  if (message.includes("NEXT_PUBLIC_FIREBASE_")) {
+    return "App Hosting の環境変数 NEXT_PUBLIC_FIREBASE_* が不足しています。Firebase Webアプリの値を設定してください。";
+  }
   if (code === "auth/operation-not-allowed") {
     return "Firebase Authentication でメール/パスワードログインが無効です。管理画面で有効化してください。";
+  }
+  if (code === "auth/unauthorized-domain") {
+    return "認証ドメインが未許可です。Firebase Authentication の承認済みドメインにこのURLを追加してください。";
   }
   if (code === "auth/email-already-in-use") {
     return "このメールアドレスは既に使用されています。";
