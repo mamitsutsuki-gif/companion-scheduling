@@ -9,6 +9,8 @@ import {
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useMemo, useState } from "react";
+import { getFirebaseAuthClient } from "@/lib/firebase-client";
+import { signInWithEmailAndPassword } from "firebase/auth";
 
 function oauthErrorMessage(code: string | null) {
   if (!code) return null;
@@ -42,20 +44,49 @@ function LoginInner() {
     setError(null);
     setLoading(true);
     const fd = new FormData(e.currentTarget);
+    const email = String(fd.get("email") ?? "").trim().toLowerCase();
+    const password = String(fd.get("password") ?? "");
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        email: fd.get("email"),
-        password: fd.get("password"),
+        email,
+        password,
       }),
     });
     const data = await res.json().catch(() => null);
-    setLoading(false);
     if (!res.ok) {
-      setError(typeof data?.error === "string" ? data.error : "ログインに失敗しました。");
+      const apiError = typeof data?.error === "string" ? data.error : "ログインに失敗しました。";
+      if (apiError.includes("Firebaseログインをご利用ください")) {
+        try {
+          const { auth } = getFirebaseAuthClient();
+          const cred = await signInWithEmailAndPassword(auth, email, password);
+          const idToken = await cred.user.getIdToken();
+          const bridge = await fetch("/api/auth/firebase-login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ idToken }),
+          });
+          const bridgeData = await bridge.json().catch(() => null);
+          setLoading(false);
+          if (!bridge.ok) {
+            setError(typeof bridgeData?.error === "string" ? bridgeData.error : "ログインに失敗しました。");
+            return;
+          }
+          router.push(next.startsWith("/") ? next : "/dashboard");
+          router.refresh();
+          return;
+        } catch {
+          setLoading(false);
+          setError("メールまたはパスワードが一致しません。");
+          return;
+        }
+      }
+      setLoading(false);
+      setError(apiError);
       return;
     }
+    setLoading(false);
     router.push(next.startsWith("/") ? next : "/dashboard");
     router.refresh();
   }

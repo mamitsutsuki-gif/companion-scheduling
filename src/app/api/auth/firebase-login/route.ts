@@ -10,6 +10,8 @@ import {
 
 const bodySchema = z.object({
   idToken: z.string().min(1),
+  role: z.enum(["PARTNER", "CLIENT"]).optional(),
+  displayName: z.string().min(1).max(80).optional(),
 });
 
 export async function POST(request: Request) {
@@ -32,8 +34,14 @@ export async function POST(request: Request) {
   let user = await findUserForFirebaseLogin({ email, firebaseUid });
 
   if (!user) {
-    const displayName = (decoded.name || email.split("@")[0] || "ユーザー").slice(0, 80);
+    const displayName =
+      (parsed.data.displayName || decoded.name || email.split("@")[0] || "ユーザー").slice(0, 80);
     user = await createFirebaseUser({ email, displayName, firebaseUid });
+    if (parsed.data.role && user.role !== parsed.data.role) {
+      const { updateUserRole } = await import("@/lib/repositories/user-repository");
+      const updated = await updateUserRole(user.id, parsed.data.role);
+      if (updated) user = updated;
+    }
   } else if (!user.firebaseUid) {
     user = await attachFirebaseUid(user.id, firebaseUid);
   }

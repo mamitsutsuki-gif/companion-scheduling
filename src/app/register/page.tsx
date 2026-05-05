@@ -9,6 +9,8 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { getFirebaseAuthClient } from "@/lib/firebase-client";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -25,22 +27,56 @@ export default function RegisterPage() {
     setError(null);
     setLoading(true);
     const fd = new FormData(e.currentTarget);
+    const email = String(fd.get("email") ?? "").trim().toLowerCase();
+    const password = String(fd.get("password") ?? "");
+    const displayName = String(fd.get("displayName") ?? "").trim();
+    const selectedRole = String(fd.get("role") ?? role) as "PARTNER" | "CLIENT";
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        email: fd.get("email"),
-        password: fd.get("password"),
-        displayName: fd.get("displayName"),
-        role: fd.get("role"),
+        email,
+        password,
+        displayName,
+        role: selectedRole,
       }),
     });
     const data = await res.json().catch(() => null);
-    setLoading(false);
     if (!res.ok) {
-      setError(typeof data?.error === "string" ? data.error : "登録に失敗しました。");
+      const apiError = typeof data?.error === "string" ? data.error : "登録に失敗しました。";
+      if (apiError.includes("Firebaseログインで初回サインイン")) {
+        try {
+          const { auth } = getFirebaseAuthClient();
+          const cred = await createUserWithEmailAndPassword(auth, email, password);
+          if (displayName) {
+            await updateProfile(cred.user, { displayName });
+          }
+          const idToken = await cred.user.getIdToken();
+          const bridge = await fetch("/api/auth/firebase-login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ idToken, role: selectedRole, displayName }),
+          });
+          const bridgeData = await bridge.json().catch(() => null);
+          setLoading(false);
+          if (!bridge.ok) {
+            setError(typeof bridgeData?.error === "string" ? bridgeData.error : "登録に失敗しました。");
+            return;
+          }
+          router.push("/dashboard");
+          router.refresh();
+          return;
+        } catch {
+          setLoading(false);
+          setError("登録に失敗しました。メール形式またはパスワードを確認してください。");
+          return;
+        }
+      }
+      setLoading(false);
+      setError(apiError);
       return;
     }
+    setLoading(false);
     router.push("/login");
     router.refresh();
   }
