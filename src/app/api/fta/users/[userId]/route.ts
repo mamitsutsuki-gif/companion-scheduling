@@ -1,0 +1,34 @@
+import { jsonError, jsonOk } from "@/lib/json";
+import { maskedFtaChartForViewer } from "@/lib/fta";
+import { getFtaByUserId } from "@/lib/repositories/fta-repository";
+import { hasMatchBetween } from "@/lib/repositories/match-repository";
+import { getUserById } from "@/lib/repositories/user-repository";
+import { readSession } from "@/lib/session";
+
+type RouteContext = { params: Promise<{ userId: string }> };
+
+export async function GET(_request: Request, context: RouteContext) {
+  const session = await readSession();
+  if (!session) return jsonError("未ログインです。", 401);
+  const { userId } = await context.params;
+
+  const target = await getUserById(userId);
+  if (!target) return jsonError("ユーザーが見つかりません。", 404);
+
+  const chart = await getFtaByUserId(userId);
+  if (session.sub === userId || session.role === "ADMIN") {
+    return jsonOk({ chart, owner: target.displayName });
+  }
+
+  if (session.role === "PARTNER" && target.role === "CLIENT") {
+    const ok = await hasMatchBetween(session.sub, userId);
+    if (!ok) return jsonError("閲覧権限がありません。", 403);
+    return jsonOk({ chart: maskedFtaChartForViewer(chart), owner: target.displayName });
+  }
+
+  if (session.role === "CLIENT" && target.role === "CLIENT") {
+    return jsonOk({ chart: maskedFtaChartForViewer(chart), owner: target.displayName });
+  }
+
+  return jsonError("閲覧権限がありません。", 403);
+}

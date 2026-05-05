@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+body {
+  @apply antialiased;
+}
+
+a {
+  @apply text-slate-900 underline-offset-2 decoration-slate-400 hover:underline hover:decoration-slate-800;
+}
+
+input,
+textarea,
+select,
+button {
+  @apply text-sm;
+}

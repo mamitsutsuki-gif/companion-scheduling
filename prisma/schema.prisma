@@ -1,0 +1,156 @@
+// Companion Scheduling — MVP schema (SQLite locally; swap to Postgres in production)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PARTNER
+  CLIENT
+}
+
+enum MessageKind {
+  STANDARD
+  SLOT_PROPOSAL
+  SCHEDULE_CONFIRMED
+}
+
+enum NegotiationStatus {
+  AWAITING_CLIENT_RESPONSE
+  NEEDS_NEW_PROPOSAL
+  AWAITING_PARTNER_CONFIRM
+  CONFIRMED
+  SUPERSEDED
+}
+
+enum SlotVote {
+  YES
+  NO
+}
+
+/// グローバル（テナント単位）の既定。管理者が編集。
+model AppSettings {
+  id                  String   @id @default("app")
+  slotDurationMinutes Int      @default(30)
+  totalSessions       Int      @default(6)
+  timezone            String   @default("Asia/Tokyo")
+  updatedAt           DateTime @updatedAt
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String?
+  displayName  String
+  role         Role
+  googleSub    String?   @unique
+  firebaseUid  String?   @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  partnerMatches Match[] @relation("PartnerUser")
+  clientMatches  Match[] @relation("ClientUser")
+
+  messages              Message[]
+  passwordResetTokens   PasswordResetToken[]
+  partnerZoom           PartnerZoomProfile?
+  availabilityTemplates AvailabilityTemplate[]
+  fta                   UserFta?
+}
+
+model UserFta {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  data      Json
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+/// Fixed Zoom room per partner (URL + optional pass); injected into confirmations.
+model PartnerZoomProfile {
+  id        String @id @default(cuid())
+  partnerId String @unique
+  partner   User   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  zoomUrl   String
+  zoomPass  String?
+  updatedAt DateTime @updatedAt
+}
+
+/// Optional weekly template (minutes from midnight, weekday 0=Sun .. 6=Sat).
+model AvailabilityTemplate {
+  id           String @id @default(cuid())
+  userId       String
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekday      Int
+  startMinutes Int
+  endMinutes   Int
+}
+
+/// Pre-approved 1:1 relationship between partner and client.
+model Match {
+  id        String @id @default(cuid())
+  partnerId String
+  clientId  String
+  partner   User @relation("PartnerUser", fields: [partnerId], references: [id], onDelete: Cascade)
+  client    User @relation("ClientUser", fields: [clientId], references: [id], onDelete: Cascade)
+
+  messages     Message[]
+  negotiations Negotiation[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([partnerId, clientId])
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  matchId   String
+  match     Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body      String
+  kind      MessageKind @default(STANDARD)
+  payload   Json?
+  createdAt DateTime    @default(now())
+}
+
+model Negotiation {
+  id      String            @id @default(cuid())
+  matchId String
+  match   Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sessionNumber Int         @default(1)
+  round   Int               @default(1)
+  status  NegotiationStatus @default(AWAITING_CLIENT_RESPONSE)
+
+  slots Slot[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Slot {
+  id            String      @id @default(cuid())
+  negotiationId String
+  negotiation   Negotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+  startAt       DateTime
+  endAt         DateTime
+  clientVote    SlotVote?
+  isConfirmed   Boolean     @default(false)
+}
