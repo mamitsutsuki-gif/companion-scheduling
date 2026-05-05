@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/require-user";
 import { APP_DISPLAY_NAME } from "@/lib/brand";
+import { listMatchesForRole } from "@/lib/repositories/match-repository";
 
 function withHonorificSan(name: string) {
   return `${name}さん`;
@@ -10,21 +10,7 @@ function withHonorificSan(name: string) {
 export default async function DashboardPage() {
   const me = await requireUser();
 
-  const where =
-    me.role === "ADMIN"
-      ? {}
-      : me.role === "PARTNER"
-        ? { partnerId: me.id }
-        : { clientId: me.id };
-
-  const matches = await prisma.match.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    include: {
-      partner: { select: { displayName: true } },
-      client: { select: { displayName: true } },
-    },
-  });
+  const matches = await listMatchesForRole({ role: me.role, userId: me.id });
 
   return (
     <div className="space-y-10">

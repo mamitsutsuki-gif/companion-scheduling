@@ -1,20 +1,13 @@
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
 import { readSession } from "@/lib/session";
+import { getUserById } from "@/lib/repositories/user-repository";
 
 export async function requireUser() {
   const session = await readSession();
   if (!session) {
     redirect("/login");
   }
-  const user = await prisma.user.findUnique({
-    where: { id: session.sub },
-    select: {
-      id: true,
-      displayName: true,
-      role: true,
-    },
-  });
+  const user = await getUserById(session.sub);
   if (!user) {
     redirect("/login");
   }
