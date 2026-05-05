@@ -6,8 +6,16 @@ import { hashPassword } from "@/lib/password";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
 
+function resolvedAppOrigin(request: NextRequest) {
+  const fromEnv = process.env.APP_ORIGIN?.replace(/\/$/, "");
+  if (fromEnv) return fromEnv;
+  const fromReq = request.nextUrl.origin.replace(/\/$/, "");
+  if (!fromReq.includes("0.0.0.0")) return fromReq;
+  return "http://localhost:3001";
+}
+
 function redirectLogin(request: NextRequest, reason: string) {
-  return NextResponse.redirect(new URL(`/login?error=${reason}`, request.nextUrl.origin));
+  return NextResponse.redirect(new URL(`/login?error=${reason}`, resolvedAppOrigin(request)));
 }
 
 export async function GET(request: NextRequest) {
@@ -126,5 +134,5 @@ export async function GET(request: NextRequest) {
   await createSessionCookie({ sub: user.id, role: user.role });
 
   const next = payload.next && payload.next.startsWith("/") ? payload.next : "/dashboard";
-  return NextResponse.redirect(new URL(next, request.nextUrl.origin));
+  return NextResponse.redirect(new URL(next, resolvedAppOrigin(request)));
 }
