@@ -1,8 +1,7 @@
-import { prisma } from "@/lib/prisma";
 import { createSessionCookie } from "@/lib/session";
 import { openOAuthState } from "@/lib/oauth-state";
 import { exchangeGoogleCode, fetchGoogleProfile } from "@/lib/oauth-google";
-import { hashPassword } from "@/lib/password";
+import { prisma } from "@/lib/prisma";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -40,7 +39,6 @@ export async function GET(request: NextRequest) {
 
   const email = profile.email.trim().toLowerCase();
   const googleSub = profile.sub;
-  const newUserRole = payload.role === "PARTNER" ? "PARTNER" : "CLIENT";
   let user:
     | {
         id: string;
@@ -52,85 +50,21 @@ export async function GET(request: NextRequest) {
     const db = getFirebaseFirestoreClient();
     if (!db) return redirectLogin(request, "oauth_error");
     const users = db.collection("users");
-    const byEmail = await users.where("email", "==", email).limit(1).get();
-    if (byEmail.empty) {
-      const id = googleSub;
-      const display = profile.name?.trim() || email.split("@")[0] || "Googleユーザー";
-      await users.doc(id).set(
-        {
-          email,
-          displayName: display.slice(0, 80),
-          role: newUserRole,
-          googleSub,
-          firebaseUid: null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true },
-      );
-      user = { id, role: newUserRole };
-    } else {
-      const d = byEmail.docs[0]!;
+    const bySub = await users.where("googleSub", "==", googleSub).limit(1).get();
+    if (!bySub.empty) {
+      const d = bySub.docs[0]!;
       const raw = d.data() as Record<string, unknown>;
       const role =
         raw.role === "ADMIN" || raw.role === "PARTNER" || raw.role === "CLIENT"
           ? raw.role
           : ("CLIENT" as const);
-      await users.doc(d.id).set(
-        {
-          googleSub,
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true },
-      );
       user = { id: d.id, role };
     }
   } else {
-    user = await prisma.user.findUnique({ where: { email } });
-
-    if (!user) {
-      const display = profile.name?.trim() || email.split("@")[0] || "Googleユーザー";
-      try {
-        user = await prisma.user.create({
-          data: {
-            email,
-            displayName: display.slice(0, 80),
-            role: newUserRole,
-            googleSub,
-            passwordHash: null,
-          },
-        });
-      } catch (error) {
-        if (!(error instanceof Error) || !error.message.includes("Unknown argument `googleSub`")) throw error;
-        // Compatibility path while dev server is still using an old Prisma client.
-        const fallbackPasswordHash = await hashPassword(`oauth-only:${googleSub}:${email}`);
-        user = await prisma.user.create({
-          data: {
-            email,
-            displayName: display.slice(0, 80),
-            role: newUserRole,
-            passwordHash: fallbackPasswordHash,
-          },
-        });
-      }
-    } else {
-      try {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { googleSub },
-        });
-      } catch (error) {
-        if (!(error instanceof Error) || !error.message.includes("Unknown argument `googleSub`")) throw error;
-        // Compatibility path while dev server is still using an old Prisma client.
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {},
-        });
-      }
-    }
+    user = await prisma.user.findFirst({ where: { email, googleSub } });
   }
 
-  if (!user) return redirectLogin(request, "oauth_error");
+  if (!user) return redirectLogin(request, "oauth_not_allowed");
   await createSessionCookie({ sub: user.id, role: user.role });
 
   const next = payload.next && payload.next.startsWith("/") ? payload.next : "/dashboard";

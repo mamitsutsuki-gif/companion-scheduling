@@ -21,6 +21,8 @@ function oauthErrorMessage(code: string | null) {
     oauth_state: "セキュリティ確認に失敗しました。最初からやり直してください。",
     oauth_token: "Google との連携に失敗しました。しばらくしてから再試行してください。",
     oauth_unverified: "Google メールの確認が取れていません。",
+    oauth_not_allowed:
+      "Googleログインは許可されたアカウントのみ利用できます。事前登録済みアカウントでログインしてください。",
     oauth_error: "ログイン処理でエラーが発生しました。",
   };
   return map[code] ?? `エラー: ${code}`;
