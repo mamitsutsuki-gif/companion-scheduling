@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
 import { readSession } from "@/lib/session";
 import { getMatchIfAllowed } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
@@ -9,6 +8,7 @@ import { notifyMatchStakeholders } from "@/lib/notify-members";
 import { getMatchById } from "@/lib/repositories/match-repository";
 import { createMessage } from "@/lib/repositories/message-repository";
 import { confirmNegotiationSlot, getNegotiationById } from "@/lib/repositories/negotiation-repository";
+import { getPartnerZoomProfile } from "@/lib/repositories/zoom-repository";
 
 const schema = z.object({
   slotId: z.string().min(1),
@@ -46,9 +46,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   const matchFull = await getMatchById(matchId);
   if (!matchFull) return jsonOk({ ok: true });
-  const zoom = await prisma.partnerZoomProfile.findUnique({
-    where: { partnerId: matchFull.partnerId },
-  });
+  const zoom = await getPartnerZoomProfile(matchFull.partnerId);
 
   const zoomLine = zoom
     ? `オンライン: ${zoom.zoomUrl}${zoom.zoomPass ? `\nパスコード: ${zoom.zoomPass}` : ""}`
