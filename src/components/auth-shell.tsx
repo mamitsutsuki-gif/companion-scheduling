@@ -24,9 +24,9 @@ export function AuthShell({
           >
             <span
               aria-hidden
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-900 text-sm font-bold text-white shadow-md ring-1 ring-indigo-500/30"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-900 text-base font-bold text-white shadow-md ring-1 ring-indigo-500/30"
             >
-              伴
+              M
             </span>
             {APP_DISPLAY_NAME}
           </Link>

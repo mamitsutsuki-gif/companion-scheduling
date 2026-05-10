@@ -44,7 +44,7 @@ export function ApplicationChrome({
         ? pathname === "/dashboard"
         : pathname === href || pathname.startsWith(`${href}/`);
     return [
-      "whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium no-underline transition",
+      "whitespace-nowrap rounded-lg px-3 py-2 text-base font-medium no-underline transition",
       deep
         ? "bg-indigo-50 text-indigo-950 ring-1 ring-indigo-200/70"
         : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
@@ -86,8 +86,8 @@ export function ApplicationChrome({
 
           <div className="order-2 mr-0 ml-auto flex shrink-0 items-center gap-3 sm:order-none md:gap-5">
             <div className="hidden text-end sm:block">
-              <div className="max-w-[10rem] truncate text-sm font-medium text-slate-900">{withHonorificSan(profile.displayName)}</div>
-              <div className="text-xs text-slate-500">{roleLabel}</div>
+              <div className="max-w-[12rem] truncate text-base font-medium text-slate-900">{withHonorificSan(profile.displayName)}</div>
+              <div className="text-sm text-slate-500">{roleLabel}</div>
             </div>
             <SignOut variant="compact" />
           </div>

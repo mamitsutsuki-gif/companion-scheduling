@@ -246,11 +246,27 @@ export function FtaEditor({
 
 export function FtaViewer({ chart }: { chart: FtaChart }) {
   const safe = chart ?? defaultFtaChart();
-  const size = 760;
-  const center = size / 2;
-  const bRadius = 165;
-  const cRadius = 300;
   const bNodes = safe.elements.slice(0, 8);
+  const bCount = Math.max(1, bNodes.length);
+  const maxActionsPerB = bNodes.reduce((max, b) => Math.max(max, b.actions.length), 0);
+
+  // Bが多いほど chart 全体を大きく / B同士の間隔も広げる。
+  const cR = maxActionsPerB >= 6 ? 50 : 44;
+  const bR = 56;
+  const visionR = 70;
+  const cWedgeUsage = 0.78; // 親Bのウェッジ幅のうち、Cの配置に使う割合（残りは隣接Bとの余白）
+  const wedge = 360 / bCount;
+
+  // Cが2点間の弧で重ならない最小半径（円の直径 + 余白）。
+  const minCArcLen = (cR * 2 + 10) * Math.max(1, maxActionsPerB);
+  const minCRadiusByArc = minCArcLen / (2 * Math.PI) * (360 / Math.max(wedge * cWedgeUsage, 1));
+  // Bの円と被らない半径も担保。
+  const minCRadiusByB = bR + cR + 24;
+  const cRadius = Math.max(minCRadiusByB, minCRadiusByArc, 240);
+  const bRadius = Math.max(visionR + bR + 18, 150);
+
+  const size = Math.ceil((cRadius + cR + 40) * 2);
+  const center = size / 2;
 
   function stable(n: number) {
     return Number(n.toFixed(4));
@@ -270,21 +286,32 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
   }
 
   const actionNodes = bNodes.flatMap((b, bi) => {
-    const baseAngle = (360 / Math.max(1, bNodes.length)) * bi - 90;
+    const baseAngle = wedge * bi - 90;
     const actions = b.actions.slice(0, 8);
+    const usableSpan = wedge * cWedgeUsage;
     return actions.map((c, ci) => {
-      const spread = actions.length <= 1 ? 0 : (ci - (actions.length - 1) / 2) * 16;
-      const pos = polar(cRadius, baseAngle + spread);
-      return { pos, parentAngle: baseAngle, action: c };
+      const offset =
+        actions.length <= 1
+          ? 0
+          : (ci - (actions.length - 1) / 2) * (usableSpan / Math.max(1, actions.length - 1));
+      const angle = baseAngle + offset;
+      const pos = polar(cRadius, angle);
+      return { pos, parentAngle: baseAngle, action: c, angle };
     });
   });
 
   return (
     <div className="space-y-4">
       <div className="overflow-auto rounded-2xl border border-slate-200 bg-white p-3">
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="mx-auto block min-w-[720px]">
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          className="mx-auto block"
+          style={{ minWidth: Math.min(size, 720) }}
+        >
           {bNodes.map((b, bi) => {
-            const angle = (360 / Math.max(1, bNodes.length)) * bi - 90;
+            const angle = wedge * bi - 90;
             const p = polar(bRadius, angle);
             return (
               <line
@@ -315,13 +342,13 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
           })}
 
           {bNodes.map((b, bi) => {
-            const angle = (360 / Math.max(1, bNodes.length)) * bi - 90;
+            const angle = wedge * bi - 90;
             const p = polar(bRadius, angle);
             return (
               <g key={`b-${b.id}`}>
-                <circle cx={p.x} cy={p.y} r="52" fill="#f8fafc" stroke="#94a3b8" />
-                <foreignObject x={p.x - 46} y={p.y - 28} width="92" height="56">
-                  <div className="flex h-full items-center justify-center text-center text-[11px] font-medium leading-tight text-slate-700">
+                <circle cx={p.x} cy={p.y} r={bR} fill="#f8fafc" stroke="#94a3b8" />
+                <foreignObject x={p.x - (bR - 4)} y={p.y - (bR - 28)} width={(bR - 4) * 2} height={(bR - 28) * 2}>
+                  <div className="flex h-full items-center justify-center text-center text-[12px] font-medium leading-tight text-slate-700">
                     {labelText(b.text, b.locked)}
                   </div>
                 </foreignObject>
@@ -331,18 +358,18 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
 
           {actionNodes.map((item, i) => (
             <g key={`c-${i}`}>
-              <circle cx={item.pos.x} cy={item.pos.y} r="40" fill="#fefce8" stroke="#f59e0b" />
-              <foreignObject x={item.pos.x - 35} y={item.pos.y - 22} width="70" height="44">
-                <div className="flex h-full items-center justify-center text-center text-[10px] font-medium leading-tight text-amber-900">
+              <circle cx={item.pos.x} cy={item.pos.y} r={cR} fill="#fefce8" stroke="#f59e0b" />
+              <foreignObject x={item.pos.x - (cR - 5)} y={item.pos.y - (cR - 22)} width={(cR - 5) * 2} height={(cR - 22) * 2}>
+                <div className="flex h-full items-center justify-center text-center text-[11px] font-medium leading-tight text-amber-900">
                   {labelText(item.action.text, item.action.locked)}
                 </div>
               </foreignObject>
             </g>
           ))}
 
-          <circle cx={center} cy={center} r="68" fill="#e0e7ff" stroke="#4f46e5" strokeWidth="2.5" />
-          <foreignObject x={center - 58} y={center - 32} width="116" height="64">
-            <div className="flex h-full items-center justify-center text-center text-xs font-semibold leading-tight text-indigo-900">
+          <circle cx={center} cy={center} r={visionR} fill="#e0e7ff" stroke="#4f46e5" strokeWidth="2.5" />
+          <foreignObject x={center - (visionR - 10)} y={center - (visionR - 36)} width={(visionR - 10) * 2} height={(visionR - 36) * 2}>
+            <div className="flex h-full items-center justify-center text-center text-[13px] font-semibold leading-tight text-indigo-900">
               {labelText(safe.vision.text, safe.vision.locked)}
             </div>
           </foreignObject>

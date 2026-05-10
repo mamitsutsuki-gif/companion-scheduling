@@ -2,6 +2,7 @@
 
 import { ScheduleConfirmedCard, SlotProposalCard } from "@/components/scheduling-chat-blocks";
 import { FtaViewer } from "@/components/fta-chart";
+import type { FtaChart } from "@/lib/fta";
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -419,11 +420,11 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         >
           日程調整
         </button>
-        {me.role === "PARTNER" ? (
+        {me.role === "PARTNER" || me.role === "ADMIN" ? (
           <button
             type="button"
             onClick={() => setActiveTab("fta")}
-            className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "fta" ? "bg-indigo-700 text-white" : "border border-zinc-300 bg-white text-zinc-700"}`}
+            className={`rounded-lg px-4 py-2 text-base font-semibold ${activeTab === "fta" ? "bg-indigo-700 text-white" : "border border-zinc-300 bg-white text-zinc-700"}`}
           >
             クライアント自分FTA
           </button>
@@ -750,17 +751,17 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       </section>
       ) : null}
 
-      {activeTab === "fta" && me.role === "PARTNER" ? (
+      {activeTab === "fta" && (me.role === "PARTNER" || me.role === "ADMIN") ? (
         <section className="space-y-4 rounded-3xl border border-sky-100 bg-sky-50/35 px-6 py-8">
-          <h2 className="text-2xl font-semibold text-sky-900">担当クライアントの自分FTA</h2>
+          <h2 className="text-2xl font-semibold text-sky-900">クライアントの自分FTA</h2>
           {clientFta?.targetRole === "CLIENT" && clientFta.chart ? (
             <div className="space-y-3 rounded-2xl border border-sky-200 bg-white px-5 py-4">
               <h3 className="text-xl font-semibold text-sky-900">{withHonorificSan(clientFta.targetName)}の自分FTA</h3>
-              <p className="text-sm text-sky-800">鍵マークの項目は非公開です。</p>
-              <FtaViewer chart={clientFta.chart as any} />
+              <p className="text-base text-sky-800">鍵マークの項目は非公開です。</p>
+              <FtaViewer chart={clientFta.chart as FtaChart} />
             </div>
           ) : (
-            <p className="rounded-xl border border-dashed border-sky-200 bg-white px-4 py-6 text-sm text-sky-800">
+            <p className="rounded-xl border border-dashed border-sky-200 bg-white px-4 py-6 text-base text-sky-800">
               まだ表示できる自分FTAがありません。
             </p>
           )}

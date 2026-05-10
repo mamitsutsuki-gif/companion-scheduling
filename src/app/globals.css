@@ -1,7 +1,13 @@
 @import "tailwindcss";
 
+:root {
+  font-size: 17px;
+}
+
 body {
   @apply antialiased;
+  font-size: 1rem;
+  line-height: 1.65;
 }
 
 a {
@@ -12,5 +18,9 @@ input,
 textarea,
 select,
 button {
-  @apply text-sm;
+  @apply text-base;
+}
+
+label {
+  @apply text-base;
 }
