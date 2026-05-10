@@ -37,7 +37,7 @@ export default async function DashboardPage() {
             </p>
             <Link
               href="/fta"
-              className="mt-3 inline-flex rounded-lg bg-indigo-700 px-4 py-2 text-base font-semibold text-white no-underline"
+              className="mt-3 inline-flex rounded-lg bg-indigo-700 px-4 py-2 text-base font-semibold !text-white no-underline hover:bg-indigo-800"
             >
               自分FTAを開く
             </Link>
@@ -73,7 +73,7 @@ export default async function DashboardPage() {
                   <span className="font-mono text-xs text-slate-400">ID {match.id}</span>
                   <Link
                     href={`/match/${match.id}`}
-                    className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-base font-semibold text-white no-underline shadow-sm transition hover:bg-indigo-700"
+                    className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-base font-semibold !text-white no-underline shadow-sm transition hover:bg-indigo-700"
                   >
                     ルームを開く
                   </Link>

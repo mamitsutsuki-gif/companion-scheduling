@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { upsertPartnerZoomProfile } from "@/lib/repositories/zoom-repository";
 import { normalizeAvailabilitySelections } from "@/lib/availability";
 
 function resolvedAppOrigin(request: NextRequest) {
@@ -47,6 +48,24 @@ export async function GET(request: NextRequest) {
       : payload.allowCreate && payload.role === "CLIENT"
         ? "CLIENT"
         : null;
+
+  if (requestedRole === "PARTNER") {
+    const zoomUrl = payload.partnerZoomUrl?.trim() ?? "";
+    const zoomPass = payload.partnerZoomPass?.trim() ?? "";
+    try {
+      // eslint-disable-next-line no-new
+      new URL(zoomUrl);
+    } catch {
+      return redirectLogin(request, "partner_zoom_required");
+    }
+    if (!zoomUrl.startsWith("https://") && !zoomUrl.startsWith("http://")) {
+      return redirectLogin(request, "partner_zoom_required");
+    }
+    if (zoomPass.length < 1 || zoomPass.length > 120) {
+      return redirectLogin(request, "partner_zoom_required");
+    }
+  }
+
   let user:
     | {
         id: string;
@@ -96,6 +115,13 @@ export async function GET(request: NextRequest) {
         { merge: true },
       );
       user = { id: ref.id, role: requestedRole };
+      if (requestedRole === "PARTNER" && payload.partnerZoomUrl && payload.partnerZoomPass) {
+        await upsertPartnerZoomProfile({
+          partnerId: ref.id,
+          zoomUrl: payload.partnerZoomUrl.trim(),
+          zoomPass: payload.partnerZoomPass.trim() === "なし" ? null : payload.partnerZoomPass.trim(),
+        });
+      }
     }
   } else {
     user = await prisma.user.findFirst({ where: { email, googleSub } });
@@ -110,6 +136,13 @@ export async function GET(request: NextRequest) {
           passwordHash: null,
         },
       });
+      if (requestedRole === "PARTNER" && payload.partnerZoomUrl && payload.partnerZoomPass) {
+        await upsertPartnerZoomProfile({
+          partnerId: user.id,
+          zoomUrl: payload.partnerZoomUrl.trim(),
+          zoomPass: payload.partnerZoomPass.trim() === "なし" ? null : payload.partnerZoomPass.trim(),
+        });
+      }
     }
   }
 

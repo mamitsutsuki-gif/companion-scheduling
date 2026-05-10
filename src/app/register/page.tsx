@@ -50,6 +50,8 @@ export default function RegisterPage() {
     DEFAULT_AVAILABILITY_OPTIONS,
   );
   const [selectedSlotIds, setSelectedSlotIds] = useState<string[]>([]);
+  const [partnerZoomUrl, setPartnerZoomUrl] = useState("");
+  const [partnerZoomPass, setPartnerZoomPass] = useState("");
   const googleHref = useMemo(() => {
     const params = new URLSearchParams({
       next: "/dashboard",
@@ -59,8 +61,14 @@ export default function RegisterPage() {
     if (role === "CLIENT" && selectedSlotIds.length > 0) {
       params.set("slots", selectedSlotIds.join(","));
     }
+    if (role === "PARTNER") {
+      const zu = partnerZoomUrl.trim();
+      const zp = partnerZoomPass.trim();
+      if (zu) params.set("zoomUrl", zu);
+      if (zp) params.set("zoomPass", zp);
+    }
     return `/api/auth/google?${params.toString()}`;
-  }, [role, selectedSlotIds]);
+  }, [role, selectedSlotIds, partnerZoomUrl, partnerZoomPass]);
 
   useEffect(() => {
     fetch("/api/settings", { cache: "no-store" })
@@ -96,6 +104,23 @@ export default function RegisterPage() {
       setError("対応可能時間を1つ以上選択してください。");
       return;
     }
+    const zoomUrl = partnerZoomUrl.trim();
+    const zoomPass = partnerZoomPass.trim();
+    if (selectedRole === "PARTNER") {
+      try {
+        // eslint-disable-next-line no-new
+        new URL(zoomUrl);
+      } catch {
+        setLoading(false);
+        setError("Zoom の会議URLを https:// から始まる正しい形式で入力してください。");
+        return;
+      }
+      if (zoomPass.length < 1 || zoomPass.length > 120) {
+        setLoading(false);
+        setError("Zoom パスを入力してください（不要な場合は「なし」と入力）。");
+        return;
+      }
+    }
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -127,7 +152,14 @@ export default function RegisterPage() {
           const bridge = await fetch("/api/auth/firebase-login", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ idToken, role: selectedRole, displayName, availabilitySlotIds }),
+            body: JSON.stringify({
+              idToken,
+              role: selectedRole,
+              displayName,
+              availabilitySlotIds,
+              zoomUrl: selectedRole === "PARTNER" ? zoomUrl : undefined,
+              zoomPass: selectedRole === "PARTNER" ? zoomPass : undefined,
+            }),
           });
           const bridgeData = await bridge.json().catch(() => null);
           setLoading(false);
@@ -213,8 +245,55 @@ export default function RegisterPage() {
           )}
         </fieldset>
       ) : null}
+      {role === "PARTNER" ? (
+        <fieldset className="mt-4 space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/70 px-4 py-4">
+          <legend className="px-1 text-base font-semibold text-indigo-950">Zoom 会議（必須）</legend>
+          <p className="text-sm leading-relaxed text-indigo-900/85">
+            登録後も「会議リンク設定」から変更できます。パスワードがない場合は「なし」と入力してください。
+          </p>
+          <label className="block space-y-1 text-sm font-medium text-indigo-950">
+            会議URL
+            <input
+              value={partnerZoomUrl}
+              onChange={(e) => setPartnerZoomUrl(e.target.value)}
+              type="url"
+              required
+              placeholder="https://zoom.us/j/..."
+              className={authFieldClass}
+            />
+          </label>
+          <label className="block space-y-1 text-sm font-medium text-indigo-950">
+            パスコード
+            <input
+              value={partnerZoomPass}
+              onChange={(e) => setPartnerZoomPass(e.target.value)}
+              type="text"
+              required
+              maxLength={120}
+              autoComplete="off"
+              placeholder="例: 123456 または なし"
+              className={authFieldClass}
+            />
+          </label>
+        </fieldset>
+      ) : null}
       <Link
         href={googleHref}
+        onClick={(e) => {
+          if (role !== "PARTNER") return;
+          try {
+            // eslint-disable-next-line no-new
+            new URL(partnerZoomUrl.trim());
+          } catch {
+            e.preventDefault();
+            setError("Google で登録する前に、有効な Zoom 会議URLを入力してください。");
+            return;
+          }
+          if (partnerZoomPass.trim().length < 1) {
+            e.preventDefault();
+            setError("Zoom パスを入力してください（不要な場合は「なし」）。");
+          }
+        }}
         className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 shadow-xs no-underline transition hover:bg-slate-50"
       >
         <svg className="h-5 w-5" aria-hidden viewBox="0 0 24 24">
@@ -246,6 +325,7 @@ export default function RegisterPage() {
         </div>
       </div>
       <form onSubmit={onSubmit} className="space-y-5">
+        <input type="hidden" name="role" value={role} readOnly />
         <label className="block space-y-2 text-sm font-medium text-zinc-900">
           表示名（相手にもこの名前のみ表示されます）
           <input
@@ -277,7 +357,6 @@ export default function RegisterPage() {
             className={authFieldClass}
           />
         </label>
-
         {error ? <p className="text-sm font-medium text-red-700">{error}</p> : null}
         <AuthPrimaryButton disabled={loading}>{loading ? "送信中…" : "作成する"}</AuthPrimaryButton>
         <p className="text-xs leading-relaxed text-slate-500">

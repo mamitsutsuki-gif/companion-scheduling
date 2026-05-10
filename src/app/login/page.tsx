@@ -26,6 +26,8 @@ function oauthErrorMessage(code: string | null) {
     email_already_registered:
       "このメールアドレスは既にメール/パスワードで登録されています。元のログイン方法でサインインしてください。",
     oauth_error: "ログイン処理でエラーが発生しました。",
+    partner_zoom_required:
+      "パートナー登録には Zoom の会議URLとパス（不要の場合は「なし」）が必要です。最初からやり直してください。",
   };
   return map[code] ?? `エラー: ${code}`;
 }

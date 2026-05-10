@@ -25,6 +25,8 @@ export async function GET(request: NextRequest) {
       role,
       allowCreate,
       availabilitySlotIds,
+      partnerZoomUrl: request.nextUrl.searchParams.get("zoomUrl")?.trim().slice(0, 500) || undefined,
+      partnerZoomPass: request.nextUrl.searchParams.get("zoomPass")?.trim().slice(0, 120) || undefined,
     });
     return NextResponse.redirect(googleAuthorizationUrl(state));
   } catch (e) {

@@ -29,6 +29,7 @@ export function ApplicationChrome({
   const nav: NavLink[] = [{ href: "/dashboard", label: "ホーム" }];
   if (profile.role === "ADMIN") {
     nav.push({ href: "/admin/matches", label: "マッチ管理" });
+    nav.push({ href: "/admin/sessions", label: "1on1日程一覧" });
     nav.push({ href: "/admin/settings", label: "アプリ設定" });
   }
   if (profile.role === "PARTNER") {

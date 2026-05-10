@@ -9,6 +9,7 @@ import { getMatchById } from "@/lib/repositories/match-repository";
 import { createMessage } from "@/lib/repositories/message-repository";
 import { confirmNegotiationSlot, getNegotiationById } from "@/lib/repositories/negotiation-repository";
 import { getPartnerZoomProfile } from "@/lib/repositories/zoom-repository";
+import { enqueueSessionFeedbackEmailJob } from "@/lib/repositories/session-feedback-job-repository";
 
 const schema = z.object({
   slotId: z.string().min(1),
@@ -120,6 +121,14 @@ export async function POST(request: Request, context: RouteContext) {
       zoomUrl: zoom?.zoomUrl ?? null,
       zoomPass: zoom?.zoomPass ?? null,
     },
+  });
+
+  await enqueueSessionFeedbackEmailJob({
+    negotiationId,
+    slotId: chosen.id,
+    matchId,
+    clientId: matchFull.clientId,
+    slotEndAt: new Date(chosen.endAt),
   });
 
   return jsonOk({ ok: true });

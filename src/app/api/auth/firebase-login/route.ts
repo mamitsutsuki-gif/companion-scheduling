@@ -10,12 +10,16 @@ import {
 } from "@/lib/repositories/user-repository";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { normalizeAvailabilitySelections } from "@/lib/availability";
+import { upsertPartnerZoomProfile } from "@/lib/repositories/zoom-repository";
 
 const bodySchema = z.object({
   idToken: z.string().min(1),
   role: z.enum(["PARTNER", "CLIENT"]).optional(),
   displayName: z.string().min(1).max(80).optional(),
   availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64).optional(),
+  /** パートナー新規登録時は必須（会議リンク設定と同期） */
+  zoomUrl: z.string().url().max(500).optional(),
+  zoomPass: z.string().min(1).max(120).optional(),
 });
 
 export async function POST(request: Request) {
@@ -68,11 +72,24 @@ export async function POST(request: Request) {
   if (!user) {
     const displayName =
       (parsed.data.displayName || decoded.name || email.split("@")[0] || "ユーザー").slice(0, 80);
+    const targetRole = parsed.data.role ?? "CLIENT";
+    if (targetRole === "PARTNER") {
+      if (!parsed.data.zoomUrl || !parsed.data.zoomPass) {
+        return jsonError("パートナー登録では Zoom の会議URLとパス（不要の場合は「なし」）の入力が必要です。", 400);
+      }
+    }
     user = await createFirebaseUser({ email, displayName, firebaseUid, availabilitySlotIds });
     if (parsed.data.role && user.role !== parsed.data.role) {
       const { updateUserRole } = await import("@/lib/repositories/user-repository");
       const updated = await updateUserRole(user.id, parsed.data.role);
       if (updated) user = updated;
+    }
+    if (user.role === "PARTNER" && parsed.data.zoomUrl) {
+      await upsertPartnerZoomProfile({
+        partnerId: user.id,
+        zoomUrl: parsed.data.zoomUrl,
+        zoomPass: parsed.data.zoomPass?.trim() === "なし" ? null : (parsed.data.zoomPass ?? null),
+      });
     }
   } else if (!user.firebaseUid) {
     user = await attachFirebaseUid(user.id, firebaseUid);

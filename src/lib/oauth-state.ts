@@ -11,6 +11,9 @@ type OAuthStatePayload = {
   role?: "PARTNER" | "CLIENT";
   allowCreate?: boolean;
   availabilitySlotIds?: string[];
+  /** パートナー新規登録時のみ（OAuth state サイズ制限のため短めに） */
+  partnerZoomUrl?: string;
+  partnerZoomPass?: string;
 };
 
 /** Google OAuth の state に埋め込む（改ざん防止・10分有効）。 */
@@ -32,7 +35,18 @@ export async function openOAuthState(token: string): Promise<OAuthStatePayload |
     const availabilitySlotIds = Array.isArray(payload.availabilitySlotIds)
       ? payload.availabilitySlotIds.filter((v): v is string => typeof v === "string").slice(0, 64)
       : undefined;
-    return { next, role, allowCreate, availabilitySlotIds };
+    const partnerZoomUrl =
+      typeof payload.partnerZoomUrl === "string" ? payload.partnerZoomUrl.trim().slice(0, 500) : undefined;
+    const partnerZoomPass =
+      typeof payload.partnerZoomPass === "string" ? payload.partnerZoomPass.trim().slice(0, 120) : undefined;
+    return {
+      next,
+      role,
+      allowCreate,
+      availabilitySlotIds,
+      partnerZoomUrl: partnerZoomUrl || undefined,
+      partnerZoomPass: partnerZoomPass || undefined,
+    };
   } catch {
     return null;
   }

@@ -1,8 +1,10 @@
 "use client";
 
 import { ScheduleConfirmedCard, SlotProposalCard } from "@/components/scheduling-chat-blocks";
+import { PartnerChatTemplates } from "@/components/partner-chat-templates";
 import { FtaViewer } from "@/components/fta-chart";
 import type { FtaChart } from "@/lib/fta";
+import { SCHEDULE_RULES_CLIENT, SCHEDULE_RULES_PARTNER } from "@/lib/scheduling-rules-copy";
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -575,11 +577,34 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             送信
           </button>
         </form>
+        {me.role === "PARTNER" ? <PartnerChatTemplates /> : null}
       </section>
       ) : null}
 
       {activeTab === "schedule" ? (
       <section className="space-y-6 rounded-3xl border border-indigo-100 bg-indigo-50/40 px-3 py-5 shadow-inner shadow-indigo-100 sm:px-6 sm:py-8">
+        <div className="space-y-3">
+          {(me.role === "PARTNER" || me.role === "ADMIN") ? (
+            <details className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md">
+              <summary className="cursor-pointer text-base font-semibold text-indigo-950">
+                パートナー向け：日程調整機能の使い方（最初にお読みください）
+              </summary>
+              <pre className="mt-3 max-h-[min(70vh,28rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
+                {SCHEDULE_RULES_PARTNER}
+              </pre>
+            </details>
+          ) : null}
+          {(me.role === "CLIENT" || me.role === "ADMIN") ? (
+            <details className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md">
+              <summary className="cursor-pointer text-base font-semibold text-indigo-950">
+                クライアント向け：日程調整機能の使い方（最初にお読みください）
+              </summary>
+              <pre className="mt-3 max-h-[min(70vh,28rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
+                {SCHEDULE_RULES_CLIENT}
+              </pre>
+            </details>
+          ) : null}
+        </div>
         <div className="space-y-1">
           <h2 className="text-2xl font-semibold text-indigo-900">日程調整</h2>
           <p className="text-base text-indigo-800">

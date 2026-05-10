@@ -154,3 +154,14 @@ model Slot {
   clientVote    SlotVote?
   isConfirmed   Boolean     @default(false)
 }
+
+/// 1on1終了後にクライアントへフィードバックフォーム案内メールを送るジョブ（重複送信防止）
+model SessionFeedbackEmailJob {
+  id             String    @id
+  negotiationId String
+  matchId        String
+  clientId       String
+  slotEndAt      DateTime
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+}
