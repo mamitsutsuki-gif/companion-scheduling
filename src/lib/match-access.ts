@@ -9,7 +9,12 @@ export async function getMatchIfAllowed(matchId: string, actor: { id: string; ro
   if (actor.role === "ADMIN") return { match };
 
   if (actor.role === "PARTNER" && match.partnerId === actor.id) return { match };
-  if (actor.role === "CLIENT" && match.clientId === actor.id) return { match };
+  if (
+    (actor.role === "CLIENT" || actor.role === "CLIENT_ADMIN") &&
+    match.clientId === actor.id
+  ) {
+    return { match };
+  }
 
   return { error: "forbidden" as const };
 }

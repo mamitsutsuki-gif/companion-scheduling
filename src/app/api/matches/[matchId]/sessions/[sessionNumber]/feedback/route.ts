@@ -31,7 +31,9 @@ type RouteContext = { params: Promise<{ matchId: string; sessionNumber: string }
 export async function PUT(request: Request, context: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
-  if (session.role !== "CLIENT") return jsonError("このフォームはクライアント専用です。", 403);
+  if (session.role !== "CLIENT" && session.role !== "CLIENT_ADMIN") {
+    return jsonError("このフォームはクライアント専用です。", 403);
+  }
 
   const { matchId, sessionNumber } = await context.params;
   const n = Number(sessionNumber);

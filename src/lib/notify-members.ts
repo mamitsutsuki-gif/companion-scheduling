@@ -1,6 +1,6 @@
 import { sendMailToMany, type MailInput } from "@/lib/mail";
 import { getMatchById } from "@/lib/repositories/match-repository";
-import { getUserEmailById, listAdminEmails } from "@/lib/repositories/user-repository";
+import { listAdminEmails, resolveUserEmailForNotifications } from "@/lib/repositories/user-repository";
 
 /** トリム済み一意の管理者メール */
 export async function getAdminEmails(): Promise<string[]> {
@@ -11,9 +11,13 @@ async function emailsForMatch(matchId: string) {
   const m = await getMatchById(matchId);
   if (!m) return { partnerEmail: "", clientEmail: "", pairLabel: "" };
   const pairLabel = `${m.partner.displayName}さん ／ ${m.client.displayName}さん`;
+  const [partnerEmail, clientEmail] = await Promise.all([
+    resolveUserEmailForNotifications(m.partner.id),
+    resolveUserEmailForNotifications(m.client.id),
+  ]);
   return {
-    partnerEmail: m.partner.email ?? "",
-    clientEmail: m.client.email ?? "",
+    partnerEmail: partnerEmail ?? "",
+    clientEmail: clientEmail ?? "",
     pairLabel,
   };
 }
@@ -38,7 +42,7 @@ export async function notifyMatchStakeholders(
 
   const exclude = new Set<string>();
   if (input.excludeUserId) {
-    const email = await getUserEmailById(input.excludeUserId);
+    const email = await resolveUserEmailForNotifications(input.excludeUserId);
     if (email) exclude.add(email.trim().toLowerCase());
   }
 
@@ -55,7 +59,16 @@ export async function notifyMatchStakeholders(
 
   const uniq = [...new Set(targets)];
 
-  const appBase = (input.appOrigin || process.env.APP_ORIGIN || "").replace(/\/$/, "");
+  if (uniq.length === 0) {
+    console.warn("[notify] notifyMatchStakeholders: no recipients (check user emails / Firebase Auth)", {
+      matchId,
+      pairLabel,
+    });
+    return;
+  }
+
+  // 本番では APP_ORIGIN（公開URL）を優先。request.url の origin は内部ホストになることがある。
+  const appBase = (process.env.APP_ORIGIN || input.appOrigin || "").replace(/\/$/, "");
   const linkLine = appBase ? `\n\nルームを開く: ${appBase}/match/${matchId}` : "";
 
   const bodyIntro = `[${pairLabel}]\n\n`;

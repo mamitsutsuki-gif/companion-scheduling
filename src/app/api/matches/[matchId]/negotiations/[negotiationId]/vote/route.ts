@@ -17,7 +17,9 @@ type RouteContext = { params: Promise<{ matchId: string; negotiationId: string }
 export async function POST(request: Request, context: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
-  if (session.role !== "CLIENT") return jsonError("クライアントのみ回答できます。", 403);
+  if (session.role !== "CLIENT" && session.role !== "CLIENT_ADMIN") {
+    return jsonError("クライアントのみ回答できます。", 403);
+  }
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");

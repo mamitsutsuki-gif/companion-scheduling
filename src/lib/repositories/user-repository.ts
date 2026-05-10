@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
-import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
+import {
+  getFirebaseAuthUserEmail,
+  getFirebaseFirestoreClient,
+  isFirebaseDataBackend,
+} from "@/lib/firebase-admin";
 
 type UserView = {
   id: string;
@@ -502,12 +506,41 @@ export async function getUserEmailById(userId: string) {
   return row?.email ?? null;
 }
 
+/**
+ * メール通知用に「確実に届け先を得る」。
+ * Firestore の email が空のときは Firebase Auth（ドキュメントID＝UID または firebaseUid フィールド）を参照する。
+ */
+export async function resolveUserEmailForNotifications(userId: string): Promise<string | null> {
+  const fromDoc = await getUserEmailById(userId);
+  if (fromDoc?.trim()) return fromDoc.trim().toLowerCase();
+
+  if (!isFirebaseDataBackend()) return null;
+
+  const byUid = await getFirebaseAuthUserEmail(userId);
+  if (byUid) return byUid;
+
+  const db = getFirebaseFirestoreClient();
+  if (!db) return null;
+  const snap = await db.collection("users").doc(userId).get();
+  if (!snap.exists) return null;
+  const raw = snap.data() as Record<string, unknown>;
+  const altUid = typeof raw.firebaseUid === "string" ? raw.firebaseUid.trim() : "";
+  if (altUid && altUid !== userId) {
+    const e = await getFirebaseAuthUserEmail(altUid);
+    if (e) return e;
+  }
+  return null;
+}
+
 export async function listAdminEmails() {
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
     if (!db) return [];
     const snap = await db.collection("users").where("role", "==", "ADMIN").get();
-    return [...new Set(snap.docs.map((d) => String((d.data() as Record<string, unknown>).email ?? "").trim()).filter(Boolean))];
+    const resolved = await Promise.all(
+      snap.docs.map((d) => resolveUserEmailForNotifications(d.id)),
+    );
+    return [...new Set(resolved.filter((e): e is string => Boolean(e?.trim())))];
   }
   const rows = await prisma.user.findMany({
     where: { role: "ADMIN" },

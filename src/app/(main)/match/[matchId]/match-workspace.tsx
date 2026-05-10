@@ -10,9 +10,10 @@ import { FtaViewer } from "@/components/fta-chart";
 import type { FtaChart } from "@/lib/fta";
 import { SCHEDULE_RULES_CLIENT, SCHEDULE_RULES_PARTNER } from "@/lib/scheduling-rules-copy";
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { FormEvent, useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 
-type Role = "ADMIN" | "PARTNER" | "CLIENT";
+type Role = "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
 
 type Me = {
   id: string;
@@ -120,6 +121,7 @@ const roleBadge: Record<Role, string> = {
   ADMIN: "管理者",
   PARTNER: "パートナー",
   CLIENT: "クライアント",
+  CLIENT_ADMIN: "クライアント管理者",
 };
 
 function formatJa(iso: string) {
@@ -149,6 +151,7 @@ function msUntilStart(iso: string) {
 }
 
 export function MatchWorkspace({ matchId }: { matchId: string }) {
+  const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [negotiations, setNegotiations] = useState<NegotiationRow[]>([]);
@@ -200,6 +203,15 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     const dt = new Date(y, m - 1, d);
     const wd = dt.getDay();
     return wd === 0 || wd === 6;
+  }
+
+  function onProposeDateInputChange(e: ChangeEvent<HTMLInputElement>) {
+    const v = e.target.value;
+    if (scheduleSettings.allowWeekends || !v) return;
+    if (isWeekendDateString(v)) {
+      e.target.value = "";
+      setError("土日は候補日として選べません。カレンダーから平日を選んでください（管理者が土日を許可するまで選択できません）。");
+    }
   }
 
   const load = useCallback(async () => {
@@ -293,6 +305,40 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       body: JSON.stringify({ id }),
     }).catch(() => null);
   }, []);
+
+  const openMemberNotificationTarget = useCallback(
+    (link: string, id: string) => {
+      void markOneNotificationRead(id);
+      const hashPart = link.includes("#") ? (link.split("#")[1] ?? "") : "";
+      const pathOnly = (link.split("#")[0] ?? link).trim();
+      if (!pathOnly.startsWith("/")) {
+        router.push(link);
+        return;
+      }
+      const subPath = pathOnly.startsWith(`/match/${matchId}/`) && pathOnly !== `/match/${matchId}`;
+      if (subPath) {
+        router.push(link);
+        return;
+      }
+      const isThisMatchRoom = pathOnly === `/match/${matchId}`;
+      if (isThisMatchRoom) {
+        if (hashPart === "schedule") {
+          setActiveTab("schedule");
+          window.setTimeout(() => {
+            document.getElementById("partner-confirm-section")?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          }, 80);
+        } else {
+          setActiveTab("chat");
+        }
+        return;
+      }
+      router.push(link);
+    },
+    [markOneNotificationRead, matchId, router],
+  );
 
   const loadAvailability = useCallback(async () => {
     const res = await fetch(`/api/matches/${matchId}/availability`, { cache: "no-store" });
@@ -553,12 +599,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   }
 
   async function onChatVote(negotiationId: string, slotId: string, vote: "YES" | "NO") {
-    if (!activeNegotiation || activeNegotiation.id !== negotiationId) return;
-    if (activeNegotiation.status !== "AWAITING_CLIENT_RESPONSE") return;
-    if (me?.role !== "CLIENT") return;
+    const neg = negotiations.find((n) => n.id === negotiationId);
+    if (!neg || neg.status !== "AWAITING_CLIENT_RESPONSE") return;
+    if (me?.role !== "CLIENT" && me?.role !== "CLIENT_ADMIN") return;
+
     const votes: Record<string, "YES" | "NO"> = {};
     let allDecided = true;
-    for (const s of activeNegotiation.slots) {
+    for (const s of neg.slots) {
       if (s.id === slotId) {
         votes[s.id] = vote;
       } else if (s.clientVote === "YES" || s.clientVote === "NO") {
@@ -569,7 +616,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       }
     }
     if (!allDecided) {
-      // まだ全部回答していないので、その場では送信せず、ローカル状態だけ更新
       setNegotiations((prev) =>
         prev.map((n) =>
           n.id === negotiationId
@@ -613,7 +659,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   }
 
   function getRescheduleEligibility(slot: SlotRow | null) {
-    if (me?.role !== "PARTNER" && me?.role !== "CLIENT") return { can: false, reason: "パートナー・クライアントのみ利用できます。" };
+    if (me?.role !== "PARTNER" && me?.role !== "CLIENT" && me?.role !== "CLIENT_ADMIN")
+      return { can: false, reason: "パートナー・クライアントのみ利用できます。" };
     if (activeNegotiation) return { can: false, reason: "調整中のラウンドがあるため、完了後に変更希望を送れます。" };
     if (!slot) return { can: false, reason: "未確定のため送信できません。" };
     const diff = msUntilStart(slot.startAt);
@@ -783,7 +830,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-2xl font-semibold">チャット</h2>
         </div>
-        {me.role === "CLIENT" ? (
+        {me.role === "CLIENT" || me.role === "CLIENT_ADMIN" ? (
           <details
             open
             className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md"
@@ -803,6 +850,25 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               ts > chatLastReadAt &&
               msg.sender.role !== "ADMIN" &&
               me?.role !== msg.sender.role;
+            const proposalNegId =
+              msg.kind === "SLOT_PROPOSAL"
+                ? ((msg.payload as { negotiationId?: string })?.negotiationId ?? null)
+                : null;
+            const proposalNeg = proposalNegId
+              ? negotiations.find((n) => n.id === proposalNegId)
+              : null;
+            const chatVoteCtx =
+              msg.kind === "SLOT_PROPOSAL" &&
+              (me?.role === "CLIENT" || me?.role === "CLIENT_ADMIN") &&
+              proposalNeg?.status === "AWAITING_CLIENT_RESPONSE"
+                ? {
+                    canVote: true as const,
+                    voteForSlot: (slotId: string) =>
+                      proposalNeg.slots.find((s) => s.id === slotId)?.clientVote ?? null,
+                    onVote: onChatVote,
+                    pendingSlotId: voteSubmittingForSlot,
+                  }
+                : undefined;
             const baseClass =
               msg.kind === "SLOT_PROPOSAL"
                 ? "rounded-xl border border-indigo-100 bg-indigo-50/35 px-3 py-2 text-sm text-zinc-900"
@@ -819,7 +885,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 <div className="text-xs uppercase tracking-wide text-zinc-500">
                   {withHonorificSan(msg.sender.displayName)}{" "}
                   <span className="rounded-full bg-white px-2 py-0.5 text-[10px] tracking-normal text-indigo-800">
-                    {roleBadge[msg.sender.role]}
+                    {roleBadge[msg.sender.role as Role] ?? msg.sender.role}
                   </span>
                   {isUnread ? (
                     <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] tracking-normal text-amber-900">
@@ -847,19 +913,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                   <div className="mt-2 space-y-2">
                     <SlotProposalCard
                       payload={msg.payload}
-                      voteContext={
-                        me.role === "CLIENT" &&
-                        activeNegotiation?.status === "AWAITING_CLIENT_RESPONSE" &&
-                        (msg.payload as { negotiationId?: string })?.negotiationId === activeNegotiation.id
-                          ? {
-                              canVote: true,
-                              voteForSlot: (slotId: string) =>
-                                activeNegotiation.slots.find((s) => s.id === slotId)?.clientVote ?? null,
-                              onVote: onChatVote,
-                              pendingSlotId: voteSubmittingForSlot,
-                            }
-                          : undefined
-                      }
+                      voteContext={chatVoteCtx}
                     />
                     <p className="text-xs text-indigo-900/75">{msg.body}</p>
                   </div>
@@ -929,7 +983,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               </pre>
             </details>
           ) : null}
-          {(me.role === "CLIENT" || me.role === "ADMIN") ? (
+          {(me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "ADMIN") ? (
             <details className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md">
               <summary className="cursor-pointer text-base font-semibold text-indigo-950">
                 クライアント向け：日程調整機能の使い方（最初にお読みください）
@@ -970,7 +1024,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                           href={`/match/${matchId}/sessions/${row.index}`}
                           className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-900 no-underline shadow-sm transition hover:bg-indigo-100"
                         >
-                          {me.role === "CLIENT"
+                          {me.role === "CLIENT" || me.role === "CLIENT_ADMIN"
                             ? "振り返りを開く"
                             : me.role === "PARTNER"
                               ? "レポートを開く"
@@ -1065,6 +1119,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                       name={`startDate${index}`}
                       type="date"
                       required
+                      onChange={onProposeDateInputChange}
                       className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1"
                     />
                   </label>
@@ -1094,6 +1149,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                       <input
                         name={`startDate${index}`}
                         type="date"
+                        onChange={onProposeDateInputChange}
                         className="w-full rounded-md border border-zinc-300 px-2 py-1"
                       />
                       <select
@@ -1128,7 +1184,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           </div>
         ) : null}
 
-        {activeNegotiation && activeNegotiation.status === "AWAITING_CLIENT_RESPONSE" && me.role === "CLIENT" ? (
+        {activeNegotiation && activeNegotiation.status === "AWAITING_CLIENT_RESPONSE" && (me.role === "CLIENT" || me.role === "CLIENT_ADMIN") ? (
           <form onSubmit={onVote} className="space-y-4 rounded-2xl border border-violet-200 bg-white px-5 py-4">
             <h3 className="text-xl font-semibold text-violet-900">ご希望の時間をすべて回答</h3>
             <p className="text-base text-violet-800">参加できる候補は「○」。どれにも入れられないときはすべて「×」を選んでください。</p>
@@ -1259,7 +1315,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           <div className="space-y-1">
             <h2 className="text-2xl font-semibold text-violet-900">1on1セッション</h2>
             <p className="text-base text-violet-800">
-              セッション計画（全 {scheduleSettings.totalSessions} 回）。各回をタップすると、その回の{me.role === "CLIENT" ? "振り返りフォーム" : me.role === "PARTNER" ? "レポート" : "クライアント振り返り＆パートナーレポート"}を開けます。
+              セッション計画（全 {scheduleSettings.totalSessions} 回）。各回をタップすると、その回の{me.role === "CLIENT" || me.role === "CLIENT_ADMIN" ? "振り返りフォーム" : me.role === "PARTNER" ? "レポート" : "クライアント振り返り＆パートナーレポート"}を開けます。
               <br />
               <span className="text-sm">
                 未来の回は開けません。直近で実施予定の回だけ、セッション中に開くことができます。
@@ -1286,7 +1342,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 ? `${formatJa(row.startAt)} 〜 ${formatJa(row.endAt)}`
                 : "未確定";
               const filledBadges: string[] = [];
-              if (me.role === "CLIENT" || me.role === "ADMIN") {
+              if (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "ADMIN") {
                 filledBadges.push(row.hasClientFeedback ? "クライアント振り返り済" : "クライアント未提出");
               }
               if (me.role === "PARTNER" || me.role === "ADMIN") {
@@ -1389,13 +1445,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                   </div>
                   <p className="mt-1 text-sm text-zinc-900">{n.summary}</p>
                   {n.link ? (
-                    <Link
-                      href={n.link}
-                      onClick={() => void markOneNotificationRead(n.id)}
-                      className="mt-2 inline-block text-sm font-semibold text-indigo-700 underline-offset-4 hover:underline"
+                    <button
+                      type="button"
+                      onClick={() => openMemberNotificationTarget(n.link!, n.id)}
+                      className="mt-2 inline-block text-left text-sm font-semibold text-indigo-700 underline-offset-4 hover:underline"
                     >
                       該当ページを開く →
-                    </Link>
+                    </button>
                   ) : null}
                 </li>
               );

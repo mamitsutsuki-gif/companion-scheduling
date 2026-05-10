@@ -19,16 +19,16 @@ const payloadSchema = z.object({
   sessionNumber: z.number().int().min(1).optional(),
 });
 
-function roleLabel(role: "ADMIN" | "PARTNER" | "CLIENT") {
+function roleLabel(role: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN") {
   if (role === "PARTNER") return "パートナー";
-  if (role === "CLIENT") return "クライアント";
+  if (role === "CLIENT" || role === "CLIENT_ADMIN") return "クライアント";
   return "管理者";
 }
 
 export async function POST(request: Request, context: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
-  if (session.role !== "PARTNER" && session.role !== "CLIENT") {
+  if (session.role !== "PARTNER" && session.role !== "CLIENT" && session.role !== "CLIENT_ADMIN") {
     return jsonError("この操作はパートナーかクライアントのみ可能です。", 403);
   }
 

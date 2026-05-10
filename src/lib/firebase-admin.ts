@@ -60,3 +60,15 @@ export function getFirebaseFirestoreClient() {
   if (!app) return null;
   return getFirestore(app);
 }
+
+/** Firebase Auth に登録されたメール（Firestore に email が無い場合の通知用フォールバック） */
+export async function getFirebaseAuthUserEmail(uid: string): Promise<string | null> {
+  const app = getFirebaseAdminApp();
+  if (!app) return null;
+  try {
+    const rec = await getAuth(app).getUser(uid);
+    return rec.email?.trim().toLowerCase() ?? null;
+  } catch {
+    return null;
+  }
+}

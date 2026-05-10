@@ -154,6 +154,7 @@ export default function RegisterPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               idToken,
+              intent: "register",
               role: selectedRole,
               displayName,
               availabilitySlotIds,

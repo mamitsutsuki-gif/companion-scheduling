@@ -15,6 +15,8 @@ import { upsertPartnerZoomProfile } from "@/lib/repositories/zoom-repository";
 
 const bodySchema = z.object({
   idToken: z.string().min(1),
+  /** `register` のときのみ Firestore ユーザーを新規作成する。ログイン画面は常に `login`。 */
+  intent: z.enum(["login", "register"]).default("login"),
   role: z.enum(["PARTNER", "CLIENT"]).optional(),
   displayName: z.string().min(1).max(80).optional(),
   availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64).optional(),
@@ -78,6 +80,12 @@ export async function POST(request: Request) {
     : [];
 
   if (!user) {
+    if (parsed.data.intent !== "register") {
+      return jsonError(
+        "このアカウントはアプリに登録されていません。新規登録ページから登録してからログインしてください。",
+        403,
+      );
+    }
     const displayName =
       (parsed.data.displayName || decoded.name || email.split("@")[0] || "ユーザー").slice(0, 80);
     const targetRole = parsed.data.role ?? "CLIENT";

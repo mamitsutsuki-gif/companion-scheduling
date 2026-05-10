@@ -1,5 +1,11 @@
 import nodemailer from "nodemailer";
 
+/**
+ * メール送信: `RESEND_API_KEY` があれば Resend API を使用。
+ * 本番では送信元ドメインを Resend で検証済みにすること（未検証だと 422 で失敗します）。
+ * フォールバック: `SMTP_HOST` 等があれば nodemailer。
+ */
+
 export type MailInput = {
   to: string;
   subject: string;
