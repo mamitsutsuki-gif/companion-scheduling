@@ -1,6 +1,10 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import {
+  DEFAULT_AVAILABILITY_OPTIONS,
+  type AvailabilitySlotOption,
+} from "@/lib/availability";
 
 type UserRow = {
   id: string;
@@ -9,10 +13,22 @@ type UserRow = {
   role: "ADMIN" | "PARTNER" | "CLIENT";
 };
 
+function slugify(input: string) {
+  return input
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase()
+    .slice(0, 60);
+}
+
 export default function AdminAppSettingsPage() {
   const [minutes, setMinutes] = useState(30);
   const [totalSessions, setTotalSessions] = useState(6);
   const [timezone, setTimezone] = useState("Asia/Tokyo");
+  const [availabilityOptions, setAvailabilityOptions] = useState<AvailabilitySlotOption[]>(
+    DEFAULT_AVAILABILITY_OPTIONS,
+  );
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -41,6 +57,9 @@ export default function AdminAppSettingsPage() {
         setMinutes(sData.settings.slotDurationMinutes);
         setTotalSessions(typeof sData.settings.totalSessions === "number" ? sData.settings.totalSessions : 6);
         setTimezone(sData.settings.timezone);
+        if (Array.isArray(sData.settings.availabilitySlotOptions) && sData.settings.availabilitySlotOptions.length > 0) {
+          setAvailabilityOptions(sData.settings.availabilitySlotOptions);
+        }
       }
       setUsers(Array.isArray(uData?.users) ? uData.users : []);
       setLoading(false);
@@ -48,10 +67,54 @@ export default function AdminAppSettingsPage() {
     void load();
   }, []);
 
+  function updateAvailabilityLabel(index: number, label: string) {
+    setAvailabilityOptions((prev) => {
+      const next = prev.slice();
+      const cur = next[index];
+      if (!cur) return prev;
+      next[index] = { ...cur, label };
+      return next;
+    });
+  }
+
+  function updateAvailabilityId(index: number, id: string) {
+    setAvailabilityOptions((prev) => {
+      const next = prev.slice();
+      const cur = next[index];
+      if (!cur) return prev;
+      next[index] = { ...cur, id: slugify(id) };
+      return next;
+    });
+  }
+
+  function addAvailabilityOption() {
+    setAvailabilityOptions((prev) => {
+      if (prev.length >= 32) return prev;
+      const id = `slot-${Date.now().toString(36)}`;
+      return [...prev, { id, label: "" }];
+    });
+  }
+
+  function removeAvailabilityOption(index: number) {
+    setAvailabilityOptions((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setMsg(null);
     setErr(null);
+    const cleaned = availabilityOptions
+      .map((o) => ({ id: o.id.trim(), label: o.label.trim() }))
+      .filter((o) => o.id && o.label);
+    if (cleaned.length === 0) {
+      setErr("対応可能時間の選択肢を1件以上入力してください。");
+      return;
+    }
+    const ids = cleaned.map((o) => o.id);
+    if (new Set(ids).size !== ids.length) {
+      setErr("対応可能時間のIDが重複しています。");
+      return;
+    }
     const res = await fetch("/api/admin/app-settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -59,6 +122,7 @@ export default function AdminAppSettingsPage() {
         slotDurationMinutes: Number(minutes),
         totalSessions: Number(totalSessions),
         timezone,
+        availabilitySlotOptions: cleaned,
       }),
     });
     const data = await res.json().catch(() => null);
@@ -66,7 +130,7 @@ export default function AdminAppSettingsPage() {
       setErr(data?.error ?? "保存に失敗しました。");
       return;
     }
-    setMsg("保存しました。以降に提示される日程候補の長さが変わります。");
+    setMsg("保存しました。新規登録のクライアントは新しい選択肢を選べます。");
   }
 
   async function onAddAdmin(e: FormEvent<HTMLFormElement>) {
@@ -153,12 +217,57 @@ export default function AdminAppSettingsPage() {
           </span>
         </label>
 
+        <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="text-base font-semibold text-emerald-950">対応可能時間の選択肢</h3>
+            <button
+              type="button"
+              onClick={addAvailabilityOption}
+              disabled={availabilityOptions.length >= 32}
+              className="rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-900 hover:bg-emerald-50 disabled:opacity-50"
+            >
+              選択肢を追加
+            </button>
+          </div>
+          <p className="text-sm text-emerald-900/80">
+            登録時にクライアントが選択する候補です。例：「平日 9:00〜12:00」を「9:00〜12:00」「12:00〜15:00」のように分けることも可能です。
+          </p>
+          <ul className="space-y-2">
+            {availabilityOptions.map((opt, i) => (
+              <li key={i} className="flex flex-wrap items-center gap-2 rounded-md border border-emerald-200 bg-white px-3 py-2">
+                <input
+                  value={opt.label}
+                  onChange={(e) => updateAvailabilityLabel(i, e.target.value)}
+                  placeholder="表示ラベル（例: 平日 9:00〜12:00）"
+                  className="flex-1 min-w-[12rem] rounded-md border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-950"
+                />
+                <input
+                  value={opt.id}
+                  onChange={(e) => updateAvailabilityId(i, e.target.value)}
+                  placeholder="ID（半角英数）"
+                  className="w-44 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-sm text-zinc-700"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeAvailabilityOption(i)}
+                  className="rounded-md border border-red-300 bg-red-50 px-2 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-100"
+                >
+                  削除
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-emerald-900/70">
+            ※ IDを変更すると、既存ユーザーの選択は新IDへ自動マッピングされません。基本は新規追加・削除で運用してください。
+          </p>
+        </div>
+
         {err ? <p className="text-sm text-red-700">{err}</p> : null}
         {msg ? <p className="text-sm text-emerald-800">{msg}</p> : null}
 
         <button
           type="submit"
-          className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+          className="rounded-xl bg-indigo-600 px-5 py-2.5 text-base font-semibold text-white shadow-sm hover:bg-indigo-700"
         >
           保存
         </button>

@@ -1,6 +1,9 @@
 import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
-import { getUserById } from "@/lib/repositories/user-repository";
+import { getUserById, updateUserAvailability } from "@/lib/repositories/user-repository";
+import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { normalizeAvailabilitySelections } from "@/lib/availability";
+import { z } from "zod";
 
 export async function GET() {
   const session = await readSession();
@@ -9,6 +12,40 @@ export async function GET() {
   const user = await getUserById(session.sub);
   if (!user) return jsonError("ユーザーが見つかりません。", 404);
 
+  const safe = {
+    id: user.id,
+    displayName: user.displayName,
+    role: user.role,
+    availabilitySlotIds: user.availabilitySlotIds,
+  };
   if (session.role === "ADMIN") return jsonOk({ user });
-  return jsonOk({ user: { id: user.id, displayName: user.displayName, role: user.role } });
+  return jsonOk({ user: safe });
+}
+
+const patchSchema = z.object({
+  availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64),
+});
+
+export async function PATCH(request: Request) {
+  const session = await readSession();
+  if (!session) return jsonError("未ログインです。", 401);
+
+  const parsed = patchSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return jsonError("入力内容が不正です。");
+
+  const settings = await getAppSettingsRow();
+  const ids = normalizeAvailabilitySelections(parsed.data.availabilitySlotIds, settings.availabilitySlotOptions);
+
+  const updated = await updateUserAvailability(session.sub, ids).catch(() => null);
+  if (!updated) return jsonError("対応可能時間の更新に失敗しました。", 400);
+
+  return jsonOk({
+    ok: true,
+    user: {
+      id: updated.id,
+      displayName: updated.displayName,
+      role: updated.role,
+      availabilitySlotIds: updated.availabilitySlotIds,
+    },
+  });
 }

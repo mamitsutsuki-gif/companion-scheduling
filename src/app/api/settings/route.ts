@@ -10,5 +10,6 @@ export async function GET() {
     slotDurationMinutes: s.slotDurationMinutes,
     totalSessions: s.totalSessions,
     timezone: s.timezone,
+    availabilitySlotOptions: s.availabilitySlotOptions,
   });
 }

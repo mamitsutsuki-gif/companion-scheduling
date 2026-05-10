@@ -56,6 +56,12 @@ type MatchFtaPayload = {
   targetName: string;
   chart: unknown | null;
 };
+
+type AvailabilityPayload = {
+  partner: { displayName: string; slotIds: string[]; labels: string[] };
+  client: { displayName: string; slotIds: string[]; labels: string[] };
+};
+
 type MatchTab = "chat" | "schedule" | "fta";
 
 const statusLabel: Record<NegotiationRow["status"], string> = {
@@ -111,6 +117,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [rescheduleSubmittingSession, setRescheduleSubmittingSession] = useState<number | null>(null);
   const [clientFta, setClientFta] = useState<MatchFtaPayload | null>(null);
+  const [availability, setAvailability] = useState<AvailabilityPayload | null>(null);
   const [activeTab, setActiveTab] = useState<MatchTab>("chat");
   const timeOptions = useMemo(() => {
     const interval = Math.max(1, scheduleSettings.slotDurationMinutes);
@@ -174,10 +181,30 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     setClientFta(null);
   }, [matchId]);
 
+  const loadAvailability = useCallback(async () => {
+    const res = await fetch(`/api/matches/${matchId}/availability`, { cache: "no-store" });
+    const json = await res.json().catch(() => null);
+    if (res.ok && json?.partner && json?.client) {
+      setAvailability({
+        partner: {
+          displayName: String(json.partner.displayName ?? ""),
+          slotIds: Array.isArray(json.partner.slotIds) ? json.partner.slotIds : [],
+          labels: Array.isArray(json.partner.labels) ? json.partner.labels : [],
+        },
+        client: {
+          displayName: String(json.client.displayName ?? ""),
+          slotIds: Array.isArray(json.client.slotIds) ? json.client.slotIds : [],
+          labels: Array.isArray(json.client.labels) ? json.client.labels : [],
+        },
+      });
+    }
+  }, [matchId]);
+
   useEffect(() => {
     void load();
     void loadClientFta();
-  }, [load, loadClientFta]);
+    void loadAvailability();
+  }, [load, loadClientFta, loadAvailability]);
 
   useEffect(() => {
     // 軽量ポーリングで、相手の更新をリロード不要で反映する。
@@ -404,6 +431,51 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
       {error ? <p className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p> : null}
       {notice ? <p className="rounded-xl bg-indigo-50 px-4 py-2 text-sm text-indigo-900">{notice}</p> : null}
+
+      {availability ? (
+        <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 px-5 py-4 shadow-sm">
+          <h2 className="text-lg font-semibold text-emerald-900">お互いの対応可能時間</h2>
+          <p className="mt-1 text-sm text-emerald-900/80">
+            アサイン用に登録された参考情報です。実際の日程はチャット下の「日程調整」で個別調整してください。
+          </p>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-emerald-200 bg-white px-4 py-3">
+              <p className="text-sm font-semibold text-emerald-900">パートナー：{withHonorificSan(availability.partner.displayName)}</p>
+              {availability.partner.labels.length === 0 ? (
+                <p className="mt-1.5 text-sm text-zinc-500">未設定</p>
+              ) : (
+                <ul className="mt-2 flex flex-wrap gap-1.5">
+                  {availability.partner.labels.map((label, i) => (
+                    <li
+                      key={`p-${i}`}
+                      className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-sm text-emerald-900"
+                    >
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-white px-4 py-3">
+              <p className="text-sm font-semibold text-emerald-900">クライアント：{withHonorificSan(availability.client.displayName)}</p>
+              {availability.client.labels.length === 0 ? (
+                <p className="mt-1.5 text-sm text-zinc-500">未設定</p>
+              ) : (
+                <ul className="mt-2 flex flex-wrap gap-1.5">
+                  {availability.client.labels.map((label, i) => (
+                    <li
+                      key={`c-${i}`}
+                      className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-sm text-emerald-900"
+                    >
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         <button

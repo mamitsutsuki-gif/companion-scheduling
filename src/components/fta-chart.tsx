@@ -57,15 +57,15 @@ export function FtaEditor({
   }
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-xl border border-indigo-300 bg-indigo-50 p-4">
-        <label className="block text-sm font-semibold text-indigo-900">中心（ありたい姿）</label>
+    <div className="space-y-5">
+      <section className="rounded-xl border border-indigo-300 bg-indigo-50 p-5">
+        <label className="block text-base font-semibold text-indigo-900">中心（ありたい姿）</label>
         <div className="mt-2 flex items-start gap-2">
           <textarea
             value={safe.vision.text}
             onChange={(e) => onChange({ ...safe, vision: { ...safe.vision, text: e.target.value } })}
-            rows={2}
-            className="w-full rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm"
+            rows={3}
+            className="w-full rounded-md border border-indigo-200 bg-white px-3 py-2.5 text-base leading-relaxed"
           />
           <button
             type="button"
@@ -76,18 +76,18 @@ export function FtaEditor({
             {lockIcon(safe.vision.locked)} {safe.vision.locked ? "非公開" : "公開"}
           </button>
         </div>
-        <p className={`mt-2 text-xs font-medium ${safe.vision.locked ? "text-amber-800" : "text-emerald-700"}`}>
+        <p className={`mt-2 text-sm font-medium ${safe.vision.locked ? "text-amber-800" : "text-emerald-700"}`}>
           {safe.vision.locked ? "この枠は他ユーザーに非公開です。" : "この枠は閲覧可能です。"}
         </p>
       </section>
 
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-zinc-900">要素(B)は最大8枠まで追加できます</p>
+        <p className="text-base font-semibold text-zinc-900">要素(B)は最大8枠まで追加できます</p>
         <button
           type="button"
           onClick={addElement}
           disabled={!canAddElement}
-          className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-900 disabled:opacity-50"
+          className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-900 disabled:opacity-50"
         >
           要素(B)を追加
         </button>
@@ -109,18 +109,18 @@ export function FtaEditor({
               if (!Number.isFinite(from)) return;
               onChange({ ...safe, elements: reorder(safe.elements, from, bi) });
             }}
-            className="rounded-xl border border-zinc-200 bg-white p-4"
+            className="rounded-xl border border-zinc-200 bg-white p-5"
           >
             <div className="flex items-center justify-between gap-2">
-              <label className="block text-sm font-semibold text-zinc-900">要素 {bi + 1}</label>
+              <label className="block text-base font-semibold text-zinc-900">要素 {bi + 1}</label>
               <div className="flex items-center gap-2">
-                <span className="cursor-grab rounded-md border border-zinc-300 bg-zinc-50 px-2 py-1 text-[11px] text-zinc-600">
+                <span className="cursor-grab rounded-md border border-zinc-300 bg-zinc-50 px-2 py-1 text-xs text-zinc-600">
                   ⇅ 並び替え
                 </span>
                 <button
                   type="button"
                   onClick={() => removeElement(bi)}
-                  className="rounded-md border border-red-300 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700"
+                  className="rounded-md border border-red-300 bg-red-50 px-2 py-1 text-sm font-semibold text-red-700"
                 >
                   削除
                 </button>
@@ -134,8 +134,8 @@ export function FtaEditor({
                   elements[bi] = { ...b, text: e.target.value };
                   onChange({ ...safe, elements });
                 }}
-                rows={2}
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+                rows={3}
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-base leading-relaxed"
               />
               <button
                 type="button"
@@ -150,11 +150,11 @@ export function FtaEditor({
                 {lockIcon(b.locked)} {b.locked ? "非公開" : "公開"}
               </button>
             </div>
-            <p className={`mt-2 text-xs font-medium ${b.locked ? "text-amber-800" : "text-emerald-700"}`}>
+            <p className={`mt-2 text-sm font-medium ${b.locked ? "text-amber-800" : "text-emerald-700"}`}>
               {b.locked ? "この要素は非公開です。" : "この要素は閲覧可能です。"}
             </p>
-            <div className="mt-3 flex items-center justify-between">
-              <p className="text-xs text-zinc-500">アクション(C)は最大8枠まで追加できます</p>
+            <div className="mt-4 flex items-center justify-between">
+              <p className="text-sm text-zinc-600">アクション(C)は最大8枠まで追加できます</p>
               <button
                 type="button"
                 onClick={() => {
@@ -167,12 +167,12 @@ export function FtaEditor({
                   onChange({ ...safe, elements });
                 }}
                 disabled={b.actions.length >= 8}
-                className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 disabled:opacity-50"
+                className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-800 disabled:opacity-50"
               >
                 Cを追加
               </button>
             </div>
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 space-y-3">
               {b.actions.map((c, ci) => (
                 <div
                   key={c.id}
@@ -201,8 +201,8 @@ export function FtaEditor({
                       elements[bi] = { ...b, actions };
                       onChange({ ...safe, elements });
                     }}
-                    rows={2}
-                    className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-xs"
+                    rows={3}
+                    className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm leading-relaxed"
                     placeholder={`アクション ${ci + 1}`}
                   />
                   <button
@@ -219,12 +219,12 @@ export function FtaEditor({
                   >
                     {lockIcon(c.locked)}
                   </button>
-                  <span className="cursor-grab rounded-md border border-zinc-300 bg-zinc-50 px-2 py-1 text-[11px] text-zinc-600">
+                  <span className="cursor-grab rounded-md border border-zinc-300 bg-zinc-50 px-2 py-1 text-xs text-zinc-600">
                     ⇅
                   </span>
                   <button
                     type="button"
-                    className="rounded-md border border-red-300 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700"
+                    className="rounded-md border border-red-300 bg-red-50 px-2 py-1 text-sm font-semibold text-red-700"
                     onClick={() => {
                       const elements = safe.elements.slice();
                       const actions = b.actions.slice().filter((_, i) => i !== ci);
@@ -250,22 +250,29 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
   const bCount = Math.max(1, bNodes.length);
   const maxActionsPerB = bNodes.reduce((max, b) => Math.max(max, b.actions.length), 0);
 
-  // Bが多いほど chart 全体を大きく / B同士の間隔も広げる。
-  const cR = maxActionsPerB >= 6 ? 50 : 44;
-  const bR = 56;
-  const visionR = 70;
-  const cWedgeUsage = 0.78; // 親Bのウェッジ幅のうち、Cの配置に使う割合（残りは隣接Bとの余白）
+  // ノードの基本サイズ。中身は overflow-y:auto でスクロールさせるため、
+  // 文字が長くても見切れない。
+  const visionR = 78;
+  const bR = 60;
+  const cR = 50;
+  const cWedgeUsage = 0.86; // 親Bのウェッジ幅のうち、Cの配置に使う割合
   const wedge = 360 / bCount;
 
-  // Cが2点間の弧で重ならない最小半径（円の直径 + 余白）。
-  const minCArcLen = (cR * 2 + 10) * Math.max(1, maxActionsPerB);
-  const minCRadiusByArc = minCArcLen / (2 * Math.PI) * (360 / Math.max(wedge * cWedgeUsage, 1));
-  // Bの円と被らない半径も担保。
-  const minCRadiusByB = bR + cR + 24;
-  const cRadius = Math.max(minCRadiusByB, minCRadiusByArc, 240);
-  const bRadius = Math.max(visionR + bR + 18, 150);
+  // C は内側リング(rA)と外側リング(rB)を交互に配置するジグザグ構成。
+  // これにより同じ角度内に約2倍のCを置ける = 半径を半分に抑えられる。
+  // 各リング当たりの最大Cの数。
+  const ringCount = Math.ceil(maxActionsPerB / 2);
+  const minCArcLen = (cR * 2 + 14) * Math.max(1, ringCount);
+  const minCRadiusByArc =
+    (minCArcLen / (2 * Math.PI)) * (360 / Math.max(wedge * cWedgeUsage, 1));
+  const minCRadiusByB = bR + cR + 26;
+  const cInnerRadius = Math.max(minCRadiusByB, minCRadiusByArc, 220);
+  const ringGap = cR * 2 + 14; // 内外リング間距離（円が重ならない）
+  const cOuterRadius = cInnerRadius + ringGap;
 
-  const size = Math.ceil((cRadius + cR + 40) * 2);
+  const bRadius = Math.max(visionR + bR + 22, 150);
+
+  const size = Math.ceil((cOuterRadius + cR + 40) * 2);
   const center = size / 2;
 
   function stable(n: number) {
@@ -285,17 +292,24 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
     return text || "未入力";
   }
 
+  // 各Bのウェッジ内で、Cを「ringCount 個」のスロットに割り、奇数番目を外側、
+  // 偶数番目を内側に配置する。ジグザグになり角度方向の密度を半減させる。
   const actionNodes = bNodes.flatMap((b, bi) => {
     const baseAngle = wedge * bi - 90;
     const actions = b.actions.slice(0, 8);
+    const slots = Math.ceil(actions.length / 2);
     const usableSpan = wedge * cWedgeUsage;
     return actions.map((c, ci) => {
+      const slotIndex = Math.floor(ci / 2);
+      const isOuter = ci % 2 === 1;
       const offset =
-        actions.length <= 1
+        slots <= 1
           ? 0
-          : (ci - (actions.length - 1) / 2) * (usableSpan / Math.max(1, actions.length - 1));
-      const angle = baseAngle + offset;
-      const pos = polar(cRadius, angle);
+          : (slotIndex - (slots - 1) / 2) * (usableSpan / Math.max(1, slots - 1));
+      // 同スロット内の2点が真上下にならないよう、わずかに角度をずらす。
+      const microShift = slots > 1 && actions.length > 1 ? (isOuter ? 1 : -1) * (usableSpan / slots) * 0.18 : 0;
+      const angle = baseAngle + offset + microShift;
+      const pos = polar(isOuter ? cOuterRadius : cInnerRadius, angle);
       return { pos, parentAngle: baseAngle, action: c, angle };
     });
   });
@@ -344,33 +358,58 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
           {bNodes.map((b, bi) => {
             const angle = wedge * bi - 90;
             const p = polar(bRadius, angle);
+            const padding = 8;
+            const inner = bR - padding;
             return (
               <g key={`b-${b.id}`}>
                 <circle cx={p.x} cy={p.y} r={bR} fill="#f8fafc" stroke="#94a3b8" />
-                <foreignObject x={p.x - (bR - 4)} y={p.y - (bR - 28)} width={(bR - 4) * 2} height={(bR - 28) * 2}>
-                  <div className="flex h-full items-center justify-center text-center text-[12px] font-medium leading-tight text-slate-700">
-                    {labelText(b.text, b.locked)}
+                <foreignObject x={p.x - inner} y={p.y - inner} width={inner * 2} height={inner * 2}>
+                  <div
+                    className="flex h-full w-full items-center justify-center overflow-y-auto break-words text-center text-[13px] font-medium leading-snug text-slate-800"
+                    style={{ scrollbarWidth: "thin" }}
+                  >
+                    <span className="px-1">{labelText(b.text, b.locked)}</span>
                   </div>
                 </foreignObject>
               </g>
             );
           })}
 
-          {actionNodes.map((item, i) => (
-            <g key={`c-${i}`}>
-              <circle cx={item.pos.x} cy={item.pos.y} r={cR} fill="#fefce8" stroke="#f59e0b" />
-              <foreignObject x={item.pos.x - (cR - 5)} y={item.pos.y - (cR - 22)} width={(cR - 5) * 2} height={(cR - 22) * 2}>
-                <div className="flex h-full items-center justify-center text-center text-[11px] font-medium leading-tight text-amber-900">
-                  {labelText(item.action.text, item.action.locked)}
-                </div>
-              </foreignObject>
-            </g>
-          ))}
+          {actionNodes.map((item, i) => {
+            const padding = 8;
+            const inner = cR - padding;
+            return (
+              <g key={`c-${i}`}>
+                <circle cx={item.pos.x} cy={item.pos.y} r={cR} fill="#fefce8" stroke="#f59e0b" />
+                <foreignObject
+                  x={item.pos.x - inner}
+                  y={item.pos.y - inner}
+                  width={inner * 2}
+                  height={inner * 2}
+                >
+                  <div
+                    className="flex h-full w-full items-center justify-center overflow-y-auto break-words text-center text-[12px] font-medium leading-snug text-amber-900"
+                    style={{ scrollbarWidth: "thin" }}
+                  >
+                    <span className="px-1">{labelText(item.action.text, item.action.locked)}</span>
+                  </div>
+                </foreignObject>
+              </g>
+            );
+          })}
 
           <circle cx={center} cy={center} r={visionR} fill="#e0e7ff" stroke="#4f46e5" strokeWidth="2.5" />
-          <foreignObject x={center - (visionR - 10)} y={center - (visionR - 36)} width={(visionR - 10) * 2} height={(visionR - 36) * 2}>
-            <div className="flex h-full items-center justify-center text-center text-[13px] font-semibold leading-tight text-indigo-900">
-              {labelText(safe.vision.text, safe.vision.locked)}
+          <foreignObject
+            x={center - (visionR - 10)}
+            y={center - (visionR - 10)}
+            width={(visionR - 10) * 2}
+            height={(visionR - 10) * 2}
+          >
+            <div
+              className="flex h-full w-full items-center justify-center overflow-y-auto break-words text-center text-[14px] font-semibold leading-snug text-indigo-900"
+              style={{ scrollbarWidth: "thin" }}
+            >
+              <span className="px-1">{labelText(safe.vision.text, safe.vision.locked)}</span>
             </div>
           </foreignObject>
         </svg>

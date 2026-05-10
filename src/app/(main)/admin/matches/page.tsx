@@ -2,6 +2,11 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  DEFAULT_AVAILABILITY_OPTIONS,
+  labelsForSlotIds,
+  type AvailabilitySlotOption,
+} from "@/lib/availability";
 
 type RoleUser = {
   id: string;
@@ -9,6 +14,7 @@ type RoleUser = {
   role: "ADMIN" | "PARTNER" | "CLIENT";
   email: string;
   firebaseUid?: string | null;
+  availabilitySlotIds?: string[];
 };
 
 type MatchRow = {
@@ -45,13 +51,23 @@ export default function AdminMatchesPage() {
   const [selectedMatchIds, setSelectedMatchIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [availabilityOptions, setAvailabilityOptions] = useState<AvailabilitySlotOption[]>(
+    DEFAULT_AVAILABILITY_OPTIONS,
+  );
+  const [editingAvailabilityUserId, setEditingAvailabilityUserId] = useState<string | null>(null);
+  const [editingSelections, setEditingSelections] = useState<string[]>([]);
 
   const reloadAll = useCallback(async () => {
     setError(null);
     setLoading(true);
-    const [uRes, mRes] = await Promise.all([fetch("/api/admin/users"), fetch("/api/matches")]);
+    const [uRes, mRes, sRes] = await Promise.all([
+      fetch("/api/admin/users"),
+      fetch("/api/matches"),
+      fetch("/api/settings"),
+    ]);
     const uJson = await uRes.json().catch(() => null);
     const mJson = await mRes.json().catch(() => null);
+    const sJson = await sRes.json().catch(() => null);
 
     if (!uRes.ok) {
       setError(uJson?.error ?? "ユーザー一覧の取得に失敗しました。");
@@ -66,6 +82,9 @@ export default function AdminMatchesPage() {
 
     setUsers(Array.isArray(uJson.users) ? uJson.users : []);
     setMatches(Array.isArray(mJson.matches) ? mJson.matches : []);
+    if (sRes.ok && Array.isArray(sJson?.availabilitySlotOptions) && sJson.availabilitySlotOptions.length > 0) {
+      setAvailabilityOptions(sJson.availabilitySlotOptions);
+    }
     setSelectedMatchIds([]);
     setLoading(false);
   }, []);
@@ -135,6 +154,41 @@ export default function AdminMatchesPage() {
       return;
     }
     setMessage("ロールを更新しました。");
+    void reloadAll();
+  }
+
+  function startEditingAvailability(user: RoleUser) {
+    setEditingAvailabilityUserId(user.id);
+    setEditingSelections([...(user.availabilitySlotIds ?? [])]);
+  }
+
+  function cancelEditingAvailability() {
+    setEditingAvailabilityUserId(null);
+    setEditingSelections([]);
+  }
+
+  function toggleEditingSlot(slotId: string) {
+    setEditingSelections((prev) =>
+      prev.includes(slotId) ? prev.filter((id) => id !== slotId) : [...prev, slotId],
+    );
+  }
+
+  async function saveAvailability(userId: string) {
+    setError(null);
+    setMessage(null);
+    const res = await fetch("/api/admin/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, availabilitySlotIds: editingSelections }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      setError(data?.error ?? "対応可能時間の更新に失敗しました。");
+      return;
+    }
+    setMessage("対応可能時間を更新しました。");
+    setEditingAvailabilityUserId(null);
+    setEditingSelections([]);
     void reloadAll();
   }
 
@@ -318,6 +372,9 @@ export default function AdminMatchesPage() {
             <h2 className="text-lg font-semibold text-slate-950">ユーザーのロール管理</h2>
             <span className="text-xs text-slate-500">Firebase連携ユーザーの切替に使います</span>
           </div>
+          <p className="mt-2 text-sm text-slate-600">
+            パートナーの対応可能時間は管理者がここで入力します。クライアントのものは登録時に本人が選択した内容を表示します。
+          </p>
           <div className="mt-6 overflow-x-auto rounded-xl ring-1 ring-slate-200/80">
             <table className="min-w-full border-collapse bg-white text-left text-sm">
               <thead className="bg-slate-50/90">
@@ -325,37 +382,102 @@ export default function AdminMatchesPage() {
                   <th className="py-3 pr-4 font-semibold">表示名</th>
                   <th className="py-3 pr-4 font-semibold">メール</th>
                   <th className="py-3 pr-4 font-semibold">Firebase</th>
-                  <th className="py-3 font-semibold">ロール</th>
+                  <th className="py-3 pr-4 font-semibold">ロール</th>
+                  <th className="py-3 pr-4 font-semibold">対応可能時間</th>
                   <th className="py-3 font-semibold">削除</th>
                 </tr>
               </thead>
               <tbody>
-                {users.filter((u) => u.role !== "ADMIN").map((u) => (
-                  <tr key={u.id} className="border-b border-zinc-100 text-zinc-800">
-                    <td className="py-3 pr-4">{u.displayName}</td>
-                    <td className="py-3 pr-4 text-xs text-zinc-600">{u.email}</td>
-                    <td className="py-3 pr-4 text-xs">{u.firebaseUid ? "連携済み" : "未連携"}</td>
-                    <td className="py-3">
-                      <select
-                        value={u.role}
-                        onChange={(e) => void onRoleChange(u.id, e.target.value as "PARTNER" | "CLIENT")}
-                        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs"
-                      >
-                        <option value="PARTNER">PARTNER</option>
-                        <option value="CLIENT">CLIENT</option>
-                      </select>
-                    </td>
-                    <td className="py-3">
-                      <button
-                        type="button"
-                        onClick={() => void onDeleteUser(u.id, u.displayName, u.role as "PARTNER" | "CLIENT")}
-                        className="rounded-md border border-red-300 bg-red-50 px-2 py-1 text-xs font-semibold text-red-800 hover:bg-red-100"
-                      >
-                        削除
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {users.filter((u) => u.role !== "ADMIN").map((u) => {
+                  const isEditing = editingAvailabilityUserId === u.id;
+                  const labels = labelsForSlotIds(u.availabilitySlotIds, availabilityOptions);
+                  return (
+                    <tr key={u.id} className="border-b border-zinc-100 align-top text-zinc-800">
+                      <td className="py-3 pr-4">{u.displayName}</td>
+                      <td className="py-3 pr-4 text-xs text-zinc-600">{u.email}</td>
+                      <td className="py-3 pr-4 text-xs">{u.firebaseUid ? "連携済み" : "未連携"}</td>
+                      <td className="py-3 pr-4">
+                        <select
+                          value={u.role}
+                          onChange={(e) => void onRoleChange(u.id, e.target.value as "PARTNER" | "CLIENT")}
+                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm"
+                        >
+                          <option value="PARTNER">PARTNER</option>
+                          <option value="CLIENT">CLIENT</option>
+                        </select>
+                      </td>
+                      <td className="py-3 pr-4 text-sm">
+                        {isEditing ? (
+                          <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50/60 p-3">
+                            {availabilityOptions.map((opt) => (
+                              <label
+                                key={opt.id}
+                                className="flex cursor-pointer items-center gap-2 text-sm text-emerald-950"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={editingSelections.includes(opt.id)}
+                                  onChange={() => toggleEditingSlot(opt.id)}
+                                  className="h-4 w-4 accent-emerald-700"
+                                />
+                                <span>{opt.label}</span>
+                              </label>
+                            ))}
+                            <div className="flex gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => void saveAvailability(u.id)}
+                                className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-800"
+                              >
+                                保存
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelEditingAvailability}
+                                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                              >
+                                キャンセル
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {labels.length === 0 ? (
+                              <span className="text-zinc-400">未設定</span>
+                            ) : (
+                              <ul className="flex flex-wrap gap-1">
+                                {labels.map((label, i) => (
+                                  <li
+                                    key={`${u.id}-slot-${i}`}
+                                    className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-900"
+                                  >
+                                    {label}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => startEditingAvailability(u)}
+                              className="text-xs font-semibold text-indigo-700 underline hover:text-indigo-900"
+                            >
+                              {u.role === "PARTNER" ? "編集（管理者入力）" : "編集（本人選択を上書き）"}
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3">
+                        <button
+                          type="button"
+                          onClick={() => void onDeleteUser(u.id, u.displayName, u.role as "PARTNER" | "CLIENT")}
+                          className="rounded-md border border-red-300 bg-red-50 px-2 py-1 text-sm font-semibold text-red-800 hover:bg-red-100"
+                        >
+                          削除
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

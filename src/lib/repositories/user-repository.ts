@@ -9,10 +9,16 @@ type UserView = {
   firebaseUid: string | null;
   email: string;
   createdAt?: Date | string;
+  availabilitySlotIds: string[];
 };
 
 function asRole(input: unknown): Role {
   return input === "ADMIN" || input === "PARTNER" || input === "CLIENT" ? input : "CLIENT";
+}
+
+function asStringArray(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter((v): v is string => typeof v === "string");
 }
 
 function userFromDoc(id: string, data: Record<string, unknown>): UserView {
@@ -23,6 +29,7 @@ function userFromDoc(id: string, data: Record<string, unknown>): UserView {
     firebaseUid: typeof data.firebaseUid === "string" ? data.firebaseUid : null,
     email: String(data.email ?? "").toLowerCase(),
     createdAt: typeof data.createdAt === "string" ? data.createdAt : new Date(),
+    availabilitySlotIds: asStringArray(data.availabilitySlotIds),
   };
 }
 
@@ -55,6 +62,7 @@ export async function createFirebaseUser(params: {
   email: string;
   displayName: string;
   firebaseUid: string;
+  availabilitySlotIds?: string[];
 }) {
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
@@ -65,6 +73,7 @@ export async function createFirebaseUser(params: {
       displayName: params.displayName,
       role: "CLIENT",
       firebaseUid: params.firebaseUid,
+      availabilitySlotIds: asStringArray(params.availabilitySlotIds),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -81,6 +90,25 @@ export async function createFirebaseUser(params: {
     },
     select: { id: true, displayName: true, role: true, firebaseUid: true, email: true },
   });
+}
+
+export async function updateUserAvailability(userId: string, availabilitySlotIds: string[]) {
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return null;
+    const ref = db.collection("users").doc(userId);
+    await ref.set(
+      {
+        availabilitySlotIds: asStringArray(availabilitySlotIds),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+    const snap = await ref.get();
+    if (!snap.exists) return null;
+    return userFromDoc(snap.id, snap.data() as Record<string, unknown>);
+  }
+  return null;
 }
 
 export async function attachFirebaseUid(userId: string, firebaseUid: string) {
@@ -115,7 +143,7 @@ export async function listAdminVisibleUsers(role?: "ADMIN" | "PARTNER" | "CLIENT
   }
 
   try {
-    return await prisma.user.findMany({
+    const rows = await prisma.user.findMany({
       where: role ? { role } : { role: { in: ["ADMIN", "PARTNER", "CLIENT"] } },
       orderBy: { createdAt: "desc" },
       select: {
@@ -127,6 +155,7 @@ export async function listAdminVisibleUsers(role?: "ADMIN" | "PARTNER" | "CLIENT
         createdAt: true,
       },
     });
+    return rows.map((r) => ({ ...r, availabilitySlotIds: [] as string[] }));
   } catch (error) {
     if (!(error instanceof Error) || !error.message.includes("Unknown field `firebaseUid`")) throw error;
     const rows = await prisma.user.findMany({
@@ -140,7 +169,7 @@ export async function listAdminVisibleUsers(role?: "ADMIN" | "PARTNER" | "CLIENT
         createdAt: true,
       },
     });
-    return rows.map((r) => ({ ...r, firebaseUid: null }));
+    return rows.map((r) => ({ ...r, firebaseUid: null, availabilitySlotIds: [] as string[] }));
   }
 }
 
@@ -265,6 +294,7 @@ export async function getUserById(userId: string) {
       displayName: String(raw.displayName ?? "ユーザー"),
       role: asRole(raw.role),
       email: typeof raw.email === "string" ? raw.email : null,
+      availabilitySlotIds: asStringArray(raw.availabilitySlotIds),
     };
   }
   const row = await prisma.user.findUnique({
@@ -272,7 +302,7 @@ export async function getUserById(userId: string) {
     select: { id: true, displayName: true, role: true, email: true },
   });
   if (!row) return null;
-  return row;
+  return { ...row, availabilitySlotIds: [] as string[] };
 }
 
 export async function getUserEmailById(userId: string) {

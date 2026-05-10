@@ -4,6 +4,8 @@ import { exchangeGoogleCode, fetchGoogleProfile } from "@/lib/oauth-google";
 import { prisma } from "@/lib/prisma";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
+import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { normalizeAvailabilitySelections } from "@/lib/availability";
 
 function resolvedAppOrigin(request: NextRequest) {
   const fromEnv = process.env.APP_ORIGIN?.replace(/\/$/, "");
@@ -67,6 +69,12 @@ export async function GET(request: NextRequest) {
       user = { id: d.id, role };
     } else if (requestedRole) {
       const display = profile.name?.trim() || email.split("@")[0] || "Googleユーザー";
+      // クライアント新規登録の場合のみ、stateに含まれる対応可能時間を保存。
+      let availabilitySlotIds: string[] = [];
+      if (requestedRole === "CLIENT" && payload.availabilitySlotIds && payload.availabilitySlotIds.length > 0) {
+        const settings = await getAppSettingsRow();
+        availabilitySlotIds = normalizeAvailabilitySelections(payload.availabilitySlotIds, settings.availabilitySlotOptions);
+      }
       const ref = users.doc();
       await ref.set(
         {
@@ -75,6 +83,7 @@ export async function GET(request: NextRequest) {
           role: requestedRole,
           googleSub,
           firebaseUid: null,
+          availabilitySlotIds,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },

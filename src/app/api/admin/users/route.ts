@@ -1,7 +1,14 @@
 import { z } from "zod";
 import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
-import { deleteUserAsAdmin, listAdminVisibleUsers, updateUserRole } from "@/lib/repositories/user-repository";
+import {
+  deleteUserAsAdmin,
+  listAdminVisibleUsers,
+  updateUserAvailability,
+  updateUserRole,
+} from "@/lib/repositories/user-repository";
+import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { normalizeAvailabilitySelections } from "@/lib/availability";
 
 const querySchema = z.object({
   role: z.enum(["ADMIN", "PARTNER", "CLIENT"]).optional(),
@@ -19,10 +26,16 @@ export async function GET(request: Request) {
   return jsonOk({ users });
 }
 
-const patchSchema = z.object({
-  userId: z.string().min(1),
-  role: z.enum(["ADMIN", "PARTNER", "CLIENT"]),
-});
+const patchSchema = z
+  .object({
+    userId: z.string().min(1),
+    role: z.enum(["ADMIN", "PARTNER", "CLIENT"]).optional(),
+    availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64).optional(),
+  })
+  .refine(
+    (v) => v.role !== undefined || v.availabilitySlotIds !== undefined,
+    "role か availabilitySlotIds のいずれかを指定してください。",
+  );
 
 export async function PATCH(request: Request) {
   const session = await readSession();
@@ -30,14 +43,34 @@ export async function PATCH(request: Request) {
 
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
-  if (parsed.data.userId === session.sub && parsed.data.role !== "ADMIN") {
+  if (
+    parsed.data.role &&
+    parsed.data.userId === session.sub &&
+    parsed.data.role !== "ADMIN"
+  ) {
     return jsonError("自分の管理者権限は外せません。", 400);
   }
 
-  const updated = await updateUserRole(parsed.data.userId, parsed.data.role).catch(() => null);
-  if (!updated) return jsonError("ユーザー更新に失敗しました。", 400);
+  let resultUser: unknown = null;
 
-  return jsonOk({ ok: true, user: updated });
+  if (parsed.data.role) {
+    const updated = await updateUserRole(parsed.data.userId, parsed.data.role).catch(() => null);
+    if (!updated) return jsonError("ユーザー更新に失敗しました。", 400);
+    resultUser = updated;
+  }
+
+  if (parsed.data.availabilitySlotIds !== undefined) {
+    const settings = await getAppSettingsRow();
+    const ids = normalizeAvailabilitySelections(
+      parsed.data.availabilitySlotIds,
+      settings.availabilitySlotOptions,
+    );
+    const updated = await updateUserAvailability(parsed.data.userId, ids).catch(() => null);
+    if (!updated) return jsonError("対応可能時間の更新に失敗しました。", 400);
+    resultUser = updated;
+  }
+
+  return jsonOk({ ok: true, user: resultUser });
 }
 
 const deleteSchema = z.object({

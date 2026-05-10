@@ -1,11 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
+import {
+  DEFAULT_AVAILABILITY_OPTIONS,
+  normalizeAvailabilityOptions,
+  type AvailabilitySlotOption,
+} from "@/lib/availability";
 
 export type AppSettingsRow = {
   id: string;
   slotDurationMinutes: number;
   totalSessions: number;
   timezone: string;
+  availabilitySlotOptions: AvailabilitySlotOption[];
 };
 
 const defaults: AppSettingsRow = {
@@ -13,6 +19,7 @@ const defaults: AppSettingsRow = {
   slotDurationMinutes: 30,
   totalSessions: 6,
   timezone: "Asia/Tokyo",
+  availabilitySlotOptions: [...DEFAULT_AVAILABILITY_OPTIONS],
 };
 
 async function readByRawSql() {
@@ -71,6 +78,7 @@ export async function getAppSettingsRow(): Promise<AppSettingsRow> {
         typeof raw.slotDurationMinutes === "number" ? raw.slotDurationMinutes : defaults.slotDurationMinutes,
       totalSessions: typeof raw.totalSessions === "number" ? raw.totalSessions : defaults.totalSessions,
       timezone: typeof raw.timezone === "string" ? raw.timezone : defaults.timezone,
+      availabilitySlotOptions: normalizeAvailabilityOptions(raw.availabilitySlotOptions),
     };
   }
 
@@ -85,6 +93,7 @@ export async function getAppSettingsRow(): Promise<AppSettingsRow> {
           slotDurationMinutes: Number(row.slotDurationMinutes ?? defaults.slotDurationMinutes),
           totalSessions: Number((row as { totalSessions?: number }).totalSessions ?? defaults.totalSessions),
           timezone: String(row.timezone ?? defaults.timezone),
+          availabilitySlotOptions: [...DEFAULT_AVAILABILITY_OPTIONS],
         }
       : defaults;
   }
@@ -99,6 +108,7 @@ export async function getAppSettingsRow(): Promise<AppSettingsRow> {
       slotDurationMinutes: Number(row.slotDurationMinutes ?? defaults.slotDurationMinutes),
       totalSessions: Number(row.totalSessions ?? defaults.totalSessions),
       timezone: String(row.timezone ?? defaults.timezone),
+      availabilitySlotOptions: [...DEFAULT_AVAILABILITY_OPTIONS],
     };
   } catch {
     const row = await readByRawSql().catch(() => null);
@@ -108,6 +118,7 @@ export async function getAppSettingsRow(): Promise<AppSettingsRow> {
           slotDurationMinutes: Number(row.slotDurationMinutes ?? defaults.slotDurationMinutes),
           totalSessions: Number((row as { totalSessions?: number }).totalSessions ?? defaults.totalSessions),
           timezone: String(row.timezone ?? defaults.timezone),
+          availabilitySlotOptions: [...DEFAULT_AVAILABILITY_OPTIONS],
         }
       : defaults;
   }
@@ -117,10 +128,13 @@ export async function upsertAppSettingsRow(input: {
   slotDurationMinutes: number;
   totalSessions: number;
   timezone: string;
+  availabilitySlotOptions?: AvailabilitySlotOption[];
 }): Promise<AppSettingsRow> {
+  const availabilitySlotOptions = normalizeAvailabilityOptions(input.availabilitySlotOptions);
+
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
-    if (!db) return { ...defaults, ...input };
+    if (!db) return { ...defaults, ...input, availabilitySlotOptions };
     const ref = db.collection("appSettings").doc("app");
     await ref.set(
       {
@@ -128,6 +142,7 @@ export async function upsertAppSettingsRow(input: {
         slotDurationMinutes: input.slotDurationMinutes,
         totalSessions: input.totalSessions,
         timezone: input.timezone,
+        availabilitySlotOptions,
         updatedAt: new Date().toISOString(),
       },
       { merge: true },
@@ -137,6 +152,7 @@ export async function upsertAppSettingsRow(input: {
       slotDurationMinutes: input.slotDurationMinutes,
       totalSessions: input.totalSessions,
       timezone: input.timezone,
+      availabilitySlotOptions,
     };
   }
 
@@ -144,8 +160,12 @@ export async function upsertAppSettingsRow(input: {
     appSettings?: { upsert?: Function };
   }).appSettings;
   if (!delegate?.upsert) {
-    await upsertByRawSql(input).catch(() => null);
-    return { id: "app", ...input };
+    await upsertByRawSql({
+      slotDurationMinutes: input.slotDurationMinutes,
+      totalSessions: input.totalSessions,
+      timezone: input.timezone,
+    }).catch(() => null);
+    return { id: "app", slotDurationMinutes: input.slotDurationMinutes, totalSessions: input.totalSessions, timezone: input.timezone, availabilitySlotOptions };
   }
   try {
     const row = await delegate.upsert({
@@ -167,6 +187,7 @@ export async function upsertAppSettingsRow(input: {
       slotDurationMinutes: Number(row.slotDurationMinutes ?? input.slotDurationMinutes),
       totalSessions: Number(row.totalSessions ?? input.totalSessions),
       timezone: String(row.timezone ?? input.timezone),
+      availabilitySlotOptions,
     };
   } catch (error) {
     if (
@@ -184,9 +205,14 @@ export async function upsertAppSettingsRow(input: {
         slotDurationMinutes: Number(row.slotDurationMinutes ?? input.slotDurationMinutes),
         totalSessions: input.totalSessions,
         timezone: String(row.timezone ?? input.timezone),
+        availabilitySlotOptions,
       };
     }
-    await upsertByRawSql(input).catch(() => null);
-    return { id: "app", ...input };
+    await upsertByRawSql({
+      slotDurationMinutes: input.slotDurationMinutes,
+      totalSessions: input.totalSessions,
+      timezone: input.timezone,
+    }).catch(() => null);
+    return { id: "app", slotDurationMinutes: input.slotDurationMinutes, totalSessions: input.totalSessions, timezone: input.timezone, availabilitySlotOptions };
   }
 }

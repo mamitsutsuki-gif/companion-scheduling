@@ -8,9 +8,14 @@ import {
 } from "@/components/auth-shell";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { getFirebaseAuthClient } from "@/lib/firebase-client";
+import {
+  AVAILABILITY_NOTICE,
+  DEFAULT_AVAILABILITY_OPTIONS,
+  type AvailabilitySlotOption,
+} from "@/lib/availability";
 
 function firebaseRegisterErrorMessage(error: unknown) {
   const message =
@@ -41,10 +46,40 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<"PARTNER" | "CLIENT">("PARTNER");
-  const googleHref = useMemo(
-    () => `/api/auth/google?next=/dashboard&role=${encodeURIComponent(role)}&register=1`,
-    [role],
+  const [availabilityOptions, setAvailabilityOptions] = useState<AvailabilitySlotOption[]>(
+    DEFAULT_AVAILABILITY_OPTIONS,
   );
+  const [selectedSlotIds, setSelectedSlotIds] = useState<string[]>([]);
+  const googleHref = useMemo(() => {
+    const params = new URLSearchParams({
+      next: "/dashboard",
+      role,
+      register: "1",
+    });
+    if (role === "CLIENT" && selectedSlotIds.length > 0) {
+      params.set("slots", selectedSlotIds.join(","));
+    }
+    return `/api/auth/google?${params.toString()}`;
+  }, [role, selectedSlotIds]);
+
+  useEffect(() => {
+    fetch("/api/settings", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d?.availabilitySlotOptions) && d.availabilitySlotOptions.length > 0) {
+          setAvailabilityOptions(d.availabilitySlotOptions);
+        }
+      })
+      .catch(() => {
+        // 取得失敗時はデフォルト選択肢を使う。
+      });
+  }, []);
+
+  function toggleSlot(slotId: string) {
+    setSelectedSlotIds((prev) =>
+      prev.includes(slotId) ? prev.filter((id) => id !== slotId) : [...prev, slotId],
+    );
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -55,6 +90,12 @@ export default function RegisterPage() {
     const password = String(fd.get("password") ?? "");
     const displayName = String(fd.get("displayName") ?? "").trim();
     const selectedRole = String(fd.get("role") ?? role) as "PARTNER" | "CLIENT";
+    const availabilitySlotIds = selectedRole === "CLIENT" ? selectedSlotIds : [];
+    if (selectedRole === "CLIENT" && availabilitySlotIds.length === 0) {
+      setLoading(false);
+      setError("対応可能時間を1つ以上選択してください。");
+      return;
+    }
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -79,7 +120,7 @@ export default function RegisterPage() {
           const bridge = await fetch("/api/auth/firebase-login", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ idToken, role: selectedRole, displayName }),
+            body: JSON.stringify({ idToken, role: selectedRole, displayName, availabilitySlotIds }),
           });
           const bridgeData = await bridge.json().catch(() => null);
           setLoading(false);
@@ -138,6 +179,33 @@ export default function RegisterPage() {
           クライアント
         </label>
       </fieldset>
+      {role === "CLIENT" ? (
+        <fieldset className="mt-4 space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-4">
+          <legend className="px-1 text-base font-semibold text-emerald-900">対応可能時間（複数選択）</legend>
+          <p className="text-sm leading-relaxed text-emerald-900/85">{AVAILABILITY_NOTICE}</p>
+          <div className="space-y-2">
+            {availabilityOptions.map((opt) => (
+              <label
+                key={opt.id}
+                className="flex cursor-pointer items-center gap-3 rounded-md bg-white/70 px-3 py-2 text-base text-emerald-950 hover:bg-white"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedSlotIds.includes(opt.id)}
+                  onChange={() => toggleSlot(opt.id)}
+                  className="h-4 w-4 accent-emerald-700"
+                />
+                <span>{opt.label}</span>
+              </label>
+            ))}
+          </div>
+          {selectedSlotIds.length === 0 ? (
+            <p className="text-sm text-amber-800">少なくとも1つ選択してください。</p>
+          ) : (
+            <p className="text-sm text-emerald-800">{selectedSlotIds.length} 件 選択中</p>
+          )}
+        </fieldset>
+      ) : null}
       <Link
         href={googleHref}
         className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 shadow-xs no-underline transition hover:bg-slate-50"

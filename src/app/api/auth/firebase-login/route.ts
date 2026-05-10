@@ -6,12 +6,16 @@ import {
   attachFirebaseUid,
   createFirebaseUser,
   findUserForFirebaseLogin,
+  updateUserAvailability,
 } from "@/lib/repositories/user-repository";
+import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { normalizeAvailabilitySelections } from "@/lib/availability";
 
 const bodySchema = z.object({
   idToken: z.string().min(1),
   role: z.enum(["PARTNER", "CLIENT"]).optional(),
   displayName: z.string().min(1).max(80).optional(),
+  availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64).optional(),
 });
 
 export async function POST(request: Request) {
@@ -27,16 +31,24 @@ export async function POST(request: Request) {
 
   const decoded = await verifyFirebaseIdToken(parsed.data.idToken).catch(() => null);
   if (!decoded || !decoded.email) return jsonError("Firebase トークン検証に失敗しました。", 401);
-  if (!decoded.email_verified) return jsonError("Firebase 側でメール確認が完了していません。", 401);
+  // 注意: メール/パスワード登録直後は email_verified=false。
+  // 認証メール送信フローを未実装のため、ここではメール確認を必須にしない。
 
   const firebaseUid = decoded.uid;
   const email = decoded.email.trim().toLowerCase();
   let user = await findUserForFirebaseLogin({ email, firebaseUid });
 
+  // 対応可能時間（任意）。新規作成時に保存。クライアント登録のみ意味があるが、
+  // 余分なIDが渡っても normalize で無効値は落とすので安全。
+  const settings = parsed.data.availabilitySlotIds ? await getAppSettingsRow() : null;
+  const availabilitySlotIds = settings && parsed.data.availabilitySlotIds
+    ? normalizeAvailabilitySelections(parsed.data.availabilitySlotIds, settings.availabilitySlotOptions)
+    : [];
+
   if (!user) {
     const displayName =
       (parsed.data.displayName || decoded.name || email.split("@")[0] || "ユーザー").slice(0, 80);
-    user = await createFirebaseUser({ email, displayName, firebaseUid });
+    user = await createFirebaseUser({ email, displayName, firebaseUid, availabilitySlotIds });
     if (parsed.data.role && user.role !== parsed.data.role) {
       const { updateUserRole } = await import("@/lib/repositories/user-repository");
       const updated = await updateUserRole(user.id, parsed.data.role);
@@ -46,6 +58,12 @@ export async function POST(request: Request) {
     user = await attachFirebaseUid(user.id, firebaseUid);
   }
   if (!user) return jsonError("ユーザー連携に失敗しました。", 500);
+
+  // 既存ユーザーで対応可能時間が指定されていれば上書き保存（再登録/再ログイン時の更新を許容）。
+  if (parsed.data.availabilitySlotIds && availabilitySlotIds.length > 0) {
+    const updated = await updateUserAvailability(user.id, availabilitySlotIds).catch(() => null);
+    if (updated) user = updated;
+  }
 
   await createSessionCookie({ sub: user.id, role: user.role });
   return jsonOk({

@@ -6,12 +6,15 @@ function secret() {
   return new TextEncoder().encode(raw);
 }
 
-/** Google OAuth の state に埋め込む（改ざん防止・10分有効）。 */
-export async function sealOAuthState(payload: {
+type OAuthStatePayload = {
   next?: string;
   role?: "PARTNER" | "CLIENT";
   allowCreate?: boolean;
-}) {
+  availabilitySlotIds?: string[];
+};
+
+/** Google OAuth の state に埋め込む（改ざん防止・10分有効）。 */
+export async function sealOAuthState(payload: OAuthStatePayload) {
   return await new SignJWT({ ...payload, v: 1 })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -19,16 +22,17 @@ export async function sealOAuthState(payload: {
     .sign(secret());
 }
 
-export async function openOAuthState(
-  token: string,
-): Promise<{ next?: string; role?: "PARTNER" | "CLIENT"; allowCreate?: boolean } | null> {
+export async function openOAuthState(token: string): Promise<OAuthStatePayload | null> {
   try {
     const { payload } = await jwtVerify(token, secret(), { algorithms: ["HS256"] });
     if (payload.v !== 1) return null;
     const next = typeof payload.next === "string" ? payload.next : undefined;
     const role = payload.role === "PARTNER" || payload.role === "CLIENT" ? payload.role : undefined;
     const allowCreate = payload.allowCreate === true;
-    return { next, role, allowCreate };
+    const availabilitySlotIds = Array.isArray(payload.availabilitySlotIds)
+      ? payload.availabilitySlotIds.filter((v): v is string => typeof v === "string").slice(0, 64)
+      : undefined;
+    return { next, role, allowCreate, availabilitySlotIds };
   } catch {
     return null;
   }
