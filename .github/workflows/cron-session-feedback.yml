@@ -1,0 +1,39 @@
+name: cron-session-feedback
+
+# 5分おきに本番（staging）の cron API を叩いて、
+# 終了時刻を過ぎた 1on1 セッションのフィードバックメールを送信する。
+on:
+  schedule:
+    # GitHub Actions の最短間隔は 5 分。混雑時に最大 10〜15 分の遅延あり。
+    - cron: "*/5 * * * *"
+  # 手動実行用（Actions 画面の "Run workflow" ボタン）
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping-cron:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST /api/cron/session-feedback
+        env:
+          CRON_URL: https://companion-scheduling--motive-iji-cloud-1e300.asia-east1.hosted.app/api/cron/session-feedback
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret is not set in this repository."
+            exit 1
+          fi
+          STATUS=$(curl -s -o response.txt -w "%{http_code}" \
+            -X POST "$CRON_URL" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            --max-time 60)
+          echo "HTTP $STATUS"
+          cat response.txt || true
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::cron call failed with HTTP $STATUS"
+            exit 1
+          fi
