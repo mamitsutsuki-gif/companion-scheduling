@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
   let user:
     | {
         id: string;
-        role: "ADMIN" | "PARTNER" | "CLIENT";
+        role: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
       }
     | null = null;
 
@@ -85,7 +85,10 @@ export async function GET(request: NextRequest) {
         return redirectLogin(request, "user_deleted");
       }
       const role =
-        raw.role === "ADMIN" || raw.role === "PARTNER" || raw.role === "CLIENT"
+        raw.role === "ADMIN" ||
+        raw.role === "PARTNER" ||
+        raw.role === "CLIENT" ||
+        raw.role === "CLIENT_ADMIN"
           ? raw.role
           : ("CLIENT" as const);
       user = { id: d.id, role };

@@ -35,6 +35,51 @@ function isType(value: unknown): value is AdminNotificationType {
   );
 }
 
+/**
+ * リスク対策: 通知が無限に積み上がらないよう、書き込み時に **古いものを自動 prune**。
+ * 既読のものは 1,000 件超で削除、未読を含めても 5,000 件以上は古い既読から削除。
+ */
+const ADMIN_NOTIF_HARD_CAP = 5000;
+
+async function pruneOldAdminNotifications() {
+  if (Math.random() > 0.05) return; // 確率 prune（1/20）でコスト最小化
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return;
+    try {
+      const snap = await db
+        .collection("adminNotifications")
+        .orderBy("createdAt", "desc")
+        .offset(ADMIN_NOTIF_HARD_CAP)
+        .limit(200)
+        .get();
+      if (snap.empty) return;
+      const batch = db.batch();
+      snap.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    } catch {
+      /* index 未作成等はスキップ */
+    }
+    return;
+  }
+  const delegate = (
+    prisma as unknown as { adminNotification?: { findMany?: Function; deleteMany?: Function } }
+  ).adminNotification;
+  if (!delegate?.findMany || !delegate?.deleteMany) return;
+  try {
+    const oldest = (await delegate.findMany({
+      orderBy: { createdAt: "desc" },
+      skip: ADMIN_NOTIF_HARD_CAP,
+      take: 200,
+      select: { id: true },
+    })) as Array<{ id: string }>;
+    if (oldest.length === 0) return;
+    await delegate.deleteMany({ where: { id: { in: oldest.map((o) => o.id) } } });
+  } catch {
+    /* noop */
+  }
+}
+
 export async function appendAdminNotification(input: {
   type: AdminNotificationType;
   matchId?: string | null;
@@ -47,6 +92,7 @@ export async function appendAdminNotification(input: {
   const summary = input.summary.slice(0, 500);
   const link = input.link?.slice(0, 500) ?? null;
   const createdAt = new Date().toISOString();
+  void pruneOldAdminNotifications();
 
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();

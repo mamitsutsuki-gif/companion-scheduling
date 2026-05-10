@@ -154,6 +154,58 @@ export async function listSessionFeedbacksForMatch(
   }));
 }
 
+/**
+ * 全ての SessionFeedback を取得（管理者レポート用）。
+ * クライアント単位や期間でのフィルタは呼び出し側で行う。
+ */
+export async function listAllSessionFeedbacks(): Promise<SessionFeedbackRow[]> {
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return [];
+    const snap = await db.collection("sessionFeedbacks").get();
+    return snap.docs.map((d) => {
+      const raw = d.data() as Record<string, unknown>;
+      return {
+        id: d.id,
+        matchId: String(raw.matchId ?? ""),
+        sessionNumber: Number(raw.sessionNumber ?? 0),
+        clientId: String(raw.clientId ?? ""),
+        answers: normalizeAnswers(raw.answers),
+        satisfactionScore:
+          typeof raw.satisfactionScore === "number" ? raw.satisfactionScore : null,
+        partnerChange: normalizePartnerChange(raw.partnerChange),
+        createdAt: String(raw.createdAt ?? new Date().toISOString()),
+        updatedAt: String(raw.updatedAt ?? new Date().toISOString()),
+      };
+    });
+  }
+  const delegate = (
+    prisma as unknown as { sessionFeedback?: { findMany?: Function } }
+  ).sessionFeedback;
+  if (!delegate?.findMany) return [];
+  const rows = (await delegate.findMany({
+    orderBy: { createdAt: "desc" },
+  })) as Array<Record<string, unknown>>;
+  return rows.map((row) => ({
+    id: String(row.id),
+    matchId: String(row.matchId),
+    sessionNumber: Number(row.sessionNumber),
+    clientId: String(row.clientId ?? ""),
+    answers: normalizeAnswers(row.answers),
+    satisfactionScore:
+      typeof row.satisfactionScore === "number" ? row.satisfactionScore : null,
+    partnerChange: normalizePartnerChange(row.partnerChange),
+    createdAt:
+      row.createdAt instanceof Date
+        ? row.createdAt.toISOString()
+        : String(row.createdAt ?? new Date().toISOString()),
+    updatedAt:
+      row.updatedAt instanceof Date
+        ? row.updatedAt.toISOString()
+        : String(row.updatedAt ?? new Date().toISOString()),
+  }));
+}
+
 export async function upsertSessionFeedback(input: {
   matchId: string;
   sessionNumber: number;

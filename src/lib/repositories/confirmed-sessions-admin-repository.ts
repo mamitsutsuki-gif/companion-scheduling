@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
+import { listClientsInCompany } from "@/lib/repositories/user-repository";
 
 export type AdminConfirmedSessionRow = {
   matchId: string;
@@ -7,6 +8,15 @@ export type AdminConfirmedSessionRow = {
   sessionNumber: number;
   round: number;
   partnerDisplayName: string;
+  clientDisplayName: string;
+  startAt: string;
+  endAt: string;
+};
+
+export type CompanyConfirmedSessionRow = {
+  /** クライアント管理者が見られる範囲では partner の名前を**意図的に隠す** */
+  sessionNumber: number;
+  round: number;
   clientDisplayName: string;
   startAt: string;
   endAt: string;
@@ -153,4 +163,44 @@ export async function listEffectiveConfirmedSessionsForAdmin(): Promise<AdminCon
     })
     .filter((x): x is AdminConfirmedSessionRow => x !== null)
     .sort((a, b) => a.startAt.localeCompare(b.startAt));
+}
+
+/**
+ * クライアント管理者向け：自社（同じ companyId）のクライアントのみ、
+ * 確定済みセッション一覧を返す。**パートナーの名前は含めない**。
+ */
+export async function listConfirmedSessionsForCompany(
+  companyId: string,
+): Promise<CompanyConfirmedSessionRow[]> {
+  if (!companyId) return [];
+  const clients = await listClientsInCompany(companyId);
+  const allowedClientIds = new Set(clients.map((c) => c.id));
+  if (allowedClientIds.size === 0) return [];
+  const all = await listEffectiveConfirmedSessionsForAdmin();
+  // 既に表示名は揃っているが、念のため client が同社か再チェックするため
+  // matches を取得して clientId をマッピング。
+  const clientIdByMatch = new Map<string, string>();
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (db) {
+      const ms = await db.collection("matches").get();
+      for (const d of ms.docs) {
+        const r = d.data() as Record<string, unknown>;
+        clientIdByMatch.set(d.id, String(r.clientId ?? ""));
+      }
+    }
+  } else {
+    const rows = await prisma.match.findMany({ select: { id: true, clientId: true } });
+    for (const r of rows) clientIdByMatch.set(r.id, r.clientId);
+  }
+
+  return all
+    .filter((row) => allowedClientIds.has(clientIdByMatch.get(row.matchId) ?? ""))
+    .map((row) => ({
+      sessionNumber: row.sessionNumber,
+      round: row.round,
+      clientDisplayName: row.clientDisplayName,
+      startAt: row.startAt,
+      endAt: row.endAt,
+    }));
 }

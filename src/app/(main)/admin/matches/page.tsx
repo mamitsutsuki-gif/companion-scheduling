@@ -11,11 +11,14 @@ import {
 type RoleUser = {
   id: string;
   displayName: string;
-  role: "ADMIN" | "PARTNER" | "CLIENT";
+  role: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
   email: string;
   firebaseUid?: string | null;
+  companyId?: string | null;
   availabilitySlotIds?: string[];
 };
+
+type AssignableRole = "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
 
 type MatchRow = {
   id: string;
@@ -94,7 +97,8 @@ export default function AdminMatchesPage() {
   }, [reloadAll]);
 
   const partners = users.filter((u) => u.role === "PARTNER");
-  const clients = users.filter((u) => u.role === "CLIENT");
+  // クライアント管理者も「クライアント」として通常通りマッチング対象になる
+  const clients = users.filter((u) => u.role === "CLIENT" || u.role === "CLIENT_ADMIN");
 
   const filteredPartners = useMemo(() => {
     const q = partnerFilter.trim().toLowerCase();
@@ -141,7 +145,7 @@ export default function AdminMatchesPage() {
     void reloadAll();
   }
 
-  async function onRoleChange(userId: string, role: "PARTNER" | "CLIENT") {
+  async function onRoleChange(userId: string, role: AssignableRole) {
     setError(null);
     const res = await fetch("/api/admin/users", {
       method: "PATCH",
@@ -154,6 +158,22 @@ export default function AdminMatchesPage() {
       return;
     }
     setMessage("ロールを更新しました。");
+    void reloadAll();
+  }
+
+  async function onCompanyChange(userId: string, companyId: string) {
+    setError(null);
+    const res = await fetch("/api/admin/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, companyId: companyId.trim() || null }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      setError(data?.error ?? "企業ID の更新に失敗しました。");
+      return;
+    }
+    setMessage("企業ID を更新しました。");
     void reloadAll();
   }
 
@@ -216,7 +236,7 @@ export default function AdminMatchesPage() {
     void reloadAll();
   }
 
-  async function onDeleteUser(userId: string, displayName: string, role: "PARTNER" | "CLIENT") {
+  async function onDeleteUser(userId: string, displayName: string, role: AssignableRole) {
     const ok = window.confirm(
       `本当に ${displayName}（${role}）を削除しますか？\n\n` +
         `このユーザーに紐づくマッチ・チャット・日程調整履歴も削除されます。`,
@@ -374,6 +394,10 @@ export default function AdminMatchesPage() {
           </div>
           <p className="mt-2 text-sm text-slate-600">
             パートナーの対応可能時間は管理者がここで入力します。クライアントのものは登録時に本人が選択した内容を表示します。
+            <br />
+            <span className="text-xs text-slate-500">
+              「所属企業ID」は、クライアント管理者が見られるメンバーをグルーピングするための任意キーです（例: <code>motive-iji</code>）。同じ ID のクライアントが「1on1セッション一覧」に表示されます。
+            </span>
           </p>
           <div className="mt-6 overflow-x-auto rounded-xl ring-1 ring-slate-200/80">
             <table className="min-w-full border-collapse bg-white text-left text-sm">
@@ -384,6 +408,7 @@ export default function AdminMatchesPage() {
                   <th className="py-3 pr-4 font-semibold">Firebase</th>
                   <th className="py-3 pr-4 font-semibold">ロール</th>
                   <th className="py-3 pr-4 font-semibold">対応可能時間</th>
+                  <th className="py-3 pr-4 font-semibold">所属企業ID</th>
                   <th className="py-3 font-semibold">削除</th>
                 </tr>
               </thead>
@@ -399,11 +424,14 @@ export default function AdminMatchesPage() {
                       <td className="py-3 pr-4">
                         <select
                           value={u.role}
-                          onChange={(e) => void onRoleChange(u.id, e.target.value as "PARTNER" | "CLIENT")}
+                          onChange={(e) =>
+                            void onRoleChange(u.id, e.target.value as AssignableRole)
+                          }
                           className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm"
                         >
                           <option value="PARTNER">PARTNER</option>
                           <option value="CLIENT">CLIENT</option>
+                          <option value="CLIENT_ADMIN">CLIENT_ADMIN（クライアント管理者）</option>
                         </select>
                       </td>
                       <td className="py-3 pr-4 text-sm">
@@ -466,10 +494,27 @@ export default function AdminMatchesPage() {
                           </div>
                         )}
                       </td>
+                      <td className="py-3 pr-4">
+                        {u.role === "CLIENT" || u.role === "CLIENT_ADMIN" ? (
+                          <input
+                            type="text"
+                            defaultValue={u.companyId ?? ""}
+                            onBlur={(e) => {
+                              const next = e.target.value.trim();
+                              if (next === (u.companyId ?? "")) return;
+                              void onCompanyChange(u.id, next);
+                            }}
+                            placeholder="例: motive-iji"
+                            className="w-44 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm"
+                          />
+                        ) : (
+                          <span className="text-xs text-zinc-400">—</span>
+                        )}
+                      </td>
                       <td className="py-3">
                         <button
                           type="button"
-                          onClick={() => void onDeleteUser(u.id, u.displayName, u.role as "PARTNER" | "CLIENT")}
+                          onClick={() => void onDeleteUser(u.id, u.displayName, u.role as AssignableRole)}
                           className="rounded-md border border-red-300 bg-red-50 px-2 py-1 text-sm font-semibold text-red-800 hover:bg-red-100"
                         >
                           削除

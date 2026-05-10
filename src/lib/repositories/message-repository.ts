@@ -33,11 +33,41 @@ function asAudience(value: unknown): MessageAudience {
   return value === "CLIENT" || value === "PARTNER" ? value : "ALL";
 }
 
-export async function listMessagesForMatch(matchId: string) {
+/**
+ * チャット履歴を取得。リスク対策として常に**直近 N 件のみ**返す。
+ * UI 側はチャットの大半が「最近のメッセージ」しか見ないので、
+ * Firestore Reads / メモリ転送量を一定上限に抑える。
+ */
+const MAX_MESSAGES_PER_MATCH = 200;
+
+export async function listMessagesForMatch(matchId: string, limit = MAX_MESSAGES_PER_MATCH) {
+  const cap = Math.max(1, Math.min(MAX_MESSAGES_PER_MATCH, limit));
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
     if (!db) return [];
-    const snap = await db.collection("messages").where("matchId", "==", matchId).get();
+    // createdAt 降順 + limit で取得 → 表示用に昇順へ並べ替え。
+    // Firestore は orderBy + where(eq) が自動で複合 index にフォールバックされる
+    let snap;
+    try {
+      snap = await db
+        .collection("messages")
+        .where("matchId", "==", matchId)
+        .orderBy("createdAt", "desc")
+        .limit(cap)
+        .get();
+    } catch {
+      // 複合 index 未作成の環境向けフォールバック
+      const all = await db.collection("messages").where("matchId", "==", matchId).get();
+      snap = {
+        docs: all.docs
+          .sort((a, b) =>
+            String((b.data() as Record<string, unknown>).createdAt ?? "").localeCompare(
+              String((a.data() as Record<string, unknown>).createdAt ?? ""),
+            ),
+          )
+          .slice(0, cap),
+      } as { docs: typeof all.docs };
+    }
     const rows: MessageRow[] = snap.docs.map((d) => {
       const raw = d.data() as Record<string, unknown>;
       return {
@@ -61,18 +91,23 @@ export async function listMessagesForMatch(matchId: string) {
 
   const msgs = await prisma.message.findMany({
     where: { matchId },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
+    take: cap,
     include: { sender: { select: { displayName: true, role: true } } },
   });
-  return msgs.map((m) => normalizeMessage(m as unknown as MessageRow, m.sender));
+  return msgs
+    .reverse()
+    .map((m) => normalizeMessage(m as unknown as MessageRow, m.sender));
 }
 
 export function filterMessagesForViewer<T extends { audience: MessageAudience }>(
   messages: T[],
-  viewerRole: "ADMIN" | "PARTNER" | "CLIENT",
+  viewerRole: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN",
 ): T[] {
   if (viewerRole === "ADMIN") return messages;
-  return messages.filter((m) => m.audience === "ALL" || m.audience === viewerRole);
+  // クライアント管理者は通常のクライアントと同様にメッセージを閲覧する
+  const effective = viewerRole === "CLIENT_ADMIN" ? "CLIENT" : viewerRole;
+  return messages.filter((m) => m.audience === "ALL" || m.audience === effective);
 }
 
 export async function createMessage(input: {

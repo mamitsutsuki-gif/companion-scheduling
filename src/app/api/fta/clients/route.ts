@@ -7,9 +7,16 @@ import { readSession } from "@/lib/session";
 export async function GET() {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
-  if (session.role !== "CLIENT") return jsonError("クライアントのみ閲覧できます。", 403);
+  if (session.role !== "CLIENT" && session.role !== "CLIENT_ADMIN") {
+    return jsonError("クライアントのみ閲覧できます。", 403);
+  }
 
-  const clients = await listAdminVisibleUsers("CLIENT");
+  // クライアントとクライアント管理者の双方を「クライアント」として一覧化
+  const [clientsA, clientsB] = await Promise.all([
+    listAdminVisibleUsers("CLIENT"),
+    listAdminVisibleUsers("CLIENT_ADMIN"),
+  ]);
+  const clients = [...clientsA, ...clientsB];
   const others = clients.filter((u) => u.id !== session.sub);
   const out = [];
   for (const c of others) {

@@ -10,12 +10,18 @@ type UserView = {
   googleSub: string | null;
   email: string;
   deletedAt?: string | null;
+  companyId?: string | null;
   createdAt?: Date | string;
   availabilitySlotIds: string[];
 };
 
 function asRole(input: unknown): Role {
-  return input === "ADMIN" || input === "PARTNER" || input === "CLIENT" ? input : "CLIENT";
+  return input === "ADMIN" ||
+    input === "PARTNER" ||
+    input === "CLIENT" ||
+    input === "CLIENT_ADMIN"
+    ? input
+    : "CLIENT";
 }
 
 function asStringArray(input: unknown): string[] {
@@ -32,6 +38,7 @@ function userFromDoc(id: string, data: Record<string, unknown>): UserView {
     googleSub: typeof data.googleSub === "string" ? data.googleSub : null,
     email: String(data.email ?? "").toLowerCase(),
     deletedAt: typeof data.deletedAt === "string" ? data.deletedAt : null,
+    companyId: typeof data.companyId === "string" ? data.companyId : null,
     createdAt: typeof data.createdAt === "string" ? data.createdAt : new Date(),
     availabilitySlotIds: asStringArray(data.availabilitySlotIds),
   };
@@ -168,22 +175,21 @@ export async function attachFirebaseUid(userId: string, firebaseUid: string) {
   return { ...updated, deletedAt: null, availabilitySlotIds: [] as string[] };
 }
 
-export async function listAdminVisibleUsers(role?: "ADMIN" | "PARTNER" | "CLIENT") {
+export async function listAdminVisibleUsers(role?: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN") {
+  const allRoles = ["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN"] as const;
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
     if (!db) return [];
     const snap = await db.collection("users").get();
     const rows = snap.docs
       .map((doc) => userFromDoc(doc.id, doc.data() as Record<string, unknown>))
-      .filter((u) =>
-        role ? u.role === role : u.role === "ADMIN" || u.role === "PARTNER" || u.role === "CLIENT",
-      );
+      .filter((u) => (role ? u.role === role : (allRoles as readonly string[]).includes(u.role)));
     return rows.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   }
 
   try {
     const rows = await prisma.user.findMany({
-      where: role ? { role } : { role: { in: ["ADMIN", "PARTNER", "CLIENT"] } },
+      where: role ? { role } : { role: { in: [...allRoles] } },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -191,14 +197,16 @@ export async function listAdminVisibleUsers(role?: "ADMIN" | "PARTNER" | "CLIENT
         role: true,
         email: true,
         firebaseUid: true,
+        companyId: true,
         createdAt: true,
       },
     });
     return rows.map((r) => ({ ...r, availabilitySlotIds: [] as string[] }));
   } catch (error) {
-    if (!(error instanceof Error) || !error.message.includes("Unknown field `firebaseUid`")) throw error;
+    if (!(error instanceof Error) || !/Unknown field `(firebaseUid|companyId)`/.test(error.message))
+      throw error;
     const rows = await prisma.user.findMany({
-      where: role ? { role } : { role: { in: ["ADMIN", "PARTNER", "CLIENT"] } },
+      where: role ? { role } : { role: { in: [...allRoles] } },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -208,7 +216,66 @@ export async function listAdminVisibleUsers(role?: "ADMIN" | "PARTNER" | "CLIENT
         createdAt: true,
       },
     });
-    return rows.map((r) => ({ ...r, firebaseUid: null, availabilitySlotIds: [] as string[] }));
+    return rows.map((r) => ({
+      ...r,
+      firebaseUid: null,
+      companyId: null,
+      availabilitySlotIds: [] as string[],
+    }));
+  }
+}
+
+/** クライアント / クライアント管理者の所属企業 ID を更新（管理者専用） */
+export async function setUserCompany(userId: string, companyId: string | null) {
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return null;
+    const ref = db.collection("users").doc(userId);
+    await ref.set(
+      { companyId: companyId ?? null, updatedAt: new Date().toISOString() },
+      { merge: true },
+    );
+    const snap = await ref.get();
+    return snap.exists ? userFromDoc(snap.id, snap.data() as Record<string, unknown>) : null;
+  }
+  try {
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { companyId: companyId ?? null },
+      select: { id: true, displayName: true, role: true, email: true, companyId: true },
+    });
+    return { ...updated, availabilitySlotIds: [] as string[] };
+  } catch {
+    return null;
+  }
+}
+
+/** 同じ companyId を持つクライアント / クライアント管理者を一覧（クライアント管理者用） */
+export async function listClientsInCompany(companyId: string) {
+  if (!companyId) return [];
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return [];
+    const snap = await db.collection("users").where("companyId", "==", companyId).get();
+    return snap.docs
+      .map((d) => userFromDoc(d.id, d.data() as Record<string, unknown>))
+      .filter(
+        (u) => (u.role === "CLIENT" || u.role === "CLIENT_ADMIN") && !isDeletedUser(u),
+      );
+  }
+  try {
+    const rows = await prisma.user.findMany({
+      where: {
+        companyId,
+        role: { in: ["CLIENT", "CLIENT_ADMIN"] },
+        deletedAt: null,
+      },
+      select: { id: true, displayName: true, role: true, email: true, companyId: true },
+      orderBy: { displayName: "asc" },
+    });
+    return rows.map((r) => ({ ...r, availabilitySlotIds: [] as string[] }));
+  } catch {
+    return [];
   }
 }
 
@@ -327,17 +394,33 @@ export async function updateUserRole(userId: string, role: Role) {
     const row = await prisma.user.update({
       where: { id: userId },
       data: { role },
-      select: { id: true, displayName: true, role: true, email: true, firebaseUid: true, googleSub: true },
+      select: {
+        id: true,
+        displayName: true,
+        role: true,
+        email: true,
+        firebaseUid: true,
+        googleSub: true,
+        companyId: true,
+      },
     });
     return { ...row, deletedAt: null, availabilitySlotIds: [] as string[] };
   } catch (error) {
-    if (!(error instanceof Error) || !error.message.includes("Unknown field `firebaseUid`")) throw error;
+    if (!(error instanceof Error) || !/Unknown field `(firebaseUid|companyId)`/.test(error.message))
+      throw error;
     const row = await prisma.user.update({
       where: { id: userId },
       data: { role },
       select: { id: true, displayName: true, role: true, email: true },
     });
-    return { ...row, firebaseUid: null, googleSub: null, deletedAt: null, availabilitySlotIds: [] as string[] };
+    return {
+      ...row,
+      firebaseUid: null,
+      googleSub: null,
+      companyId: null,
+      deletedAt: null,
+      availabilitySlotIds: [] as string[],
+    };
   }
 }
 

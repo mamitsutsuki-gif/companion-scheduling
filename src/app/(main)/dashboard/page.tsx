@@ -24,12 +24,18 @@ export default async function DashboardPage() {
         </p>
         <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
-          ロール: {me.role === "ADMIN" ? "管理者" : me.role === "PARTNER" ? "パートナー" : "クライアント"}
+          ロール: {me.role === "ADMIN"
+            ? "管理者"
+            : me.role === "PARTNER"
+              ? "パートナー"
+              : me.role === "CLIENT_ADMIN"
+                ? "クライアント管理者"
+                : "クライアント"}
         </div>
       </header>
 
       <section className="space-y-5">
-        {(me.role === "CLIENT" || me.role === "PARTNER") ? (
+        {(me.role === "CLIENT" || me.role === "PARTNER" || me.role === "CLIENT_ADMIN") ? (
           <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-4">
             <h2 className="text-xl font-semibold text-indigo-900">自分FTA</h2>
             <p className="mt-1 text-base text-indigo-800">

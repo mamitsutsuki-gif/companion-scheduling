@@ -14,7 +14,9 @@ export async function requireUser() {
   return { ...user, role: user.role };
 }
 
-export async function requireRole(allowed: ("ADMIN" | "PARTNER" | "CLIENT")[]) {
+export async function requireRole(
+  allowed: ("ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN")[],
+) {
   const user = await requireUser();
   if (!allowed.includes(user.role)) {
     redirect("/dashboard");

@@ -88,8 +88,11 @@ export async function createMatchAsAdmin(partnerId: string, clientId: string) {
     if (!partner.exists || (partner.data()?.role as string) !== "PARTNER") {
       return { ok: false as const, error: "パートナー側のユーザーが不正です。" };
     }
-    if (!client.exists || (client.data()?.role as string) !== "CLIENT") {
-      return { ok: false as const, error: "クライアント側のユーザーが不正です。" };
+    {
+      const r = client.data()?.role as string | undefined;
+      if (!client.exists || (r !== "CLIENT" && r !== "CLIENT_ADMIN")) {
+        return { ok: false as const, error: "クライアント側のユーザーが不正です。" };
+      }
     }
     const dup = await db
       .collection("matches")
@@ -113,7 +116,8 @@ export async function createMatchAsAdmin(partnerId: string, clientId: string) {
     prisma.user.findUnique({ where: { id: clientId } }),
   ]);
   if (!partner || partner.role !== "PARTNER") return { ok: false as const, error: "パートナー側のユーザーが不正です。" };
-  if (!client || client.role !== "CLIENT") return { ok: false as const, error: "クライアント側のユーザーが不正です。" };
+  if (!client || (client.role !== "CLIENT" && client.role !== "CLIENT_ADMIN"))
+    return { ok: false as const, error: "クライアント側のユーザーが不正です。" };
   try {
     const match = await prisma.match.create({ data: { partnerId, clientId } });
     return { ok: true as const, matchId: match.id };

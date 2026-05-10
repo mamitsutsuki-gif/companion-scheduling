@@ -30,13 +30,17 @@ export function ApplicationChrome({
   if (profile.role === "ADMIN") {
     nav.push({ href: "/admin/matches", label: "マッチ管理" });
     nav.push({ href: "/admin/sessions", label: "1on1日程一覧" });
+    nav.push({ href: "/admin/reports", label: "レポート作成" });
     nav.push({ href: "/admin/notifications", label: "通知" });
     nav.push({ href: "/admin/settings", label: "アプリ設定" });
+  }
+  if (profile.role === "CLIENT_ADMIN") {
+    nav.push({ href: "/client-admin/sessions", label: "1on1セッション一覧" });
   }
   if (profile.role === "PARTNER") {
     nav.push({ href: "/partner/zoom", label: "会議リンク設定" });
   }
-  if (profile.role === "PARTNER" || profile.role === "CLIENT") {
+  if (profile.role === "PARTNER" || profile.role === "CLIENT" || profile.role === "CLIENT_ADMIN") {
     nav.push({ href: "/fta", label: "自分FTA" });
   }
 
@@ -54,7 +58,13 @@ export function ApplicationChrome({
   }
 
   const roleLabel =
-    profile.role === "ADMIN" ? "管理者" : profile.role === "PARTNER" ? "パートナー" : "クライアント";
+    profile.role === "ADMIN"
+      ? "管理者"
+      : profile.role === "PARTNER"
+        ? "パートナー"
+        : profile.role === "CLIENT_ADMIN"
+          ? "クライアント管理者"
+          : "クライアント";
 
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-100/55 via-slate-50 to-slate-50">

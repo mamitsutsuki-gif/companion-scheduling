@@ -36,6 +36,55 @@ function isType(value: unknown): value is MemberNotificationType {
   );
 }
 
+/**
+ * 受信者ごとに最大 1,000 件を超えたら、古い既読/未読を切り詰める（確率 prune）。
+ */
+const MEMBER_NOTIF_PER_USER_CAP = 1000;
+
+async function pruneOldMemberNotifications(recipientUserId: string) {
+  if (Math.random() > 0.05) return;
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return;
+    try {
+      const snap = await db
+        .collection("memberNotifications")
+        .where("recipientUserId", "==", recipientUserId)
+        .get();
+      if (snap.size <= MEMBER_NOTIF_PER_USER_CAP) return;
+      const sorted = snap.docs.sort((a, b) =>
+        String((b.data() as Record<string, unknown>).createdAt ?? "").localeCompare(
+          String((a.data() as Record<string, unknown>).createdAt ?? ""),
+        ),
+      );
+      const toDelete = sorted.slice(MEMBER_NOTIF_PER_USER_CAP);
+      const batch = db.batch();
+      toDelete.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    } catch {
+      /* noop */
+    }
+    return;
+  }
+  const delegate = (
+    prisma as unknown as { memberNotification?: { findMany?: Function; deleteMany?: Function } }
+  ).memberNotification;
+  if (!delegate?.findMany || !delegate?.deleteMany) return;
+  try {
+    const oldest = (await delegate.findMany({
+      where: { recipientUserId },
+      orderBy: { createdAt: "desc" },
+      skip: MEMBER_NOTIF_PER_USER_CAP,
+      take: 200,
+      select: { id: true },
+    })) as Array<{ id: string }>;
+    if (oldest.length === 0) return;
+    await delegate.deleteMany({ where: { id: { in: oldest.map((o) => o.id) } } });
+  } catch {
+    /* noop */
+  }
+}
+
 export async function appendMemberNotification(input: {
   recipientUserId: string;
   type: MemberNotificationType;
@@ -50,6 +99,7 @@ export async function appendMemberNotification(input: {
   const summary = input.summary.slice(0, 500);
   const link = input.link?.slice(0, 500) ?? null;
   const createdAt = new Date().toISOString();
+  void pruneOldMemberNotifications(input.recipientUserId);
 
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();

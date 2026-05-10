@@ -4,6 +4,7 @@ import { jsonError, jsonOk } from "@/lib/json";
 import {
   deleteUserAsAdmin,
   listAdminVisibleUsers,
+  setUserCompany,
   updateUserAvailability,
   updateUserRole,
 } from "@/lib/repositories/user-repository";
@@ -11,7 +12,7 @@ import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { normalizeAvailabilitySelections } from "@/lib/availability";
 
 const querySchema = z.object({
-  role: z.enum(["ADMIN", "PARTNER", "CLIENT"]).optional(),
+  role: z.enum(["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN"]).optional(),
 });
 
 export async function GET(request: Request) {
@@ -29,12 +30,16 @@ export async function GET(request: Request) {
 const patchSchema = z
   .object({
     userId: z.string().min(1),
-    role: z.enum(["ADMIN", "PARTNER", "CLIENT"]).optional(),
+    role: z.enum(["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN"]).optional(),
     availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64).optional(),
+    companyId: z.string().trim().max(80).nullable().optional(),
   })
   .refine(
-    (v) => v.role !== undefined || v.availabilitySlotIds !== undefined,
-    "role か availabilitySlotIds のいずれかを指定してください。",
+    (v) =>
+      v.role !== undefined ||
+      v.availabilitySlotIds !== undefined ||
+      v.companyId !== undefined,
+    "role / availabilitySlotIds / companyId のいずれかを指定してください。",
   );
 
 export async function PATCH(request: Request) {
@@ -67,6 +72,13 @@ export async function PATCH(request: Request) {
     );
     const updated = await updateUserAvailability(parsed.data.userId, ids).catch(() => null);
     if (!updated) return jsonError("対応可能時間の更新に失敗しました。", 400);
+    resultUser = updated;
+  }
+
+  if (parsed.data.companyId !== undefined) {
+    const trimmed = parsed.data.companyId ? parsed.data.companyId.trim() : null;
+    const updated = await setUserCompany(parsed.data.userId, trimmed || null).catch(() => null);
+    if (!updated) return jsonError("企業ID の更新に失敗しました。", 400);
     resultUser = updated;
   }
 

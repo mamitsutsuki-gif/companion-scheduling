@@ -20,13 +20,19 @@ export async function GET(_request: Request, context: RouteContext) {
     return jsonOk({ chart, owner: target.displayName });
   }
 
-  if (session.role === "PARTNER" && target.role === "CLIENT") {
+  if (
+    session.role === "PARTNER" &&
+    (target.role === "CLIENT" || target.role === "CLIENT_ADMIN")
+  ) {
     const ok = await hasMatchBetween(session.sub, userId);
     if (!ok) return jsonError("閲覧権限がありません。", 403);
     return jsonOk({ chart: maskedFtaChartForViewer(chart), owner: target.displayName });
   }
 
-  if (session.role === "CLIENT" && target.role === "CLIENT") {
+  if (
+    (session.role === "CLIENT" || session.role === "CLIENT_ADMIN") &&
+    (target.role === "CLIENT" || target.role === "CLIENT_ADMIN")
+  ) {
     return jsonOk({ chart: maskedFtaChartForViewer(chart), owner: target.displayName });
   }
 

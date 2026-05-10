@@ -21,6 +21,7 @@ export async function GET() {
     displayName: user.displayName,
     role: user.role,
     availabilitySlotIds: user.availabilitySlotIds,
+    companyId: (user as { companyId?: string | null }).companyId ?? null,
   };
   if (session.role === "ADMIN") return jsonOk({ user });
   return jsonOk({ user: safe });
@@ -50,6 +51,7 @@ export async function PATCH(request: Request) {
       displayName: updated.displayName,
       role: updated.role,
       availabilitySlotIds: updated.availabilitySlotIds,
+      companyId: (updated as { companyId?: string | null }).companyId ?? null,
     },
   });
 }

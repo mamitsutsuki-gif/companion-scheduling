@@ -13,6 +13,8 @@ enum Role {
   ADMIN
   PARTNER
   CLIENT
+  /// クライアント企業のスポンサー。通常クライアント機能 + 自社メンバーの予定一覧（読み取り専用）。
+  CLIENT_ADMIN
 }
 
 enum MessageKind {
@@ -61,6 +63,8 @@ model User {
   firebaseUid  String?   @unique
   /// Soft delete: ログインを完全に拒否しつつ過去のログを保持。
   deletedAt    DateTime?
+  /// 所属クライアント企業 ID（クライアント / クライアント管理者の集計単位）
+  companyId    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -120,14 +120,37 @@ export async function sendMail(input: MailInput): Promise<boolean> {
   return false;
 }
 
+/**
+ * Resend Free の制限（2 req/sec）を確実に守るためのインプロセススロットル。
+ * - 同一プロセス内で逐次送信（送信失敗は console.error に集約）
+ * - 1 リクエストの宛先数を **最大 50 件** に制限し DDoS / 暴走を抑止
+ */
+const SEND_RATE_INTERVAL_MS = 550;
+const SEND_TO_CAP = 50;
+let lastSendAt = 0;
+
+async function throttle() {
+  const wait = Math.max(0, SEND_RATE_INTERVAL_MS - (Date.now() - lastSendAt));
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastSendAt = Date.now();
+}
+
 export async function sendMailToMany(
   recipients: string[],
   input: Omit<MailInput, "to">,
 ) {
-  const uniq = [...new Set(recipients.map((e) => e.trim()).filter(Boolean))];
+  const uniq = [...new Set(recipients.map((e) => e.trim()).filter(Boolean))].slice(0, SEND_TO_CAP);
+  let okCount = 0;
+  let failCount = 0;
   for (const to of uniq) {
-    await sendMail({ ...input, to });
-    // Resend free-tier rate limit: 2 requests / sec.
-    await new Promise((resolve) => setTimeout(resolve, 550));
+    await throttle();
+    const ok = await sendMail({ ...input, to });
+    if (ok) okCount += 1;
+    else failCount += 1;
+  }
+  if (failCount > 0) {
+    console.warn(
+      `[mail] sendMailToMany finished: subject="${input.subject.slice(0, 60)}" ok=${okCount} fail=${failCount}`,
+    );
   }
 }

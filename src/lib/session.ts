@@ -12,7 +12,7 @@ function getSecret() {
 
 export type SessionPayload = {
   sub: string;
-  role: "ADMIN" | "PARTNER" | "CLIENT";
+  role: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
 };
 
 export async function createSessionCookie(payload: SessionPayload) {
@@ -52,7 +52,10 @@ export async function readSession(): Promise<SessionPayload | null> {
     const { payload } = await jwtVerify(token, getSecret());
     const sub = typeof payload.sub === "string" ? payload.sub : null;
     const role = payload.role;
-    if (!sub || (role !== "ADMIN" && role !== "PARTNER" && role !== "CLIENT")) {
+    if (
+      !sub ||
+      (role !== "ADMIN" && role !== "PARTNER" && role !== "CLIENT" && role !== "CLIENT_ADMIN")
+    ) {
       return null;
     }
     return { sub, role };
@@ -66,7 +69,10 @@ export async function readSessionFromToken(token: string): Promise<SessionPayloa
     const { payload } = await jwtVerify(token, getSecret());
     const sub = typeof payload.sub === "string" ? payload.sub : null;
     const role = payload.role;
-    if (!sub || (role !== "ADMIN" && role !== "PARTNER" && role !== "CLIENT")) {
+    if (
+      !sub ||
+      (role !== "ADMIN" && role !== "PARTNER" && role !== "CLIENT" && role !== "CLIENT_ADMIN")
+    ) {
       return null;
     }
     return { sub, role };
