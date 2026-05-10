@@ -9,7 +9,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from "firebase/auth";
 import { getFirebaseAuthClient } from "@/lib/firebase-client";
 import {
   AVAILABILITY_NOTICE,
@@ -115,6 +115,13 @@ export default function RegisterPage() {
           const cred = await createUserWithEmailAndPassword(auth, email, password);
           if (displayName) {
             await updateProfile(cred.user, { displayName });
+          }
+          // メール所有者本人であることを確認するため、Firebase からメール認証
+          // リンクを送る。失敗してもログイン自体は通すため await のエラーは無視。
+          try {
+            await sendEmailVerification(cred.user);
+          } catch {
+            // 認証メール送信失敗（Firebase設定不足など）はブロッキングしない。
           }
           const idToken = await cred.user.getIdToken();
           const bridge = await fetch("/api/auth/firebase-login", {
@@ -260,12 +267,12 @@ export default function RegisterPage() {
           />
         </label>
         <label className="block space-y-2 text-sm font-medium text-zinc-900">
-          パスワード（8文字以上）
+          パスワード（10文字以上、英数字を含めて推奨）
           <input
             name="password"
             type="password"
             required
-            minLength={8}
+            minLength={10}
             autoComplete="new-password"
             className={authFieldClass}
           />
@@ -273,6 +280,9 @@ export default function RegisterPage() {
 
         {error ? <p className="text-sm font-medium text-red-700">{error}</p> : null}
         <AuthPrimaryButton disabled={loading}>{loading ? "送信中…" : "作成する"}</AuthPrimaryButton>
+        <p className="text-xs leading-relaxed text-slate-500">
+          作成後、入力したメールアドレス宛に確認メールが届きます。受信できなかった場合は、別の方が同じアドレスを所有している可能性があります。
+        </p>
       </form>
       <p className="mt-10 border-t border-zinc-100 pt-8 text-center text-sm text-zinc-600">
         すでにアカウントがある方は{" "}

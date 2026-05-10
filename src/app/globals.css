@@ -1,13 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  font-size: 17px;
+  font-size: 18px;
+}
+
+@media (max-width: 640px) {
+  :root {
+    /* スマホでは少し下げて、フォーム要素の幅余裕を確保（読みやすさは維持） */
+    font-size: 17px;
+  }
 }
 
 body {
   @apply antialiased;
   font-size: 1rem;
-  line-height: 1.65;
+  line-height: 1.7;
 }
 
 a {

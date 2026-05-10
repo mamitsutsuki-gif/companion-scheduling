@@ -13,8 +13,8 @@ export default async function DashboardPage() {
   const matches = await listMatchesForRole({ role: me.role, userId: me.id });
 
   return (
-    <div className="space-y-10">
-      <header className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm sm:p-8">
+    <div className="space-y-6 sm:space-y-10">
+      <header className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-6 md:p-8">
         <p className="text-xs font-semibold tracking-widest text-indigo-700 uppercase">Overview</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
           {me.displayName} さん

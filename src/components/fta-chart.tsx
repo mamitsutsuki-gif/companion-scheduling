@@ -251,28 +251,40 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
   const maxActionsPerB = bNodes.reduce((max, b) => Math.max(max, b.actions.length), 0);
 
   // ノードの基本サイズ。中身は overflow-y:auto でスクロールさせるため、
-  // 文字が長くても見切れない。
-  const visionR = 78;
+  // 長文でも見切れない。
+  const visionR = 80;
   const bR = 60;
-  const cR = 50;
-  const cWedgeUsage = 0.86; // 親Bのウェッジ幅のうち、Cの配置に使う割合
+  const cR = 48;
+  const wedgeUsage = 0.92; // 親Bのウェッジ幅のうち、C配置に使う割合（隣のBとの余白を残す）
   const wedge = 360 / bCount;
+  const usableWedgeRad = ((wedge * wedgeUsage) * Math.PI) / 180;
 
-  // C は内側リング(rA)と外側リング(rB)を交互に配置するジグザグ構成。
-  // これにより同じ角度内に約2倍のCを置ける = 半径を半分に抑えられる。
-  // 各リング当たりの最大Cの数。
-  const ringCount = Math.ceil(maxActionsPerB / 2);
-  const minCArcLen = (cR * 2 + 14) * Math.max(1, ringCount);
-  const minCRadiusByArc =
-    (minCArcLen / (2 * Math.PI)) * (360 / Math.max(wedge * cWedgeUsage, 1));
-  const minCRadiusByB = bR + cR + 26;
-  const cInnerRadius = Math.max(minCRadiusByB, minCRadiusByArc, 220);
-  const ringGap = cR * 2 + 14; // 内外リング間距離（円が重ならない）
-  const cOuterRadius = cInnerRadius + ringGap;
+  // C は複数のリングに分散配置する（多いほどリング数を増やす）。
+  // 1リング当たりのCの最大数を3に抑えることで、
+  // - 4個 → 2リング(2,2)
+  // - 6個 → 2リング(3,3)
+  // - 7-8個 → 3リング(3,3,2 / 3,3,2)
+  // 1Bあたり3-3-2の3層で最大8個まで重ならず収まる。
+  const ringCount = Math.max(1, Math.ceil(maxActionsPerB / 3));
+  const itemsPerRing = Math.max(1, Math.ceil(maxActionsPerB / ringCount));
+
+  // 各リング半径に必要な最小値:
+  // - リング上の同層C同士が重ならない: items * (2cR+gap) ≤ arc(=ringR * usableRad)
+  // - Bの円と被らない
+  const itemArcGap = 16;
+  const ringStep = cR * 2 + 18; // 隣リング間距離（半径方向、円同士が重ならない）
+  const baseRingRadius = Math.max(
+    bR + cR + 26,
+    ((itemsPerRing * (cR * 2 + itemArcGap)) / Math.max(0.001, usableWedgeRad)),
+    220,
+  );
+
+  const cRingRadii = Array.from({ length: ringCount }, (_, i) => baseRingRadius + i * ringStep);
 
   const bRadius = Math.max(visionR + bR + 22, 150);
 
-  const size = Math.ceil((cOuterRadius + cR + 40) * 2);
+  const outerMost = (cRingRadii[cRingRadii.length - 1] ?? baseRingRadius) + cR;
+  const size = Math.ceil((outerMost + 40) * 2);
   const center = size / 2;
 
   function stable(n: number) {
@@ -292,25 +304,24 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
     return text || "未入力";
   }
 
-  // 各Bのウェッジ内で、Cを「ringCount 個」のスロットに割り、奇数番目を外側、
-  // 偶数番目を内側に配置する。ジグザグになり角度方向の密度を半減させる。
+  // 各Bの周囲に、actions を ringCount 段 × itemsPerRing 列の格子にマップする。
+  // ring0 = Bに近い内側リング、ring末尾 = 外側。
   const actionNodes = bNodes.flatMap((b, bi) => {
     const baseAngle = wedge * bi - 90;
+    const usableSpan = wedge * wedgeUsage;
     const actions = b.actions.slice(0, 8);
-    const slots = Math.ceil(actions.length / 2);
-    const usableSpan = wedge * cWedgeUsage;
     return actions.map((c, ci) => {
-      const slotIndex = Math.floor(ci / 2);
-      const isOuter = ci % 2 === 1;
+      const ringIndex = Math.floor(ci / itemsPerRing);
+      const colIndex = ci % itemsPerRing;
+      const itemsThisRing = Math.min(itemsPerRing, actions.length - ringIndex * itemsPerRing);
+      const ringR = cRingRadii[ringIndex] ?? cRingRadii[0]!;
       const offset =
-        slots <= 1
+        itemsThisRing <= 1
           ? 0
-          : (slotIndex - (slots - 1) / 2) * (usableSpan / Math.max(1, slots - 1));
-      // 同スロット内の2点が真上下にならないよう、わずかに角度をずらす。
-      const microShift = slots > 1 && actions.length > 1 ? (isOuter ? 1 : -1) * (usableSpan / slots) * 0.18 : 0;
-      const angle = baseAngle + offset + microShift;
-      const pos = polar(isOuter ? cOuterRadius : cInnerRadius, angle);
-      return { pos, parentAngle: baseAngle, action: c, angle };
+          : (colIndex - (itemsThisRing - 1) / 2) * (usableSpan / Math.max(1, itemsThisRing - 1));
+      const angle = baseAngle + offset;
+      const pos = polar(ringR, angle);
+      return { pos, parentAngle: baseAngle, action: c, ringIndex };
     });
   });
 
@@ -324,6 +335,7 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
           className="mx-auto block"
           style={{ minWidth: Math.min(size, 720) }}
         >
+          {/* Bへの線（中心→B） */}
           {bNodes.map((b, bi) => {
             const angle = wedge * bi - 90;
             const p = polar(bRadius, angle);
@@ -340,6 +352,7 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
             );
           })}
 
+          {/* Cへの線（B→C） */}
           {actionNodes.map((item, i) => {
             const p1 = polar(bRadius, item.parentAngle);
             return (
@@ -355,6 +368,7 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
             );
           })}
 
+          {/* B 円 */}
           {bNodes.map((b, bi) => {
             const angle = wedge * bi - 90;
             const p = polar(bRadius, angle);
@@ -375,6 +389,7 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
             );
           })}
 
+          {/* C 円 */}
           {actionNodes.map((item, i) => {
             const padding = 8;
             const inner = cR - padding;
@@ -398,6 +413,7 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
             );
           })}
 
+          {/* 中心 (Vision/A) */}
           <circle cx={center} cy={center} r={visionR} fill="#e0e7ff" stroke="#4f46e5" strokeWidth="2.5" />
           <foreignObject
             x={center - (visionR - 10)}

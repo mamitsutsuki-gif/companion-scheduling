@@ -403,20 +403,20 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-12 px-6 py-10">
-      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-zinc-200 pb-6">
+    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-1 py-4 sm:gap-12 sm:px-6 sm:py-10">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-200 pb-4 sm:gap-4 sm:pb-6">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Match Detail</p>
-          <p className="text-sm text-zinc-600">{withHonorificSan(me.displayName)} として表示中（メールなどは公開されません）</p>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs text-zinc-500">
+          <p className="text-sm text-zinc-600 sm:text-base">{withHonorificSan(me.displayName)} として表示中（メールなどは公開されません）</p>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-500">
             <span className="rounded-full bg-indigo-50 px-2 py-1 text-indigo-800">MATCH #{matchId}</span>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={() => void load()}
-            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-800 hover:bg-zinc-50"
+            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50"
           >
             再読込
           </button>
@@ -579,7 +579,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       ) : null}
 
       {activeTab === "schedule" ? (
-      <section className="space-y-6 rounded-3xl border border-indigo-100 bg-indigo-50/40 px-6 py-8 shadow-inner shadow-indigo-100">
+      <section className="space-y-6 rounded-3xl border border-indigo-100 bg-indigo-50/40 px-3 py-5 shadow-inner shadow-indigo-100 sm:px-6 sm:py-8">
         <div className="space-y-1">
           <h2 className="text-2xl font-semibold text-indigo-900">日程調整</h2>
           <p className="text-base text-indigo-800">
@@ -824,7 +824,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       ) : null}
 
       {activeTab === "fta" && (me.role === "PARTNER" || me.role === "ADMIN") ? (
-        <section className="space-y-4 rounded-3xl border border-sky-100 bg-sky-50/35 px-6 py-8">
+        <section className="space-y-4 rounded-3xl border border-sky-100 bg-sky-50/35 px-3 py-5 sm:px-6 sm:py-8">
           <h2 className="text-2xl font-semibold text-sky-900">クライアントの自分FTA</h2>
           {clientFta?.targetRole === "CLIENT" && clientFta.chart ? (
             <div className="space-y-3 rounded-2xl border border-sky-200 bg-white px-5 py-4">

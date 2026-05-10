@@ -162,7 +162,7 @@ export default function AdminAppSettingsPage() {
 
   return (
     <div className="mx-auto max-w-xl space-y-8">
-      <header className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm sm:p-8">
+      <header className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-6 md:p-8">
         <p className="text-xs font-semibold tracking-[0.14em] text-indigo-800 uppercase">Administrator</p>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">アプリ設定</h1>
         <p className="mt-3 text-sm text-slate-600">
@@ -171,7 +171,7 @@ export default function AdminAppSettingsPage() {
       </header>
 
       <form
-        className="space-y-6 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm sm:p-8"
+        className="space-y-6 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-6 md:p-8"
         onSubmit={onSubmit}
       >
         <label className="block space-y-2 text-sm font-medium text-slate-900">
@@ -274,7 +274,7 @@ export default function AdminAppSettingsPage() {
       </form>
 
       <form
-        className="space-y-4 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm sm:p-8"
+        className="space-y-4 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-6 md:p-8"
         onSubmit={onAddAdmin}
       >
         <h2 className="text-lg font-semibold text-slate-900">管理者の追加</h2>

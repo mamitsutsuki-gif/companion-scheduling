@@ -268,18 +268,18 @@ export default function AdminMatchesPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-10">
-      <header className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm sm:p-8">
+    <div className="mx-auto flex max-w-5xl flex-col gap-6 sm:gap-10">
+      <header className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-8">
         <p className="text-xs font-semibold tracking-[0.14em] text-indigo-800 uppercase">
           Administrator
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">マッチ管理</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
+        <h1 className="mt-2 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">マッチ管理</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
           登録済みのパートナーとクライアントを 1対1 で紐づけます。アプリ画面上では連絡先は非公開のまま運用されます。一覧のメール列は運用確認用のみです。
         </p>
       </header>
 
-        <section className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm md:p-8">
+        <section className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-6 md:p-8">
           <h2 className="text-lg font-semibold text-slate-950">新しいマッチを登録</h2>
           <p className="mt-2 text-sm text-zinc-600">
             同じ組み合わせは二重登録できません。フィルタでユーザーを絞り込めます。
@@ -367,7 +367,7 @@ export default function AdminMatchesPage() {
           {message ? <p className="mt-6 text-sm font-medium text-emerald-800">{message}</p> : null}
         </section>
 
-        <section className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm md:p-8">
+        <section className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-6 md:p-8">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-lg font-semibold text-slate-950">ユーザーのロール管理</h2>
             <span className="text-xs text-slate-500">Firebase連携ユーザーの切替に使います</span>
@@ -483,7 +483,7 @@ export default function AdminMatchesPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm md:p-8">
+        <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-6 md:p-8">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-lg font-semibold text-zinc-950">登録済みマッチ一覧</h2>
             <div className="flex items-center gap-3">

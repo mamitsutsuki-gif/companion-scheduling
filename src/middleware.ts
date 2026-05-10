@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import { SESSION_COOKIE_NAME } from "@/lib/session-cookie";
 
-const protectedPrefixes = ["/dashboard", "/admin", "/match", "/partner"];
+const protectedPrefixes = ["/dashboard", "/admin", "/match", "/partner", "/fta"];
 
 function isProtectedPath(pathname: string) {
   return protectedPrefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -43,5 +43,11 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*", "/match/:path*", "/partner/:path*"],
+  matcher: [
+    "/dashboard/:path*",
+    "/admin/:path*",
+    "/match/:path*",
+    "/partner/:path*",
+    "/fta/:path*",
+  ],
 };

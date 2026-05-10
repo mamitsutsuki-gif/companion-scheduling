@@ -92,13 +92,13 @@ export default function FtaPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-900">自分FTA</h1>
-        <p className="mt-2 text-sm text-slate-600">中心(A)→要素(B)→アクション(C)の順で記入します。鍵マークで非公開にできます。</p>
+    <div className="space-y-6 sm:space-y-8">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">自分FTA</h1>
+        <p className="mt-2 text-base text-slate-600">中心(A)→要素(B)→アクション(C)の順で記入します。鍵マークで非公開にできます。</p>
       </section>
 
-      <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-6">
         <FtaEditor chart={chart} onChange={onEdit} />
         <div className="flex items-center gap-3">
           <button

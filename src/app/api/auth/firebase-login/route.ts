@@ -38,6 +38,26 @@ export async function POST(request: Request) {
   const email = decoded.email.trim().toLowerCase();
   let user = await findUserForFirebaseLogin({ email, firebaseUid });
 
+  // セキュリティ: 既存ユーザー（別方式で登録済み）のメールに firebaseUid を勝手に紐付けない。
+  // 例: 被害者が Google SSO で example@x.com を登録 → 攻撃者が同じメールで Firebase
+  // パスワード登録 → ここでメール一致だけで auto-link すると乗っ取りが成立してしまう。
+  // そのため firebaseUid 不一致 + 何らかの認証情報を既に持つアカウントとの結合は拒否する。
+  if (user && !user.firebaseUid) {
+    if (user.googleSub) {
+      return jsonError(
+        "このメールアドレスは別のログイン方法（Google）で既に登録されています。元の方法でログインしてください。",
+        409,
+      );
+    }
+    // password レガシー or 移行用にメール一致のみで紐付ける場合はメール認証必須。
+    if (!decoded.email_verified) {
+      return jsonError(
+        "アカウント連携にはメール認証が必要です。受信メールの確認リンクから認証してください。",
+        409,
+      );
+    }
+  }
+
   // 対応可能時間（任意）。新規作成時に保存。クライアント登録のみ意味があるが、
   // 余分なIDが渡っても normalize で無効値は落とすので安全。
   const settings = parsed.data.availabilitySlotIds ? await getAppSettingsRow() : null;

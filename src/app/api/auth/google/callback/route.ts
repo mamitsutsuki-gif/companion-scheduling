@@ -68,6 +68,12 @@ export async function GET(request: NextRequest) {
           : ("CLIENT" as const);
       user = { id: d.id, role };
     } else if (requestedRole) {
+      // セキュリティ: 同じメールが別のログイン方法（Firebase password 等）で既に登録済みなら、
+      // Google アカウントを新規に紐付けて多重登録を許さない。
+      const byEmail = await users.where("email", "==", email).limit(1).get();
+      if (!byEmail.empty) {
+        return redirectLogin(request, "email_already_registered");
+      }
       const display = profile.name?.trim() || email.split("@")[0] || "Googleユーザー";
       // クライアント新規登録の場合のみ、stateに含まれる対応可能時間を保存。
       let availabilitySlotIds: string[] = [];

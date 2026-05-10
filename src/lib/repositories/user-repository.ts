@@ -7,6 +7,7 @@ type UserView = {
   displayName: string;
   role: Role;
   firebaseUid: string | null;
+  googleSub: string | null;
   email: string;
   createdAt?: Date | string;
   availabilitySlotIds: string[];
@@ -27,6 +28,7 @@ function userFromDoc(id: string, data: Record<string, unknown>): UserView {
     displayName: String(data.displayName ?? "ユーザー"),
     role: asRole(data.role),
     firebaseUid: typeof data.firebaseUid === "string" ? data.firebaseUid : null,
+    googleSub: typeof data.googleSub === "string" ? data.googleSub : null,
     email: String(data.email ?? "").toLowerCase(),
     createdAt: typeof data.createdAt === "string" ? data.createdAt : new Date(),
     availabilitySlotIds: asStringArray(data.availabilitySlotIds),
@@ -54,7 +56,7 @@ export async function findUserForFirebaseLogin(params: { email: string; firebase
 
   return prisma.user.findFirst({
     where: { OR: [{ firebaseUid: params.firebaseUid }, { email: params.email }] },
-    select: { id: true, displayName: true, role: true, firebaseUid: true, email: true },
+    select: { id: true, displayName: true, role: true, firebaseUid: true, googleSub: true, email: true },
   });
 }
 
@@ -88,7 +90,7 @@ export async function createFirebaseUser(params: {
       role: "CLIENT",
       firebaseUid: params.firebaseUid,
     },
-    select: { id: true, displayName: true, role: true, firebaseUid: true, email: true },
+    select: { id: true, displayName: true, role: true, firebaseUid: true, googleSub: true, email: true },
   });
 }
 
@@ -125,7 +127,7 @@ export async function attachFirebaseUid(userId: string, firebaseUid: string) {
   return prisma.user.update({
     where: { id: userId },
     data: { firebaseUid },
-    select: { id: true, displayName: true, role: true, firebaseUid: true, email: true },
+    select: { id: true, displayName: true, role: true, firebaseUid: true, googleSub: true, email: true },
   });
 }
 
@@ -242,7 +244,7 @@ export async function updateUserRole(userId: string, role: Role) {
     return await prisma.user.update({
       where: { id: userId },
       data: { role },
-      select: { id: true, displayName: true, role: true, email: true, firebaseUid: true },
+      select: { id: true, displayName: true, role: true, email: true, firebaseUid: true, googleSub: true },
     });
   } catch (error) {
     if (!(error instanceof Error) || !error.message.includes("Unknown field `firebaseUid`")) throw error;
@@ -251,7 +253,7 @@ export async function updateUserRole(userId: string, role: Role) {
       data: { role },
       select: { id: true, displayName: true, role: true, email: true },
     });
-    return { ...row, firebaseUid: null };
+    return { ...row, firebaseUid: null, googleSub: null };
   }
 }
 

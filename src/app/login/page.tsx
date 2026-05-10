@@ -23,6 +23,8 @@ function oauthErrorMessage(code: string | null) {
     oauth_unverified: "Google メールの確認が取れていません。",
     oauth_not_allowed:
       "Googleログインは許可されたアカウントのみ利用できます。事前登録済みアカウントでログインしてください。",
+    email_already_registered:
+      "このメールアドレスは既にメール/パスワードで登録されています。元のログイン方法でサインインしてください。",
     oauth_error: "ログイン処理でエラーが発生しました。",
   };
   return map[code] ?? `エラー: ${code}`;
