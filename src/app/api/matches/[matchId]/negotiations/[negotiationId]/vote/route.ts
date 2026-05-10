@@ -7,6 +7,8 @@ import { getUserMapByIds } from "@/lib/repositories/user-repository";
 import { createMessage } from "@/lib/repositories/message-repository";
 import { getNegotiationById, submitVotes } from "@/lib/repositories/negotiation-repository";
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
+import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
+import { getMatchById } from "@/lib/repositories/match-repository";
 
 const schema = z.object({ votes: z.record(z.string(), z.enum(["YES", "NO"])) });
 
@@ -59,7 +61,18 @@ export async function POST(request: Request, context: RouteContext) {
   const senderMap = await getUserMapByIds([session.sub]);
   const senderName = senderMap.get(session.sub)?.displayName ?? "クライアント";
 
-  await createMessage({ matchId, senderId: session.sub, body, kind: "STANDARD" });
+  await createMessage({
+    matchId,
+    senderId: session.sub,
+    body,
+    kind: "VOTE_SUMMARY",
+    payload: {
+      negotiationId,
+      yesCount,
+      noCount,
+      allNo,
+    },
+  });
 
   const excerpt = await summarizeChatLine(body);
   await notifyMatchStakeholders(matchId, {
@@ -78,6 +91,20 @@ export async function POST(request: Request, context: RouteContext) {
     summary: `${senderName}さんが日程回答（○ ${yesCount} / × ${noCount}）を送信。`,
     link: `/admin/matches?focus=${encodeURIComponent(matchId)}`,
   });
+
+  const matchInfo = await getMatchById(matchId).catch(() => null);
+  if (matchInfo?.partner?.id) {
+    await appendMemberNotification({
+      recipientUserId: matchInfo.partner.id,
+      type: "SLOT_VOTED",
+      matchId,
+      sessionNumber: negotiation.sessionNumber ?? null,
+      actorUserId: session.sub,
+      actorRole: session.role,
+      summary: `${senderName}さんが日程回答（○ ${yesCount} / × ${noCount}）を送信。${allNo ? "全て×のため再提案が必要です。" : "○ から1つ選んで確定してください。"}`,
+      link: `/match/${matchId}#schedule`,
+    });
+  }
 
   return jsonOk({ ok: true, status: allNo ? "NEEDS_NEW_PROPOSAL" : "AWAITING_PARTNER_CONFIRM" });
 }

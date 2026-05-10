@@ -6,6 +6,7 @@ import {
   attachFirebaseUid,
   createFirebaseUser,
   findUserForFirebaseLogin,
+  isDeletedUser,
   updateUserAvailability,
 } from "@/lib/repositories/user-repository";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
@@ -41,6 +42,13 @@ export async function POST(request: Request) {
   const firebaseUid = decoded.uid;
   const email = decoded.email.trim().toLowerCase();
   let user = await findUserForFirebaseLogin({ email, firebaseUid });
+
+  if (isDeletedUser(user)) {
+    return jsonError(
+      "このアカウントは管理者により削除されているため、ログインできません。",
+      403,
+    );
+  }
 
   // セキュリティ: 既存ユーザー（別方式で登録済み）のメールに firebaseUid を勝手に紐付けない。
   // 例: 被害者が Google SSO で example@x.com を登録 → 攻撃者が同じメールで Firebase

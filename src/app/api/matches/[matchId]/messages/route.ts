@@ -10,6 +10,8 @@ import {
 } from "@/lib/repositories/message-repository";
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
+import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
+import { getMatchById } from "@/lib/repositories/match-repository";
 
 const postSchema = z.object({
   body: z.string().min(1).max(5000),
@@ -77,6 +79,28 @@ export async function POST(request: Request, context: RouteContext) {
       summary: `${sender?.displayName ?? "参加者"}さん（${session.role === "PARTNER" ? "パートナー" : "クライアント"}）が新規チャット: ${excerpt}`,
       link: `/admin/matches?focus=${encodeURIComponent(matchId)}`,
     });
+  }
+
+  // 相手側のメンバー通知（ADMIN は通知しない）
+  const matchInfo = await getMatchById(matchId).catch(() => null);
+  if (matchInfo) {
+    const other =
+      session.sub === matchInfo.partner.id
+        ? matchInfo.client.id
+        : session.sub === matchInfo.client.id
+          ? matchInfo.partner.id
+          : null;
+    if (other) {
+      await appendMemberNotification({
+        recipientUserId: other,
+        type: "CHAT",
+        matchId,
+        actorUserId: session.sub,
+        actorRole: session.role,
+        summary: `${sender?.displayName ?? "相手"}さんからチャット: ${excerpt}`,
+        link: `/match/${matchId}#chat`,
+      });
+    }
   }
 
   return jsonOk({ ok: true, messageId: message.id });

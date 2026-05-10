@@ -35,6 +35,9 @@ export default function AdminAppSettingsPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [adminUserId, setAdminUserId] = useState("");
   const [partnerExtraQuestions, setPartnerExtraQuestions] = useState<Record<string, string[]>>({});
+  const [slotEarliestHour, setSlotEarliestHour] = useState(8);
+  const [slotLatestHour, setSlotLatestHour] = useState(20);
+  const [allowWeekends, setAllowWeekends] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -69,6 +72,9 @@ export default function AdminAppSettingsPage() {
           }
           setPartnerExtraQuestions(cleaned);
         }
+        if (typeof sData.settings.slotEarliestHour === "number") setSlotEarliestHour(sData.settings.slotEarliestHour);
+        if (typeof sData.settings.slotLatestHour === "number") setSlotLatestHour(sData.settings.slotLatestHour);
+        if (typeof sData.settings.allowWeekends === "boolean") setAllowWeekends(sData.settings.allowWeekends);
       }
       setUsers(Array.isArray(uData?.users) ? uData.users : []);
       setLoading(false);
@@ -156,6 +162,10 @@ export default function AdminAppSettingsPage() {
       if (trimmed.length > 0) partnerExtra[k] = trimmed;
     }
 
+    if (slotEarliestHour >= slotLatestHour) {
+      setErr("候補時間帯の開始時刻は終了時刻より前にしてください。");
+      return;
+    }
     const res = await fetch("/api/admin/app-settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -165,6 +175,9 @@ export default function AdminAppSettingsPage() {
         timezone,
         availabilitySlotOptions: cleaned,
         partnerExtraQuestionsByRound: partnerExtra,
+        slotEarliestHour: Number(slotEarliestHour),
+        slotLatestHour: Number(slotLatestHour),
+        allowWeekends,
       }),
     });
     const data = await res.json().catch(() => null);
@@ -302,6 +315,54 @@ export default function AdminAppSettingsPage() {
           <p className="text-xs text-emerald-900/70">
             ※ IDを変更すると、既存ユーザーの選択は新IDへ自動マッピングされません。基本は新規追加・削除で運用してください。
           </p>
+        </div>
+
+        <div className="space-y-3 rounded-xl border border-sky-200 bg-sky-50/60 p-4">
+          <div>
+            <h3 className="text-base font-semibold text-sky-950">パートナーが提案できる候補日時の制約</h3>
+            <p className="mt-1 text-sm text-sky-900/80">
+              候補日時の入力フォームで選択可能な時間帯を制限します。デフォルトは平日 8:00〜20:00。
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="block space-y-1 text-sm font-medium text-sky-950">
+              開始時刻（時）
+              <select
+                value={slotEarliestHour}
+                onChange={(e) => setSlotEarliestHour(Number(e.target.value))}
+                className="w-full rounded-md border border-sky-200 bg-white px-3 py-2 text-sky-950"
+              >
+                {Array.from({ length: 24 }, (_, h) => h).map((h) => (
+                  <option key={h} value={h}>
+                    {String(h).padStart(2, "0")}:00
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-1 text-sm font-medium text-sky-950">
+              終了時刻（時）
+              <select
+                value={slotLatestHour}
+                onChange={(e) => setSlotLatestHour(Number(e.target.value))}
+                className="w-full rounded-md border border-sky-200 bg-white px-3 py-2 text-sky-950"
+              >
+                {Array.from({ length: 25 }, (_, h) => h).map((h) => (
+                  <option key={h} value={h}>
+                    {String(h).padStart(2, "0")}:00
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-sky-950">
+            <input
+              type="checkbox"
+              checked={allowWeekends}
+              onChange={(e) => setAllowWeekends(e.target.checked)}
+              className="h-4 w-4"
+            />
+            土日も候補日として選択可能にする
+          </label>
         </div>
 
         <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4">

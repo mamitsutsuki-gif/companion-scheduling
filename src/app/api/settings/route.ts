@@ -11,5 +11,8 @@ export async function GET() {
     totalSessions: s.totalSessions,
     timezone: s.timezone,
     availabilitySlotOptions: s.availabilitySlotOptions,
+    slotEarliestHour: s.slotEarliestHour,
+    slotLatestHour: s.slotLatestHour,
+    allowWeekends: s.allowWeekends,
   });
 }

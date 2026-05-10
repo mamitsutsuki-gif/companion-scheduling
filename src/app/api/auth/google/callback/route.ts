@@ -81,6 +81,9 @@ export async function GET(request: NextRequest) {
     if (!bySub.empty) {
       const d = bySub.docs[0]!;
       const raw = d.data() as Record<string, unknown>;
+      if (typeof raw.deletedAt === "string" && raw.deletedAt.trim()) {
+        return redirectLogin(request, "user_deleted");
+      }
       const role =
         raw.role === "ADMIN" || raw.role === "PARTNER" || raw.role === "CLIENT"
           ? raw.role
@@ -124,7 +127,14 @@ export async function GET(request: NextRequest) {
       }
     }
   } else {
-    user = await prisma.user.findFirst({ where: { email, googleSub } });
+    const existing = await prisma.user.findFirst({
+      where: { email, googleSub },
+      select: { id: true, role: true, deletedAt: true },
+    });
+    if (existing?.deletedAt) {
+      return redirectLogin(request, "user_deleted");
+    }
+    user = existing ? { id: existing.id, role: existing.role } : null;
     if (!user && requestedRole) {
       const display = profile.name?.trim() || email.split("@")[0] || "Googleユーザー";
       user = await prisma.user.create({

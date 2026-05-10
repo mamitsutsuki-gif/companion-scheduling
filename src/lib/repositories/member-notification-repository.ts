@@ -1,0 +1,239 @@
+import { prisma } from "@/lib/prisma";
+import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
+
+/**
+ * パートナー / クライアントなど受信者ごとの通知フィード。
+ * 管理者通知（adminNotifications）とは別物で、recipientUserId に対して書かれる。
+ */
+export type MemberNotificationType =
+  | "CHAT"
+  | "SLOT_PROPOSED"
+  | "SLOT_VOTED"
+  | "SLOT_CONFIRMED"
+  | "RESCHEDULE";
+
+export type MemberNotificationRow = {
+  id: string;
+  recipientUserId: string;
+  type: MemberNotificationType;
+  matchId: string | null;
+  sessionNumber: number | null;
+  actorUserId: string | null;
+  actorRole: string | null;
+  summary: string;
+  link: string | null;
+  readAt: string | null;
+  createdAt: string;
+};
+
+function isType(value: unknown): value is MemberNotificationType {
+  return (
+    value === "CHAT" ||
+    value === "SLOT_PROPOSED" ||
+    value === "SLOT_VOTED" ||
+    value === "SLOT_CONFIRMED" ||
+    value === "RESCHEDULE"
+  );
+}
+
+export async function appendMemberNotification(input: {
+  recipientUserId: string;
+  type: MemberNotificationType;
+  matchId?: string | null;
+  sessionNumber?: number | null;
+  actorUserId?: string | null;
+  actorRole?: string | null;
+  summary: string;
+  link?: string | null;
+}): Promise<{ id: string } | null> {
+  if (!input.recipientUserId) return null;
+  const summary = input.summary.slice(0, 500);
+  const link = input.link?.slice(0, 500) ?? null;
+  const createdAt = new Date().toISOString();
+
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return null;
+    const ref = db.collection("memberNotifications").doc();
+    await ref.set({
+      recipientUserId: input.recipientUserId,
+      type: input.type,
+      matchId: input.matchId ?? null,
+      sessionNumber: input.sessionNumber ?? null,
+      actorUserId: input.actorUserId ?? null,
+      actorRole: input.actorRole ?? null,
+      summary,
+      link,
+      readAt: null,
+      createdAt,
+    });
+    return { id: ref.id };
+  }
+
+  const delegate = (
+    prisma as unknown as { memberNotification?: { create?: Function } }
+  ).memberNotification;
+  if (!delegate?.create) return null;
+  try {
+    const row = (await delegate.create({
+      data: {
+        recipientUserId: input.recipientUserId,
+        type: input.type,
+        matchId: input.matchId ?? null,
+        sessionNumber: input.sessionNumber ?? null,
+        actorUserId: input.actorUserId ?? null,
+        actorRole: input.actorRole ?? null,
+        summary,
+        link,
+      },
+    })) as { id: string };
+    return { id: row.id };
+  } catch {
+    return null;
+  }
+}
+
+export async function listMemberNotifications(
+  recipientUserId: string,
+  input?: { limit?: number },
+): Promise<MemberNotificationRow[]> {
+  if (!recipientUserId) return [];
+  const limit = Math.max(1, Math.min(200, input?.limit ?? 100));
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return [];
+    // createdAt orderBy + recipient where：複合 index 不要にするため where のみで取得→メモリでソート
+    const snap = await db
+      .collection("memberNotifications")
+      .where("recipientUserId", "==", recipientUserId)
+      .get();
+    const rows = snap.docs.map((d) => {
+      const raw = d.data() as Record<string, unknown>;
+      const type = isType(raw.type) ? raw.type : "CHAT";
+      return {
+        id: d.id,
+        recipientUserId,
+        type,
+        matchId: raw.matchId ? String(raw.matchId) : null,
+        sessionNumber: typeof raw.sessionNumber === "number" ? raw.sessionNumber : null,
+        actorUserId: raw.actorUserId ? String(raw.actorUserId) : null,
+        actorRole: raw.actorRole ? String(raw.actorRole) : null,
+        summary: String(raw.summary ?? ""),
+        link: raw.link ? String(raw.link) : null,
+        readAt: raw.readAt ? String(raw.readAt) : null,
+        createdAt: String(raw.createdAt ?? new Date().toISOString()),
+      } as MemberNotificationRow;
+    });
+    return rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  }
+  const delegate = (
+    prisma as unknown as { memberNotification?: { findMany?: Function } }
+  ).memberNotification;
+  if (!delegate?.findMany) return [];
+  const rows = (await delegate.findMany({
+    where: { recipientUserId },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  })) as Array<Record<string, unknown>>;
+  return rows.map((row) => ({
+    id: String(row.id),
+    recipientUserId,
+    type: isType(row.type) ? row.type : "CHAT",
+    matchId: row.matchId ? String(row.matchId) : null,
+    sessionNumber: typeof row.sessionNumber === "number" ? row.sessionNumber : null,
+    actorUserId: row.actorUserId ? String(row.actorUserId) : null,
+    actorRole: row.actorRole ? String(row.actorRole) : null,
+    summary: String(row.summary ?? ""),
+    link: row.link ? String(row.link) : null,
+    readAt:
+      row.readAt instanceof Date
+        ? row.readAt.toISOString()
+        : row.readAt
+          ? String(row.readAt)
+          : null,
+    createdAt:
+      row.createdAt instanceof Date
+        ? row.createdAt.toISOString()
+        : String(row.createdAt ?? new Date().toISOString()),
+  }));
+}
+
+export async function markMemberNotificationRead(id: string, recipientUserId: string) {
+  const now = new Date().toISOString();
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return;
+    const ref = db.collection("memberNotifications").doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) return;
+    const raw = snap.data() as Record<string, unknown>;
+    if (raw.recipientUserId !== recipientUserId) return;
+    await ref.set({ readAt: now }, { merge: true });
+    return;
+  }
+  const delegate = (
+    prisma as unknown as { memberNotification?: { updateMany?: Function } }
+  ).memberNotification;
+  if (!delegate?.updateMany) return;
+  try {
+    await delegate.updateMany({
+      where: { id, recipientUserId },
+      data: { readAt: new Date(now) },
+    });
+  } catch {
+    /* noop */
+  }
+}
+
+export async function markAllMemberNotificationsRead(recipientUserId: string) {
+  const now = new Date().toISOString();
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return;
+    const snap = await db
+      .collection("memberNotifications")
+      .where("recipientUserId", "==", recipientUserId)
+      .where("readAt", "==", null)
+      .get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    for (const d of snap.docs) batch.set(d.ref, { readAt: now }, { merge: true });
+    await batch.commit();
+    return;
+  }
+  const delegate = (
+    prisma as unknown as { memberNotification?: { updateMany?: Function } }
+  ).memberNotification;
+  if (!delegate?.updateMany) return;
+  try {
+    await delegate.updateMany({
+      where: { recipientUserId, readAt: null },
+      data: { readAt: new Date(now) },
+    });
+  } catch {
+    /* noop */
+  }
+}
+
+export async function countUnreadMemberNotifications(recipientUserId: string): Promise<number> {
+  if (!recipientUserId) return 0;
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return 0;
+    const snap = await db
+      .collection("memberNotifications")
+      .where("recipientUserId", "==", recipientUserId)
+      .where("readAt", "==", null)
+      .get();
+    return snap.size;
+  }
+  const delegate = (
+    prisma as unknown as { memberNotification?: { count?: Function } }
+  ).memberNotification;
+  if (!delegate?.count) return 0;
+  try {
+    return (await delegate.count({ where: { recipientUserId, readAt: null } })) as number;
+  } catch {
+    return 0;
+  }
+}

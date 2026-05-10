@@ -4,10 +4,15 @@ import { getMatchIfAllowed } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
 import { notifyMatchStakeholders } from "@/lib/notify-members";
 import { createMessage } from "@/lib/repositories/message-repository";
-import { listNegotiationsForMatch } from "@/lib/repositories/negotiation-repository";
+import {
+  listNegotiationsForMatch,
+  setRescheduleRequestedFlag,
+} from "@/lib/repositories/negotiation-repository";
 import { readSession } from "@/lib/session";
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
+import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
+import { getMatchById } from "@/lib/repositories/match-repository";
 
 type RouteContext = { params: Promise<{ matchId: string }> };
 const payloadSchema = z.object({
@@ -50,7 +55,12 @@ export async function POST(request: Request, context: RouteContext) {
     .flatMap((n) =>
       n.slots
         .filter((s) => s.isConfirmed)
-        .map((s) => ({ slot: s, sessionNumber: Math.max(1, n.sessionNumber ?? 1), start: new Date(s.startAt) })),
+        .map((s) => ({
+          slot: s,
+          negotiationId: n.id,
+          sessionNumber: Math.max(1, n.sessionNumber ?? 1),
+          start: new Date(s.startAt),
+        })),
     )
     .filter((x) => (requestedSession ? x.sessionNumber === requestedSession : true))
     .filter((x) => !Number.isNaN(x.start.valueOf()) && x.start > now)
@@ -86,6 +96,9 @@ export async function POST(request: Request, context: RouteContext) {
     body: messageBody,
   });
 
+  // 「再調整中」フラグを当該確定 Negotiation に立てる（次の round が CONFIRMED で解除）
+  await setRescheduleRequestedFlag(nextConfirmed.negotiationId).catch(() => null);
+
   await notifyMatchStakeholders(matchId, {
     appOrigin: new URL(request.url).origin,
     subject: `第${nextConfirmed.sessionNumber}回の日程変更希望が届きました`,
@@ -104,6 +117,24 @@ export async function POST(request: Request, context: RouteContext) {
     summary: `${sender?.displayName ?? "参加者"}さん（${roleLabel(session.role)}）が ${nextConfirmed.sessionNumber} 回目の日程変更を希望しました（${pretty}）。`,
     link: `/admin/matches?focus=${encodeURIComponent(matchId)}`,
   });
+
+  // 相手側へ通知
+  const matchInfo = await getMatchById(matchId).catch(() => null);
+  if (matchInfo) {
+    const otherUserId = session.sub === matchInfo.partner.id ? matchInfo.client.id : matchInfo.partner.id;
+    if (otherUserId) {
+      await appendMemberNotification({
+        recipientUserId: otherUserId,
+        type: "RESCHEDULE",
+        matchId,
+        sessionNumber: nextConfirmed.sessionNumber,
+        actorUserId: session.sub,
+        actorRole: session.role,
+        summary: `${sender?.displayName ?? "相手"}さんが ${nextConfirmed.sessionNumber} 回目（${pretty}）の日程変更を希望しました。`,
+        link: `/match/${matchId}#schedule`,
+      });
+    }
+  }
 
   return jsonOk({ ok: true });
 }

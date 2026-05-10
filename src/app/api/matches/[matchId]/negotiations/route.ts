@@ -4,6 +4,7 @@ import { readSession } from "@/lib/session";
 import { getMatchIfAllowed } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
 import { getAppSettings } from "@/lib/app-settings";
+import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { notifyMatchStakeholders } from "@/lib/notify-members";
 import {
   createNegotiationRound,
@@ -13,7 +14,9 @@ import {
 } from "@/lib/repositories/negotiation-repository";
 import { createMessage } from "@/lib/repositories/message-repository";
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
+import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
+import { getMatchById } from "@/lib/repositories/match-repository";
 
 const startsPayload = z.object({
   starts: z.array(z.string()).min(3).max(5),
@@ -94,6 +97,7 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const settings = await getAppSettings();
+  const settingsRow = await getAppSettingsRow();
   const sessionNumberRaw =
     (parsedStarts.success ? parsedStarts.data.sessionNumber : undefined) ??
     (parsedLegacy?.success ? parsedLegacy.data.sessionNumber : undefined) ??
@@ -101,11 +105,46 @@ export async function POST(request: Request, context: RouteContext) {
   const sessionNumber = Math.min(Math.max(1, sessionNumberRaw), Math.max(1, settings.totalSessions));
   const slotData: { startAt: Date; endAt: Date }[] = [];
 
+  function validateWithinAllowedWindow(start: Date, end: Date) {
+    // 表示・案内 TZ で見たときに 開始/終了 が許容ウィンドウに収まっているかチェック。
+    const tz = settingsRow.timezone || "Asia/Tokyo";
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hour12: false,
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const partsStart = Object.fromEntries(fmt.formatToParts(start).map((p) => [p.type, p.value]));
+    const partsEnd = Object.fromEntries(fmt.formatToParts(end).map((p) => [p.type, p.value]));
+    const startHour = Number(partsStart.hour);
+    const startMinute = Number(partsStart.minute);
+    const endHour = Number(partsEnd.hour);
+    const endMinute = Number(partsEnd.minute);
+    const startMinutes = startHour * 60 + startMinute;
+    const endMinutes =
+      endHour === 0 && endMinute === 0 ? 24 * 60 : endHour * 60 + endMinute;
+    const earliest = settingsRow.slotEarliestHour * 60;
+    const latest = settingsRow.slotLatestHour * 60;
+    if (startMinutes < earliest || endMinutes > latest) {
+      return `候補日時は ${String(settingsRow.slotEarliestHour).padStart(2, "0")}:00〜${String(settingsRow.slotLatestHour).padStart(2, "0")}:00 の間で指定してください。`;
+    }
+    if (!settingsRow.allowWeekends) {
+      const weekday = String(partsStart.weekday).slice(0, 3);
+      if (weekday === "Sat" || weekday === "Sun") {
+        return "土日は候補日として指定できません。（管理者の設定で許可可能）";
+      }
+    }
+    return null;
+  }
+
   if (parsedStarts.success) {
     for (const iso of parsedStarts.data.starts) {
       const start = new Date(iso);
       if (Number.isNaN(start.valueOf())) return jsonError("開始日時が不正です。");
       const end = addMinutes(start, settings.slotDurationMinutes);
+      const v = validateWithinAllowedWindow(start, end);
+      if (v) return jsonError(v);
       slotData.push({ startAt: start, endAt: end });
     }
   } else if (parsedLegacy?.success) {
@@ -115,6 +154,8 @@ export async function POST(request: Request, context: RouteContext) {
       if (Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf()) || start >= end) {
         return jsonError("開始・終了の日時が不正です。");
       }
+      const v = validateWithinAllowedWindow(start, end);
+      if (v) return jsonError(v);
       slotData.push({ startAt: start, endAt: end });
     }
   }
@@ -176,6 +217,20 @@ export async function POST(request: Request, context: RouteContext) {
     summary: `${sender?.displayName ?? "パートナー"}さんが ${sessionNumber} 回目の日程候補（Round ${negotiation.round}）を提示しました。`,
     link: `/admin/matches?focus=${encodeURIComponent(matchId)}`,
   });
+
+  const matchInfo = await getMatchById(matchId).catch(() => null);
+  if (matchInfo?.client?.id) {
+    await appendMemberNotification({
+      recipientUserId: matchInfo.client.id,
+      type: "SLOT_PROPOSED",
+      matchId,
+      sessionNumber,
+      actorUserId: session.sub,
+      actorRole: session.role,
+      summary: `${sender?.displayName ?? "パートナー"}さんが ${sessionNumber} 回目の日程候補を提示しました。○／× で回答してください。`,
+      link: `/match/${matchId}#schedule`,
+    });
+  }
 
   return jsonOk({ ok: true, negotiation });
 }

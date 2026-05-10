@@ -23,6 +23,12 @@ export async function POST(request: Request) {
     where: { email },
   });
   if (!user) return jsonError("メールまたはパスワードが一致しません。", 401);
+  if (user.deletedAt) {
+    return jsonError(
+      "このアカウントは管理者により削除されているため、ログインできません。",
+      403,
+    );
+  }
 
   if (!user.passwordHash) {
     return jsonError("このメールは Google でのログインのみ対応です。画面上のボタンをご利用ください。", 401);

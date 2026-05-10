@@ -1,6 +1,6 @@
-import { readSession } from "@/lib/session";
+import { readSession, clearSessionCookie } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
-import { getUserById, updateUserAvailability } from "@/lib/repositories/user-repository";
+import { getUserById, isDeletedUser, updateUserAvailability } from "@/lib/repositories/user-repository";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { normalizeAvailabilitySelections } from "@/lib/availability";
 import { z } from "zod";
@@ -11,6 +11,10 @@ export async function GET() {
 
   const user = await getUserById(session.sub);
   if (!user) return jsonError("ユーザーが見つかりません。", 404);
+  if (isDeletedUser(user)) {
+    await clearSessionCookie();
+    return jsonError("このアカウントは削除されています。", 403);
+  }
 
   const safe = {
     id: user.id,

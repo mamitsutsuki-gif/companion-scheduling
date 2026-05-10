@@ -12,15 +12,26 @@ const availabilityOptionSchema = z.object({
   label: z.string().min(1).max(120),
 });
 
-const patchSchema = z.object({
-  slotDurationMinutes: z.number().int().min(15).max(240),
-  totalSessions: z.number().int().min(1).max(24),
-  timezone: z.string().min(1).max(80),
-  availabilitySlotOptions: z.array(availabilityOptionSchema).max(32).optional(),
-  partnerExtraQuestionsByRound: z
-    .record(z.string(), z.array(z.string().min(1).max(500)).max(8))
-    .optional(),
-});
+const patchSchema = z
+  .object({
+    slotDurationMinutes: z.number().int().min(15).max(240),
+    totalSessions: z.number().int().min(1).max(24),
+    timezone: z.string().min(1).max(80),
+    availabilitySlotOptions: z.array(availabilityOptionSchema).max(32).optional(),
+    partnerExtraQuestionsByRound: z
+      .record(z.string(), z.array(z.string().min(1).max(500)).max(8))
+      .optional(),
+    slotEarliestHour: z.number().int().min(0).max(24).optional(),
+    slotLatestHour: z.number().int().min(0).max(24).optional(),
+    allowWeekends: z.boolean().optional(),
+  })
+  .refine(
+    (v) =>
+      v.slotEarliestHour === undefined ||
+      v.slotLatestHour === undefined ||
+      v.slotEarliestHour < v.slotLatestHour,
+    "開始時刻は終了時刻より前にしてください。",
+  );
 
 export async function GET() {
   const session = await readSession();
@@ -45,6 +56,9 @@ export async function PATCH(request: Request) {
     timezone: parsed.data.timezone,
     availabilitySlotOptions: parsed.data.availabilitySlotOptions,
     partnerExtraQuestionsByRound: parsed.data.partnerExtraQuestionsByRound,
+    slotEarliestHour: parsed.data.slotEarliestHour,
+    slotLatestHour: parsed.data.slotLatestHour,
+    allowWeekends: parsed.data.allowWeekends,
   });
 
   return jsonOk({ ok: true, settings: row });

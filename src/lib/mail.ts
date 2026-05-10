@@ -8,14 +8,28 @@ export type MailInput = {
   attachments?: { filename: string; content: string; contentType: string }[];
 };
 
+const DEFAULT_MAIL_FROM = "モチベイジクラウド <customer@motive-iji.com>";
+
+/**
+ * メール差出人を解決する。優先順位: SMTP_FROM > MAIL_FROM > 既定値。
+ * staging / Firebase App Hosting で SMTP_FROM 未設定でも、必ず
+ * customer@motive-iji.com から送信される。
+ */
+export function resolveMailFrom() {
+  return (
+    process.env.SMTP_FROM?.trim() ||
+    process.env.MAIL_FROM?.trim() ||
+    DEFAULT_MAIL_FROM
+  );
+}
+
 let transporterPromise: Promise<nodemailer.Transporter | null> | null = null;
 
 async function getSmtpTransport() {
   if (transporterPromise) return transporterPromise;
   transporterPromise = (async () => {
     const host = process.env.SMTP_HOST;
-    const from = process.env.SMTP_FROM;
-    if (!host || !from) return null;
+    if (!host) return null;
 
     const port = Number(process.env.SMTP_PORT ?? "587");
     const secure = process.env.SMTP_SECURE === "true" || port === 465;
@@ -34,8 +48,8 @@ async function getSmtpTransport() {
 
 async function sendViaResend(input: MailInput): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.SMTP_FROM?.trim();
-  if (!apiKey || !from) return false;
+  if (!apiKey) return false;
+  const from = resolveMailFrom();
 
   try {
     const res = await fetch("https://api.resend.com/emails", {
@@ -74,7 +88,7 @@ export async function sendMail(input: MailInput): Promise<boolean> {
   if (resendOk) return true;
 
   const transport = await getSmtpTransport();
-  const from = process.env.SMTP_FROM;
+  const from = resolveMailFrom();
 
   if (transport && from) {
     try {

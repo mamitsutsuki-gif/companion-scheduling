@@ -22,6 +22,9 @@ type NegotiationRow = {
     | "SUPERSEDED";
   slots: SlotRow[];
   createdAt: string;
+  confirmedZoomUrl?: string | null;
+  confirmedZoomPass?: string | null;
+  rescheduleRequestedAt?: string | null;
 };
 
 function toIso(dt: Date | string) {
@@ -53,7 +56,18 @@ export async function listNegotiationsForMatch(matchId: string) {
           : [],
       };
     });
-    return rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return rows
+      .map((r) => {
+        const raw = snap.docs.find((d) => d.id === r.id)?.data() as Record<string, unknown> | undefined;
+        return {
+          ...r,
+          confirmedZoomUrl: typeof raw?.confirmedZoomUrl === "string" ? raw.confirmedZoomUrl : null,
+          confirmedZoomPass: typeof raw?.confirmedZoomPass === "string" ? raw.confirmedZoomPass : null,
+          rescheduleRequestedAt:
+            typeof raw?.rescheduleRequestedAt === "string" ? raw.rescheduleRequestedAt : null,
+        };
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   const negotiations = await prisma.negotiation.findMany({
@@ -61,21 +75,31 @@ export async function listNegotiationsForMatch(matchId: string) {
     orderBy: [{ createdAt: "desc" }],
     include: { slots: true },
   });
-  return negotiations.map((n) => ({
-    id: n.id,
-    matchId: n.matchId,
-    sessionNumber: Number((n as { sessionNumber?: number }).sessionNumber ?? 1),
-    round: n.round,
-    status: n.status,
-    createdAt: n.createdAt.toISOString(),
-    slots: n.slots.map((s) => ({
-      id: s.id,
-      startAt: s.startAt.toISOString(),
-      endAt: s.endAt.toISOString(),
-      clientVote: s.clientVote,
-      isConfirmed: s.isConfirmed,
-    })),
-  }));
+  return negotiations.map((n) => {
+    const ext = n as unknown as {
+      confirmedZoomUrl?: string | null;
+      confirmedZoomPass?: string | null;
+      rescheduleRequestedAt?: Date | null;
+    };
+    return {
+      id: n.id,
+      matchId: n.matchId,
+      sessionNumber: Number((n as { sessionNumber?: number }).sessionNumber ?? 1),
+      round: n.round,
+      status: n.status,
+      createdAt: n.createdAt.toISOString(),
+      slots: n.slots.map((s) => ({
+        id: s.id,
+        startAt: s.startAt.toISOString(),
+        endAt: s.endAt.toISOString(),
+        clientVote: s.clientVote,
+        isConfirmed: s.isConfirmed,
+      })),
+      confirmedZoomUrl: ext.confirmedZoomUrl ?? null,
+      confirmedZoomPass: ext.confirmedZoomPass ?? null,
+      rescheduleRequestedAt: ext.rescheduleRequestedAt?.toISOString() ?? null,
+    };
+  });
 }
 
 export async function findLatestNegotiation(matchId: string) {
@@ -213,11 +237,20 @@ export async function getNegotiationById(negotiationId: string) {
           isConfirmed: Boolean(row.isConfirmed),
         };
       }),
+      confirmedZoomUrl: typeof raw.confirmedZoomUrl === "string" ? raw.confirmedZoomUrl : null,
+      confirmedZoomPass: typeof raw.confirmedZoomPass === "string" ? raw.confirmedZoomPass : null,
+      rescheduleRequestedAt:
+        typeof raw.rescheduleRequestedAt === "string" ? raw.rescheduleRequestedAt : null,
     };
   }
 
   const n = await prisma.negotiation.findUnique({ where: { id: negotiationId }, include: { slots: true } });
   if (!n) return null;
+  const ext = n as unknown as {
+    confirmedZoomUrl?: string | null;
+    confirmedZoomPass?: string | null;
+    rescheduleRequestedAt?: Date | null;
+  };
   return {
     id: n.id,
     matchId: n.matchId,
@@ -231,6 +264,9 @@ export async function getNegotiationById(negotiationId: string) {
       clientVote: s.clientVote,
       isConfirmed: s.isConfirmed,
     })),
+    confirmedZoomUrl: ext.confirmedZoomUrl ?? null,
+    confirmedZoomPass: ext.confirmedZoomPass ?? null,
+    rescheduleRequestedAt: ext.rescheduleRequestedAt?.toISOString() ?? null,
   };
 }
 
@@ -259,7 +295,11 @@ export async function submitVotes(negotiationId: string, votes: Record<string, "
   return { nextStatus };
 }
 
-export async function confirmNegotiationSlot(negotiationId: string, slotId: string) {
+export async function confirmNegotiationSlot(
+  negotiationId: string,
+  slotId: string,
+  options?: { zoomUrl?: string | null; zoomPass?: string | null },
+) {
   const negotiation = await getNegotiationById(negotiationId);
   if (!negotiation) return null;
   const chosen = negotiation.slots.find((s) => s.id === slotId);
@@ -269,7 +309,13 @@ export async function confirmNegotiationSlot(negotiationId: string, slotId: stri
     if (!db) return null;
     const slots = negotiation.slots.map((s) => ({ ...s, isConfirmed: s.id === slotId }));
     await db.collection("negotiations").doc(negotiationId).set(
-      { slots, status: "CONFIRMED", updatedAt: new Date().toISOString() },
+      {
+        slots,
+        status: "CONFIRMED",
+        confirmedZoomUrl: options?.zoomUrl ?? null,
+        confirmedZoomPass: options?.zoomPass ?? null,
+        updatedAt: new Date().toISOString(),
+      },
       { merge: true },
     );
   } else {
@@ -277,8 +323,74 @@ export async function confirmNegotiationSlot(negotiationId: string, slotId: stri
       ...negotiation.slots.map((s) =>
         prisma.slot.update({ where: { id: s.id }, data: { isConfirmed: s.id === slotId } }),
       ),
-      prisma.negotiation.update({ where: { id: negotiationId }, data: { status: "CONFIRMED" } }),
+      prisma.negotiation.update({
+        where: { id: negotiationId },
+        data: {
+          status: "CONFIRMED",
+          confirmedZoomUrl: options?.zoomUrl ?? null,
+          confirmedZoomPass: options?.zoomPass ?? null,
+        },
+      }),
     ]);
   }
   return { chosen };
+}
+
+/**
+ * 同じ matchId かつ同じ sessionNumber の他の Negotiation について、rescheduleRequestedAt をクリア。
+ * 「再調整中」状態を解除する用途。
+ */
+export async function clearRescheduleFlagsForSession(matchId: string, sessionNumber: number) {
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return;
+    const snap = await db
+      .collection("negotiations")
+      .where("matchId", "==", matchId)
+      .where("sessionNumber", "==", sessionNumber)
+      .get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    snap.docs.forEach((d) => {
+      const raw = d.data() as Record<string, unknown>;
+      if (raw.rescheduleRequestedAt) {
+        batch.set(d.ref, { rescheduleRequestedAt: null }, { merge: true });
+      }
+    });
+    await batch.commit();
+    return;
+  }
+  try {
+    await prisma.negotiation.updateMany({
+      where: { matchId, sessionNumber, NOT: { rescheduleRequestedAt: null } },
+      data: { rescheduleRequestedAt: null },
+    });
+  } catch {
+    /* ignore (column may not exist on legacy DB) */
+  }
+}
+
+/**
+ * 確定済みの最新 Negotiation について、rescheduleRequestedAt を立てる。
+ * UI 上「再調整中」表示にする。
+ */
+export async function setRescheduleRequestedFlag(negotiationId: string) {
+  const now = new Date();
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return;
+    await db
+      .collection("negotiations")
+      .doc(negotiationId)
+      .set({ rescheduleRequestedAt: now.toISOString() }, { merge: true });
+    return;
+  }
+  try {
+    await prisma.negotiation.update({
+      where: { id: negotiationId },
+      data: { rescheduleRequestedAt: now },
+    });
+  } catch {
+    /* ignore */
+  }
 }

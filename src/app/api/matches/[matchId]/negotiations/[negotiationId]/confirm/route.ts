@@ -7,10 +7,15 @@ import { buildGoogleCalendarLink, buildOutlookCalendarLink } from "@/lib/calenda
 import { notifyMatchStakeholders } from "@/lib/notify-members";
 import { getMatchById } from "@/lib/repositories/match-repository";
 import { createMessage } from "@/lib/repositories/message-repository";
-import { confirmNegotiationSlot, getNegotiationById } from "@/lib/repositories/negotiation-repository";
+import {
+  clearRescheduleFlagsForSession,
+  confirmNegotiationSlot,
+  getNegotiationById,
+} from "@/lib/repositories/negotiation-repository";
 import { getPartnerZoomProfile } from "@/lib/repositories/zoom-repository";
 import { enqueueSessionFeedbackEmailJob } from "@/lib/repositories/session-feedback-job-repository";
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
+import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
 
 const schema = z.object({
   slotId: z.string().min(1),
@@ -44,11 +49,15 @@ export async function POST(request: Request, context: RouteContext) {
   if (!chosen || chosen.clientVote !== "YES") {
     return jsonError("選択した候補はクライアントが希望していません。", 400);
   }
-  await confirmNegotiationSlot(negotiationId, parsed.data.slotId);
-
   const matchFull = await getMatchById(matchId);
   if (!matchFull) return jsonOk({ ok: true });
   const zoom = await getPartnerZoomProfile(matchFull.partnerId);
+  await confirmNegotiationSlot(negotiationId, parsed.data.slotId, {
+    zoomUrl: zoom?.zoomUrl ?? null,
+    zoomPass: zoom?.zoomPass ?? null,
+  });
+  // 同じセッション番号で過去に立てられた「再調整中」フラグをクリア
+  await clearRescheduleFlagsForSession(matchId, Number(negotiation.sessionNumber ?? 1)).catch(() => null);
 
   const zoomLine = zoom
     ? `オンライン: ${zoom.zoomUrl}${zoom.zoomPass ? `\nパスコード: ${zoom.zoomPass}` : ""}`
@@ -117,10 +126,14 @@ export async function POST(request: Request, context: RouteContext) {
     kind: "SCHEDULE_CONFIRMED",
     payload: {
       negotiationId,
+      sessionNumber: negotiation.sessionNumber ?? null,
       start: chosen.startAt,
       end: chosen.endAt,
       zoomUrl: zoom?.zoomUrl ?? null,
       zoomPass: zoom?.zoomPass ?? null,
+      icsContent: ics,
+      googleCalendarUrl: googleCalendarLink,
+      outlookCalendarUrl: outlookCalendarLink,
     },
   });
 
@@ -140,6 +153,18 @@ export async function POST(request: Request, context: RouteContext) {
     actorRole: session.role,
     summary: `${matchFull.partner.displayName}さんが ${negotiation.sessionNumber ?? "?"} 回目の日程を確定しました（${jpFmt(new Date(chosen.startAt))}〜）。`,
     link: `/admin/matches?focus=${encodeURIComponent(matchId)}`,
+  });
+
+  // クライアントへ通知
+  await appendMemberNotification({
+    recipientUserId: matchFull.clientId,
+    type: "SLOT_CONFIRMED",
+    matchId,
+    sessionNumber: negotiation.sessionNumber ?? null,
+    actorUserId: session.sub,
+    actorRole: session.role,
+    summary: `${matchFull.partner.displayName}さんが ${negotiation.sessionNumber ?? "?"} 回目の日程を確定しました（${jpFmt(new Date(chosen.startAt))}〜）。`,
+    link: `/match/${matchId}#schedule`,
   });
 
   return jsonOk({ ok: true });

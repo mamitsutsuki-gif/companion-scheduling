@@ -19,6 +19,7 @@ enum MessageKind {
   STANDARD
   SLOT_PROPOSAL
   SCHEDULE_CONFIRMED
+  VOTE_SUMMARY
 }
 
 enum NegotiationStatus {
@@ -40,6 +41,11 @@ model AppSettings {
   slotDurationMinutes         Int      @default(30)
   totalSessions               Int      @default(6)
   timezone                    String   @default("Asia/Tokyo")
+  /// 候補日時の選択可能時間帯（時）
+  slotEarliestHour            Int      @default(8)
+  slotLatestHour              Int      @default(20)
+  /// 土日も候補日として選択可能か
+  allowWeekends               Boolean  @default(false)
   /// JSON: { [sessionNumber: number]: string[] } 各回のレポートに追加するパートナー設問
   partnerExtraQuestionsByRound Json?
   updatedAt                   DateTime @updatedAt
@@ -53,6 +59,8 @@ model User {
   role         Role
   googleSub    String?   @unique
   firebaseUid  String?   @unique
+  /// Soft delete: ログインを完全に拒否しつつ過去のログを保持。
+  deletedAt    DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -143,6 +151,12 @@ model Negotiation {
   round   Int               @default(1)
   status  NegotiationStatus @default(AWAITING_CLIENT_RESPONSE)
 
+  /// 確定時にスナップショットされる Zoom 情報（後でパートナーが URL を変えても、確定済みは固定）
+  confirmedZoomUrl  String?
+  confirmedZoomPass String?
+  /// 確定後に変更希望が出された時刻。新しい round が CONFIRMED されたらクリア。
+  rescheduleRequestedAt DateTime?
+
   slots Slot[]
 
   createdAt DateTime @default(now())
@@ -213,4 +227,22 @@ model AdminNotification {
   link          String?
   readAt        DateTime?
   createdAt     DateTime @default(now())
+}
+
+/// パートナー / クライアント向け通知フィード
+model MemberNotification {
+  id              String   @id @default(cuid())
+  recipientUserId String
+  type            String
+  matchId         String?
+  sessionNumber   Int?
+  actorUserId     String?
+  actorRole       String?
+  summary         String
+  link            String?
+  readAt          DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([recipientUserId, readAt])
+  @@index([recipientUserId, createdAt])
 }

@@ -1,6 +1,10 @@
 "use client";
 
-import { ScheduleConfirmedCard, SlotProposalCard } from "@/components/scheduling-chat-blocks";
+import {
+  ScheduleConfirmedCard,
+  SlotProposalCard,
+  VoteSummaryCard,
+} from "@/components/scheduling-chat-blocks";
 import { PartnerChatTemplates } from "@/components/partner-chat-templates";
 import { FtaViewer } from "@/components/fta-chart";
 import type { FtaChart } from "@/lib/fta";
@@ -16,7 +20,7 @@ type Me = {
   displayName: string;
 };
 
-type MessageKindName = "STANDARD" | "SLOT_PROPOSAL" | "SCHEDULE_CONFIRMED";
+type MessageKindName = "STANDARD" | "SLOT_PROPOSAL" | "SCHEDULE_CONFIRMED" | "VOTE_SUMMARY";
 
 type MessageRow = {
   id: string;
@@ -51,6 +55,9 @@ type NegotiationRow = {
     | "CONFIRMED"
     | "SUPERSEDED";
   slots: SlotRow[];
+  confirmedZoomUrl?: string | null;
+  confirmedZoomPass?: string | null;
+  rescheduleRequestedAt?: string | null;
 };
 
 type MatchFtaPayload = {
@@ -64,7 +71,27 @@ type AvailabilityPayload = {
   client: { displayName: string; slotIds: string[]; labels: string[] };
 };
 
-type MatchTab = "chat" | "schedule" | "fta" | "sessions";
+type ScheduleSettingsPayload = {
+  slotDurationMinutes: number;
+  totalSessions: number;
+  timezone: string;
+  slotEarliestHour: number;
+  slotLatestHour: number;
+  allowWeekends: boolean;
+};
+
+type MemberNotificationRow = {
+  id: string;
+  type: "CHAT" | "SLOT_PROPOSED" | "SLOT_VOTED" | "SLOT_CONFIRMED" | "RESCHEDULE";
+  matchId: string | null;
+  sessionNumber: number | null;
+  summary: string;
+  link: string | null;
+  readAt: string | null;
+  createdAt: string;
+};
+
+type MatchTab = "chat" | "schedule" | "fta" | "sessions" | "notifications";
 
 type SessionPlanApiRow = {
   matchId: string;
@@ -77,6 +104,8 @@ type SessionPlanApiRow = {
   openable: boolean;
   hasClientFeedback: boolean;
   hasPartnerReport: boolean;
+  zoomUrl?: string | null;
+  zoomPass?: string | null;
 };
 
 const statusLabel: Record<NegotiationRow["status"], string> = {
@@ -123,10 +152,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [me, setMe] = useState<Me | null>(null);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [negotiations, setNegotiations] = useState<NegotiationRow[]>([]);
-  const [scheduleSettings, setScheduleSettings] = useState({
+  const [scheduleSettings, setScheduleSettings] = useState<ScheduleSettingsPayload>({
     slotDurationMinutes: 30,
     totalSessions: 6,
     timezone: "Asia/Tokyo",
+    slotEarliestHour: 8,
+    slotLatestHour: 20,
+    allowWeekends: false,
   });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -135,17 +167,40 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [availability, setAvailability] = useState<AvailabilityPayload | null>(null);
   const [sessionRows, setSessionRows] = useState<SessionPlanApiRow[]>([]);
   const [activeTab, setActiveTab] = useState<MatchTab>("chat");
+  const [proposeSubmitting, setProposeSubmitting] = useState(false);
+  const [proposeJustSent, setProposeJustSent] = useState(false);
+  const [voteSubmittingForSlot, setVoteSubmittingForSlot] = useState<string | null>(null);
+  const [memberNotifications, setMemberNotifications] = useState<MemberNotificationRow[]>([]);
+  const [memberUnreadCount, setMemberUnreadCount] = useState(0);
+  const [chatLastReadAt, setChatLastReadAt] = useState<number>(0);
   const timeOptions = useMemo(() => {
     const interval = Math.max(1, scheduleSettings.slotDurationMinutes);
+    const earliest = scheduleSettings.slotEarliestHour * 60;
+    // 候補は `start + interval <= latest` までしか取れない
+    const latest = scheduleSettings.slotLatestHour * 60 - interval;
     const out: { value: string; label: string }[] = [];
-    for (let total = 0; total < 24 * 60; total += interval) {
+    if (latest < earliest) return out;
+    for (let total = earliest; total <= latest; total += interval) {
       const h = Math.floor(total / 60);
       const m = total % 60;
       const value = `${pad2(h)}:${pad2(m)}`;
       out.push({ value, label: value });
     }
     return out;
-  }, [scheduleSettings.slotDurationMinutes]);
+  }, [
+    scheduleSettings.slotDurationMinutes,
+    scheduleSettings.slotEarliestHour,
+    scheduleSettings.slotLatestHour,
+  ]);
+
+  function isWeekendDateString(yyyymmdd: string) {
+    if (!yyyymmdd) return false;
+    const [y, m, d] = yyyymmdd.split("-").map((v) => Number(v));
+    if (!y || !m || !d) return false;
+    const dt = new Date(y, m - 1, d);
+    const wd = dt.getDay();
+    return wd === 0 || wd === 6;
+  }
 
   const load = useCallback(async () => {
     setError(null);
@@ -169,6 +224,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         slotDurationMinutes: sJson.slotDurationMinutes,
         totalSessions: typeof sJson.totalSessions === "number" ? sJson.totalSessions : 6,
         timezone: typeof sJson.timezone === "string" ? sJson.timezone : "Asia/Tokyo",
+        slotEarliestHour: typeof sJson.slotEarliestHour === "number" ? sJson.slotEarliestHour : 8,
+        slotLatestHour: typeof sJson.slotLatestHour === "number" ? sJson.slotLatestHour : 20,
+        allowWeekends: sJson.allowWeekends === true,
       });
     }
 
@@ -205,6 +263,37 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     }
   }, [matchId]);
 
+  const loadMemberNotifications = useCallback(async () => {
+    const res = await fetch(`/api/me/notifications`, { cache: "no-store" });
+    const json = await res.json().catch(() => null);
+    if (res.ok && Array.isArray(json?.notifications)) {
+      setMemberNotifications(json.notifications as MemberNotificationRow[]);
+      setMemberUnreadCount(typeof json.unreadCount === "number" ? json.unreadCount : 0);
+    }
+  }, []);
+
+  const markAllNotificationsRead = useCallback(async () => {
+    const res = await fetch(`/api/me/notifications/read`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ all: true }),
+    });
+    if (res.ok) {
+      setMemberNotifications((prev) => prev.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })));
+      setMemberUnreadCount(0);
+    }
+  }, []);
+
+  const markOneNotificationRead = useCallback(async (id: string) => {
+    setMemberNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, readAt: n.readAt ?? new Date().toISOString() } : n)));
+    setMemberUnreadCount((c) => Math.max(0, c - 1));
+    await fetch(`/api/me/notifications/read`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    }).catch(() => null);
+  }, []);
+
   const loadAvailability = useCallback(async () => {
     const res = await fetch(`/api/matches/${matchId}/availability`, { cache: "no-store" });
     const json = await res.json().catch(() => null);
@@ -229,16 +318,25 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     void loadClientFta();
     void loadAvailability();
     void loadSessions();
-  }, [load, loadClientFta, loadAvailability, loadSessions]);
+    void loadMemberNotifications();
+  }, [load, loadClientFta, loadAvailability, loadSessions, loadMemberNotifications]);
 
   useEffect(() => {
-    // 軽量ポーリングで、相手の更新をリロード不要で反映する。
+    // 軽量ポーリング: チャット反映を高速化（1.2 秒）
     const id = window.setInterval(() => {
       void load();
+    }, 1200);
+    return () => window.clearInterval(id);
+  }, [load]);
+
+  useEffect(() => {
+    // セッション一覧 / 通知バッジは少し緩めに更新
+    const id = window.setInterval(() => {
       void loadSessions();
+      void loadMemberNotifications();
     }, 3000);
     return () => window.clearInterval(id);
-  }, [load, loadSessions]);
+  }, [loadSessions, loadMemberNotifications]);
 
   useEffect(() => {
     // FTAは独立で短い間隔で取得し、チャット/日程APIの成否に影響されないようにする。
@@ -247,6 +345,42 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     }, 2000);
     return () => window.clearInterval(id);
   }, [loadClientFta]);
+
+  // 既読タイムスタンプを localStorage から復元
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(`chat:lastReadAt:${matchId}`);
+      const n = v ? Number(v) : 0;
+      setChatLastReadAt(Number.isFinite(n) ? n : 0);
+    } catch {
+      /* noop */
+    }
+  }, [matchId]);
+
+  // チャットタブを開いた / メッセージを取得した時点で既読マーク
+  useEffect(() => {
+    if (activeTab !== "chat") return;
+    if (messages.length === 0) return;
+    const latest = messages.reduce((acc, m) => Math.max(acc, new Date(m.createdAt).valueOf() || 0), 0);
+    if (latest > chatLastReadAt) {
+      setChatLastReadAt(latest);
+      try {
+        window.localStorage.setItem(`chat:lastReadAt:${matchId}`, String(latest));
+      } catch {
+        /* noop */
+      }
+    }
+  }, [activeTab, messages, chatLastReadAt, matchId]);
+
+  const unreadChatCount = useMemo(() => {
+    if (!me) return 0;
+    return messages.filter((m) => {
+      if (m.sender.role === "ADMIN") return false;
+      if (me.role === m.sender.role) return false;
+      const ts = new Date(m.createdAt).valueOf() || 0;
+      return ts > chatLastReadAt;
+    }).length;
+  }, [messages, chatLastReadAt, me]);
 
   /** 未確定の最新ラウンド。確定のみ残っていれば `null`。 */
   const activeNegotiation = useMemo(
@@ -281,7 +415,20 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     setNotice(null);
     const fd = new FormData(form);
     const body = String(fd.get("body") ?? "").trim();
-    if (!body) return;
+    if (!body || !me) return;
+    // Optimistic post: 即座にチャット欄に反映する
+    const tempId = `local-${Date.now()}`;
+    const optimistic: MessageRow = {
+      id: tempId,
+      body,
+      kind: "STANDARD",
+      payload: null,
+      createdAt: new Date().toISOString(),
+      sender: { displayName: me.displayName, role: me.role },
+    };
+    setMessages((prev) => [...prev, optimistic]);
+    form.reset();
+
     const res = await fetch(`/api/matches/${matchId}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -289,10 +436,11 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     });
     const json = await res.json().catch(() => null);
     if (!res.ok) {
+      // 失敗時は楽観挿入を取り消し
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setError(json?.error ?? "送信できませんでした。");
       return;
     }
-    form.reset();
     await load();
   }
 
@@ -350,7 +498,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   async function onPropose(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (me?.role !== "PARTNER") return;
-    const fd = new FormData(e.currentTarget);
+    if (proposeSubmitting) return;
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     const sessionNumber = Number(fd.get("sessionNumber") ?? 1);
     const starts: string[] = [];
     for (let i = 1; i <= 5; i += 1) {
@@ -359,6 +509,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       const time = String(fd.get(`startTime${i}`) ?? "").trim();
       const merged = raw || (date && time ? `${date}T${time}` : "");
       if (!merged) continue;
+      if (date && !scheduleSettings.allowWeekends && isWeekendDateString(date)) {
+        setError(`${i} 件目: 土日は候補日として指定できません（管理者設定で許可可能）。`);
+        return;
+      }
       const d = new Date(merged);
       if (Number.isNaN(d.valueOf())) {
         setError(`${i} 件目の日時が不正です。`);
@@ -376,18 +530,86 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       return;
     }
 
+    setProposeSubmitting(true);
+    setError(null);
+    setProposeJustSent(false);
     const res = await fetch(`/api/matches/${matchId}/negotiations`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ starts, sessionNumber }),
     });
     const json = await res.json().catch(() => null);
+    setProposeSubmitting(false);
     if (!res.ok) {
       setError(json?.error ?? "提案に失敗しました。");
       return;
     }
-    setNotice("候補を提示しました（チャットにシステム通知が入ります）。");
+    // ✓ 送信完了表示 + 既入力をクリア（重複送信防止）
+    form.reset();
+    setProposeJustSent(true);
+    setNotice("候補を提示しました（チャットに反映されました）。");
+    window.setTimeout(() => setProposeJustSent(false), 6000);
     await load();
+  }
+
+  async function onChatVote(negotiationId: string, slotId: string, vote: "YES" | "NO") {
+    if (!activeNegotiation || activeNegotiation.id !== negotiationId) return;
+    if (activeNegotiation.status !== "AWAITING_CLIENT_RESPONSE") return;
+    if (me?.role !== "CLIENT") return;
+    const votes: Record<string, "YES" | "NO"> = {};
+    let allDecided = true;
+    for (const s of activeNegotiation.slots) {
+      if (s.id === slotId) {
+        votes[s.id] = vote;
+      } else if (s.clientVote === "YES" || s.clientVote === "NO") {
+        votes[s.id] = s.clientVote;
+      } else {
+        allDecided = false;
+        break;
+      }
+    }
+    if (!allDecided) {
+      // まだ全部回答していないので、その場では送信せず、ローカル状態だけ更新
+      setNegotiations((prev) =>
+        prev.map((n) =>
+          n.id === negotiationId
+            ? {
+                ...n,
+                slots: n.slots.map((s) => (s.id === slotId ? { ...s, clientVote: vote } : s)),
+              }
+            : n,
+        ),
+      );
+      return;
+    }
+    setVoteSubmittingForSlot(slotId);
+    const res = await fetch(`/api/matches/${matchId}/negotiations/${negotiationId}/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ votes }),
+    });
+    const json = await res.json().catch(() => null);
+    setVoteSubmittingForSlot(null);
+    if (!res.ok) {
+      setError(json?.error ?? "回答送信に失敗しました。");
+      return;
+    }
+    setNotice("回答を送信しました。");
+    await load();
+  }
+
+  function isReschedulingSession(sessionNumber: number) {
+    // 同じ session の最新 CONFIRMED に rescheduleRequestedAt があれば「再調整中」
+    const sameSession = negotiations.filter((n) => Math.max(1, n.sessionNumber ?? 1) === sessionNumber);
+    if (sameSession.length === 0) return false;
+    const hasActive = sameSession.some(
+      (n) => n.status !== "CONFIRMED" && n.status !== "SUPERSEDED",
+    );
+    if (hasActive) return true;
+    const latestConfirmed = sameSession
+      .filter((n) => n.status === "CONFIRMED")
+      .sort((a, b) => b.round - a.round)[0];
+    return Boolean(latestConfirmed?.rescheduleRequestedAt);
   }
 
   function getRescheduleEligibility(slot: SlotRow | null) {
@@ -507,9 +729,14 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <button
           type="button"
           onClick={() => setActiveTab("chat")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "chat" ? "bg-indigo-700 text-white" : "border border-zinc-300 bg-white text-zinc-700"}`}
+          className={`relative rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "chat" ? "bg-indigo-700 text-white" : "border border-zinc-300 bg-white text-zinc-700"}`}
         >
           チャット
+          {unreadChatCount > 0 ? (
+            <span className="ml-1.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1.5 text-xs font-bold text-white">
+              {unreadChatCount > 99 ? "99+" : unreadChatCount}
+            </span>
+          ) : null}
         </button>
         <button
           type="button"
@@ -534,6 +761,21 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         >
           1on1セッション
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab("notifications");
+            void markAllNotificationsRead();
+          }}
+          className={`relative rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "notifications" ? "bg-indigo-700 text-white" : "border border-zinc-300 bg-white text-zinc-700"}`}
+        >
+          通知
+          {memberUnreadCount > 0 ? (
+            <span className="ml-1.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1.5 text-xs font-bold text-white">
+              {memberUnreadCount > 99 ? "99+" : memberUnreadCount}
+            </span>
+          ) : null}
+        </button>
       </div>
 
       {activeTab === "chat" ? (
@@ -541,52 +783,114 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-2xl font-semibold">チャット</h2>
         </div>
+        {me.role === "CLIENT" ? (
+          <details
+            open
+            className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md"
+          >
+            <summary className="cursor-pointer text-base font-semibold text-indigo-950">
+              日程調整機能の使い方（最初にお読みください）
+            </summary>
+            <pre className="mt-3 max-h-[min(60vh,24rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
+              {SCHEDULE_RULES_CLIENT}
+            </pre>
+          </details>
+        ) : null}
         <div className="max-h-[420px] space-y-3 overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs">
-          {messages.map((msg) => (
-            <article
-              key={msg.id}
-              className={
-                msg.kind === "SLOT_PROPOSAL"
-                  ? "rounded-xl border border-indigo-100 bg-indigo-50/35 px-3 py-2 text-sm text-zinc-900"
-                  : msg.kind === "SCHEDULE_CONFIRMED"
-                    ? "rounded-xl border border-emerald-100 bg-emerald-50/35 px-3 py-2 text-sm text-zinc-900"
-                    : "rounded-xl bg-zinc-50 px-3 py-2 text-sm text-zinc-900"
-              }
-            >
-              <div className="text-xs uppercase tracking-wide text-zinc-500">
-                {withHonorificSan(msg.sender.displayName)}{" "}
-                <span className="rounded-full bg-white px-2 py-0.5 text-[10px] tracking-normal text-indigo-800">
-                  {roleBadge[msg.sender.role]}
-                </span>
+          {messages.map((msg) => {
+            const ts = new Date(msg.createdAt).valueOf() || 0;
+            const isUnread =
+              ts > chatLastReadAt &&
+              msg.sender.role !== "ADMIN" &&
+              me?.role !== msg.sender.role;
+            const baseClass =
+              msg.kind === "SLOT_PROPOSAL"
+                ? "rounded-xl border border-indigo-100 bg-indigo-50/35 px-3 py-2 text-sm text-zinc-900"
+                : msg.kind === "SCHEDULE_CONFIRMED"
+                  ? "rounded-xl border border-emerald-100 bg-emerald-50/35 px-3 py-2 text-sm text-zinc-900"
+                  : msg.kind === "VOTE_SUMMARY"
+                    ? "rounded-xl border border-violet-100 bg-violet-50/40 px-3 py-2 text-sm text-zinc-900"
+                    : "rounded-xl bg-zinc-50 px-3 py-2 text-sm text-zinc-900";
+            return (
+              <article
+                key={msg.id}
+                className={`${baseClass} ${isUnread ? "ring-2 ring-amber-300 shadow-md shadow-amber-100" : ""}`}
+              >
+                <div className="text-xs uppercase tracking-wide text-zinc-500">
+                  {withHonorificSan(msg.sender.displayName)}{" "}
+                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] tracking-normal text-indigo-800">
+                    {roleBadge[msg.sender.role]}
+                  </span>
+                  {isUnread ? (
+                    <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] tracking-normal text-amber-900">
+                      未読
+                    </span>
+                  ) : null}
+                  {msg.kind === "SLOT_PROPOSAL" ? (
+                    <span className="ml-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] tracking-normal text-indigo-900">
+                      日程候補
+                    </span>
+                  ) : null}
+                  {msg.kind === "SCHEDULE_CONFIRMED" ? (
+                    <span className="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] tracking-normal text-emerald-900">
+                      確定
+                    </span>
+                  ) : null}
+                  {msg.kind === "VOTE_SUMMARY" ? (
+                    <span className="ml-1 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] tracking-normal text-violet-900">
+                      回答
+                    </span>
+                  ) : null}
+                </div>
+
                 {msg.kind === "SLOT_PROPOSAL" ? (
-                  <span className="ml-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] tracking-normal text-indigo-900">
-                    日程候補
-                  </span>
-                ) : null}
-                {msg.kind === "SCHEDULE_CONFIRMED" ? (
-                  <span className="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] tracking-normal text-emerald-900">
-                    確定
-                  </span>
-                ) : null}
-              </div>
+                  <div className="mt-2 space-y-2">
+                    <SlotProposalCard
+                      payload={msg.payload}
+                      voteContext={
+                        me.role === "CLIENT" &&
+                        activeNegotiation?.status === "AWAITING_CLIENT_RESPONSE" &&
+                        (msg.payload as { negotiationId?: string })?.negotiationId === activeNegotiation.id
+                          ? {
+                              canVote: true,
+                              voteForSlot: (slotId: string) =>
+                                activeNegotiation.slots.find((s) => s.id === slotId)?.clientVote ?? null,
+                              onVote: onChatVote,
+                              pendingSlotId: voteSubmittingForSlot,
+                            }
+                          : undefined
+                      }
+                    />
+                    <p className="text-xs text-indigo-900/75">{msg.body}</p>
+                  </div>
+                ) : msg.kind === "SCHEDULE_CONFIRMED" ? (
+                  <div className="mt-2 space-y-2">
+                    <ScheduleConfirmedCard payload={msg.payload} />
+                    <pre className="whitespace-pre-wrap font-sans text-xs text-emerald-900/80">{msg.body}</pre>
+                  </div>
+                ) : msg.kind === "VOTE_SUMMARY" ? (
+                  <div className="mt-2">
+                    <VoteSummaryCard
+                      payload={msg.payload}
+                      body={msg.body}
+                      onJumpToConfirm={() => {
+                        setActiveTab("schedule");
+                        // 少し遅らせて該当セクションへスクロール
+                        window.setTimeout(() => {
+                          const el = document.getElementById("partner-confirm-section");
+                          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }, 80);
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <pre className="mt-2 whitespace-pre-wrap font-sans text-sm">{msg.body}</pre>
+                )}
 
-              {msg.kind === "SLOT_PROPOSAL" ? (
-                <div className="mt-2 space-y-2">
-                  <SlotProposalCard payload={msg.payload} />
-                  <p className="text-xs text-indigo-900/75">{msg.body}</p>
-                </div>
-              ) : msg.kind === "SCHEDULE_CONFIRMED" ? (
-                <div className="mt-2 space-y-2">
-                  <ScheduleConfirmedCard payload={msg.payload} />
-                  <pre className="whitespace-pre-wrap font-sans text-xs text-emerald-900/80">{msg.body}</pre>
-                </div>
-              ) : (
-                <pre className="mt-2 whitespace-pre-wrap font-sans text-sm">{msg.body}</pre>
-              )}
-
-              <div className="mt-2 text-[11px] text-zinc-400">{formatJa(msg.createdAt)}</div>
-            </article>
-          ))}
+                <div className="mt-2 text-[11px] text-zinc-400">{formatJa(msg.createdAt)}</div>
+              </article>
+            );
+          })}
           {messages.length === 0 ? (
             <p className="text-sm text-zinc-500">まだメッセージがありません。</p>
           ) : null}
@@ -613,7 +917,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       ) : null}
 
       {activeTab === "schedule" ? (
-      <section className="space-y-6 rounded-3xl border border-indigo-100 bg-indigo-50/40 px-3 py-5 shadow-inner shadow-indigo-100 sm:px-6 sm:py-8">
+      <section id="schedule" className="space-y-6 rounded-3xl border border-indigo-100 bg-indigo-50/40 px-3 py-5 shadow-inner shadow-indigo-100 sm:px-6 sm:py-8">
         <div className="space-y-3">
           {(me.role === "PARTNER" || me.role === "ADMIN") ? (
             <details className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md">
@@ -651,6 +955,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               const eligibility = getRescheduleEligibility(row.slot);
               const apiRow = sessionRows.find((r) => r.sessionNumber === row.index);
               const isOpenable = Boolean(apiRow?.openable);
+              const isRescheduling = isReschedulingSession(row.index);
+              const zoomUrl = apiRow?.zoomUrl ?? null;
+              const zoomPass = apiRow?.zoomPass ?? null;
               return (
                 <li key={row.index} className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -670,17 +977,38 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                               : "詳細を開く"}
                         </Link>
                       ) : null}
-                      <button
-                        type="button"
-                        disabled={!eligibility.can || rescheduleSubmittingSession !== null}
-                        onClick={() => void onRequestReschedule(row.index)}
-                        className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100 active:translate-y-[1px] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {rescheduleSubmittingSession === row.index ? "送信中…" : "変更希望"}
-                      </button>
+                      {isRescheduling ? (
+                        <span className="rounded-md border border-amber-300 bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-900">
+                          再調整中
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={!eligibility.can || rescheduleSubmittingSession !== null}
+                          onClick={() => void onRequestReschedule(row.index)}
+                          className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100 active:translate-y-[1px] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {rescheduleSubmittingSession === row.index ? "送信中…" : "変更希望"}
+                        </button>
+                      )}
                     </div>
                   </div>
-                  {!eligibility.can ? (
+                  {(zoomUrl || zoomPass) ? (
+                    <p className="mt-1 text-xs text-zinc-700">
+                      {zoomUrl ? (
+                        <a
+                          href={zoomUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-indigo-700 underline underline-offset-2"
+                        >
+                          Zoom: {zoomUrl}
+                        </a>
+                      ) : null}
+                      {zoomPass ? <span className="ml-2">パス: {zoomPass}</span> : null}
+                    </p>
+                  ) : null}
+                  {!eligibility.can && !isRescheduling ? (
                     <p className="mt-1 text-sm font-medium text-amber-800">
                       この日程は変更不可: {eligibility.reason}（日程変更は開始24時間前まで可能です）
                     </p>
@@ -695,8 +1023,17 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
         {me.role === "PARTNER" ? (
           <form onSubmit={onPropose} className="space-y-5 rounded-2xl border border-zinc-200 bg-white px-5 py-4">
+            {proposeJustSent ? (
+              <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">
+                ✓ 送信完了：候補をクライアントに通知しました。フォームはクリアされています。
+              </div>
+            ) : null}
             <div>
               <h3 className="text-xl font-semibold">候補を提示（開始時刻のみ・3〜5件）</h3>
+              <p className="mt-1 text-xs text-zinc-600">
+                選択可能な時間帯：{String(scheduleSettings.slotEarliestHour).padStart(2, "0")}:00〜{String(scheduleSettings.slotLatestHour).padStart(2, "0")}:00
+                {scheduleSettings.allowWeekends ? "（土日も可）" : "（土日不可）"}
+              </p>
               <label className="mt-3 block max-w-xs text-base font-medium text-zinc-800">
                 何回目の日程調整か
                 <select
@@ -777,9 +1114,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             </div>
             <button
               type="submit"
-              className="rounded-lg bg-indigo-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-800 active:translate-y-[1px] active:scale-[0.98]"
+              disabled={proposeSubmitting}
+              className="rounded-lg bg-indigo-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-800 active:translate-y-[1px] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              送信（3〜5件）
+              {proposeSubmitting ? "送信中…" : "送信（3〜5件）"}
             </button>
           </form>
         ) : null}
@@ -821,7 +1159,11 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         ) : null}
 
         {activeNegotiation && activeNegotiation.status === "AWAITING_PARTNER_CONFIRM" && me.role === "PARTNER" ? (
-          <form onSubmit={onConfirm} className="space-y-3 rounded-2xl border border-amber-200 bg-white px-5 py-4">
+          <form
+            id="partner-confirm-section"
+            onSubmit={onConfirm}
+            className="space-y-3 rounded-2xl border border-amber-200 bg-white px-5 py-4"
+          >
             <h3 className="text-xl font-semibold text-amber-900">パートナー確定操作</h3>
             <p className="text-base text-amber-800">
               「○」が複数ある場合のみ、ご希望時間をひとつ選んで確定してください。
@@ -960,6 +1302,21 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                       {row.sessionNumber}回目
                       <span className="ml-2 text-sm font-normal text-violet-900/85">{dateLabel}</span>
                     </p>
+                    {(row.zoomUrl || row.zoomPass) ? (
+                      <p className="mt-1 text-xs text-violet-900/85">
+                        {row.zoomUrl ? (
+                          <a
+                            href={row.zoomUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-violet-800 underline underline-offset-2"
+                          >
+                            Zoom: {row.zoomUrl}
+                          </a>
+                        ) : null}
+                        {row.zoomPass ? <span className="ml-2">パス: {row.zoomPass}</span> : null}
+                      </p>
+                    ) : null}
                     <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
                       {filledBadges.map((b, i) => (
                         <span
@@ -991,6 +1348,78 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           </ul>
         </section>
       ) : null}
+
+      {activeTab === "notifications" ? (
+        <section className="space-y-3 rounded-3xl border border-rose-100 bg-rose-50/30 px-3 py-5 sm:px-6 sm:py-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-semibold text-rose-900">通知</h2>
+              <p className="text-base text-rose-800/90">
+                相手のアクション（チャット・日程提案・回答・確定・変更希望）を時系列で表示します。
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void markAllNotificationsRead()}
+              className="rounded-md border border-rose-300 bg-white px-3 py-1.5 text-sm font-semibold text-rose-900 hover:bg-rose-50"
+            >
+              すべて既読に
+            </button>
+          </div>
+          <ul className="space-y-2">
+            {memberNotifications.length === 0 ? (
+              <li className="rounded-xl border border-dashed border-rose-200 bg-white px-4 py-6 text-sm text-rose-800">
+                通知はまだありません。
+              </li>
+            ) : null}
+            {memberNotifications.map((n) => {
+              const isUnread = !n.readAt;
+              return (
+                <li
+                  key={n.id}
+                  className={`rounded-xl border px-3 py-2 shadow-xs ${isUnread ? "border-rose-300 bg-rose-50/80" : "border-zinc-200 bg-white"}`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs uppercase tracking-wide text-rose-900/80">
+                      {labelForNotificationType(n.type)} · {formatJa(n.createdAt)}
+                    </span>
+                    {isUnread ? (
+                      <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white">未読</span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-sm text-zinc-900">{n.summary}</p>
+                  {n.link ? (
+                    <Link
+                      href={n.link}
+                      onClick={() => void markOneNotificationRead(n.id)}
+                      className="mt-2 inline-block text-sm font-semibold text-indigo-700 underline-offset-4 hover:underline"
+                    >
+                      該当ページを開く →
+                    </Link>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
+}
+
+function labelForNotificationType(type: MemberNotificationRow["type"]) {
+  switch (type) {
+    case "CHAT":
+      return "💬 チャット";
+    case "SLOT_PROPOSED":
+      return "📅 日程候補";
+    case "SLOT_VOTED":
+      return "🟢 日程回答";
+    case "SLOT_CONFIRMED":
+      return "✅ 日程確定";
+    case "RESCHEDULE":
+      return "🔁 変更希望";
+    default:
+      return type;
+  }
 }

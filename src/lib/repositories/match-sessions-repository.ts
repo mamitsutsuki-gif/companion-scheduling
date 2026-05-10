@@ -12,6 +12,9 @@ export type SessionPlanRow = {
   startAt: string | null;
   endAt: string | null;
   negotiationId: string | null;
+  /** 確定時にスナップショットされた Zoom URL（無ければ null） */
+  zoomUrl: string | null;
+  zoomPass: string | null;
 };
 
 type RawNeg = {
@@ -21,6 +24,8 @@ type RawNeg = {
   sessionNumber: number;
   round: number;
   slots: Array<{ startAt: string; endAt: string; isConfirmed: boolean }>;
+  confirmedZoomUrl: string | null;
+  confirmedZoomPass: string | null;
 };
 
 async function loadConfirmedNegotiationsForMatch(matchId: string): Promise<RawNeg[]> {
@@ -46,6 +51,8 @@ async function loadConfirmedNegotiationsForMatch(matchId: string): Promise<RawNe
           endAt: String(s.endAt ?? ""),
           isConfirmed: Boolean(s.isConfirmed),
         })),
+        confirmedZoomUrl: typeof raw.confirmedZoomUrl === "string" ? raw.confirmedZoomUrl : null,
+        confirmedZoomPass: typeof raw.confirmedZoomPass === "string" ? raw.confirmedZoomPass : null,
       };
     });
   }
@@ -53,18 +60,26 @@ async function loadConfirmedNegotiationsForMatch(matchId: string): Promise<RawNe
     where: { matchId, status: "CONFIRMED" },
     include: { slots: true },
   });
-  return negs.map((n) => ({
-    id: n.id,
-    matchId: n.matchId,
-    status: n.status,
-    sessionNumber: n.sessionNumber ?? 1,
-    round: n.round,
-    slots: n.slots.map((s) => ({
-      startAt: s.startAt.toISOString(),
-      endAt: s.endAt.toISOString(),
-      isConfirmed: s.isConfirmed,
-    })),
-  }));
+  return negs.map((n) => {
+    const ext = n as unknown as {
+      confirmedZoomUrl?: string | null;
+      confirmedZoomPass?: string | null;
+    };
+    return {
+      id: n.id,
+      matchId: n.matchId,
+      status: n.status,
+      sessionNumber: n.sessionNumber ?? 1,
+      round: n.round,
+      slots: n.slots.map((s) => ({
+        startAt: s.startAt.toISOString(),
+        endAt: s.endAt.toISOString(),
+        isConfirmed: s.isConfirmed,
+      })),
+      confirmedZoomUrl: ext.confirmedZoomUrl ?? null,
+      confirmedZoomPass: ext.confirmedZoomPass ?? null,
+    };
+  });
 }
 
 export async function listSessionPlanForMatch(matchId: string): Promise<SessionPlanRow[]> {
@@ -93,6 +108,8 @@ export async function listSessionPlanForMatch(matchId: string): Promise<SessionP
       startAt: found?.slot.startAt ?? null,
       endAt: found?.slot.endAt ?? null,
       negotiationId: found?.id ?? null,
+      zoomUrl: found?.confirmedZoomUrl ?? null,
+      zoomPass: found?.confirmedZoomPass ?? null,
     } satisfies SessionPlanRow;
   });
 }
