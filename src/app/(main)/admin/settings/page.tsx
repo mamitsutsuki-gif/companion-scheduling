@@ -34,6 +34,7 @@ export default function AdminAppSettingsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [adminUserId, setAdminUserId] = useState("");
+  const [partnerExtraQuestions, setPartnerExtraQuestions] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     async function load() {
@@ -60,12 +61,46 @@ export default function AdminAppSettingsPage() {
         if (Array.isArray(sData.settings.availabilitySlotOptions) && sData.settings.availabilitySlotOptions.length > 0) {
           setAvailabilityOptions(sData.settings.availabilitySlotOptions);
         }
+        const peq = sData.settings.partnerExtraQuestionsByRound;
+        if (peq && typeof peq === "object") {
+          const cleaned: Record<string, string[]> = {};
+          for (const [k, v] of Object.entries(peq)) {
+            if (Array.isArray(v)) cleaned[String(k)] = v.map((x) => String(x));
+          }
+          setPartnerExtraQuestions(cleaned);
+        }
       }
       setUsers(Array.isArray(uData?.users) ? uData.users : []);
       setLoading(false);
     }
     void load();
   }, []);
+
+  function setQuestionForRound(round: number, index: number, text: string) {
+    setPartnerExtraQuestions((prev) => {
+      const key = String(round);
+      const list = (prev[key] ?? []).slice();
+      list[index] = text;
+      return { ...prev, [key]: list };
+    });
+  }
+  function addQuestionToRound(round: number) {
+    setPartnerExtraQuestions((prev) => {
+      const key = String(round);
+      const list = (prev[key] ?? []).slice();
+      if (list.length >= 8) return prev;
+      list.push("");
+      return { ...prev, [key]: list };
+    });
+  }
+  function removeQuestionFromRound(round: number, index: number) {
+    setPartnerExtraQuestions((prev) => {
+      const key = String(round);
+      const list = (prev[key] ?? []).slice();
+      list.splice(index, 1);
+      return { ...prev, [key]: list };
+    });
+  }
 
   function updateAvailabilityLabel(index: number, label: string) {
     setAvailabilityOptions((prev) => {
@@ -115,6 +150,12 @@ export default function AdminAppSettingsPage() {
       setErr("対応可能時間のIDが重複しています。");
       return;
     }
+    const partnerExtra: Record<string, string[]> = {};
+    for (const [k, list] of Object.entries(partnerExtraQuestions)) {
+      const trimmed = list.map((q) => q.trim()).filter((q) => q.length > 0);
+      if (trimmed.length > 0) partnerExtra[k] = trimmed;
+    }
+
     const res = await fetch("/api/admin/app-settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -123,6 +164,7 @@ export default function AdminAppSettingsPage() {
         totalSessions: Number(totalSessions),
         timezone,
         availabilitySlotOptions: cleaned,
+        partnerExtraQuestionsByRound: partnerExtra,
       }),
     });
     const data = await res.json().catch(() => null);
@@ -260,6 +302,66 @@ export default function AdminAppSettingsPage() {
           <p className="text-xs text-emerald-900/70">
             ※ IDを変更すると、既存ユーザーの選択は新IDへ自動マッピングされません。基本は新規追加・削除で運用してください。
           </p>
+        </div>
+
+        <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+          <div>
+            <h3 className="text-base font-semibold text-amber-950">パートナーレポートの追加質問</h3>
+            <p className="mt-1 text-sm text-amber-900/80">
+              特定の回（例: 4回目、8回目）でだけ、パートナーが書くレポートに追加で表示する質問を設定できます。
+            </p>
+            <p className="mt-1 text-xs text-amber-900/70">
+              空欄で保存するとその回の追加質問は削除されます。
+            </p>
+          </div>
+          <div className="space-y-3">
+            {Array.from({ length: Math.max(1, totalSessions) }, (_, i) => i + 1).map((round) => {
+              const list = partnerExtraQuestions[String(round)] ?? [];
+              return (
+                <details
+                  key={round}
+                  className="rounded-md border border-amber-200 bg-white px-3 py-2"
+                  open={list.length > 0}
+                >
+                  <summary className="cursor-pointer text-sm font-semibold text-amber-900">
+                    {round} 回目 の追加質問{list.length > 0 ? `（${list.length}件）` : ""}
+                  </summary>
+                  <div className="mt-2 space-y-2">
+                    {list.length === 0 ? (
+                      <p className="text-xs text-zinc-500">追加質問はありません。</p>
+                    ) : null}
+                    {list.map((q, i) => (
+                      <div key={i} className="flex gap-2">
+                        <textarea
+                          value={q}
+                          onChange={(e) => setQuestionForRound(round, i, e.target.value)}
+                          rows={2}
+                          maxLength={500}
+                          className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900"
+                          placeholder="例: ここまで担当いただいて感じるクライアントの強み・課題は何ですか？"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeQuestionFromRound(round, i)}
+                          className="self-start rounded-md border border-red-300 bg-red-50 px-2 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => addQuestionToRound(round)}
+                      disabled={list.length >= 8}
+                      className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                    >
+                      質問を追加
+                    </button>
+                  </div>
+                </details>
+              );
+            })}
+          </div>
         </div>
 
         {err ? <p className="text-sm text-red-700">{err}</p> : null}

@@ -12,6 +12,8 @@ import {
   markNegotiationSuperseded,
 } from "@/lib/repositories/negotiation-repository";
 import { createMessage } from "@/lib/repositories/message-repository";
+import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
+import { getUserMapByIds } from "@/lib/repositories/user-repository";
 
 const startsPayload = z.object({
   starts: z.array(z.string()).min(3).max(5),
@@ -161,6 +163,18 @@ export async function POST(request: Request, context: RouteContext) {
     subject: `${sessionNumber}回目の日程候補 Round ${negotiation.round} が提示されました`,
     text: `${bodyShort}\n\n${lines}\n\nアプリのチャットで○／×の回答をお願いします。`,
     excludeUserId: session.sub,
+  });
+
+  const senderMap = await getUserMapByIds([session.sub]);
+  const sender = senderMap.get(session.sub);
+  await appendAdminNotification({
+    type: "SLOT_PROPOSED",
+    matchId,
+    sessionNumber,
+    actorUserId: session.sub,
+    actorRole: session.role,
+    summary: `${sender?.displayName ?? "パートナー"}さんが ${sessionNumber} 回目の日程候補（Round ${negotiation.round}）を提示しました。`,
+    link: `/admin/matches?focus=${encodeURIComponent(matchId)}`,
   });
 
   return jsonOk({ ok: true, negotiation });

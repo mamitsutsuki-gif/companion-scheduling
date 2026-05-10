@@ -250,40 +250,39 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
   const bCount = Math.max(1, bNodes.length);
   const maxActionsPerB = bNodes.reduce((max, b) => Math.max(max, b.actions.length), 0);
 
-  // ノードの基本サイズ。中身は overflow-y:auto でスクロールさせるため、
-  // 長文でも見切れない。
+  // 基本サイズ。長文は overflow-y:auto でスクロール表示。
   const visionR = 80;
   const bR = 60;
   const cR = 48;
-  const wedgeUsage = 0.92; // 親Bのウェッジ幅のうち、C配置に使う割合（隣のBとの余白を残す）
   const wedge = 360 / bCount;
-  const usableWedgeRad = ((wedge * wedgeUsage) * Math.PI) / 180;
 
-  // C は複数のリングに分散配置する（多いほどリング数を増やす）。
-  // 1リング当たりのCの最大数を3に抑えることで、
-  // - 4個 → 2リング(2,2)
-  // - 6個 → 2リング(3,3)
-  // - 7-8個 → 3リング(3,3,2 / 3,3,2)
-  // 1Bあたり3-3-2の3層で最大8個まで重ならず収まる。
-  const ringCount = Math.max(1, Math.ceil(maxActionsPerB / 3));
-  const itemsPerRing = Math.max(1, Math.ceil(maxActionsPerB / ringCount));
+  // 配置戦略: 「全体で同心リング」。1リングあたり itemsPerRing 個のCを各Bに配分し、
+  // リング上の C は 360°を等間隔で割って並べる（= 隣りB境界でも同間隔）。
+  // 1リング 3個までに抑えると 8 個でも 3 リング(3,3,2) で収まる。
+  const itemsPerRing = 3;
+  const ringCount = Math.max(1, Math.ceil(maxActionsPerB / itemsPerRing));
 
-  // 各リング半径に必要な最小値:
-  // - リング上の同層C同士が重ならない: items * (2cR+gap) ≤ arc(=ringR * usableRad)
-  // - Bの円と被らない
-  const itemArcGap = 16;
-  const ringStep = cR * 2 + 18; // 隣リング間距離（半径方向、円同士が重ならない）
-  const baseRingRadius = Math.max(
-    bR + cR + 26,
-    ((itemsPerRing * (cR * 2 + itemArcGap)) / Math.max(0.001, usableWedgeRad)),
-    220,
+  // ring r の総スロット数 = bCount * itemsPerRing。各スロット同士は等角間隔。
+  const slotAngularStepDeg = wedge / itemsPerRing; // = 360 / (bCount*itemsPerRing)
+  const slotAngularStepRad = (slotAngularStepDeg * Math.PI) / 180;
+
+  // C 円同士が重ならない最小半径: 弦長 = 2 r sin(step/2) ≥ 2cR + edgeGap
+  const edgeGap = 18;
+  const minRingByCircle = (2 * cR + edgeGap) / (2 * Math.sin(slotAngularStepRad / 2));
+  const minRingByB = bR + cR + 30;
+  const baseRingRadius = Math.max(minRingByCircle, minRingByB, 220);
+  const ringStep = 2 * cR + 22; // 半径方向のリング間隔
+  const cRingRadii = Array.from(
+    { length: ringCount },
+    (_, i) => baseRingRadius + i * ringStep,
   );
 
-  const cRingRadii = Array.from({ length: ringCount }, (_, i) => baseRingRadius + i * ringStep);
+  // B の半径。同心リング配置で、隣 B 同士が重ならない最小値も担保。
+  const minBRadiusBySpacing =
+    bCount > 1 ? (bR + 8) / Math.sin((wedge * Math.PI) / 360) : 0;
+  const bRadius = Math.max(visionR + bR + 22, 150, minBRadiusBySpacing);
 
-  const bRadius = Math.max(visionR + bR + 22, 150);
-
-  const outerMost = (cRingRadii[cRingRadii.length - 1] ?? baseRingRadius) + cR;
+  const outerMost = cRingRadii[cRingRadii.length - 1]! + cR;
   const size = Math.ceil((outerMost + 40) * 2);
   const center = size / 2;
 
@@ -304,21 +303,24 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
     return text || "未入力";
   }
 
-  // 各Bの周囲に、actions を ringCount 段 × itemsPerRing 列の格子にマップする。
-  // ring0 = Bに近い内側リング、ring末尾 = 外側。
+  // 各 B に対して、自身の actions をリングごとに分けて配置する。
+  // 同じリングに居る他 B の C と等角度間隔（slotAngularStepDeg）で並ぶため、
+  // 隣り B 境界の Cどうしも常に同じ間隔（重なりが起きない）。
   const actionNodes = bNodes.flatMap((b, bi) => {
     const baseAngle = wedge * bi - 90;
-    const usableSpan = wedge * wedgeUsage;
-    const actions = b.actions.slice(0, 8);
+    const actions = b.actions.slice(0, ringCount * itemsPerRing);
     return actions.map((c, ci) => {
       const ringIndex = Math.floor(ci / itemsPerRing);
-      const colIndex = ci % itemsPerRing;
-      const itemsThisRing = Math.min(itemsPerRing, actions.length - ringIndex * itemsPerRing);
+      const slotIndex = ci % itemsPerRing;
+      const itemsThisRing = Math.min(
+        itemsPerRing,
+        actions.length - ringIndex * itemsPerRing,
+      );
       const ringR = cRingRadii[ringIndex] ?? cRingRadii[0]!;
       const offset =
         itemsThisRing <= 1
           ? 0
-          : (colIndex - (itemsThisRing - 1) / 2) * (usableSpan / Math.max(1, itemsThisRing - 1));
+          : (slotIndex - (itemsThisRing - 1) / 2) * slotAngularStepDeg;
       const angle = baseAngle + offset;
       const pos = polar(ringR, angle);
       return { pos, parentAngle: baseAngle, action: c, ringIndex };

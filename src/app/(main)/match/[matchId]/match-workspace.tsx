@@ -64,7 +64,20 @@ type AvailabilityPayload = {
   client: { displayName: string; slotIds: string[]; labels: string[] };
 };
 
-type MatchTab = "chat" | "schedule" | "fta";
+type MatchTab = "chat" | "schedule" | "fta" | "sessions";
+
+type SessionPlanApiRow = {
+  matchId: string;
+  sessionNumber: number;
+  confirmed: boolean;
+  round: number | null;
+  startAt: string | null;
+  endAt: string | null;
+  negotiationId: string | null;
+  openable: boolean;
+  hasClientFeedback: boolean;
+  hasPartnerReport: boolean;
+};
 
 const statusLabel: Record<NegotiationRow["status"], string> = {
   AWAITING_CLIENT_RESPONSE: "クライアント回答待ち",
@@ -120,6 +133,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [rescheduleSubmittingSession, setRescheduleSubmittingSession] = useState<number | null>(null);
   const [clientFta, setClientFta] = useState<MatchFtaPayload | null>(null);
   const [availability, setAvailability] = useState<AvailabilityPayload | null>(null);
+  const [sessionRows, setSessionRows] = useState<SessionPlanApiRow[]>([]);
   const [activeTab, setActiveTab] = useState<MatchTab>("chat");
   const timeOptions = useMemo(() => {
     const interval = Math.max(1, scheduleSettings.slotDurationMinutes);
@@ -183,6 +197,14 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     setClientFta(null);
   }, [matchId]);
 
+  const loadSessions = useCallback(async () => {
+    const res = await fetch(`/api/matches/${matchId}/sessions`, { cache: "no-store" });
+    const json = await res.json().catch(() => null);
+    if (res.ok && Array.isArray(json?.sessions)) {
+      setSessionRows(json.sessions as SessionPlanApiRow[]);
+    }
+  }, [matchId]);
+
   const loadAvailability = useCallback(async () => {
     const res = await fetch(`/api/matches/${matchId}/availability`, { cache: "no-store" });
     const json = await res.json().catch(() => null);
@@ -206,15 +228,17 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     void load();
     void loadClientFta();
     void loadAvailability();
-  }, [load, loadClientFta, loadAvailability]);
+    void loadSessions();
+  }, [load, loadClientFta, loadAvailability, loadSessions]);
 
   useEffect(() => {
     // 軽量ポーリングで、相手の更新をリロード不要で反映する。
     const id = window.setInterval(() => {
       void load();
+      void loadSessions();
     }, 3000);
     return () => window.clearInterval(id);
-  }, [load]);
+  }, [load, loadSessions]);
 
   useEffect(() => {
     // FTAは独立で短い間隔で取得し、チャット/日程APIの成否に影響されないようにする。
@@ -503,6 +527,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             クライアント自分FTA
           </button>
         ) : null}
+        <button
+          type="button"
+          onClick={() => setActiveTab("sessions")}
+          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "sessions" ? "bg-indigo-700 text-white" : "border border-zinc-300 bg-white text-zinc-700"}`}
+        >
+          1on1セッション
+        </button>
       </div>
 
       {activeTab === "chat" ? (
@@ -618,20 +649,36 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           <ul className="space-y-2 text-base">
             {sessionPlans.map((row) => {
               const eligibility = getRescheduleEligibility(row.slot);
+              const apiRow = sessionRows.find((r) => r.sessionNumber === row.index);
+              const isOpenable = Boolean(apiRow?.openable);
               return (
                 <li key={row.index} className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span>
                       {row.index}回目の日程：{row.slot ? `${formatJa(row.slot.startAt)} 〜 ${formatJa(row.slot.endAt)}` : "未確定"}
                     </span>
-                    <button
-                      type="button"
-                      disabled={!eligibility.can || rescheduleSubmittingSession !== null}
-                      onClick={() => void onRequestReschedule(row.index)}
-                      className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100 active:translate-y-[1px] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {rescheduleSubmittingSession === row.index ? "送信中…" : "変更希望"}
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      {isOpenable ? (
+                        <Link
+                          href={`/match/${matchId}/sessions/${row.index}`}
+                          className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-900 no-underline shadow-sm transition hover:bg-indigo-100"
+                        >
+                          {me.role === "CLIENT"
+                            ? "振り返りを開く"
+                            : me.role === "PARTNER"
+                              ? "レポートを開く"
+                              : "詳細を開く"}
+                        </Link>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={!eligibility.can || rescheduleSubmittingSession !== null}
+                        onClick={() => void onRequestReschedule(row.index)}
+                        className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100 active:translate-y-[1px] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {rescheduleSubmittingSession === row.index ? "送信中…" : "変更希望"}
+                      </button>
+                    </div>
                   </div>
                   {!eligibility.can ? (
                     <p className="mt-1 text-sm font-medium text-amber-800">
@@ -862,6 +909,86 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               まだ表示できる自分FTAがありません。
             </p>
           )}
+        </section>
+      ) : null}
+
+      {activeTab === "sessions" ? (
+        <section className="space-y-4 rounded-3xl border border-violet-100 bg-violet-50/30 px-3 py-5 sm:px-6 sm:py-8">
+          <div className="space-y-1">
+            <h2 className="text-2xl font-semibold text-violet-900">1on1セッション</h2>
+            <p className="text-base text-violet-800">
+              セッション計画（全 {scheduleSettings.totalSessions} 回）。各回をタップすると、その回の{me.role === "CLIENT" ? "振り返りフォーム" : me.role === "PARTNER" ? "レポート" : "クライアント振り返り＆パートナーレポート"}を開けます。
+              <br />
+              <span className="text-sm">
+                未来の回は開けません。直近で実施予定の回だけ、セッション中に開くことができます。
+              </span>
+            </p>
+          </div>
+          <ul className="space-y-2 rounded-2xl border border-violet-200 bg-white p-3 sm:p-4">
+            {(sessionRows.length > 0
+              ? sessionRows
+              : Array.from({ length: scheduleSettings.totalSessions }, (_, i) => ({
+                  matchId,
+                  sessionNumber: i + 1,
+                  confirmed: false,
+                  round: null,
+                  startAt: null,
+                  endAt: null,
+                  negotiationId: null,
+                  openable: false,
+                  hasClientFeedback: false,
+                  hasPartnerReport: false,
+                } as SessionPlanApiRow))
+            ).map((row) => {
+              const dateLabel = row.startAt && row.endAt
+                ? `${formatJa(row.startAt)} 〜 ${formatJa(row.endAt)}`
+                : "未確定";
+              const filledBadges: string[] = [];
+              if (me.role === "CLIENT" || me.role === "ADMIN") {
+                filledBadges.push(row.hasClientFeedback ? "クライアント振り返り済" : "クライアント未提出");
+              }
+              if (me.role === "PARTNER" || me.role === "ADMIN") {
+                filledBadges.push(row.hasPartnerReport ? "パートナーレポート済" : "パートナー未提出");
+              }
+              return (
+                <li
+                  key={row.sessionNumber}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-100 bg-violet-50/40 px-3 py-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-base font-semibold text-violet-950">
+                      {row.sessionNumber}回目
+                      <span className="ml-2 text-sm font-normal text-violet-900/85">{dateLabel}</span>
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
+                      {filledBadges.map((b, i) => (
+                        <span
+                          key={i}
+                          className={`rounded-full border px-2 py-0.5 ${b.endsWith("済") ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-zinc-200 bg-white text-zinc-600"}`}
+                        >
+                          {b}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {row.openable ? (
+                      <Link
+                        href={`/match/${matchId}/sessions/${row.sessionNumber}`}
+                        className="rounded-md bg-violet-700 px-3 py-1.5 text-sm font-semibold !text-white no-underline shadow-sm transition hover:bg-violet-800"
+                      >
+                        開く
+                      </Link>
+                    ) : (
+                      <span className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-500">
+                        まだ開けません
+                      </span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       ) : null}
     </div>

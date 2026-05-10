@@ -6,6 +6,7 @@ import { notifyMatchStakeholders, summarizeChatLine } from "@/lib/notify-members
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
 import { createMessage } from "@/lib/repositories/message-repository";
 import { getNegotiationById, submitVotes } from "@/lib/repositories/negotiation-repository";
+import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
 
 const schema = z.object({ votes: z.record(z.string(), z.enum(["YES", "NO"])) });
 
@@ -66,6 +67,16 @@ export async function POST(request: Request, context: RouteContext) {
     subject: `${senderName}さんが日程回答を送信`,
     text: `「${excerpt}」`,
     excludeUserId: session.sub,
+  });
+
+  await appendAdminNotification({
+    type: "SLOT_VOTED",
+    matchId,
+    sessionNumber: negotiation.sessionNumber ?? null,
+    actorUserId: session.sub,
+    actorRole: session.role,
+    summary: `${senderName}さんが日程回答（○ ${yesCount} / × ${noCount}）を送信。`,
+    link: `/admin/matches?focus=${encodeURIComponent(matchId)}`,
   });
 
   return jsonOk({ ok: true, status: allNo ? "NEEDS_NEW_PROPOSAL" : "AWAITING_PARTNER_CONFIRM" });

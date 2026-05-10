@@ -138,6 +138,7 @@ export default function AdminSessionsPage() {
                 <th className="px-3 py-3">開始</th>
                 <th className="px-3 py-3">終了</th>
                 <th className="px-3 py-3">ルーム</th>
+                <th className="px-3 py-3">回の詳細</th>
               </tr>
             </thead>
             <tbody>
@@ -155,7 +156,15 @@ export default function AdminSessionsPage() {
                       href={`/match/${r.matchId}`}
                       className="font-medium text-indigo-700 no-underline hover:underline"
                     >
-                      開く
+                      ルームを開く
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2">
+                    <Link
+                      href={`/match/${r.matchId}/sessions/${r.sessionNumber}`}
+                      className="font-medium text-indigo-700 no-underline hover:underline"
+                    >
+                      振り返り＆レポート
                     </Link>
                   </td>
                 </tr>

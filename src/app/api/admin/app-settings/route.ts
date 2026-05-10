@@ -17,6 +17,9 @@ const patchSchema = z.object({
   totalSessions: z.number().int().min(1).max(24),
   timezone: z.string().min(1).max(80),
   availabilitySlotOptions: z.array(availabilityOptionSchema).max(32).optional(),
+  partnerExtraQuestionsByRound: z
+    .record(z.string(), z.array(z.string().min(1).max(500)).max(8))
+    .optional(),
 });
 
 export async function GET() {
@@ -41,6 +44,7 @@ export async function PATCH(request: Request) {
     totalSessions: parsed.data.totalSessions,
     timezone: parsed.data.timezone,
     availabilitySlotOptions: parsed.data.availabilitySlotOptions,
+    partnerExtraQuestionsByRound: parsed.data.partnerExtraQuestionsByRound,
   });
 
   return jsonOk({ ok: true, settings: row });

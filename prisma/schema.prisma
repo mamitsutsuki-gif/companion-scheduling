@@ -36,11 +36,13 @@ enum SlotVote {
 
 /// グローバル（テナント単位）の既定。管理者が編集。
 model AppSettings {
-  id                  String   @id @default("app")
-  slotDurationMinutes Int      @default(30)
-  totalSessions       Int      @default(6)
-  timezone            String   @default("Asia/Tokyo")
-  updatedAt           DateTime @updatedAt
+  id                          String   @id @default("app")
+  slotDurationMinutes         Int      @default(30)
+  totalSessions               Int      @default(6)
+  timezone                    String   @default("Asia/Tokyo")
+  /// JSON: { [sessionNumber: number]: string[] } 各回のレポートに追加するパートナー設問
+  partnerExtraQuestionsByRound Json?
+  updatedAt                   DateTime @updatedAt
 }
 
 model User {
@@ -128,6 +130,8 @@ model Message {
   body      String
   kind      MessageKind @default(STANDARD)
   payload   Json?
+  /// "ALL" | "CLIENT" | "PARTNER" 表示対象（管理者は常に閲覧可）
+  audience  String      @default("ALL")
   createdAt DateTime    @default(now())
 }
 
@@ -155,7 +159,7 @@ model Slot {
   isConfirmed   Boolean     @default(false)
 }
 
-/// 1on1終了後にクライアントへフィードバックフォーム案内メールを送るジョブ（重複送信防止）
+/// 1on1終了後にクライアント＆パートナー宛て案内（チャット投稿＋通知メール）を送るジョブ
 model SessionFeedbackEmailJob {
   id             String    @id
   negotiationId String
@@ -164,4 +168,49 @@ model SessionFeedbackEmailJob {
   slotEndAt      DateTime
   sentAt         DateTime?
   createdAt      DateTime  @default(now())
+}
+
+/// クライアントが各セッションごとに送るフィードバック（1マッチ×回数で1件）
+model SessionFeedback {
+  id                     String   @id @default(cuid())
+  matchId                String
+  sessionNumber          Int
+  clientId               String
+  /// q1〜q3, q5(自由), q7(自由) を JSON で保存（質問 ID → 回答テキスト）
+  answers                Json
+  satisfactionScore      Int?
+  partnerChange          String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([matchId, sessionNumber])
+}
+
+/// パートナーが各セッションごとに書くレポート（1マッチ×回数で1件）
+model SessionReport {
+  id            String   @id @default(cuid())
+  matchId       String
+  sessionNumber Int
+  partnerId     String
+  reflection    String   @default("")
+  /// 追加質問の回答 JSON: { [questionIndex]: string }
+  extraAnswers  Json?
+  createdAt     DateTime @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([matchId, sessionNumber])
+}
+
+/// 管理者通知フィード
+model AdminNotification {
+  id            String   @id @default(cuid())
+  type          String
+  matchId       String?
+  sessionNumber Int?
+  actorUserId   String?
+  actorRole     String?
+  summary       String
+  link          String?
+  readAt        DateTime?
+  createdAt     DateTime @default(now())
 }

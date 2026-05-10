@@ -6,6 +6,8 @@ import { notifyMatchStakeholders } from "@/lib/notify-members";
 import { createMessage } from "@/lib/repositories/message-repository";
 import { listNegotiationsForMatch } from "@/lib/repositories/negotiation-repository";
 import { readSession } from "@/lib/session";
+import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
+import { getUserMapByIds } from "@/lib/repositories/user-repository";
 
 type RouteContext = { params: Promise<{ matchId: string }> };
 const payloadSchema = z.object({
@@ -89,6 +91,18 @@ export async function POST(request: Request, context: RouteContext) {
     subject: `第${nextConfirmed.sessionNumber}回の日程変更希望が届きました`,
     text: `${messageBody}\n\n通常のチャット通知と同様に、ルームで確認できます。`,
     excludeUserId: session.sub,
+  });
+
+  const usersMap = await getUserMapByIds([session.sub]);
+  const sender = usersMap.get(session.sub);
+  await appendAdminNotification({
+    type: "RESCHEDULE",
+    matchId,
+    sessionNumber: nextConfirmed.sessionNumber,
+    actorUserId: session.sub,
+    actorRole: session.role,
+    summary: `${sender?.displayName ?? "参加者"}さん（${roleLabel(session.role)}）が ${nextConfirmed.sessionNumber} 回目の日程変更を希望しました（${pretty}）。`,
+    link: `/admin/matches?focus=${encodeURIComponent(matchId)}`,
   });
 
   return jsonOk({ ok: true });

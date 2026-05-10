@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
 
+export type MessageAudience = "ALL" | "CLIENT" | "PARTNER";
+
 type MessageRow = {
   id: string;
   matchId: string;
@@ -9,6 +11,7 @@ type MessageRow = {
   body: string;
   kind?: string;
   payload?: unknown;
+  audience?: MessageAudience;
   createdAt: string | Date;
 };
 
@@ -20,9 +23,14 @@ function normalizeMessage(msg: MessageRow, sender: { displayName: string; role: 
     body: msg.body,
     kind: msg.kind ?? "STANDARD",
     payload: msg.payload ?? null,
+    audience: (msg.audience ?? "ALL") as MessageAudience,
     createdAt: msg.createdAt instanceof Date ? msg.createdAt.toISOString() : msg.createdAt,
     sender: { displayName: sender.displayName, role: sender.role },
   };
+}
+
+function asAudience(value: unknown): MessageAudience {
+  return value === "CLIENT" || value === "PARTNER" ? value : "ALL";
 }
 
 export async function listMessagesForMatch(matchId: string) {
@@ -39,6 +47,7 @@ export async function listMessagesForMatch(matchId: string) {
         body: String(raw.body ?? ""),
         kind: typeof raw.kind === "string" ? raw.kind : "STANDARD",
         payload: raw.payload ?? null,
+        audience: asAudience(raw.audience),
         createdAt: typeof raw.createdAt === "string" ? raw.createdAt : new Date().toISOString(),
       };
     });
@@ -58,13 +67,23 @@ export async function listMessagesForMatch(matchId: string) {
   return msgs.map((m) => normalizeMessage(m as unknown as MessageRow, m.sender));
 }
 
+export function filterMessagesForViewer<T extends { audience: MessageAudience }>(
+  messages: T[],
+  viewerRole: "ADMIN" | "PARTNER" | "CLIENT",
+): T[] {
+  if (viewerRole === "ADMIN") return messages;
+  return messages.filter((m) => m.audience === "ALL" || m.audience === viewerRole);
+}
+
 export async function createMessage(input: {
   matchId: string;
   senderId: string;
   body: string;
   kind?: string;
   payload?: unknown;
+  audience?: MessageAudience;
 }) {
+  const audience: MessageAudience = input.audience ?? "ALL";
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
     if (!db) throw new Error("Firestore is not configured");
@@ -75,6 +94,7 @@ export async function createMessage(input: {
       body: input.body,
       kind: input.kind ?? "STANDARD",
       payload: input.payload ?? null,
+      audience,
       createdAt: new Date().toISOString(),
     });
     return { id: ref.id };
@@ -88,14 +108,30 @@ export async function createMessage(input: {
         body: input.body,
         kind: (input.kind as never) ?? "STANDARD",
         payload: (input.payload as never) ?? undefined,
+        audience,
       },
     });
     return { id: row.id };
   } catch (error) {
-    if (!(error instanceof Error) || !error.message.includes("Unknown argument `kind`")) throw error;
-    const row = await prisma.message.create({
-      data: { matchId: input.matchId, senderId: input.senderId, body: input.body },
-    });
-    return { id: row.id };
+    if (!(error instanceof Error)) throw error;
+    if (error.message.includes("Unknown argument `audience`")) {
+      const row = await prisma.message.create({
+        data: {
+          matchId: input.matchId,
+          senderId: input.senderId,
+          body: input.body,
+          kind: (input.kind as never) ?? "STANDARD",
+          payload: (input.payload as never) ?? undefined,
+        },
+      });
+      return { id: row.id };
+    }
+    if (error.message.includes("Unknown argument `kind`")) {
+      const row = await prisma.message.create({
+        data: { matchId: input.matchId, senderId: input.senderId, body: input.body },
+      });
+      return { id: row.id };
+    }
+    throw error;
   }
 }

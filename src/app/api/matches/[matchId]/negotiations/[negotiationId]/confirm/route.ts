@@ -10,6 +10,7 @@ import { createMessage } from "@/lib/repositories/message-repository";
 import { confirmNegotiationSlot, getNegotiationById } from "@/lib/repositories/negotiation-repository";
 import { getPartnerZoomProfile } from "@/lib/repositories/zoom-repository";
 import { enqueueSessionFeedbackEmailJob } from "@/lib/repositories/session-feedback-job-repository";
+import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
 
 const schema = z.object({
   slotId: z.string().min(1),
@@ -129,6 +130,16 @@ export async function POST(request: Request, context: RouteContext) {
     matchId,
     clientId: matchFull.clientId,
     slotEndAt: new Date(chosen.endAt),
+  });
+
+  await appendAdminNotification({
+    type: "SLOT_CONFIRMED",
+    matchId,
+    sessionNumber: negotiation.sessionNumber ?? null,
+    actorUserId: session.sub,
+    actorRole: session.role,
+    summary: `${matchFull.partner.displayName}さんが ${negotiation.sessionNumber ?? "?"} 回目の日程を確定しました（${jpFmt(new Date(chosen.startAt))}〜）。`,
+    link: `/admin/matches?focus=${encodeURIComponent(matchId)}`,
   });
 
   return jsonOk({ ok: true });
