@@ -51,10 +51,20 @@ export async function POST(request: Request) {
     uid = rec.uid;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes("email-already-exists") || msg.includes("EMAIL_EXISTS")) {
+    const code =
+      typeof e === "object" && e !== null && "code" in e && typeof (e as { code: unknown }).code === "string"
+        ? (e as { code: string }).code
+        : "";
+    const emailTaken =
+      code === "auth/email-already-exists" ||
+      code === "auth/email-already-in-use" ||
+      msg.includes("email-already-exists") ||
+      msg.includes("EMAIL_EXISTS") ||
+      /already in use by another account/i.test(msg);
+    if (emailTaken) {
       await deletePendingRegistrationByToken(parsed.data.token);
       return jsonError(
-        "このメールアドレスは既に Firebase 上に登録されています。ログイン画面からログインしてください。",
+        "このメールアドレスは Firebase Authentication 上にまだアカウントとして残っています（Firestore のユーザー一覧からは消えていても起こり得ます）。Firebase Console の Authentication → Users で該当メールを検索し、不要ならユーザーを削除してから再度「新規登録」してください。または、既に登録済みならログイン画面からログインしてください。",
         409,
       );
     }
