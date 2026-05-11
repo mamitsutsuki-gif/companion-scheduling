@@ -5,7 +5,7 @@ import { listSessionPlanForMatch } from "@/lib/repositories/match-sessions-repos
 import { getSessionFeedback } from "@/lib/repositories/session-feedback-repository";
 import { getSessionReport } from "@/lib/repositories/session-report-repository";
 import { getSessionAbandonment } from "@/lib/repositories/session-abandonment-repository";
-import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 
 type RouteContext = { params: Promise<{ matchId: string; sessionNumber: string }> };
 
@@ -39,7 +39,8 @@ export async function GET(_request: Request, context: RouteContext) {
       zoomPass: null,
     };
 
-  const settings = await getAppSettingsRow();
+  // この match のクライアント企業に効く実効設定で、ガイドライン・追加質問を返す。
+  const settings = await getEffectiveAppSettingsForMatch(matchId);
   const partnerExtraQuestions = settings.partnerExtraQuestionsByRound[String(n)] ?? [];
   const guidelineRaw = settings.sessionGuidelinesByRound[String(n)] ?? null;
   // ロールに応じてガイドラインを返す。クライアント管理者はクライアント向けと同じものを参照。

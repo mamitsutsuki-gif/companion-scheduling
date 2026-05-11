@@ -3,8 +3,7 @@ import { z } from "zod";
 import { readSession } from "@/lib/session";
 import { getMatchIfAllowed } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
-import { getAppSettings } from "@/lib/app-settings";
-import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { notifyMatchStakeholders } from "@/lib/notify-members";
 import {
   createNegotiationRound,
@@ -96,8 +95,9 @@ export async function POST(request: Request, context: RouteContext) {
     await markNegotiationSuperseded(latest.id);
   }
 
-  const settings = await getAppSettings();
-  const settingsRow = await getAppSettingsRow();
+  // この match のクライアントが所属する企業の実効設定を読む。
+  // 企業上書きが無ければグローバル設定にフォールバックするので従来挙動と互換。
+  const settings = await getEffectiveAppSettingsForMatch(matchId);
   const sessionNumberRaw =
     (parsedStarts.success ? parsedStarts.data.sessionNumber : undefined) ??
     (parsedLegacy?.success ? parsedLegacy.data.sessionNumber : undefined) ??
@@ -107,7 +107,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   function validateWithinAllowedWindow(start: Date, end: Date) {
     // 表示・案内 TZ で見たときに 開始/終了 が許容ウィンドウに収まっているかチェック。
-    const tz = settingsRow.timezone || "Asia/Tokyo";
+    const tz = settings.timezone || "Asia/Tokyo";
     const fmt = new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
       hour12: false,
@@ -124,12 +124,12 @@ export async function POST(request: Request, context: RouteContext) {
     const startMinutes = startHour * 60 + startMinute;
     const endMinutes =
       endHour === 0 && endMinute === 0 ? 24 * 60 : endHour * 60 + endMinute;
-    const earliest = settingsRow.slotEarliestHour * 60;
-    const latest = settingsRow.slotLatestHour * 60;
+    const earliest = settings.slotEarliestHour * 60;
+    const latest = settings.slotLatestHour * 60;
     if (startMinutes < earliest || endMinutes > latest) {
-      return `候補日時は ${String(settingsRow.slotEarliestHour).padStart(2, "0")}:00〜${String(settingsRow.slotLatestHour).padStart(2, "0")}:00 の間で指定してください。`;
+      return `候補日時は ${String(settings.slotEarliestHour).padStart(2, "0")}:00〜${String(settings.slotLatestHour).padStart(2, "0")}:00 の間で指定してください。`;
     }
-    if (!settingsRow.allowWeekends) {
+    if (!settings.allowWeekends) {
       const weekday = String(partsStart.weekday).slice(0, 3);
       if (weekday === "Sat" || weekday === "Sun") {
         return "土日は候補日として指定できません。（管理者の設定で許可可能）";

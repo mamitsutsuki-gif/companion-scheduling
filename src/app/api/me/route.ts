@@ -1,7 +1,10 @@
 import { readSession, clearSessionCookie } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
 import { getUserById, isDeletedUser, updateUserAvailability } from "@/lib/repositories/user-repository";
-import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import {
+  getAppSettingsRow,
+  getEffectiveAppSettings,
+} from "@/lib/repositories/app-settings-repository";
 import { normalizeAvailabilitySelections } from "@/lib/availability";
 import { z } from "zod";
 
@@ -38,7 +41,16 @@ export async function PATCH(request: Request) {
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
 
-  const settings = await getAppSettingsRow();
+  // クライアント／クライアント管理者は所属企業の選択肢で正規化する。
+  // パートナー・管理者は企業に紐づかないため従来通りグローバル設定で正規化する。
+  let settings;
+  if (session.role === "CLIENT" || session.role === "CLIENT_ADMIN") {
+    const user = await getUserById(session.sub);
+    const companyId = (user as { companyId?: string | null } | null)?.companyId ?? null;
+    settings = await getEffectiveAppSettings({ companyId });
+  } else {
+    settings = await getAppSettingsRow();
+  }
   const ids = normalizeAvailabilitySelections(parsed.data.availabilitySlotIds, settings.availabilitySlotOptions);
 
   const updated = await updateUserAvailability(session.sub, ids).catch(() => null);

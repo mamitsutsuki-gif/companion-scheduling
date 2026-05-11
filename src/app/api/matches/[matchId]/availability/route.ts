@@ -2,7 +2,7 @@ import { getMatchIfAllowed } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
 import { getMatchById } from "@/lib/repositories/match-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
-import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { labelsForSlotIds } from "@/lib/availability";
 import { readSession } from "@/lib/session";
 
@@ -20,7 +20,7 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!match) return jsonError("見つかりません。", 404);
 
   const [settings, partner, client] = await Promise.all([
-    getAppSettingsRow(),
+    getEffectiveAppSettingsForMatch(matchId),
     getUserById(match.partnerId),
     getUserById(match.clientId),
   ]);

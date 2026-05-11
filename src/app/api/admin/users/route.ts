@@ -9,7 +9,10 @@ import {
   updateUserAvailability,
   updateUserRole,
 } from "@/lib/repositories/user-repository";
-import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import {
+  getAppSettingsRow,
+  getEffectiveAppSettings,
+} from "@/lib/repositories/app-settings-repository";
 import { normalizeAvailabilitySelections } from "@/lib/availability";
 
 const querySchema = z.object({
@@ -79,7 +82,11 @@ export async function PATCH(request: Request) {
   }
 
   if (parsed.data.availabilitySlotIds !== undefined) {
-    const settings = await getAppSettingsRow();
+    // 当該ユーザーが企業に属するなら、その企業の選択肢で正規化する。
+    // パートナー・管理者やまだ企業未割当の場合はグローバル設定が使われる。
+    const targetUser = await getUserById(parsed.data.userId);
+    const companyId = (targetUser as { companyId?: string | null } | null)?.companyId ?? null;
+    const settings = await getEffectiveAppSettings({ companyId });
     const ids = normalizeAvailabilitySelections(
       parsed.data.availabilitySlotIds,
       settings.availabilitySlotOptions,

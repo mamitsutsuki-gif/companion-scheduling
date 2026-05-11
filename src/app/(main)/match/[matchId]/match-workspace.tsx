@@ -214,7 +214,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       fetch("/api/me", { cache: "no-store" }),
       fetch(`/api/matches/${matchId}/messages`, { cache: "no-store" }),
       fetch(`/api/matches/${matchId}/negotiations`, { cache: "no-store" }),
-      fetch("/api/settings", { cache: "no-store" }),
+      // matchId を付けることで、当該クライアントの企業に上書きされた設定がある場合
+      // それを優先する。無ければグローバル設定にフォールバックする。
+      fetch(`/api/settings?matchId=${encodeURIComponent(matchId)}`, { cache: "no-store" }),
     ]);
     const mJson = await mRes.json().catch(() => null);
     const gJson = await gRes.json().catch(() => null);

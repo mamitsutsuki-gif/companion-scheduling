@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
-import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 
 export type SessionPlanRow = {
   matchId: string;
@@ -89,7 +89,8 @@ async function loadConfirmedNegotiationsForMatch(matchId: string): Promise<RawNe
 }
 
 export async function listSessionPlanForMatch(matchId: string): Promise<SessionPlanRow[]> {
-  const settings = await getAppSettingsRow();
+  // 企業ごとに「総セッション数」を上書きしている場合は、そちらを優先する。
+  const settings = await getEffectiveAppSettingsForMatch(matchId);
   const totalSessions = Math.max(1, Math.min(60, settings.totalSessions || 6));
   const negs = await loadConfirmedNegotiationsForMatch(matchId);
 
