@@ -41,8 +41,22 @@ export default function AdminAppSettingsPage() {
   const [slotEarliestHour, setSlotEarliestHour] = useState(8);
   const [slotLatestHour, setSlotLatestHour] = useState(20);
   const [allowWeekends, setAllowWeekends] = useState(false);
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
+  /**
+   * 企業（テナント）登録ロード時点のスナップショット。
+   * 「使用中の企業ID を削除しようとしている」検出に使う。
+   */
+  const [initialCompanyIds, setInitialCompanyIds] = useState<string[]>([]);
+  /** 既に user.companyId に割り当て済みの企業ID（参照のみ）。アプリ設定ロード時に集計。 */
+  const [companyIdsInUse, setCompanyIdsInUse] = useState<Set<string>>(new Set());
   const [settingsSection, setSettingsSection] = useState<
-    "session" | "availability" | "constraints" | "partner" | "guidelines" | "admin"
+    | "session"
+    | "availability"
+    | "constraints"
+    | "partner"
+    | "guidelines"
+    | "companies"
+    | "admin"
   >("session");
 
   // メール送信テスト用 state
@@ -143,12 +157,65 @@ export default function AdminAppSettingsPage() {
         if (typeof sData.settings.slotEarliestHour === "number") setSlotEarliestHour(sData.settings.slotEarliestHour);
         if (typeof sData.settings.slotLatestHour === "number") setSlotLatestHour(sData.settings.slotLatestHour);
         if (typeof sData.settings.allowWeekends === "boolean") setAllowWeekends(sData.settings.allowWeekends);
+        if (Array.isArray(sData.settings.companies)) {
+          const list = (sData.settings.companies as unknown[])
+            .map((v) => {
+              if (!v || typeof v !== "object") return null;
+              const o = v as Record<string, unknown>;
+              const id = typeof o.id === "string" ? o.id : "";
+              const name = typeof o.name === "string" ? o.name : "";
+              if (!id || !name) return null;
+              return { id, name };
+            })
+            .filter((x): x is { id: string; name: string } => x !== null);
+          setCompanies(list);
+          setInitialCompanyIds(list.map((c) => c.id));
+        }
       }
-      setUsers(Array.isArray(uData?.users) ? uData.users : []);
+      const userList: UserRow[] = Array.isArray(uData?.users) ? uData.users : [];
+      setUsers(userList);
+      const used = new Set<string>();
+      for (const u of userList as Array<UserRow & { companyId?: string | null }>) {
+        const cid = (u.companyId ?? "").trim();
+        if (cid) used.add(cid);
+      }
+      setCompanyIdsInUse(used);
       setLoading(false);
     }
     void load();
   }, []);
+
+  function slugifyCompanyId(input: string) {
+    return input
+      .normalize("NFKC")
+      .replace(/[^a-zA-Z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase()
+      .slice(0, 60);
+  }
+
+  function setCompanyField(index: number, field: "id" | "name", value: string) {
+    setCompanies((prev) => {
+      const next = prev.slice();
+      const cur = next[index];
+      if (!cur) return prev;
+      const v = field === "id" ? slugifyCompanyId(value) : value;
+      next[index] = { ...cur, [field]: v };
+      return next;
+    });
+  }
+
+  function addCompany() {
+    setCompanies((prev) => {
+      if (prev.length >= 64) return prev;
+      const id = `company-${Date.now().toString(36)}`;
+      return [...prev, { id, name: "" }];
+    });
+  }
+
+  function removeCompany(index: number) {
+    setCompanies((prev) => prev.filter((_, i) => i !== index));
+  }
 
   function setQuestionForRound(round: number, index: number, text: string) {
     setPartnerExtraQuestions((prev) => {
@@ -249,6 +316,29 @@ export default function AdminAppSettingsPage() {
       if (client.length === 0 && partner.length === 0) continue;
       guidelines[k] = { client, partner };
     }
+    const cleanedCompanies = companies
+      .map((c) => ({ id: c.id.trim(), name: c.name.trim() }))
+      .filter((c) => c.id && c.name);
+    {
+      const cIds = cleanedCompanies.map((c) => c.id);
+      if (new Set(cIds).size !== cIds.length) {
+        setErr("企業IDが重複しています。重複しない英数IDを入力してください。");
+        return;
+      }
+    }
+    // 使用中の企業ID を削除しようとしている場合は安全側で停止
+    const beforeIds = new Set(initialCompanyIds);
+    const afterIds = new Set(cleanedCompanies.map((c) => c.id));
+    const removedInUse: string[] = [];
+    for (const id of beforeIds) {
+      if (!afterIds.has(id) && companyIdsInUse.has(id)) removedInUse.push(id);
+    }
+    if (removedInUse.length > 0) {
+      setErr(
+        `次の企業ID は割り当て済みのユーザーがいます。先にユーザーの所属を変更してから削除してください: ${removedInUse.join(", ")}`,
+      );
+      return;
+    }
     const res = await fetch("/api/admin/app-settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -262,6 +352,7 @@ export default function AdminAppSettingsPage() {
         slotEarliestHour: Number(slotEarliestHour),
         slotLatestHour: Number(slotLatestHour),
         allowWeekends,
+        companies: cleanedCompanies,
       }),
     });
     const data = await res.json().catch(() => null);
@@ -270,6 +361,7 @@ export default function AdminAppSettingsPage() {
       return;
     }
     setMsg("保存しました。新規登録のクライアントは新しい選択肢を選べます。");
+    setInitialCompanyIds(cleanedCompanies.map((c) => c.id));
   }
 
   async function onAddAdmin(e: FormEvent<HTMLFormElement>) {
@@ -317,6 +409,7 @@ export default function AdminAppSettingsPage() {
             ["constraints", "候補日の制約"],
             ["partner", "パートナー追加質問"],
             ["guidelines", "セッションガイドライン"],
+            ["companies", "企業（テナント）"],
             ["admin", "管理者"],
           ] as const
         ).map(([id, label]) => (
@@ -533,6 +626,77 @@ export default function AdminAppSettingsPage() {
                   );
                 })}
               </div>
+            </div>
+          ) : null}
+
+          {settingsSection === "companies" ? (
+            <div className="space-y-3 rounded-xl border border-rose-200 bg-rose-50/60 p-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="text-base font-semibold text-rose-950">企業（テナント）の登録</h3>
+                <button
+                  type="button"
+                  onClick={addCompany}
+                  disabled={companies.length >= 64}
+                  className="rounded-md border border-rose-300 bg-white px-3 py-1.5 text-sm font-semibold text-rose-900 hover:bg-rose-50 disabled:opacity-50"
+                >
+                  企業を追加
+                </button>
+              </div>
+              <p className="text-sm text-rose-900/80">
+                クライアント／クライアント管理者の「所属企業ID」はここに登録された企業からのみ選べます。<br />
+                <strong>同じ企業のクライアント同士だけ</strong>が「自分FTA」をお互いに閲覧でき、
+                <strong>同じ企業のクライアントの日程一覧</strong>のみクライアント管理者が見られます。
+                別企業間のデータは絶対に交わりません。
+              </p>
+              <p className="text-xs text-rose-900/70">
+                ※ 企業ID（半角英数・ハイフン・アンダースコア）は内部キーです。後から変更すると割り当て済みユーザーとの紐づけが切れるので、原則は新規追加と未使用 ID の削除のみで運用してください。
+              </p>
+              {companies.length === 0 ? (
+                <p className="rounded-md border border-dashed border-rose-300 bg-white px-3 py-3 text-sm text-rose-900/80">
+                  まだ企業が登録されていません。「企業を追加」から登録してください。
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {companies.map((c, i) => {
+                    const inUse = companyIdsInUse.has(c.id);
+                    return (
+                      <li
+                        key={i}
+                        className="flex flex-wrap items-center gap-2 rounded-md border border-rose-200 bg-white px-3 py-2"
+                      >
+                        <input
+                          value={c.name}
+                          onChange={(e) => setCompanyField(i, "name", e.target.value)}
+                          placeholder="企業名（例: 株式会社モチベイジ）"
+                          maxLength={80}
+                          className="flex-1 min-w-[14rem] rounded-md border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-950"
+                        />
+                        <input
+                          value={c.id}
+                          onChange={(e) => setCompanyField(i, "id", e.target.value)}
+                          placeholder="企業ID（例: motive-iji）"
+                          maxLength={60}
+                          className="w-52 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-sm text-zinc-700"
+                        />
+                        {inUse ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">
+                            割当ユーザーあり
+                          </span>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => removeCompany(i)}
+                          disabled={inUse}
+                          title={inUse ? "割当ユーザーがいるため削除できません" : ""}
+                          className="rounded-md border border-red-300 bg-red-50 px-2 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          削除
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           ) : null}
 

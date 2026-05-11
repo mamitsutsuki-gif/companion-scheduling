@@ -13,6 +13,17 @@ export type PartnerExtraQuestionsByRound = Record<string, string[]>;
 export type SessionGuidelineEntry = { client: string; partner: string };
 export type SessionGuidelinesByRound = Record<string, SessionGuidelineEntry>;
 
+/**
+ * 所属企業（テナント）の登録エントリ。
+ * - `id` は user.companyId に格納されるキー（半角英数 / ハイフン / アンダースコア）。
+ * - `name` は管理者画面・将来の表示用のヒトに読める表記。
+ *
+ * 同じ `id` のクライアント同士だけが、FTA 閲覧 / クライアント管理者の日程閲覧で
+ * 互いに見えるようにスコープされる。`id` を間違って変えるとアクセスが途切れるので、
+ * 編集 UI は select+登録制にしている。
+ */
+export type CompanyOption = { id: string; name: string };
+
 export type AppSettingsRow = {
   id: string;
   slotDurationMinutes: number;
@@ -24,7 +35,31 @@ export type AppSettingsRow = {
   slotEarliestHour: number;
   slotLatestHour: number;
   allowWeekends: boolean;
+  companies: CompanyOption[];
 };
+
+export function normalizeCompanies(input: unknown): CompanyOption[] {
+  if (!Array.isArray(input)) return [];
+  const out: CompanyOption[] = [];
+  const seen = new Set<string>();
+  for (const v of input) {
+    if (!v || typeof v !== "object") continue;
+    const obj = v as Record<string, unknown>;
+    const idRaw = typeof obj.id === "string" ? obj.id : "";
+    const nameRaw = typeof obj.name === "string" ? obj.name : "";
+    const id = idRaw
+      .normalize("NFKC")
+      .replace(/[^a-zA-Z0-9_-]/g, "")
+      .slice(0, 60);
+    const name = nameRaw.trim().slice(0, 80);
+    if (!id || !name) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, name });
+    if (out.length >= 64) break;
+  }
+  return out;
+}
 
 function clampHour(input: unknown, fallback: number) {
   const n = typeof input === "number" ? input : Number(input);
@@ -88,6 +123,7 @@ const defaults: AppSettingsRow = {
   slotEarliestHour: 8,
   slotLatestHour: 20,
   allowWeekends: false,
+  companies: [],
 };
 
 async function readByRawSql() {
@@ -158,6 +194,7 @@ export async function getAppSettingsRow(): Promise<AppSettingsRow> {
       slotEarliestHour: clampHour(raw.slotEarliestHour, defaults.slotEarliestHour),
       slotLatestHour: clampHour(raw.slotLatestHour, defaults.slotLatestHour),
       allowWeekends: raw.allowWeekends === true,
+      companies: normalizeCompanies(raw.companies),
     };
   }
 
@@ -198,6 +235,7 @@ export async function getAppSettingsRow(): Promise<AppSettingsRow> {
       slotEarliestHour: clampHour(row.slotEarliestHour, defaults.slotEarliestHour),
       slotLatestHour: clampHour(row.slotLatestHour, defaults.slotLatestHour),
       allowWeekends: row.allowWeekends === true,
+      companies: normalizeCompanies(row.companies),
     };
   } catch {
     const row = await readByRawSql().catch(() => null);
@@ -222,6 +260,7 @@ export async function upsertAppSettingsRow(input: {
   slotEarliestHour?: number;
   slotLatestHour?: number;
   allowWeekends?: boolean;
+  companies?: CompanyOption[];
 }): Promise<AppSettingsRow> {
   const availabilitySlotOptions = normalizeAvailabilityOptions(input.availabilitySlotOptions);
   const partnerExtraQuestionsByRound =
@@ -237,6 +276,8 @@ export async function upsertAppSettingsRow(input: {
   const slotLatestHour =
     input.slotLatestHour !== undefined ? clampHour(input.slotLatestHour, defaults.slotLatestHour) : undefined;
   const allowWeekends = input.allowWeekends !== undefined ? Boolean(input.allowWeekends) : undefined;
+  const companies =
+    input.companies !== undefined ? normalizeCompanies(input.companies) : undefined;
 
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
@@ -251,6 +292,7 @@ export async function upsertAppSettingsRow(input: {
           partnerExtraQuestionsByRound ?? defaults.partnerExtraQuestionsByRound,
         sessionGuidelinesByRound:
           sessionGuidelinesByRound ?? defaults.sessionGuidelinesByRound,
+        companies: companies ?? defaults.companies,
       };
     }
     const ref = db.collection("appSettings").doc("app");
@@ -271,6 +313,7 @@ export async function upsertAppSettingsRow(input: {
     if (slotEarliestHour !== undefined) baseDoc.slotEarliestHour = slotEarliestHour;
     if (slotLatestHour !== undefined) baseDoc.slotLatestHour = slotLatestHour;
     if (allowWeekends !== undefined) baseDoc.allowWeekends = allowWeekends;
+    if (companies !== undefined) baseDoc.companies = companies;
     await ref.set(baseDoc, { merge: true });
     const snap = await ref.get();
     const raw = (snap.data() ?? {}) as Record<string, unknown>;
@@ -292,6 +335,10 @@ export async function upsertAppSettingsRow(input: {
       slotLatestHour: clampHour(raw.slotLatestHour, slotLatestHour ?? defaults.slotLatestHour),
       allowWeekends:
         raw.allowWeekends !== undefined ? raw.allowWeekends === true : allowWeekends ?? defaults.allowWeekends,
+      companies:
+        raw.companies !== undefined
+          ? normalizeCompanies(raw.companies)
+          : companies ?? [...defaults.companies],
     };
   }
 
@@ -357,6 +404,7 @@ export async function upsertAppSettingsRow(input: {
       slotLatestHour: clampHour(row.slotLatestHour, slotLatestHour ?? defaults.slotLatestHour),
       allowWeekends:
         row.allowWeekends !== undefined ? row.allowWeekends === true : allowWeekends ?? defaults.allowWeekends,
+      companies: companies ?? [],
     };
   } catch (error) {
     if (

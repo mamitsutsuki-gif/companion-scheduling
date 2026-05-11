@@ -77,6 +77,18 @@ export async function PATCH(request: Request) {
 
   if (parsed.data.companyId !== undefined) {
     const trimmed = parsed.data.companyId ? parsed.data.companyId.trim() : null;
+    // セキュリティ: 企業ID は「アプリ設定 → 企業 (テナント)」に登録された ID のみ許可。
+    // 直接 PATCH を叩かれても、未登録の値は弾く。
+    if (trimmed) {
+      const settings = await getAppSettingsRow();
+      const known = new Set(settings.companies.map((c) => c.id));
+      if (!known.has(trimmed)) {
+        return jsonError(
+          "未登録の企業IDは指定できません。先に『アプリ設定 → 企業（テナント）』で登録してください。",
+          400,
+        );
+      }
+    }
     const updated = await setUserCompany(parsed.data.userId, trimmed || null).catch(() => null);
     if (!updated) return jsonError("企業ID の更新に失敗しました。", 400);
     resultUser = updated;

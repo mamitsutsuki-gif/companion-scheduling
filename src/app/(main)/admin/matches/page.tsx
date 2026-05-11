@@ -57,6 +57,7 @@ export default function AdminMatchesPage() {
   const [availabilityOptions, setAvailabilityOptions] = useState<AvailabilitySlotOption[]>(
     DEFAULT_AVAILABILITY_OPTIONS,
   );
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
   const [editingAvailabilityUserId, setEditingAvailabilityUserId] = useState<string | null>(null);
   const [editingSelections, setEditingSelections] = useState<string[]>([]);
 
@@ -66,7 +67,9 @@ export default function AdminMatchesPage() {
     const [uRes, mRes, sRes] = await Promise.all([
       fetch("/api/admin/users"),
       fetch("/api/matches"),
-      fetch("/api/settings"),
+      // 管理者専用のアプリ設定を取得（公開 /api/settings ではなく、admin endpoint）。
+      // 企業（テナント）登録は機密寄りなので公開エンドポイントには載せない。
+      fetch("/api/admin/app-settings"),
     ]);
     const uJson = await uRes.json().catch(() => null);
     const mJson = await mRes.json().catch(() => null);
@@ -85,8 +88,26 @@ export default function AdminMatchesPage() {
 
     setUsers(Array.isArray(uJson.users) ? uJson.users : []);
     setMatches(Array.isArray(mJson.matches) ? mJson.matches : []);
-    if (sRes.ok && Array.isArray(sJson?.availabilitySlotOptions) && sJson.availabilitySlotOptions.length > 0) {
-      setAvailabilityOptions(sJson.availabilitySlotOptions);
+    if (sRes.ok && sJson?.settings) {
+      if (
+        Array.isArray(sJson.settings.availabilitySlotOptions) &&
+        sJson.settings.availabilitySlotOptions.length > 0
+      ) {
+        setAvailabilityOptions(sJson.settings.availabilitySlotOptions);
+      }
+      if (Array.isArray(sJson.settings.companies)) {
+        const list = (sJson.settings.companies as unknown[])
+          .map((v) => {
+            if (!v || typeof v !== "object") return null;
+            const o = v as Record<string, unknown>;
+            const id = typeof o.id === "string" ? o.id : "";
+            const name = typeof o.name === "string" ? o.name : "";
+            if (!id || !name) return null;
+            return { id, name };
+          })
+          .filter((x): x is { id: string; name: string } => x !== null);
+        setCompanies(list);
+      }
     }
     setSelectedMatchIds([]);
     setLoading(false);
@@ -163,6 +184,7 @@ export default function AdminMatchesPage() {
 
   async function onCompanyChange(userId: string, companyId: string) {
     setError(null);
+    setMessage(null);
     const res = await fetch("/api/admin/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -170,10 +192,10 @@ export default function AdminMatchesPage() {
     });
     const data = await res.json().catch(() => null);
     if (!res.ok) {
-      setError(data?.error ?? "企業ID の更新に失敗しました。");
+      setError(data?.error ?? "所属企業の更新に失敗しました。");
       return;
     }
-    setMessage("企業ID を更新しました。");
+    setMessage("所属企業を更新しました。");
     void reloadAll();
   }
 
@@ -398,9 +420,20 @@ export default function AdminMatchesPage() {
             パートナーの対応可能時間は管理者がここで入力します。クライアントのものは登録時に本人が選択した内容を表示します。
             <br />
             <span className="text-xs text-slate-500">
-              「所属企業ID」は、クライアント管理者が見られるメンバーをグルーピングするための任意キーです（例: <code>motive-iji</code>）。同じ ID のクライアントが「1on1セッション一覧」に表示されます。
+              「所属企業」は、<Link href="/admin/settings" className="text-indigo-700 underline">アプリ設定 → 企業（テナント）</Link>で登録された企業からのみ選択できます。
+              <strong>同じ企業のクライアント同士</strong>だけが自分FTAを閲覧でき、
+              <strong>同じ企業のクライアントの日程一覧</strong>のみクライアント管理者から見えます。別企業間は絶対に交わりません。
             </span>
           </p>
+          {companies.length === 0 ? (
+            <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              企業がまだ 1 件も登録されていません。
+              <Link href="/admin/settings" className="ml-1 font-semibold underline">
+                アプリ設定 → 企業（テナント）
+              </Link>{" "}
+              から登録してください。
+            </p>
+          ) : null}
           <ul className="mt-6 space-y-3">
             {users.filter((u) => u.role !== "ADMIN").map((u) => {
               const isEditing = editingAvailabilityUserId === u.id;
@@ -446,19 +479,45 @@ export default function AdminMatchesPage() {
                       </select>
                     </label>
                     <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      所属企業ID
+                      所属企業
                       {isClientRole ? (
-                        <input
-                          type="text"
-                          defaultValue={u.companyId ?? ""}
-                          onBlur={(e) => {
-                            const next = e.target.value.trim();
-                            if (next === (u.companyId ?? "")) return;
-                            void onCompanyChange(u.id, next);
-                          }}
-                          placeholder="例: motive-iji"
-                          className="block w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm font-normal normal-case text-zinc-900"
-                        />
+                        (() => {
+                          const currentId = (u.companyId ?? "").trim();
+                          const knownIds = new Set(companies.map((c) => c.id));
+                          const isStale = currentId.length > 0 && !knownIds.has(currentId);
+                          return (
+                            <>
+                              <select
+                                value={currentId}
+                                onChange={(e) => {
+                                  const next = e.target.value;
+                                  if (next === currentId) return;
+                                  void onCompanyChange(u.id, next);
+                                }}
+                                disabled={companies.length === 0}
+                                className="block w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm font-normal normal-case text-zinc-900 disabled:bg-zinc-100 disabled:text-zinc-400"
+                              >
+                                <option value="">未所属</option>
+                                {/* 既存ユーザーが「いまどの企業に属しているか」が削除済みでも分かるよう、stale な ID も option として残す */}
+                                {isStale ? (
+                                  <option value={currentId}>
+                                    （未登録ID: {currentId}）
+                                  </option>
+                                ) : null}
+                                {companies.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.name}（{c.id}）
+                                  </option>
+                                ))}
+                              </select>
+                              {isStale ? (
+                                <span className="block text-[11px] font-normal normal-case text-amber-700">
+                                  ※ この企業IDはアプリ設定に登録されていません。アプリ設定で登録するか、別の企業に変更してください。
+                                </span>
+                              ) : null}
+                            </>
+                          );
+                        })()
                       ) : (
                         <span className="block text-sm font-normal normal-case text-zinc-400">—</span>
                       )}

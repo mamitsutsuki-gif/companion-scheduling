@@ -12,6 +12,15 @@ const availabilityOptionSchema = z.object({
   label: z.string().min(1).max(120),
 });
 
+const companySchema = z.object({
+  id: z
+    .string()
+    .min(1)
+    .max(60)
+    .regex(/^[a-zA-Z0-9_-]+$/, "企業IDは半角英数・ハイフン・アンダースコアのみ"),
+  name: z.string().min(1).max(80),
+});
+
 const patchSchema = z
   .object({
     slotDurationMinutes: z.number().int().min(15).max(240),
@@ -33,6 +42,7 @@ const patchSchema = z
     slotEarliestHour: z.number().int().min(0).max(24).optional(),
     slotLatestHour: z.number().int().min(0).max(24).optional(),
     allowWeekends: z.boolean().optional(),
+    companies: z.array(companySchema).max(64).optional(),
   })
   .refine(
     (v) =>
@@ -68,6 +78,14 @@ export async function PATCH(request: Request) {
       )
     : undefined;
 
+  // 重複 id を弾く（zod では unique 制約まで書けないため最終チェックをここで）
+  if (parsed.data.companies) {
+    const ids = parsed.data.companies.map((c) => c.id);
+    if (new Set(ids).size !== ids.length) {
+      return jsonError("企業IDが重複しています。重複しない英数IDを入力してください。", 400);
+    }
+  }
+
   const row = await upsertAppSettingsRow({
     slotDurationMinutes: parsed.data.slotDurationMinutes,
     totalSessions: parsed.data.totalSessions,
@@ -78,6 +96,7 @@ export async function PATCH(request: Request) {
     slotEarliestHour: parsed.data.slotEarliestHour,
     slotLatestHour: parsed.data.slotLatestHour,
     allowWeekends: parsed.data.allowWeekends,
+    companies: parsed.data.companies,
   });
 
   return jsonOk({ ok: true, settings: row });
