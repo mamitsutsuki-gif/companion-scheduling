@@ -33,6 +33,18 @@ export async function GET(_request: Request, context: RouteContext) {
     (session.role === "CLIENT" || session.role === "CLIENT_ADMIN") &&
     (target.role === "CLIENT" || target.role === "CLIENT_ADMIN")
   ) {
+    // 所属企業ID の一致を必須にする（未設定同士・別企業間は不可）。
+    const viewer = await getUserById(session.sub);
+    const viewerCompany =
+      (viewer as { companyId?: string | null } | null)?.companyId?.trim() ?? "";
+    const targetCompany =
+      (target as { companyId?: string | null }).companyId?.trim() ?? "";
+    if (!viewerCompany || !targetCompany || viewerCompany !== targetCompany) {
+      return jsonError(
+        "閲覧権限がありません（所属企業ID が一致しないか未設定です）。",
+        403,
+      );
+    }
     return jsonOk({ chart: maskedFtaChartForViewer(chart), owner: target.displayName });
   }
 

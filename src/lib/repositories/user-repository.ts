@@ -569,13 +569,21 @@ export async function getUserById(userId: string) {
       role: asRole(raw.role),
       email: typeof raw.email === "string" ? raw.email : null,
       deletedAt: typeof raw.deletedAt === "string" ? raw.deletedAt : null,
+      companyId: typeof raw.companyId === "string" ? raw.companyId : null,
       availabilitySlotIds: asStringArray(raw.availabilitySlotIds),
     };
   }
   try {
     const row = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, displayName: true, role: true, email: true, deletedAt: true },
+      select: {
+        id: true,
+        displayName: true,
+        role: true,
+        email: true,
+        deletedAt: true,
+        companyId: true,
+      },
     });
     if (!row) return null;
     return {
@@ -584,13 +592,22 @@ export async function getUserById(userId: string) {
       availabilitySlotIds: [] as string[],
     };
   } catch (error) {
-    if (!(error instanceof Error) || !error.message.includes("Unknown field `deletedAt`")) throw error;
+    if (
+      !(error instanceof Error) ||
+      !/Unknown field `(deletedAt|companyId)`/.test(error.message)
+    )
+      throw error;
     const row = await prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, displayName: true, role: true, email: true },
     });
     if (!row) return null;
-    return { ...row, deletedAt: null, availabilitySlotIds: [] as string[] };
+    return {
+      ...row,
+      deletedAt: null,
+      companyId: null,
+      availabilitySlotIds: [] as string[],
+    };
   }
 }
 

@@ -12,6 +12,7 @@ export default function FtaPage() {
   const [dirty, setDirty] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [others, setOthers] = useState<ViewerRow[]>([]);
+  const [scopeMessage, setScopeMessage] = useState<string | null>(null);
 
   const loadMine = useCallback(async () => {
     const res = await fetch("/api/fta/me", { cache: "no-store" });
@@ -26,6 +27,9 @@ export default function FtaPage() {
     const cRes = await fetch("/api/fta/clients", { cache: "no-store" });
     const cData = await cRes.json().catch(() => null);
     if (cRes.ok && Array.isArray(cData?.charts)) setOthers(cData.charts);
+    setScopeMessage(
+      cRes.ok && typeof cData?.message === "string" ? cData.message : null,
+    );
   }, []);
 
   useEffect(() => {
@@ -121,9 +125,20 @@ export default function FtaPage() {
         </div>
       </section>
 
+      {scopeMessage ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm sm:p-6">
+          {scopeMessage}
+        </section>
+      ) : null}
+
       {others.length > 0 ? (
         <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">他クライアントの自分FTA（非公開は伏せて表示）</h2>
+          <h2 className="text-lg font-semibold text-slate-900">
+            同じ所属企業の他クライアントの自分FTA（非公開は伏せて表示）
+          </h2>
+          <p className="text-xs text-slate-500">
+            ※ 別の所属企業 ID のクライアントの自分FTA は表示されません。
+          </p>
           <div className="space-y-6">
             {others.map((row) => (
               <article key={row.userId} className="rounded-xl border border-zinc-200 p-4">
