@@ -90,6 +90,7 @@ export function ApplicationChrome({
   if (profile.role === "ADMIN") {
     nav.push({ href: "/admin/matches", label: "マッチ管理" });
     nav.push({ href: "/admin/sessions", label: "1on1日程一覧" });
+    nav.push({ href: "/admin/companies", label: "企業" });
     nav.push({ href: "/admin/invoices", label: "請求書" });
     nav.push({ href: "/admin/reports", label: "レポート作成" });
     nav.push({ href: "/admin/notifications", label: "通知" });

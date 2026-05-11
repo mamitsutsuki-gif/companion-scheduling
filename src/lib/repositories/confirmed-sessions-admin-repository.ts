@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { listClientsInCompany } from "@/lib/repositories/user-repository";
+import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { companyLabelFromRegistry } from "@/lib/company-display";
 
 export type AdminConfirmedSessionRow = {
   matchId: string;
@@ -9,6 +11,10 @@ export type AdminConfirmedSessionRow = {
   round: number;
   partnerDisplayName: string;
   clientDisplayName: string;
+  /** クライアントが所属している企業の登録 ID（未設定の場合は null） */
+  clientCompanyId: string | null;
+  /** 企業表示ラベル（「企業名（ID）」）。未登録 ID や未設定は null */
+  clientCompanyName: string | null;
   startAt: string;
   endAt: string;
 };
@@ -22,17 +28,23 @@ export type CompanyConfirmedSessionRow = {
   endAt: string;
 };
 
-async function userNamesMap(ids: string[]) {
+type UserBrief = { displayName: string; companyId: string | null };
+
+async function userInfoMap(ids: string[]): Promise<Map<string, UserBrief>> {
   const uniq = [...new Set(ids.filter(Boolean))];
   const db = getFirebaseFirestoreClient();
-  const map = new Map<string, string>();
+  const map = new Map<string, UserBrief>();
   if (!db) return map;
   await Promise.all(
     uniq.map(async (id) => {
       const snap = await db.collection("users").doc(id).get();
       if (!snap.exists) return;
       const data = snap.data() as Record<string, unknown>;
-      map.set(id, String(data.displayName ?? "ユーザー"));
+      const cid = data.companyId;
+      map.set(id, {
+        displayName: String(data.displayName ?? "ユーザー"),
+        companyId: typeof cid === "string" && cid.trim().length > 0 ? cid : null,
+      });
     }),
   );
   return map;
@@ -103,19 +115,25 @@ export async function listEffectiveConfirmedSessionsForAdmin(): Promise<AdminCon
       ids.add(c.partnerId);
       ids.add(c.clientId);
     }
-    const names = await userNamesMap([...ids]);
+    const [users, settings] = await Promise.all([userInfoMap([...ids]), getAppSettingsRow()]);
 
     return effective
-      .map((c) => ({
-        matchId: c.matchId,
-        negotiationId: c.negotiationId,
-        sessionNumber: c.sessionNumber,
-        round: c.round,
-        partnerDisplayName: names.get(c.partnerId) ?? "—",
-        clientDisplayName: names.get(c.clientId) ?? "—",
-        startAt: c.startAt,
-        endAt: c.endAt,
-      }))
+      .map((c) => {
+        const partner = users.get(c.partnerId);
+        const client = users.get(c.clientId);
+        return {
+          matchId: c.matchId,
+          negotiationId: c.negotiationId,
+          sessionNumber: c.sessionNumber,
+          round: c.round,
+          partnerDisplayName: partner?.displayName ?? "—",
+          clientDisplayName: client?.displayName ?? "—",
+          clientCompanyId: client?.companyId ?? null,
+          clientCompanyName: companyLabelFromRegistry(client?.companyId, settings.companies),
+          startAt: c.startAt,
+          endAt: c.endAt,
+        };
+      })
       .sort((a, b) => a.startAt.localeCompare(b.startAt));
   }
 
@@ -123,7 +141,12 @@ export async function listEffectiveConfirmedSessionsForAdmin(): Promise<AdminCon
     where: { status: "CONFIRMED" },
     include: {
       slots: true,
-      match: { include: { partner: true, client: true } },
+      match: {
+        include: {
+          partner: true,
+          client: { select: { id: true, displayName: true, companyId: true } },
+        },
+      },
     },
   });
 
@@ -145,11 +168,14 @@ export async function listEffectiveConfirmedSessionsForAdmin(): Promise<AdminCon
     .filter((x): x is Candidate => x !== null);
 
   const effective = pickLatestRoundPerSession(candidates);
+  const settings = await getAppSettingsRow();
 
   return effective
     .map((c) => {
       const n = negs.find((x) => x.id === c.negotiationId);
       if (!n) return null;
+      const cid =
+        (n.match.client as unknown as { companyId?: string | null }).companyId ?? null;
       return {
         matchId: c.matchId,
         negotiationId: c.negotiationId,
@@ -157,6 +183,8 @@ export async function listEffectiveConfirmedSessionsForAdmin(): Promise<AdminCon
         round: c.round,
         partnerDisplayName: n.match.partner.displayName,
         clientDisplayName: n.match.client.displayName,
+        clientCompanyId: typeof cid === "string" && cid.trim().length > 0 ? cid : null,
+        clientCompanyName: companyLabelFromRegistry(cid, settings.companies),
         startAt: c.startAt,
         endAt: c.endAt,
       };
