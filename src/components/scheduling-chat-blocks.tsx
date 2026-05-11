@@ -96,30 +96,30 @@ export function SlotProposalCard({ payload, voteContext }: SlotProposalCardProps
                 </p>
               </div>
               {showVoteUI && voteContext ? (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     disabled={pending}
                     onClick={() => void voteContext.onVote(p.data.negotiationId, s.id, "YES")}
-                    className={`min-w-[3.5rem] rounded-md border px-2 py-1.5 text-sm font-semibold ${
+                    className={`min-w-[6rem] rounded-md border px-2.5 py-1.5 text-sm font-semibold ${
                       current === "YES"
                         ? "border-emerald-500 bg-emerald-500 text-white"
                         : "border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-50"
                     } disabled:opacity-50`}
                   >
-                    ○ 参加
+                    ○ 参加できる
                   </button>
                   <button
                     type="button"
                     disabled={pending}
                     onClick={() => void voteContext.onVote(p.data.negotiationId, s.id, "NO")}
-                    className={`min-w-[3.5rem] rounded-md border px-2 py-1.5 text-sm font-semibold ${
+                    className={`min-w-[6rem] rounded-md border px-2.5 py-1.5 text-sm font-semibold ${
                       current === "NO"
                         ? "border-rose-500 bg-rose-500 text-white"
                         : "border-rose-300 bg-white text-rose-800 hover:bg-rose-50"
                     } disabled:opacity-50`}
                   >
-                    × 不可
+                    × 参加できない
                   </button>
                 </div>
               ) : null}

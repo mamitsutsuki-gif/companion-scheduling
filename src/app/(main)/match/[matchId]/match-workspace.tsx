@@ -742,6 +742,19 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-2xl font-semibold">チャット</h2>
         </div>
+        {me.role === "PARTNER" || me.role === "ADMIN" ? (
+          <details
+            open
+            className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md"
+          >
+            <summary className="cursor-pointer text-base font-semibold text-indigo-950">
+              パートナー向け：日程調整機能の使い方（最初にお読みください）
+            </summary>
+            <pre className="mt-3 max-h-[min(60vh,24rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
+              {SCHEDULE_RULES_PARTNER}
+            </pre>
+          </details>
+        ) : null}
         {me.role === "CLIENT" || me.role === "CLIENT_ADMIN" ? (
           <details
             open
@@ -1273,24 +1286,44 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               const dateLabel = row.startAt && row.endAt
                 ? `${formatJa(row.startAt)} 〜 ${formatJa(row.endAt)}`
                 : "未確定";
+              const isAbandoned = !!row.abandonment;
+              const abandonReasonLabel = row.abandonment
+                ? row.abandonment.reason === "no_show"
+                  ? "クライアントが連絡なく参加しなかった"
+                  : "クライアントが24時間前を過ぎてキャンセルした"
+                : null;
               const filledBadges: string[] = [];
-              if (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "ADMIN") {
-                filledBadges.push(row.hasClientFeedback ? "クライアント振り返り済" : "クライアント未提出");
-              }
-              if (me.role === "PARTNER" || me.role === "ADMIN") {
-                filledBadges.push(row.hasPartnerReport ? "パートナーレポート済" : "パートナー未提出");
+              if (!isAbandoned) {
+                if (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "ADMIN") {
+                  filledBadges.push(row.hasClientFeedback ? "クライアント振り返り済" : "クライアント未提出");
+                }
+                if (me.role === "PARTNER" || me.role === "ADMIN") {
+                  filledBadges.push(row.hasPartnerReport ? "パートナーレポート済" : "パートナー未提出");
+                }
               }
               return (
                 <li
                   key={row.sessionNumber}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-100 bg-violet-50/40 px-3 py-2"
+                  className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-2 ${
+                    isAbandoned
+                      ? "border-red-200 bg-red-50/60"
+                      : "border-violet-100 bg-violet-50/40"
+                  }`}
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-base font-semibold text-violet-950">
                       {row.sessionNumber}回目
                       <span className="ml-2 text-sm font-normal text-violet-900/85">{dateLabel}</span>
+                      {isAbandoned ? (
+                        <span className="ml-2 inline-flex items-center rounded-md border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800 align-middle">
+                          未実施・消化
+                        </span>
+                      ) : null}
                     </p>
-                    {(row.zoomUrl || row.zoomMeetingId || row.zoomPass) ? (
+                    {isAbandoned && abandonReasonLabel ? (
+                      <p className="mt-1 text-xs text-red-800">理由：{abandonReasonLabel}</p>
+                    ) : null}
+                    {!isAbandoned && (row.zoomUrl || row.zoomMeetingId || row.zoomPass) ? (
                       <p className="mt-1 text-xs text-violet-900/85">
                         {row.zoomUrl ? (
                           <a

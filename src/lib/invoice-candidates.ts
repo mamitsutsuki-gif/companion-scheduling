@@ -1,5 +1,6 @@
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { listSessionPlanForMatch } from "@/lib/repositories/match-sessions-repository";
+import { listAllSessionAbandonments } from "@/lib/repositories/session-abandonment-repository";
 import type { PartnerInvoiceItem } from "@/lib/repositories/partner-invoice-repository";
 
 type RawMatchDoc = {
@@ -12,6 +13,8 @@ type RawReportDoc = {
   matchId: string;
   sessionNumber: number;
   partnerId: string;
+  /** レポート本文 + 追加質問の回答が 1 つでも非空かどうか */
+  hasContent: boolean;
 };
 
 async function listMatchesForPartner(partnerId: string): Promise<RawMatchDoc[]> {
@@ -29,6 +32,18 @@ async function listMatchesForPartner(partnerId: string): Promise<RawMatchDoc[]> 
   });
 }
 
+function reportHasContent(raw: Record<string, unknown>): boolean {
+  const reflection = typeof raw.reflection === "string" ? raw.reflection.trim() : "";
+  if (reflection.length > 0) return true;
+  const ea = raw.extraAnswers;
+  if (ea && typeof ea === "object") {
+    for (const v of Object.values(ea as Record<string, unknown>)) {
+      if (typeof v === "string" && v.trim().length > 0) return true;
+    }
+  }
+  return false;
+}
+
 async function listReportsByPartner(partnerId: string): Promise<RawReportDoc[]> {
   if (!isFirebaseDataBackend()) return [];
   const db = getFirebaseFirestoreClient();
@@ -43,6 +58,7 @@ async function listReportsByPartner(partnerId: string): Promise<RawReportDoc[]> 
       matchId: String(raw.matchId ?? ""),
       sessionNumber: Number(raw.sessionNumber ?? 0),
       partnerId: String(raw.partnerId ?? ""),
+      hasContent: reportHasContent(raw),
     };
   });
 }
@@ -63,8 +79,14 @@ async function getUserDisplayNames(ids: string[]): Promise<Map<string, string>> 
 }
 
 /**
- * 指定パートナーが対象月に実施した（= レポート入力済かつ確定済セッションが対象月内）セッションを請求書の明細候補として返す。
- * unitPriceExclTax はパートナー入力なので 0 で初期化する。
+ * 指定パートナーが対象月に実施したセッションを請求書の明細候補として返す。
+ *
+ * 「実施」の判定:
+ *   - 対象月内に確定済セッション開始日があること
+ *   - パートナー側レポートが存在し、かつ **本文または追加質問に 1 文字以上の記載**があること
+ *   - 当該セッションが **未実施・消化（no_show / late_cancel）ではない**こと
+ *
+ * unitPriceExclTax はパートナー入力のため 0 で初期化。
  */
 export async function buildInvoiceCandidatesForPartner(
   partnerId: string,
@@ -84,12 +106,25 @@ export async function buildInvoiceCandidatesForPartner(
     }),
   );
 
+  // パートナーに属する全マッチの abandonment を一度に取得（Firestore の where in は
+  // 制約があるので、全件取得して対象 matchId/sessionNumber で絞る）
+  const abandonmentKey = (m: string, n: number) => `${m}#${n}`;
+  const abandonedSet = new Set<string>();
+  try {
+    const all = await listAllSessionAbandonments();
+    for (const a of all) abandonedSet.add(abandonmentKey(a.matchId, a.sessionNumber));
+  } catch {
+    /* best-effort: 未実施・消化情報が取れない場合は集計を止めず通常通り扱う */
+  }
+
   const clientNames = await getUserDisplayNames(matches.map((m) => m.clientId));
 
   const items: PartnerInvoiceItem[] = [];
   for (const r of reports) {
     const match = matchById.get(r.matchId);
     if (!match) continue;
+    if (!r.hasContent) continue; // レポート本文/追加質問が空 → 未実施扱い
+    if (abandonedSet.has(abandonmentKey(r.matchId, r.sessionNumber))) continue; // no_show / late_cancel
     const plan = planByMatch.get(r.matchId) ?? [];
     const session = plan.find((p) => p.sessionNumber === r.sessionNumber);
     if (!session?.confirmed || !session.startAt) continue;
@@ -114,8 +149,8 @@ export async function getPartnerDisplayNames(partnerIds: string[]): Promise<Map<
 }
 
 /**
- * 対象月 (year, month) に SessionReport を 1 件以上提出している（= 実施済）パートナーの id 一覧。
- * 未提出の請求書も管理者画面に並べるために使用。
+ * 対象月 (year, month) に **実施済（= レポート記載あり、かつ未実施・消化でない）**
+ * セッションを 1 件以上持つパートナーの id 一覧。未提出の請求書も管理者画面に並べるために使用。
  */
 export async function listPartnersWithReportsForMonth(
   year: number,
@@ -131,12 +166,12 @@ export async function listPartnersWithReportsForMonth(
       partnerId: String(raw.partnerId ?? ""),
       matchId: String(raw.matchId ?? ""),
       sessionNumber: Number(raw.sessionNumber ?? 0),
+      hasContent: reportHasContent(raw),
     };
   });
   if (reports.length === 0) return [];
 
   // 各 (matchId, sessionNumber) について確定済セッションの開始日が対象月かを確認する。
-  // listSessionPlanForMatch は一度のクエリで全回分を返すのでマッチ単位でキャッシュする。
   const planByMatch = new Map<string, Awaited<ReturnType<typeof listSessionPlanForMatch>>>();
   const matchIds = [...new Set(reports.map((r) => r.matchId).filter(Boolean))];
   await Promise.all(
@@ -145,9 +180,21 @@ export async function listPartnersWithReportsForMonth(
     }),
   );
 
+  // 未実施・消化セッションを除外するためのセットを構築
+  const abandonmentKey = (m: string, n: number) => `${m}#${n}`;
+  const abandonedSet = new Set<string>();
+  try {
+    const all = await listAllSessionAbandonments();
+    for (const a of all) abandonedSet.add(abandonmentKey(a.matchId, a.sessionNumber));
+  } catch {
+    /* best-effort */
+  }
+
   const partnerIds = new Set<string>();
   for (const r of reports) {
     if (!r.partnerId) continue;
+    if (!r.hasContent) continue;
+    if (abandonedSet.has(abandonmentKey(r.matchId, r.sessionNumber))) continue;
     const plan = planByMatch.get(r.matchId) ?? [];
     const session = plan.find((p) => p.sessionNumber === r.sessionNumber);
     if (!session?.confirmed || !session.startAt) continue;

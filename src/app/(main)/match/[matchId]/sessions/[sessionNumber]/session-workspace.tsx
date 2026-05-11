@@ -400,13 +400,23 @@ export function SessionWorkspace({
             )}
           </header>
 
-          {role === "ADMIN" && !detail.feedback ? (
+          {isAbandoned ? (
+            <div className="space-y-2 rounded-2xl border border-red-200 bg-red-50/70 px-4 py-3 text-sm text-red-900">
+              <p className="font-semibold">この回は【未実施・消化】としてマークされています。</p>
+              {abandonReasonLabel ? <p>理由：{abandonReasonLabel}</p> : null}
+              <p className="text-xs text-red-800/85">
+                振り返りの入力はできません。本件は実施回としてカウントされません。
+              </p>
+            </div>
+          ) : null}
+
+          {!isAbandoned && role === "ADMIN" && !detail.feedback ? (
             <p className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-sm text-zinc-600">
               まだクライアントの振り返りは提出されていません。
             </p>
           ) : null}
 
-          {role === "CLIENT" || role === "CLIENT_ADMIN" ? (
+          {!isAbandoned && (role === "CLIENT" || role === "CLIENT_ADMIN") ? (
             <form onSubmit={onSubmitFeedback} className="space-y-5">
               <label className="block space-y-1 text-base font-medium text-zinc-900">
                 1. 今回の1on1でどのような気づきがありましたか？
@@ -532,7 +542,7 @@ export function SessionWorkspace({
                 ) : null}
               </div>
             </form>
-          ) : (
+          ) : !isAbandoned ? (
             detail.feedback && (
               <dl className="grid gap-3 text-sm">
                 <ReadOnlyItem label="1. 気づき" value={detail.feedback.answers.insight} />
@@ -559,7 +569,7 @@ export function SessionWorkspace({
                 <p className="text-xs text-zinc-500">最終更新: {formatJa(detail.feedback.updatedAt)}</p>
               </dl>
             )
-          )}
+          ) : null}
         </section>
       ) : null}
 
