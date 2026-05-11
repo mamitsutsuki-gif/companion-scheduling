@@ -44,7 +44,8 @@ async function loadMatchClientMap(): Promise<Map<string, string>> {
 
 export async function POST(request: Request) {
   const session = await readSession();
-  if (!session || session.role !== "ADMIN") return jsonError("権限がありません。", 403);
+  if (!session || (session.role !== "ADMIN" && session.role !== "ADMIN_ASSISTANT"))
+    return jsonError("権限がありません。", 403);
   const parsed = querySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
   const opts: ReqBody = parsed.data;

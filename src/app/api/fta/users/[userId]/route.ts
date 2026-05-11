@@ -16,7 +16,7 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!target) return jsonError("ユーザーが見つかりません。", 404);
 
   const chart = await getFtaByUserId(userId);
-  if (session.sub === userId || session.role === "ADMIN") {
+  if (session.sub === userId || session.role === "ADMIN" || session.role === "ADMIN_ASSISTANT") {
     return jsonOk({ chart, owner: target.displayName });
   }
 

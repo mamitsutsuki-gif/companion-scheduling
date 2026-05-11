@@ -1,0 +1,46 @@
+name: ci-verify
+
+# Pull Request / push 時の自動検証。
+# - 型チェック（tsc --noEmit）
+# - マルチテナント実効設定マージの単体検証（`scripts/verify-multi-tenant.ts`）
+# 失敗時は PR が赤くなるので、企業上書きが意図通り反映されるかをコード変更前に検知できる。
+
+on:
+  pull_request:
+    branches:
+      - main
+      - staging
+  push:
+    branches:
+      - main
+      - staging
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Verify multi-tenant effective settings
+        run: npx tsx scripts/verify-multi-tenant.ts

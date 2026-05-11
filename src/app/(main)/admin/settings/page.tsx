@@ -11,11 +11,14 @@ type UserRow = {
   id: string;
   displayName: string;
   email: string;
-  role: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
+  role: "ADMIN" | "ADMIN_ASSISTANT" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
   companyId?: string | null;
 };
 
 type AssignableNonAdminRole = "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
+
+/** 「管理者追加」フォームで選べるロール（ADMIN / ADMIN_ASSISTANT） */
+type AdminRoleChoice = "ADMIN" | "ADMIN_ASSISTANT";
 
 export default function AdminAppSettingsPage() {
   const [minutes, setMinutes] = useState(30);
@@ -33,6 +36,8 @@ export default function AdminAppSettingsPage() {
   const [revokeRoleByUserId, setRevokeRoleByUserId] = useState<Record<string, AssignableNonAdminRole>>({});
   const [adminActionBusy, setAdminActionBusy] = useState<string | null>(null);
   const [adminUserId, setAdminUserId] = useState("");
+  /** 追加時に付与するロール。デフォルトは「管理者」 */
+  const [addAdminRole, setAddAdminRole] = useState<AdminRoleChoice>("ADMIN");
   const [partnerExtraQuestions, setPartnerExtraQuestions] = useState<Record<string, string[]>>({});
   const [sessionGuidelines, setSessionGuidelines] = useState<
     Record<string, { client: string; partner: string }>
@@ -203,13 +208,16 @@ export default function AdminAppSettingsPage() {
     void load();
   }, []);
 
+  /** 管理者一覧（ADMIN / ADMIN_ASSISTANT 両方を含む） */
   const adminUsers = useMemo(() => {
-    const admins = users.filter((u) => u.role === "ADMIN");
+    const admins = users.filter((u) => u.role === "ADMIN" || u.role === "ADMIN_ASSISTANT");
     return admins.sort((a, b) => {
       if (currentUserId) {
         if (a.id === currentUserId) return -1;
         if (b.id === currentUserId) return 1;
       }
+      // ADMIN を先、ADMIN_ASSISTANT を後にまとめる
+      if (a.role !== b.role) return a.role === "ADMIN" ? -1 : 1;
       return a.displayName.localeCompare(b.displayName, "ja");
     });
   }, [users, currentUserId]);
@@ -342,14 +350,18 @@ export default function AdminAppSettingsPage() {
     const res = await fetch("/api/admin/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: adminUserId, role: "ADMIN" }),
+      body: JSON.stringify({ userId: adminUserId, role: addAdminRole }),
     });
     const data = await res.json().catch(() => null);
     if (!res.ok) {
       setErr(data?.error ?? "管理者追加に失敗しました。");
       return;
     }
-    setMsg("管理者を追加しました。");
+    setMsg(
+      addAdminRole === "ADMIN_ASSISTANT"
+        ? "管理者アシスタントとして追加しました。"
+        : "管理者を追加しました。",
+    );
     setAdminUserId("");
     await reloadUsers();
   }
@@ -584,6 +596,10 @@ export default function AdminAppSettingsPage() {
             <p className="mt-2 text-sm text-slate-600">
               ログイン中のアカウントは自分で管理者権限を外せません。他の管理者が 2 人以上いるときだけ、他者の権限解除やアカウント削除ができます。
               システム上、管理者が 0 人になる操作（最後の管理者の解除・削除）はできません。
+              <br />
+              <span className="text-xs text-slate-500">
+                「管理者アシスタント」は、画面の閲覧とチャットへのコメントは可能ですが、マッチ管理・アプリ設定・企業設定・請求書の確定/差戻しなど「変更／書込み」操作は行えません。
+              </span>
             </p>
             {currentUserId === null ? (
               <p className="mt-3 text-xs text-amber-800">
@@ -606,7 +622,18 @@ export default function AdminAppSettingsPage() {
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-base font-semibold text-zinc-900 break-words">{u.displayName}</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-base font-semibold text-zinc-900 break-words">{u.displayName}</p>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                                u.role === "ADMIN"
+                                  ? "bg-indigo-100 text-indigo-900"
+                                  : "bg-amber-100 text-amber-900"
+                              }`}
+                            >
+                              {u.role === "ADMIN" ? "管理者" : "管理者アシスタント"}
+                            </span>
+                          </div>
                           <p className="text-xs text-zinc-600 break-all">{u.email}</p>
                           {isSelf ? (
                             <p className="mt-1 text-xs font-medium text-indigo-800">ログイン中のあなた</p>
@@ -667,7 +694,10 @@ export default function AdminAppSettingsPage() {
             onSubmit={onAddAdmin}
           >
             <h2 className="text-lg font-semibold text-slate-900">管理者の追加</h2>
-            <p className="text-sm text-slate-600">既存ユーザーを管理者ロール（ADMIN）に変更します。</p>
+            <p className="text-sm text-slate-600">
+              既存ユーザーを「管理者（ADMIN）」または「管理者アシスタント（ADMIN_ASSISTANT）」のロールに変更します。
+              管理者アシスタントは画面の閲覧・チャットへのコメントは可能ですが、マッチ管理・各種設定・請求書の確定/差戻しなど「変更／書込み」操作は行えません。
+            </p>
             <label className="block space-y-2 text-sm font-medium text-slate-900">
               追加するユーザー
               <select
@@ -676,18 +706,59 @@ export default function AdminAppSettingsPage() {
                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-xs"
               >
                 <option value="">選択してください</option>
-                {users.filter((u) => u.role !== "ADMIN").map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.displayName}（{u.email}）
-                  </option>
-                ))}
+                {users
+                  .filter((u) => u.role !== "ADMIN" && u.role !== "ADMIN_ASSISTANT")
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.displayName}（{u.email}）
+                    </option>
+                  ))}
               </select>
             </label>
+            <fieldset className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+              <legend className="px-1 text-sm font-semibold text-slate-900">付与するロール</legend>
+              <label className="flex items-start gap-2 text-sm text-slate-800">
+                <input
+                  type="radio"
+                  name="addAdminRole"
+                  value="ADMIN"
+                  checked={addAdminRole === "ADMIN"}
+                  onChange={() => setAddAdminRole("ADMIN")}
+                  className="mt-1 h-4 w-4 accent-indigo-700"
+                />
+                <span>
+                  <span className="font-semibold">管理者（ADMIN）</span>
+                  <span className="ml-2 text-xs text-slate-600">
+                    すべての画面の閲覧・編集・設定変更が可能。
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-sm text-slate-800">
+                <input
+                  type="radio"
+                  name="addAdminRole"
+                  value="ADMIN_ASSISTANT"
+                  checked={addAdminRole === "ADMIN_ASSISTANT"}
+                  onChange={() => setAddAdminRole("ADMIN_ASSISTANT")}
+                  className="mt-1 h-4 w-4 accent-amber-700"
+                />
+                <span>
+                  <span className="font-semibold">管理者アシスタント（ADMIN_ASSISTANT）</span>
+                  <span className="ml-2 text-xs text-slate-600">
+                    閲覧・チャットへのコメントのみ可。マッチ管理・設定変更・請求書の確定／差戻し等の「書込み」は不可。
+                  </span>
+                </span>
+              </label>
+            </fieldset>
             <button
               type="submit"
-              className="rounded-xl border border-indigo-300 bg-indigo-50 px-5 py-2.5 text-sm font-semibold text-indigo-900 shadow-sm hover:bg-indigo-100"
+              className={`rounded-xl border px-5 py-2.5 text-sm font-semibold shadow-sm ${
+                addAdminRole === "ADMIN"
+                  ? "border-indigo-300 bg-indigo-50 text-indigo-900 hover:bg-indigo-100"
+                  : "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
+              }`}
             >
-              管理者に追加
+              {addAdminRole === "ADMIN" ? "管理者に追加" : "管理者アシスタントに追加"}
             </button>
           </form>
 

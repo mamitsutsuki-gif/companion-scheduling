@@ -23,7 +23,8 @@ function asRole(input: unknown): Role {
   return input === "ADMIN" ||
     input === "PARTNER" ||
     input === "CLIENT" ||
-    input === "CLIENT_ADMIN"
+    input === "CLIENT_ADMIN" ||
+    input === "ADMIN_ASSISTANT"
     ? input
     : "CLIENT";
 }
@@ -234,8 +235,10 @@ function isStaleDeletedRow(u: {
   return email.includes("__deleted_") || uid.includes("__deleted_");
 }
 
-export async function listAdminVisibleUsers(role?: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN") {
-  const allRoles = ["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN"] as const;
+export async function listAdminVisibleUsers(
+  role?: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "ADMIN_ASSISTANT",
+) {
+  const allRoles = ["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN", "ADMIN_ASSISTANT"] as const;
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
     if (!db) return [];

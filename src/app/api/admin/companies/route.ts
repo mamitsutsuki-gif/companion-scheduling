@@ -1,5 +1,6 @@
 import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
+import { requireAdminish } from "@/lib/admin-access";
 import {
   getAppSettingsRow,
   getCompanyAppSettingsOverride,
@@ -17,7 +18,8 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   const session = await readSession();
-  if (!session || session.role !== "ADMIN") return jsonError("権限がありません。", 403);
+  const denied = requireAdminish(session);
+  if (denied || !session) return jsonError(denied?.error ?? "未ログインです。", denied?.status ?? 401);
 
   const [settings, matches] = await Promise.all([
     getAppSettingsRow(),

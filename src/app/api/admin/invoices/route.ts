@@ -14,7 +14,8 @@ import {
 export async function GET(request: Request) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
-  if (session.role !== "ADMIN") return jsonError("管理者のみ閲覧できます。", 403);
+  if (session.role !== "ADMIN" && session.role !== "ADMIN_ASSISTANT")
+    return jsonError("管理者のみ閲覧できます。", 403);
 
   const url = new URL(request.url);
   const yearStr = url.searchParams.get("year");

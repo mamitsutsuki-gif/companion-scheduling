@@ -11,7 +11,7 @@ import {
 type RoleUser = {
   id: string;
   displayName: string;
-  role: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
+  role: "ADMIN" | "ADMIN_ASSISTANT" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
   email: string;
   firebaseUid?: string | null;
   companyId?: string | null;
@@ -313,6 +313,157 @@ export default function AdminMatchesPage() {
     );
   }
 
+  /**
+   * 1 ユーザー分の li を描画する。
+   * `users.filter(...)` でクライアント / パートナーの 2 グループに分けて呼び出す。
+   */
+  function renderUserItem(u: RoleUser) {
+    const isEditing = editingAvailabilityUserId === u.id;
+    const labels = labelsForSlotIds(u.availabilitySlotIds, availabilityOptions);
+    const isClientRole = u.role === "CLIENT" || u.role === "CLIENT_ADMIN";
+    return (
+      <li
+        key={u.id}
+        className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-base font-semibold text-zinc-900 break-words">{u.displayName}</p>
+            <p className="text-xs text-zinc-600 break-all">{u.email}</p>
+            <p className="mt-0.5 text-xs text-zinc-500">
+              Firebase: {u.firebaseUid ? "連携済み" : "未連携"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void onDeleteUser(u.id, u.displayName, u.role as AssignableRole)}
+            className="shrink-0 rounded-md border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800 hover:bg-red-100"
+          >
+            削除
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            ロール
+            <select
+              value={u.role}
+              onChange={(e) => void onRoleChange(u.id, e.target.value as AssignableRole)}
+              className="block w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm font-normal normal-case text-zinc-900"
+            >
+              <option value="PARTNER">PARTNER</option>
+              <option value="CLIENT">CLIENT</option>
+              <option value="CLIENT_ADMIN">CLIENT_ADMIN（クライアント管理者）</option>
+            </select>
+          </label>
+          <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            所属企業
+            {isClientRole ? (
+              (() => {
+                const currentId = (u.companyId ?? "").trim();
+                const knownIds = new Set(companies.map((c) => c.id));
+                const isStale = currentId.length > 0 && !knownIds.has(currentId);
+                return (
+                  <>
+                    <select
+                      value={currentId}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        if (next === currentId) return;
+                        void onCompanyChange(u.id, next);
+                      }}
+                      disabled={companies.length === 0}
+                      className="block w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm font-normal normal-case text-zinc-900 disabled:bg-zinc-100 disabled:text-zinc-400"
+                    >
+                      <option value="">未所属</option>
+                      {isStale ? (
+                        <option value={currentId}>（未登録ID: {currentId}）</option>
+                      ) : null}
+                      {companies.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}（{c.id}）
+                        </option>
+                      ))}
+                    </select>
+                    {isStale ? (
+                      <span className="block text-[11px] font-normal normal-case text-amber-700">
+                        ※ この企業IDはアプリ設定に登録されていません。アプリ設定で登録するか、別の企業に変更してください。
+                      </span>
+                    ) : null}
+                  </>
+                );
+              })()
+            ) : (
+              <span className="block text-sm font-normal normal-case text-zinc-400">—</span>
+            )}
+          </label>
+        </div>
+
+        <div className="mt-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">対応可能時間</p>
+          {isEditing ? (
+            <div className="mt-2 space-y-2 rounded-md border border-emerald-200 bg-emerald-50/60 p-3">
+              {availabilityOptions.map((opt) => (
+                <label
+                  key={opt.id}
+                  className="flex cursor-pointer items-center gap-2 text-sm text-emerald-950"
+                >
+                  <input
+                    type="checkbox"
+                    checked={editingSelections.includes(opt.id)}
+                    onChange={() => toggleEditingSlot(opt.id)}
+                    className="h-4 w-4 accent-emerald-700"
+                  />
+                  <span>{opt.label}</span>
+                </label>
+              ))}
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => void saveAvailability(u.id)}
+                  className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-800"
+                >
+                  保存
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelEditingAvailability}
+                  className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {labels.length === 0 ? (
+                <span className="text-sm text-zinc-400">未設定</span>
+              ) : (
+                <ul className="flex flex-wrap gap-1">
+                  {labels.map((label, i) => (
+                    <li
+                      key={`${u.id}-slot-${i}`}
+                      className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-900"
+                    >
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button
+                type="button"
+                onClick={() => startEditingAvailability(u)}
+                className="text-xs font-semibold text-indigo-700 underline hover:text-indigo-900"
+              >
+                {u.role === "PARTNER" ? "編集（管理者入力）" : "編集（本人選択を上書き）"}
+              </button>
+            </div>
+          )}
+        </div>
+      </li>
+    );
+  }
+
   async function onBulkClearMatches() {
     if (selectedMatchIds.length === 0) return;
     const ok = window.confirm(
@@ -442,6 +593,7 @@ export default function AdminMatchesPage() {
             <span className="text-xs text-slate-500">Firebase連携ユーザーの切替に使います</span>
           </div>
           <p className="mt-2 text-sm text-slate-600">
+            クライアント（クライアント管理者含む）とパートナーを別の枠で表示しています。ロール切替で枠を跨いで移動します。
             パートナーの対応可能時間は管理者がここで入力します。クライアントのものは登録時に本人が選択した内容を表示します。
             <br />
             <span className="text-xs text-slate-500">
@@ -459,163 +611,51 @@ export default function AdminMatchesPage() {
               から登録してください。
             </p>
           ) : null}
-          <ul className="mt-6 space-y-3">
-            {users.filter((u) => u.role !== "ADMIN").map((u) => {
-              const isEditing = editingAvailabilityUserId === u.id;
-              const labels = labelsForSlotIds(u.availabilitySlotIds, availabilityOptions);
-              const isClientRole = u.role === "CLIENT" || u.role === "CLIENT_ADMIN";
-              return (
-                <li
-                  key={u.id}
-                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-base font-semibold text-zinc-900 break-words">
-                        {u.displayName}
-                      </p>
-                      <p className="text-xs text-zinc-600 break-all">{u.email}</p>
-                      <p className="mt-0.5 text-xs text-zinc-500">
-                        Firebase: {u.firebaseUid ? "連携済み" : "未連携"}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void onDeleteUser(u.id, u.displayName, u.role as AssignableRole)}
-                      className="shrink-0 rounded-md border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800 hover:bg-red-100"
-                    >
-                      削除
-                    </button>
+          {(() => {
+            const clientUsers = users.filter(
+              (u) => u.role === "CLIENT" || u.role === "CLIENT_ADMIN",
+            );
+            const partnerUsers = users.filter((u) => u.role === "PARTNER");
+            return (
+              <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                <div className="space-y-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="text-base font-semibold text-slate-900">
+                      クライアント
+                      <span className="ml-2 text-xs font-medium text-slate-500">
+                        （CLIENT / CLIENT_ADMIN）
+                      </span>
+                    </h3>
+                    <span className="text-xs font-medium text-slate-500">
+                      {clientUsers.length} 名
+                    </span>
                   </div>
-
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      ロール
-                      <select
-                        value={u.role}
-                        onChange={(e) =>
-                          void onRoleChange(u.id, e.target.value as AssignableRole)
-                        }
-                        className="block w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm font-normal normal-case text-zinc-900"
-                      >
-                        <option value="PARTNER">PARTNER</option>
-                        <option value="CLIENT">CLIENT</option>
-                        <option value="CLIENT_ADMIN">CLIENT_ADMIN（クライアント管理者）</option>
-                      </select>
-                    </label>
-                    <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      所属企業
-                      {isClientRole ? (
-                        (() => {
-                          const currentId = (u.companyId ?? "").trim();
-                          const knownIds = new Set(companies.map((c) => c.id));
-                          const isStale = currentId.length > 0 && !knownIds.has(currentId);
-                          return (
-                            <>
-                              <select
-                                value={currentId}
-                                onChange={(e) => {
-                                  const next = e.target.value;
-                                  if (next === currentId) return;
-                                  void onCompanyChange(u.id, next);
-                                }}
-                                disabled={companies.length === 0}
-                                className="block w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm font-normal normal-case text-zinc-900 disabled:bg-zinc-100 disabled:text-zinc-400"
-                              >
-                                <option value="">未所属</option>
-                                {/* 既存ユーザーが「いまどの企業に属しているか」が削除済みでも分かるよう、stale な ID も option として残す */}
-                                {isStale ? (
-                                  <option value={currentId}>
-                                    （未登録ID: {currentId}）
-                                  </option>
-                                ) : null}
-                                {companies.map((c) => (
-                                  <option key={c.id} value={c.id}>
-                                    {c.name}（{c.id}）
-                                  </option>
-                                ))}
-                              </select>
-                              {isStale ? (
-                                <span className="block text-[11px] font-normal normal-case text-amber-700">
-                                  ※ この企業IDはアプリ設定に登録されていません。アプリ設定で登録するか、別の企業に変更してください。
-                                </span>
-                              ) : null}
-                            </>
-                          );
-                        })()
-                      ) : (
-                        <span className="block text-sm font-normal normal-case text-zinc-400">—</span>
-                      )}
-                    </label>
-                  </div>
-
-                  <div className="mt-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      対応可能時間
+                  {clientUsers.length === 0 ? (
+                    <p className="rounded-md border border-dashed border-slate-300 bg-white px-3 py-4 text-center text-sm text-slate-500">
+                      クライアントはまだ登録されていません。
                     </p>
-                    {isEditing ? (
-                      <div className="mt-2 space-y-2 rounded-md border border-emerald-200 bg-emerald-50/60 p-3">
-                        {availabilityOptions.map((opt) => (
-                          <label
-                            key={opt.id}
-                            className="flex cursor-pointer items-center gap-2 text-sm text-emerald-950"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={editingSelections.includes(opt.id)}
-                              onChange={() => toggleEditingSlot(opt.id)}
-                              className="h-4 w-4 accent-emerald-700"
-                            />
-                            <span>{opt.label}</span>
-                          </label>
-                        ))}
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => void saveAvailability(u.id)}
-                            className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-800"
-                          >
-                            保存
-                          </button>
-                          <button
-                            type="button"
-                            onClick={cancelEditingAvailability}
-                            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-                          >
-                            キャンセル
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="mt-2 space-y-2">
-                        {labels.length === 0 ? (
-                          <span className="text-sm text-zinc-400">未設定</span>
-                        ) : (
-                          <ul className="flex flex-wrap gap-1">
-                            {labels.map((label, i) => (
-                              <li
-                                key={`${u.id}-slot-${i}`}
-                                className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-900"
-                              >
-                                {label}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => startEditingAvailability(u)}
-                          className="text-xs font-semibold text-indigo-700 underline hover:text-indigo-900"
-                        >
-                          {u.role === "PARTNER" ? "編集（管理者入力）" : "編集（本人選択を上書き）"}
-                        </button>
-                      </div>
-                    )}
+                  ) : (
+                    <ul className="space-y-3">{clientUsers.map((u) => renderUserItem(u))}</ul>
+                  )}
+                </div>
+                <div className="space-y-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="text-base font-semibold text-slate-900">パートナー</h3>
+                    <span className="text-xs font-medium text-slate-500">
+                      {partnerUsers.length} 名
+                    </span>
                   </div>
-                </li>
-              );
-            })}
-          </ul>
+                  {partnerUsers.length === 0 ? (
+                    <p className="rounded-md border border-dashed border-slate-300 bg-white px-3 py-4 text-center text-sm text-slate-500">
+                      パートナーはまだ登録されていません。
+                    </p>
+                  ) : (
+                    <ul className="space-y-3">{partnerUsers.map((u) => renderUserItem(u))}</ul>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </section>
 
         <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-6 md:p-8">

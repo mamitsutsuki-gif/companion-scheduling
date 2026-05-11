@@ -12,7 +12,7 @@ import { SCHEDULE_RULES_CLIENT, SCHEDULE_RULES_PARTNER } from "@/lib/scheduling-
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 
-type Role = "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
+type Role = "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "ADMIN_ASSISTANT";
 
 type Me = {
   id: string;
@@ -119,6 +119,7 @@ const statusLabel: Record<NegotiationRow["status"], string> = {
 
 const roleBadge: Record<Role, string> = {
   ADMIN: "管理者",
+  ADMIN_ASSISTANT: "管理者アシスタント",
   PARTNER: "パートナー",
   CLIENT: "クライアント",
   CLIENT_ADMIN: "クライアント管理者",
@@ -363,7 +364,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const unreadChatCount = useMemo(() => {
     if (!me) return 0;
     return messages.filter((m) => {
-      if (m.sender.role === "ADMIN") return false;
+      if (m.sender.role === "ADMIN" || m.sender.role === "ADMIN_ASSISTANT") return false;
       if (me.role === m.sender.role) return false;
       const ts = new Date(m.createdAt).valueOf() || 0;
       return ts > chatLastReadAt;
@@ -675,6 +676,26 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 設定: 全体（企業未割当）
               </span>
             )}
+            {(me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") &&
+            scheduleSettings.effectiveCompanyId ? (
+              <Link
+                href={`/admin/companies/${encodeURIComponent(scheduleSettings.effectiveCompanyId)}/settings`}
+                title="管理者専用：この企業の設定編集ページへ"
+                className="inline-flex items-center gap-1 rounded-full border border-indigo-300 bg-white px-2 py-1 text-[11px] font-semibold text-indigo-800 no-underline hover:bg-indigo-50"
+              >
+                ⚙ 設定を編集（管理者）
+              </Link>
+            ) : null}
+            {(me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") &&
+            !scheduleSettings.effectiveCompanyId ? (
+              <Link
+                href="/admin/matches"
+                title="管理者専用：この match に紐づくクライアントの所属企業を割り当てる"
+                className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-900 no-underline hover:bg-amber-100"
+              >
+                ⚠ 所属企業を割り当てる（管理者）
+              </Link>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -762,7 +783,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         >
           日程調整
         </button>
-        {me.role === "PARTNER" || me.role === "ADMIN" ? (
+        {me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (
           <button
             type="button"
             onClick={() => setActiveTab("fta")}
@@ -785,7 +806,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-2xl font-semibold">チャット</h2>
         </div>
-        {me.role === "PARTNER" || me.role === "ADMIN" ? (
+        {me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (
           <details
             open
             className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md"
@@ -817,6 +838,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             const isUnread =
               ts > chatLastReadAt &&
               msg.sender.role !== "ADMIN" &&
+              msg.sender.role !== "ADMIN_ASSISTANT" &&
               me?.role !== msg.sender.role;
             const proposalNegId =
               msg.kind === "SLOT_PROPOSAL"
@@ -941,7 +963,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       {activeTab === "schedule" ? (
       <section id="schedule" className="space-y-6 rounded-3xl border border-indigo-100 bg-indigo-50/40 px-3 py-5 shadow-inner shadow-indigo-100 sm:px-6 sm:py-8">
         <div className="space-y-3">
-          {(me.role === "PARTNER" || me.role === "ADMIN") ? (
+          {(me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
             <details className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md">
               <summary className="cursor-pointer text-base font-semibold text-indigo-950">
                 パートナー向け：日程調整機能の使い方（最初にお読みください）
@@ -951,7 +973,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               </pre>
             </details>
           ) : null}
-          {(me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "ADMIN") ? (
+          {(me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
             <details className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md">
               <summary className="cursor-pointer text-base font-semibold text-indigo-950">
                 クライアント向け：日程調整機能の使い方（最初にお読みください）
@@ -1281,7 +1303,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       </section>
       ) : null}
 
-      {activeTab === "fta" && (me.role === "PARTNER" || me.role === "ADMIN") ? (
+      {activeTab === "fta" && (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
         <section className="space-y-4 rounded-3xl border border-sky-100 bg-sky-50/35 px-3 py-5 sm:px-6 sm:py-8">
           <h2 className="text-2xl font-semibold text-sky-900">クライアントの自分FTA</h2>
           {clientFta?.targetRole === "CLIENT" && clientFta.chart ? (
@@ -1337,10 +1359,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 : null;
               const filledBadges: string[] = [];
               if (!isAbandoned) {
-                if (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "ADMIN") {
+                if (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") {
                   filledBadges.push(row.hasClientFeedback ? "クライアント振り返り済" : "クライアント未提出");
                 }
-                if (me.role === "PARTNER" || me.role === "ADMIN") {
+                if (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") {
                   filledBadges.push(row.hasPartnerReport ? "パートナーレポート済" : "パートナー未提出");
                 }
               }

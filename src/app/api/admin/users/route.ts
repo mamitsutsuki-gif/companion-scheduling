@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
+import { requireAdminish, requireAdminWriter } from "@/lib/admin-access";
 import {
   deleteUserAsAdmin,
   getUserById,
@@ -16,12 +17,13 @@ import {
 import { normalizeAvailabilitySelections } from "@/lib/availability";
 
 const querySchema = z.object({
-  role: z.enum(["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN"]).optional(),
+  role: z.enum(["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN", "ADMIN_ASSISTANT"]).optional(),
 });
 
 export async function GET(request: Request) {
   const session = await readSession();
-  if (!session || session.role !== "ADMIN") return jsonError("権限がありません。", 403);
+  const denied = requireAdminish(session);
+  if (denied) return jsonError(denied.error, denied.status);
 
   const params = querySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
   if (!params.success) return jsonError("クエリが不正です。");
@@ -34,7 +36,7 @@ export async function GET(request: Request) {
 const patchSchema = z
   .object({
     userId: z.string().min(1),
-    role: z.enum(["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN"]).optional(),
+    role: z.enum(["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN", "ADMIN_ASSISTANT"]).optional(),
     availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64).optional(),
     companyId: z.string().trim().max(80).nullable().optional(),
   })
@@ -48,13 +50,14 @@ const patchSchema = z
 
 export async function PATCH(request: Request) {
   const session = await readSession();
-  if (!session || session.role !== "ADMIN") return jsonError("権限がありません。", 403);
+  const denied = requireAdminWriter(session);
+  if (denied) return jsonError(denied.error, denied.status);
 
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
   if (
     parsed.data.role &&
-    parsed.data.userId === session.sub &&
+    parsed.data.userId === session!.sub &&
     parsed.data.role !== "ADMIN"
   ) {
     return jsonError("自分の管理者権限は外せません。", 400);
@@ -124,11 +127,12 @@ const deleteSchema = z.object({
 
 export async function DELETE(request: Request) {
   const session = await readSession();
-  if (!session || session.role !== "ADMIN") return jsonError("権限がありません。", 403);
+  const denied = requireAdminWriter(session);
+  if (denied) return jsonError(denied.error, denied.status);
 
   const parsed = deleteSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
-  if (parsed.data.userId === session.sub) return jsonError("自分自身は削除できません。", 400);
+  if (parsed.data.userId === session!.sub) return jsonError("自分自身は削除できません。", 400);
 
   const target = await getUserById(parsed.data.userId);
   if (target?.role === "ADMIN") {

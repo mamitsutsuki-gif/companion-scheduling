@@ -33,11 +33,24 @@ type EffectiveSnapshot = SettingsSnapshot & {
   overriddenFields: Array<keyof SettingsSnapshot>;
 };
 
+type CompanySummary = {
+  partnerCount: number;
+  pastSessions: number;
+  submittedReports: number;
+  missingReports: number;
+  invoices: {
+    submitted: number;
+    returned: number;
+    confirmed: number;
+  };
+};
+
 type ApiResponse = {
   company: { id: string; name: string } | null;
   isRegistered: boolean;
   pairs: Pair[];
   pairCount: number;
+  summary?: CompanySummary;
   effective: EffectiveSnapshot;
   override:
     | (Partial<SettingsSnapshot> & { updatedAt?: string })
@@ -155,6 +168,47 @@ export default function AdminCompanyDetailPage({
 
       {data ? (
         <>
+          {data.summary ? (
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+              <h2 className="text-lg font-semibold text-slate-900">サマリ</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                この企業に所属するクライアントが含まれるペア・関係パートナーに紐づく集計値です。
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <SummaryCard
+                  label="関係パートナー"
+                  value={`${data.summary.partnerCount} 名`}
+                  tone="neutral"
+                />
+                <SummaryCard
+                  label="実施済みセッション"
+                  value={`${data.summary.pastSessions} 回`}
+                  tone="neutral"
+                />
+                <SummaryCard
+                  label="未提出レポート"
+                  value={`${data.summary.missingReports} 件`}
+                  tone={data.summary.missingReports > 0 ? "warn" : "neutral"}
+                  hint={`提出済 ${data.summary.submittedReports} 件 / 実施済セッションのうち未提出`}
+                  link={{
+                    href: `/admin/sessions?company=${encodeURIComponent(companyId)}`,
+                    label: "1on1日程で確認 →",
+                  }}
+                />
+                <SummaryCard
+                  label="未承認の請求書"
+                  value={`${data.summary.invoices.submitted} 件`}
+                  tone={data.summary.invoices.submitted > 0 ? "warn" : "neutral"}
+                  hint={`差戻し中 ${data.summary.invoices.returned} / 承認済 ${data.summary.invoices.confirmed}`}
+                  link={{
+                    href: `/admin/invoices`,
+                    label: "請求書を開く →",
+                  }}
+                />
+              </div>
+            </section>
+          ) : null}
+
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="text-lg font-semibold text-slate-900">
@@ -291,6 +345,43 @@ export default function AdminCompanyDetailPage({
             </p>
           </section>
         </>
+      ) : null}
+    </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  tone,
+  hint,
+  link,
+}: {
+  label: string;
+  value: string;
+  tone: "neutral" | "warn";
+  hint?: string;
+  link?: { href: string; label: string };
+}) {
+  const toneClass =
+    tone === "warn"
+      ? "border-amber-300 bg-amber-50"
+      : "border-slate-200 bg-slate-50/70";
+  const valueClass = tone === "warn" ? "text-amber-900" : "text-slate-900";
+  return (
+    <div className={`rounded-2xl border p-4 ${toneClass}`}>
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={`mt-1 text-2xl font-semibold ${valueClass}`}>{value}</p>
+      {hint ? <p className="mt-1 text-xs text-slate-600">{hint}</p> : null}
+      {link ? (
+        <Link
+          href={link.href}
+          className={`mt-2 inline-block text-xs font-semibold no-underline hover:underline ${
+            tone === "warn" ? "text-amber-900" : "text-indigo-700"
+          }`}
+        >
+          {link.label}
+        </Link>
       ) : null}
     </div>
   );

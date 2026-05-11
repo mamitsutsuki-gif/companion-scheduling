@@ -54,7 +54,8 @@ const patchSchema = z
 
 export async function GET() {
   const session = await readSession();
-  if (!session || session.role !== "ADMIN") return jsonError("権限がありません。", 403);
+  if (!session || (session.role !== "ADMIN" && session.role !== "ADMIN_ASSISTANT"))
+    return jsonError("権限がありません。", 403);
 
   const row = await getAppSettingsRow();
   if (!row) return jsonError("設定が見つかりません。", 500);

@@ -13,7 +13,8 @@ const bodySchema = z.object({
 
 export async function POST(request: Request) {
   const session = await readSession();
-  if (!session || session.role !== "ADMIN") return jsonError("権限がありません。", 403);
+  if (!session || (session.role !== "ADMIN" && session.role !== "ADMIN_ASSISTANT"))
+    return jsonError("権限がありません。", 403);
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
 

@@ -15,7 +15,7 @@ export async function requireUser() {
 }
 
 export async function requireRole(
-  allowed: ("ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN")[],
+  allowed: ("ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "ADMIN_ASSISTANT")[],
 ) {
   const user = await requireUser();
   if (!allowed.includes(user.role)) {

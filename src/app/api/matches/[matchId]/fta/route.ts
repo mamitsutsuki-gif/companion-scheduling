@@ -26,7 +26,7 @@ export async function GET(_request: Request, context: RouteContext) {
     const chart = await getFtaByUserId(match.clientId);
     return jsonOk({ targetRole: "CLIENT", targetName: match.client.displayName, chart });
   }
-  if (session.role === "ADMIN") {
+  if (session.role === "ADMIN" || session.role === "ADMIN_ASSISTANT") {
     const chart = maskedFtaChartForViewer(await getFtaByUserId(match.clientId));
     return jsonOk({ targetRole: "CLIENT", targetName: match.client.displayName, chart });
   }

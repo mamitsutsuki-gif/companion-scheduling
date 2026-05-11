@@ -45,7 +45,9 @@ export async function GET(_request: Request, context: RouteContext) {
   const guidelineRaw = settings.sessionGuidelinesByRound[String(n)] ?? null;
   // ロールに応じてガイドラインを返す。クライアント管理者はクライアント向けと同じものを参照。
   const guideline = guidelineRaw
-    ? session.role === "PARTNER" || session.role === "ADMIN"
+    ? session.role === "PARTNER" ||
+      session.role === "ADMIN" ||
+      session.role === "ADMIN_ASSISTANT"
       ? { partner: guidelineRaw.partner ?? "", client: guidelineRaw.client ?? "" }
       : { partner: "", client: guidelineRaw.client ?? "" }
     : null;
@@ -57,9 +59,11 @@ export async function GET(_request: Request, context: RouteContext) {
   // Visibility:
   // - CLIENT: own feedback only (cannot read partner report)
   // - PARTNER: own report only
-  // - ADMIN: both
-  const includeFeedback = session.role === "ADMIN" || session.role === "CLIENT";
-  const includeReport = session.role === "ADMIN" || session.role === "PARTNER";
+  // - ADMIN / ADMIN_ASSISTANT: both
+  const includeFeedback =
+    session.role === "ADMIN" || session.role === "ADMIN_ASSISTANT" || session.role === "CLIENT";
+  const includeReport =
+    session.role === "ADMIN" || session.role === "ADMIN_ASSISTANT" || session.role === "PARTNER";
 
   return jsonOk({
     matchId,

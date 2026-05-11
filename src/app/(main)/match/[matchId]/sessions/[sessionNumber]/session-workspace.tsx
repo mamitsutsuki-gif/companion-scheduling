@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
-type Role = "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
+type Role = "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "ADMIN_ASSISTANT";
 
 type FeedbackAnswers = {
   insight?: string;
@@ -275,7 +275,7 @@ export function SessionWorkspace({
   const guidelineText =
     role === "PARTNER"
       ? detail.guideline?.partner?.trim() ?? ""
-      : role === "ADMIN"
+      : role === "ADMIN" || role === "ADMIN_ASSISTANT"
         ? // 管理者は両方表示するため、ここでは便宜上両方を結合せず別途出す
           ""
         : detail.guideline?.client?.trim() ?? "";
@@ -357,7 +357,7 @@ export function SessionWorkspace({
       </section>
 
       {detail.guideline ? (
-        role === "ADMIN" ? (
+        role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
           <section className="space-y-3 rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm sm:p-5">
             <h2 className="text-lg font-semibold text-violet-950">
               {detail.sessionNumber}回目 のガイドライン（管理者ビュー）
@@ -389,11 +389,11 @@ export function SessionWorkspace({
         ) : null
       ) : null}
 
-      {role === "CLIENT" || role === "CLIENT_ADMIN" || role === "ADMIN" ? (
+      {role === "CLIENT" || role === "CLIENT_ADMIN" || role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
         <section className="space-y-4 rounded-3xl border border-violet-100 bg-white p-4 shadow-sm sm:p-6">
           <header>
             <h2 className="text-xl font-semibold text-violet-900">クライアント振り返り</h2>
-            {role === "ADMIN" ? (
+            {role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
               <p className="text-sm text-zinc-600">管理者として閲覧しています（編集不可）。</p>
             ) : (
               <p className="text-sm text-zinc-600">回答内容はパートナーには表示されません。サポートデスクが匿名で集計します。</p>
@@ -410,7 +410,7 @@ export function SessionWorkspace({
             </div>
           ) : null}
 
-          {!isAbandoned && role === "ADMIN" && !detail.feedback ? (
+          {!isAbandoned && (role === "ADMIN" || role === "ADMIN_ASSISTANT") && !detail.feedback ? (
             <p className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-sm text-zinc-600">
               まだクライアントの振り返りは提出されていません。
             </p>
@@ -573,11 +573,11 @@ export function SessionWorkspace({
         </section>
       ) : null}
 
-      {role === "PARTNER" || role === "ADMIN" ? (
+      {role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
         <section className="space-y-4 rounded-3xl border border-amber-100 bg-white p-4 shadow-sm sm:p-6">
           <header>
             <h2 className="text-xl font-semibold text-amber-900">1on1セッションレポート（パートナー）</h2>
-            {role === "ADMIN" ? (
+            {role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
               <p className="text-sm text-zinc-600">管理者として閲覧しています（編集不可）。</p>
             ) : (
               <p className="text-sm text-zinc-600">
@@ -586,7 +586,7 @@ export function SessionWorkspace({
             )}
           </header>
 
-          {role === "ADMIN" && !detail.report ? (
+          {(role === "ADMIN" || role === "ADMIN_ASSISTANT") && !detail.report ? (
             <p className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-sm text-zinc-600">
               まだパートナーのレポートは提出されていません。
             </p>

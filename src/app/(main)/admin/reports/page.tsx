@@ -140,6 +140,25 @@ export default function AdminReportsPage() {
     [totalSessions],
   );
 
+  /**
+   * 企業が選択されている場合、対象クライアントの候補は **その企業に所属するメンバーのみ** に絞る。
+   * 別企業のクライアントが選択 UI に出ない（=チェックも入らない）ことで、
+   * 別企業のデータが集計に混入する経路を UI 上完全に排除する。
+   * （API 側でも filterCompanyId による厳密チェックは行っている。）
+   */
+  const visibleClients = useMemo(() => {
+    if (!filterCompanyId.trim()) return clients;
+    const want = filterCompanyId.trim();
+    return clients.filter((c) => (c.companyId ?? "").trim() === want);
+  }, [clients, filterCompanyId]);
+
+  // 企業フィルタを変えたとき、対象外になった選択クライアントを自動で外す。
+  useEffect(() => {
+    if (!filterCompanyId.trim()) return;
+    const visibleIds = new Set(visibleClients.map((c) => c.id));
+    setSelectedClientIds((prev) => prev.filter((id) => visibleIds.has(id)));
+  }, [filterCompanyId, visibleClients]);
+
   function toggleClient(id: string) {
     setSelectedClientIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
@@ -207,7 +226,9 @@ export default function AdminReportsPage() {
         <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-4">
           <h3 className="text-sm font-semibold text-slate-800">企業で絞り込み（任意）</h3>
           <p className="mt-1 text-xs text-slate-500">
-            選択すると、その企業 ID に所属するクライアント／クライアント管理者の回答だけが集計されます。個別の「対象クライアント」チェックと併用した場合は、両方を満たすデータのみ含まれます。
+            選択すると、その企業 ID に所属するクライアント／クライアント管理者の回答だけが集計されます。
+            <strong>対象クライアントの候補も、その企業に所属するメンバーだけに絞られます。</strong>
+            別企業のデータがレポートに混じることはありません。
           </p>
           <label className="mt-3 block max-w-md text-sm font-medium text-slate-800">
             企業（テナント）
@@ -235,14 +256,20 @@ export default function AdminReportsPage() {
           <div>
             <h3 className="text-sm font-semibold text-slate-800">対象クライアント</h3>
             <p className="mt-1 text-xs text-slate-500">
-              未選択の場合は全クライアントを対象とします。
+              {filterCompanyId
+                ? "選択企業に所属するメンバーのみ表示しています。未選択の場合は表示中の全員を対象とします。"
+                : "未選択の場合は全クライアントを対象とします。"}
             </p>
             <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-slate-200 p-3">
-              {clients.length === 0 ? (
-                <p className="text-sm text-slate-500">クライアントがいません。</p>
+              {visibleClients.length === 0 ? (
+                <p className="text-sm text-slate-500">
+                  {filterCompanyId
+                    ? "この企業に所属するクライアントは登録されていません。"
+                    : "クライアントがいません。"}
+                </p>
               ) : (
                 <ul className="space-y-1.5">
-                  {clients.map((c) => {
+                  {visibleClients.map((c) => {
                     const coLabel = companyLabelFromRegistry(c.companyId, companies);
                     return (
                     <li key={c.id}>

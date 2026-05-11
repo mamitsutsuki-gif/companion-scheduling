@@ -4,7 +4,8 @@ import { listAdminNotifications } from "@/lib/repositories/admin-notification-re
 
 export async function GET() {
   const session = await readSession();
-  if (!session || session.role !== "ADMIN") return jsonError("権限がありません。", 403);
+  if (!session || (session.role !== "ADMIN" && session.role !== "ADMIN_ASSISTANT"))
+    return jsonError("権限がありません。", 403);
   const notifications = await listAdminNotifications({ limit: 100 });
   const unreadCount = notifications.filter((n) => !n.readAt).length;
   return jsonOk({ notifications, unreadCount });

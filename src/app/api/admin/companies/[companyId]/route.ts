@@ -6,6 +6,9 @@ import {
   getEffectiveAppSettings,
 } from "@/lib/repositories/app-settings-repository";
 import { listMatchesForRole } from "@/lib/repositories/match-repository";
+import { listEffectiveConfirmedSessionsForAdmin } from "@/lib/repositories/confirmed-sessions-admin-repository";
+import { listSessionReportsForMatch } from "@/lib/repositories/session-report-repository";
+import { listPartnerInvoicesByPartner } from "@/lib/repositories/partner-invoice-repository";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +26,8 @@ type RouteContext = { params: Promise<{ companyId: string }> };
  */
 export async function GET(_req: Request, ctx: RouteContext) {
   const session = await readSession();
-  if (!session || session.role !== "ADMIN") return jsonError("権限がありません。", 403);
+  if (!session || (session.role !== "ADMIN" && session.role !== "ADMIN_ASSISTANT"))
+    return jsonError("権限がありません。", 403);
 
   const { companyId: companyIdRaw } = await ctx.params;
   const companyId = (companyIdRaw ?? "").trim();
@@ -62,11 +66,65 @@ export async function GET(_req: Request, ctx: RouteContext) {
     override,
   });
 
+  // ── サマリ集計 ──────────────────────────────────────────────────────────
+  // 1. 終了済みセッション（startAt が既に過ぎたもの）×（この企業のペア）に対し、
+  //    パートナーレポートが提出されているかをチェック。
+  // 2. 同じペアのパートナーが提出した請求書のうち、未承認（SUBMITTED）または
+  //    差戻し対応中（RETURNED）のものをカウント。
+  const nowMs = Date.now();
+  const pairIds = new Set(pairs.map((p) => p.id));
+  const partnerIds = [...new Set(pairs.map((p) => p.partner.id))];
+
+  const allConfirmed = await listEffectiveConfirmedSessionsForAdmin();
+  const pastSessionsForCompany = allConfirmed.filter((c) => {
+    if (!pairIds.has(c.matchId)) return false;
+    const endMs = Date.parse(c.endAt);
+    return Number.isFinite(endMs) && endMs <= nowMs;
+  });
+  const submittedReportSet = new Set<string>(); // `${matchId}:${sessionNumber}`
+  await Promise.all(
+    [...pairIds].map(async (mid) => {
+      const reports = await listSessionReportsForMatch(mid);
+      for (const r of reports) submittedReportSet.add(`${mid}:${r.sessionNumber}`);
+    }),
+  );
+  let submittedReports = 0;
+  let missingReports = 0;
+  for (const c of pastSessionsForCompany) {
+    if (submittedReportSet.has(`${c.matchId}:${c.sessionNumber}`)) submittedReports += 1;
+    else missingReports += 1;
+  }
+
+  let invoicesSubmitted = 0;
+  let invoicesReturned = 0;
+  let invoicesConfirmed = 0;
+  await Promise.all(
+    partnerIds.map(async (pid) => {
+      const invs = await listPartnerInvoicesByPartner(pid);
+      for (const inv of invs) {
+        if (inv.status === "SUBMITTED") invoicesSubmitted += 1;
+        else if (inv.status === "RETURNED") invoicesReturned += 1;
+        else if (inv.status === "CONFIRMED") invoicesConfirmed += 1;
+      }
+    }),
+  );
+
   return jsonOk({
     company: registered ? { id: registered.id, name: registered.name } : null,
     isRegistered: Boolean(registered),
     pairs,
     pairCount: pairs.length,
+    summary: {
+      partnerCount: partnerIds.length,
+      pastSessions: pastSessionsForCompany.length,
+      submittedReports,
+      missingReports,
+      invoices: {
+        submitted: invoicesSubmitted,
+        returned: invoicesReturned,
+        confirmed: invoicesConfirmed,
+      },
+    },
     effective: {
       slotDurationMinutes: effective.slotDurationMinutes,
       totalSessions: effective.totalSessions,

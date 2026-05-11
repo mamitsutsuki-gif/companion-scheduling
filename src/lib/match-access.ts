@@ -6,7 +6,9 @@ export async function getMatchIfAllowed(matchId: string, actor: { id: string; ro
 
   if (!match) return { error: "not_found" as const };
 
-  if (actor.role === "ADMIN") return { match };
+  // ADMIN_ASSISTANT は閲覧と「チャットへのコメント」だけ ADMIN と同等。
+  // 個別エンドポイントの write 操作は requireAdminWriter 側で別途弾く。
+  if (actor.role === "ADMIN" || actor.role === "ADMIN_ASSISTANT") return { match };
 
   if (actor.role === "PARTNER" && match.partnerId === actor.id) return { match };
   if (

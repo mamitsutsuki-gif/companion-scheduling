@@ -45,7 +45,7 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
         };
       })
       .filter((m) => {
-        if (input.role === "ADMIN") return true;
+        if (input.role === "ADMIN" || input.role === "ADMIN_ASSISTANT") return true;
         if (input.role === "PARTNER") return m.partnerId === input.userId;
         return m.clientId === input.userId;
       });
@@ -81,7 +81,7 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
 
   const settings = await getAppSettingsRow();
 
-  if (input.role === "ADMIN") {
+  if (input.role === "ADMIN" || input.role === "ADMIN_ASSISTANT") {
     const rows = await prisma.match.findMany({
       orderBy: { createdAt: "desc" },
       include: {

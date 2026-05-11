@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
   let user:
     | {
         id: string;
-        role: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
+        role: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "ADMIN_ASSISTANT";
       }
     | null = null;
 

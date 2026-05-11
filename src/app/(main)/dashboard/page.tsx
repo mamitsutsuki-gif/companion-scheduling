@@ -27,8 +27,8 @@ export default async function DashboardPage({
     getAppSettingsRow(),
   ]);
 
-  // 管理者だけが企業フィルタを使える。それ以外は全件のままで挙動を変えない。
-  const isAdmin = me.role === "ADMIN";
+  // 管理者・管理者アシスタントだけが企業フィルタを使える。それ以外は全件のままで挙動を変えない。
+  const isAdmin = me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT";
   type MatchClient = { companyId?: string | null; companyName?: string | null };
   const matches = !isAdmin || !companyFilter
     ? allMatches
@@ -66,11 +66,13 @@ export default async function DashboardPage({
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
           ロール: {me.role === "ADMIN"
             ? "管理者"
-            : me.role === "PARTNER"
-              ? "パートナー"
-              : me.role === "CLIENT_ADMIN"
-                ? "クライアント管理者"
-                : "クライアント"}
+            : me.role === "ADMIN_ASSISTANT"
+              ? "管理者アシスタント"
+              : me.role === "PARTNER"
+                ? "パートナー"
+                : me.role === "CLIENT_ADMIN"
+                  ? "クライアント管理者"
+                  : "クライアント"}
         </div>
       </header>
 

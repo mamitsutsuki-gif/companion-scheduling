@@ -26,7 +26,7 @@ export async function GET() {
     availabilitySlotIds: user.availabilitySlotIds,
     companyId: (user as { companyId?: string | null }).companyId ?? null,
   };
-  if (session.role === "ADMIN") return jsonOk({ user });
+  if (session.role === "ADMIN" || session.role === "ADMIN_ASSISTANT") return jsonOk({ user });
   return jsonOk({ user: safe });
 }
 

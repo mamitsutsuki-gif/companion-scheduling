@@ -12,7 +12,7 @@ function getSecret() {
 
 export type SessionPayload = {
   sub: string;
-  role: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
+  role: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "ADMIN_ASSISTANT";
 };
 
 export async function createSessionCookie(payload: SessionPayload) {
@@ -54,7 +54,11 @@ export async function readSession(): Promise<SessionPayload | null> {
     const role = payload.role;
     if (
       !sub ||
-      (role !== "ADMIN" && role !== "PARTNER" && role !== "CLIENT" && role !== "CLIENT_ADMIN")
+      (role !== "ADMIN" &&
+        role !== "PARTNER" &&
+        role !== "CLIENT" &&
+        role !== "CLIENT_ADMIN" &&
+        role !== "ADMIN_ASSISTANT")
     ) {
       return null;
     }
@@ -71,7 +75,11 @@ export async function readSessionFromToken(token: string): Promise<SessionPayloa
     const role = payload.role;
     if (
       !sub ||
-      (role !== "ADMIN" && role !== "PARTNER" && role !== "CLIENT" && role !== "CLIENT_ADMIN")
+      (role !== "ADMIN" &&
+        role !== "PARTNER" &&
+        role !== "CLIENT" &&
+        role !== "CLIENT_ADMIN" &&
+        role !== "ADMIN_ASSISTANT")
     ) {
       return null;
     }

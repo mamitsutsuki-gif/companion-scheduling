@@ -87,7 +87,7 @@ export function ApplicationChrome({
   ) {
     nav.push({ href: "/notifications", label: "通知", badge: memberUnreadBadge });
   }
-  if (profile.role === "ADMIN") {
+  if (profile.role === "ADMIN" || profile.role === "ADMIN_ASSISTANT") {
     nav.push({ href: "/admin/matches", label: "マッチ管理" });
     nav.push({ href: "/admin/sessions", label: "1on1日程一覧" });
     nav.push({ href: "/admin/companies", label: "企業" });
@@ -123,11 +123,13 @@ export function ApplicationChrome({
   const roleLabel =
     profile.role === "ADMIN"
       ? "管理者"
-      : profile.role === "PARTNER"
-        ? "パートナー"
-        : profile.role === "CLIENT_ADMIN"
-          ? "クライアント管理者"
-          : "クライアント";
+      : profile.role === "ADMIN_ASSISTANT"
+        ? "管理者アシスタント"
+        : profile.role === "PARTNER"
+          ? "パートナー"
+          : profile.role === "CLIENT_ADMIN"
+            ? "クライアント管理者"
+            : "クライアント";
 
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-100/55 via-slate-50 to-slate-50">

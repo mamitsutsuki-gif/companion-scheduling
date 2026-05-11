@@ -102,9 +102,10 @@ export async function listMessagesForMatch(matchId: string, limit = MAX_MESSAGES
 
 export function filterMessagesForViewer<T extends { audience: MessageAudience }>(
   messages: T[],
-  viewerRole: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN",
+  viewerRole: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "ADMIN_ASSISTANT",
 ): T[] {
-  if (viewerRole === "ADMIN") return messages;
+  // ADMIN・ADMIN_ASSISTANT は全メッセージを閲覧できる（"PARTNER" 限定や "CLIENT" 限定を含む）
+  if (viewerRole === "ADMIN" || viewerRole === "ADMIN_ASSISTANT") return messages;
   // クライアント管理者は通常のクライアントと同様にメッセージを閲覧する
   const effective = viewerRole === "CLIENT_ADMIN" ? "CLIENT" : viewerRole;
   return messages.filter((m) => m.audience === "ALL" || m.audience === effective);

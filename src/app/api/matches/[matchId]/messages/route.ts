@@ -70,7 +70,7 @@ export async function POST(request: Request, context: RouteContext) {
     excludeUserId: session.sub,
   });
 
-  if (session.role !== "ADMIN") {
+  if (session.role !== "ADMIN" && session.role !== "ADMIN_ASSISTANT") {
     await appendAdminNotification({
       type: "CHAT",
       matchId,

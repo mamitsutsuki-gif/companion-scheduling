@@ -64,7 +64,8 @@ const patchSchema = z.object({
  */
 export async function GET(_req: Request, ctx: RouteContext) {
   const session = await readSession();
-  if (!session || session.role !== "ADMIN") return jsonError("権限がありません。", 403);
+  if (!session || (session.role !== "ADMIN" && session.role !== "ADMIN_ASSISTANT"))
+    return jsonError("権限がありません。", 403);
   const { companyId } = await ctx.params;
   if (!companyId) return jsonError("企業IDが指定されていません。", 400);
 

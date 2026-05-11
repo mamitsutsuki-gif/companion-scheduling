@@ -8,7 +8,8 @@ type RouteContext = { params: Promise<{ invoiceId: string }> };
 export async function GET(_request: Request, context: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
-  if (session.role !== "ADMIN") return jsonError("管理者のみ閲覧できます。", 403);
+  if (session.role !== "ADMIN" && session.role !== "ADMIN_ASSISTANT")
+    return jsonError("管理者のみ閲覧できます。", 403);
 
   const { invoiceId } = await context.params;
   const inv = await getPartnerInvoiceById(invoiceId);
