@@ -311,6 +311,23 @@ export function PartnerInvoicesWorkspace() {
 
       {data ? (
         <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+            <p className="text-sm text-slate-600">
+              {data.invoice?.status === "CONFIRMED"
+                ? "確定済みです。下の「PDFダウンロード」ボタンから保存できます（ブラウザの印刷画面で「PDFとして保存」を選択）。"
+                : data.invoice?.status === "SUBMITTED"
+                  ? "提出済みです。管理者の確認をお待ちください。提出済みの内容もPDFで保存できます。"
+                  : "「PDFダウンロード」で印刷画面が開きます。「PDFとして保存」を選択すると PDF として保存できます。"}
+            </p>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-800"
+            >
+              🧾 PDFダウンロード
+            </button>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <h2 className="text-base font-semibold text-slate-900">請求元（パートナー）</h2>
@@ -514,13 +531,6 @@ export function PartnerInvoicesWorkspace() {
                 編集できる期間（当月・前月）を過ぎているため、過去分は閲覧のみとなります。例外的に編集が必要な場合は管理者にアンロックを依頼してください。
               </p>
             ) : null}
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="ml-auto rounded-lg border border-indigo-300 bg-white px-4 py-2 text-sm font-semibold text-indigo-800 shadow-sm transition hover:bg-indigo-50"
-            >
-              PDFダウンロード（印刷）
-            </button>
           </div>
         </section>
       ) : null}

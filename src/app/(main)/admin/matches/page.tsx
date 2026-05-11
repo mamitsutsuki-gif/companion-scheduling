@@ -239,7 +239,9 @@ export default function AdminMatchesPage() {
   async function onDeleteUser(userId: string, displayName: string, role: AssignableRole) {
     const ok = window.confirm(
       `本当に ${displayName}（${role}）を削除しますか？\n\n` +
-        `このユーザーに紐づくマッチ・チャット・日程調整履歴も削除されます。`,
+        `このアカウントはアプリから完全に削除され、以降ログインできなくなります。\n` +
+        `同じメールアドレスでの再利用には、新規登録が必要です。\n` +
+        `（マッチ・チャットなどの履歴は残ります）`,
     );
     if (!ok) return;
     setError(null);
@@ -254,7 +256,7 @@ export default function AdminMatchesPage() {
       setError(data?.error ?? "ユーザー削除に失敗しました。");
       return;
     }
-    setMessage("ユーザーを削除しました。");
+    setMessage("ユーザーを削除しました。Firebase Auth とアプリのデータから完全に削除されました。");
     void reloadAll();
   }
 

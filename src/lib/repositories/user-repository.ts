@@ -218,6 +218,22 @@ export async function attachFirebaseUid(userId: string, firebaseUid: string) {
   return { ...updated, deletedAt: null, availabilitySlotIds: [] as string[] };
 }
 
+/**
+ * 削除済み（ハード削除前の旧仕様の soft-delete レコード）を識別する。
+ * 旧 soft-delete は email を `<元のemail>__deleted_<unix>` に書き換えていたため、
+ * 互換のためにここで弾く。
+ */
+function isStaleDeletedRow(u: {
+  email?: string | null;
+  firebaseUid?: string | null;
+  deletedAt?: string | Date | null;
+}): boolean {
+  if (isDeletedUser(u)) return true;
+  const email = (u.email ?? "").toString();
+  const uid = (u.firebaseUid ?? "").toString();
+  return email.includes("__deleted_") || uid.includes("__deleted_");
+}
+
 export async function listAdminVisibleUsers(role?: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN") {
   const allRoles = ["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN"] as const;
   if (isFirebaseDataBackend()) {
@@ -226,7 +242,8 @@ export async function listAdminVisibleUsers(role?: "ADMIN" | "PARTNER" | "CLIENT
     const snap = await db.collection("users").get();
     const rows = snap.docs
       .map((doc) => userFromDoc(doc.id, doc.data() as Record<string, unknown>))
-      .filter((u) => (role ? u.role === role : (allRoles as readonly string[]).includes(u.role)));
+      .filter((u) => (role ? u.role === role : (allRoles as readonly string[]).includes(u.role)))
+      .filter((u) => !isStaleDeletedRow(u));
     return rows.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   }
 
@@ -242,11 +259,14 @@ export async function listAdminVisibleUsers(role?: "ADMIN" | "PARTNER" | "CLIENT
         firebaseUid: true,
         companyId: true,
         createdAt: true,
+        deletedAt: true,
       },
     });
-    return rows.map((r) => ({ ...r, availabilitySlotIds: [] as string[] }));
+    return rows
+      .filter((r) => !isStaleDeletedRow(r))
+      .map((r) => ({ ...r, availabilitySlotIds: [] as string[] }));
   } catch (error) {
-    if (!(error instanceof Error) || !/Unknown field `(firebaseUid|companyId)`/.test(error.message))
+    if (!(error instanceof Error) || !/Unknown field `(firebaseUid|companyId|deletedAt)`/.test(error.message))
       throw error;
     const rows = await prisma.user.findMany({
       where: role ? { role } : { role: { in: [...allRoles] } },
@@ -259,12 +279,14 @@ export async function listAdminVisibleUsers(role?: "ADMIN" | "PARTNER" | "CLIENT
         createdAt: true,
       },
     });
-    return rows.map((r) => ({
-      ...r,
-      firebaseUid: null,
-      companyId: null,
-      availabilitySlotIds: [] as string[],
-    }));
+    return rows
+      .filter((r) => !isStaleDeletedRow(r))
+      .map((r) => ({
+        ...r,
+        firebaseUid: null,
+        companyId: null,
+        availabilitySlotIds: [] as string[],
+      }));
   }
 }
 
@@ -323,22 +345,17 @@ export async function listClientsInCompany(companyId: string) {
 }
 
 /**
- * 管理者によるユーザー削除（論理削除）。
- * 過去ログ（マッチ・チャット・調整・FTAなど）はすべて保持しつつ、
- * 当該ユーザーは以後ログインできない状態にする。
- *
- * - users ドキュメント / Prisma 行に deletedAt をセット
- * - email / firebaseUid / googleSub の **uniqueness を解放** するため、
- *   末尾に `_deleted_<unix>` を付けてリネーム
- *   （新規登録の重複を妨げず、検索で漏れない）
- * - Firebase Auth 上のアカウントを disable（ログイン時に Firebase 側で弾かれる）
+ * 管理者によるユーザー削除（ハード削除）。
+ * - `users/<id>` ドキュメントを削除し、メールアドレスを再登録可能にする
+ * - Firebase Auth 上のアカウントを **完全に削除** する（disable ではなく deleteUser）
+ *   これにより、同じメールアドレスで新規登録すると別アカウントが作られる
+ * - 個人プロフィール系（zoom 設定 / 請求書プロフィール / 自分FTA / 編集アンロック）も
+ *   合わせて掃除する。マッチ・チャット・通知などの履歴ドキュメントは残す
+ *   （userId 参照は残り、UI 側で「不明なユーザー」として安全に表示される想定）。
  */
 export async function deleteUserAsAdmin(userId: string) {
-  const ts = Date.now();
-  const suffix = `__deleted_${ts}`;
-
-  // Firebase Auth: 該当 uid を disable する（DATA_BACKEND 問わず常に試みる）
-  async function disableFirebaseAuthIfPossible(firebaseUid: string | null | undefined) {
+  // Firebase Auth: 該当 uid を完全に削除する（DATA_BACKEND 問わず常に試みる）
+  async function deleteFirebaseAuthUserIfPossible(firebaseUid: string | null | undefined) {
     if (!firebaseUid) return;
     try {
       const { isFirebaseAdminConfigured } = await import("@/lib/firebase-admin");
@@ -368,9 +385,25 @@ export async function deleteUserAsAdmin(userId: string) {
           });
         }
       }
-      await getAuth().updateUser(firebaseUid, { disabled: true });
+      // 旧仕様で `__deleted_<unix>` が末尾に追加された UID を渡された場合も想定し、
+      // suffix を取り除いてから削除する。
+      const cleanUid = firebaseUid.replace(/__deleted_\d+/g, "");
+      try {
+        await getAuth().deleteUser(cleanUid);
+      } catch (inner) {
+        // 元の UID でも試す
+        if (cleanUid !== firebaseUid) {
+          await getAuth()
+            .deleteUser(firebaseUid)
+            .catch((e2) => {
+              console.warn("[user-delete] failed to delete firebase auth user (both)", e2);
+            });
+        } else {
+          console.warn("[user-delete] failed to delete firebase auth user", inner);
+        }
+      }
     } catch (error) {
-      console.warn("[user-delete] failed to disable firebase auth user", error);
+      console.warn("[user-delete] failed to delete firebase auth user", error);
     }
   }
 
@@ -382,20 +415,44 @@ export async function deleteUserAsAdmin(userId: string) {
     if (!userSnap.exists) return { ok: false as const, error: "ユーザーが見つかりません。", status: 404 };
     const raw = userSnap.data() as Record<string, unknown>;
     const firebaseUid = typeof raw.firebaseUid === "string" ? raw.firebaseUid : null;
-    const email = typeof raw.email === "string" ? raw.email : "";
-    const googleSub = typeof raw.googleSub === "string" ? raw.googleSub : null;
 
-    await userRef.set(
-      {
-        deletedAt: new Date().toISOString(),
-        email: email ? `${email}${suffix}` : email,
-        firebaseUid: firebaseUid ? `${firebaseUid}${suffix}` : null,
-        googleSub: googleSub ? `${googleSub}${suffix}` : null,
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true },
+    // 個人プロフィール系を best-effort で削除（履歴系は残す）
+    const personalCollections = [
+      "partnerZoomProfiles",
+      "partnerBillingProfiles",
+      "userZoomProfiles",
+      "myFta",
+      "clientFta",
+    ];
+    await Promise.all(
+      personalCollections.map((c) =>
+        db
+          .collection(c)
+          .doc(userId)
+          .delete()
+          .catch(() => null),
+      ),
     );
-    await disableFirebaseAuthIfPossible(firebaseUid);
+
+    // partnerInvoiceUnlocks: partnerId == userId のドキュメントを全削除
+    try {
+      const unlockSnap = await db
+        .collection("partnerInvoiceUnlocks")
+        .where("partnerId", "==", userId)
+        .get();
+      if (!unlockSnap.empty) {
+        const batch = db.batch();
+        unlockSnap.docs.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+    } catch {
+      /* noop */
+    }
+
+    // users ドキュメント自体を完全削除
+    await userRef.delete().catch(() => null);
+
+    await deleteFirebaseAuthUserIfPossible(firebaseUid);
     return { ok: true as const };
   }
 
@@ -406,16 +463,21 @@ export async function deleteUserAsAdmin(userId: string) {
     });
     if (!existing) return { ok: false as const, error: "ユーザーが見つかりません。", status: 404 };
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        deletedAt: new Date(),
-        email: `${existing.email}${suffix}`,
-        firebaseUid: existing.firebaseUid ? `${existing.firebaseUid}${suffix}` : null,
-        googleSub: existing.googleSub ? `${existing.googleSub}${suffix}` : null,
-      },
+    await prisma.user.delete({ where: { id: userId } }).catch(async () => {
+      // Foreign-key 制約が無くなった場合のフォールバック：ローカルでは soft-delete で互換維持
+      const ts = Date.now();
+      const suffix = `__deleted_${ts}`;
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          deletedAt: new Date(),
+          email: `${existing.email}${suffix}`,
+          firebaseUid: existing.firebaseUid ? `${existing.firebaseUid}${suffix}` : null,
+          googleSub: existing.googleSub ? `${existing.googleSub}${suffix}` : null,
+        },
+      });
     });
-    await disableFirebaseAuthIfPossible(existing.firebaseUid);
+    await deleteFirebaseAuthUserIfPossible(existing.firebaseUid);
     return { ok: true as const };
   } catch {
     return { ok: false as const, error: "ユーザー削除に失敗しました。", status: 400 };

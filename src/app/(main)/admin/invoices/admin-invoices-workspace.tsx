@@ -216,6 +216,38 @@ export function AdminInvoicesWorkspace() {
     await refreshSelected(selected.id);
   }
 
+  /**
+   * 確定済みの請求書を「未確定に戻して差し戻し」する。
+   * バックエンド的には CONFIRMED → RETURNED に書き換える adminReturnPartnerInvoice を再利用。
+   */
+  async function onUnconfirmAndReturn() {
+    if (!selected) return;
+    if (
+      !window.confirm(
+        "確定済みの請求書を未確定（差し戻し中）に戻します。パートナーは再編集できるようになります。よろしいですか？",
+      )
+    ) {
+      return;
+    }
+    setActing(true);
+    setError(null);
+    setNotice(null);
+    const res = await fetch(`/api/admin/invoices/${selected.id}/return`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ comment: returnComment.trim() }),
+    });
+    const json = await res.json().catch(() => null);
+    setActing(false);
+    if (!res.ok) {
+      setError(json?.error ?? "確定の取り消しに失敗しました。");
+      return;
+    }
+    setNotice("確定を取り消し、差し戻しました。パートナーへ通知済みです。");
+    setReturnComment("");
+    await refreshSelected(selected.id);
+  }
+
   const yearOptions = Array.from({ length: 5 }, (_, i) => DEFAULT_YEAR - 1 + i);
 
   return (
@@ -361,9 +393,10 @@ export function AdminInvoicesWorkspace() {
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-sm font-semibold text-indigo-800 shadow-sm hover:bg-indigo-50"
+                className="rounded-md bg-indigo-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-800"
+                title="ブラウザの印刷画面で「PDFとして保存」を選択してください"
               >
-                PDFダウンロード（印刷）
+                🧾 PDFダウンロード
               </button>
               <button
                 type="button"
@@ -487,9 +520,30 @@ export function AdminInvoicesWorkspace() {
               </div>
             </div>
           ) : selected.status === "CONFIRMED" ? (
-            <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-              この請求書は確定済みです。
-            </p>
+            <div className="space-y-3 border-t border-slate-200 pt-4">
+              <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                この請求書は確定済みです。誤って確定した場合は、下のボタンから「未確定に戻して差し戻し」できます。
+              </p>
+              <label className="block text-sm font-medium text-slate-800">
+                差し戻しコメント（任意）
+                <textarea
+                  value={returnComment}
+                  onChange={(e) => setReturnComment(e.target.value)}
+                  rows={2}
+                  maxLength={2000}
+                  placeholder="差し戻し理由をパートナーに伝える場合に入力"
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void onUnconfirmAndReturn()}
+                disabled={acting}
+                className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100 disabled:opacity-60"
+              >
+                {acting ? "処理中…" : "確定を取り消して差し戻す"}
+              </button>
+            </div>
           ) : (
             <p className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
               パートナーは下書きを保存中です。提出後に確定／差し戻しの操作ができるようになります。
@@ -514,9 +568,10 @@ export function AdminInvoicesWorkspace() {
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-sm font-semibold text-indigo-800 shadow-sm hover:bg-indigo-50"
+                className="rounded-md bg-indigo-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-800"
+                title="ブラウザの印刷画面で「PDFとして保存」を選択してください"
               >
-                PDFダウンロード（印刷）
+                🧾 PDFダウンロード
               </button>
               <button
                 type="button"
