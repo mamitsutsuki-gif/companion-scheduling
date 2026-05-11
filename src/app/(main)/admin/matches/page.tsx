@@ -70,6 +70,10 @@ export default function AdminMatchesPage() {
   const [editingSelections, setEditingSelections] = useState<string[]>([]);
   const [editingNameUserId, setEditingNameUserId] = useState<string | null>(null);
   const [editingNameDraft, setEditingNameDraft] = useState("");
+  /** 所属企業の編集中ユーザーと、選択ドラフト（未保存値）。スコープ漏れ防止のため明示的な編集モードに。 */
+  const [editingCompanyUserId, setEditingCompanyUserId] = useState<string | null>(null);
+  const [editingCompanyDraft, setEditingCompanyDraft] = useState<string>("");
+  const [companySavingUserId, setCompanySavingUserId] = useState<string | null>(null);
   const [viewerRole, setViewerRole] = useState<string | null>(null);
 
   // URL の ?company= を初期値として反映（ブラウザのみ）
@@ -217,20 +221,57 @@ export default function AdminMatchesPage() {
     void reloadAll();
   }
 
-  async function onCompanyChange(userId: string, companyId: string) {
+  function startEditingCompany(u: RoleUser) {
+    setEditingCompanyUserId(u.id);
+    setEditingCompanyDraft((u.companyId ?? "").trim());
+    setError(null);
+  }
+
+  function cancelEditingCompany() {
+    setEditingCompanyUserId(null);
+    setEditingCompanyDraft("");
+  }
+
+  async function saveCompanyAssignment(u: RoleUser) {
+    const currentId = (u.companyId ?? "").trim();
+    const nextId = editingCompanyDraft.trim();
+    if (nextId === currentId) {
+      cancelEditingCompany();
+      return;
+    }
+
+    const currentName = currentId
+      ? companies.find((c) => c.id === currentId)?.name ?? `未登録ID: ${currentId}`
+      : "未所属";
+    const nextName = nextId
+      ? companies.find((c) => c.id === nextId)?.name ?? `未登録ID: ${nextId}`
+      : "未所属";
+
+    const ok = window.confirm(
+      `${withHonorificSan(u.displayName)} の所属企業を変更しますか？\n\n` +
+        `変更前: ${currentName}\n` +
+        `変更後: ${nextName}\n\n` +
+        `※ 企業に紐づく設定（枠の長さ・対応可能時間など）と、` +
+        `同じ企業内のクライアント管理者の閲覧範囲がこの設定に従います。`,
+    );
+    if (!ok) return;
+
     setError(null);
     setMessage(null);
+    setCompanySavingUserId(u.id);
     const res = await fetch("/api/admin/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, companyId: companyId.trim() || null }),
+      body: JSON.stringify({ userId: u.id, companyId: nextId || null }),
     });
     const data = await res.json().catch(() => null);
+    setCompanySavingUserId(null);
     if (!res.ok) {
       setError(data?.error ?? "所属企業の更新に失敗しました。");
       return;
     }
-    setMessage("所属企業を更新しました。");
+    setMessage(`${withHonorificSan(u.displayName)} の所属企業を「${nextName}」に変更しました。`);
+    cancelEditingCompany();
     void reloadAll();
   }
 
@@ -450,28 +491,61 @@ export default function AdminMatchesPage() {
               <option value="CLIENT_ADMIN">CLIENT_ADMIN（クライアント管理者）</option>
             </select>
           </label>
-          <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
             所属企業
             {isClientRole ? (
               (() => {
                 const currentId = (u.companyId ?? "").trim();
                 const knownIds = new Set(companies.map((c) => c.id));
                 const isStale = currentId.length > 0 && !knownIds.has(currentId);
+                const currentName = currentId
+                  ? companies.find((c) => c.id === currentId)?.name ?? `未登録ID: ${currentId}`
+                  : "未所属";
+                const isEditingCompany = editingCompanyUserId === u.id;
+                const isBusy = companySavingUserId === u.id;
+                if (!isEditingCompany) {
+                  // 通常表示：誤クリックで変わらないよう、明示的に「編集」を押した時だけ select を出す。
+                  return (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`block flex-1 truncate rounded-md border border-zinc-200 bg-slate-50 px-2 py-1.5 text-sm font-normal normal-case ${
+                          currentId ? "text-zinc-900" : "text-zinc-500"
+                        }`}
+                        title={currentId ? `${currentName}（${currentId}）` : "未所属"}
+                      >
+                        {currentName}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => startEditingCompany(u)}
+                        disabled={companies.length === 0}
+                        className="shrink-0 rounded-md border border-indigo-300 bg-white px-2.5 py-1 text-xs font-semibold text-indigo-800 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        編集
+                      </button>
+                      {isStale ? (
+                        <span className="block w-full text-[11px] font-normal normal-case text-amber-700">
+                          ※ この企業IDはアプリ設定に登録されていません。アプリ設定で登録するか、別の企業に変更してください。
+                        </span>
+                      ) : null}
+                    </div>
+                  );
+                }
+                // 編集モード：選択しても即保存はしない。明示の「保存」ボタンで確認ダイアログ。
+                const draftId = editingCompanyDraft.trim();
+                const draftKnown = draftId ? knownIds.has(draftId) : true;
+                const changed = draftId !== currentId;
                 return (
-                  <>
+                  <div className="space-y-2 rounded-md border border-indigo-200 bg-indigo-50/50 p-2">
                     <select
-                      value={currentId}
-                      onChange={(e) => {
-                        const next = e.target.value;
-                        if (next === currentId) return;
-                        void onCompanyChange(u.id, next);
-                      }}
-                      disabled={companies.length === 0}
+                      value={editingCompanyDraft}
+                      onChange={(e) => setEditingCompanyDraft(e.target.value)}
+                      disabled={companies.length === 0 || isBusy}
                       className="block w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm font-normal normal-case text-zinc-900 disabled:bg-zinc-100 disabled:text-zinc-400"
                     >
                       <option value="">未所属</option>
-                      {isStale ? (
-                        <option value={currentId}>（未登録ID: {currentId}）</option>
+                      {!draftKnown && draftId ? (
+                        <option value={draftId}>（未登録ID: {draftId}）</option>
                       ) : null}
                       {companies.map((c) => (
                         <option key={c.id} value={c.id}>
@@ -479,18 +553,40 @@ export default function AdminMatchesPage() {
                         </option>
                       ))}
                     </select>
-                    {isStale ? (
-                      <span className="block text-[11px] font-normal normal-case text-amber-700">
-                        ※ この企業IDはアプリ設定に登録されていません。アプリ設定で登録するか、別の企業に変更してください。
-                      </span>
-                    ) : null}
-                  </>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void saveCompanyAssignment(u)}
+                        disabled={!changed || isBusy}
+                        className="rounded-md bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-800 disabled:opacity-50"
+                      >
+                        {isBusy ? "保存中…" : "保存"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEditingCompany}
+                        disabled={isBusy}
+                        className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                      >
+                        キャンセル
+                      </button>
+                      {changed ? (
+                        <span className="text-[11px] font-normal normal-case text-indigo-800">
+                          保存ボタンで確認ダイアログが表示されます。
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-normal normal-case text-zinc-500">
+                          変更なし
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 );
               })()
             ) : (
               <span className="block text-sm font-normal normal-case text-zinc-400">—</span>
             )}
-          </label>
+          </div>
         </div>
 
         <div className="mt-4">
