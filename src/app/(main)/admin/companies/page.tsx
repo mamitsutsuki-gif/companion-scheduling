@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-type Row = { id: string; name: string; pairCount: number };
+type Row = { id: string; name: string; pairCount: number; overriddenCount: number };
 
 export default function AdminCompaniesPage() {
   const [rows, setRows] = useState<Row[]>([]);
@@ -84,6 +84,7 @@ export default function AdminCompaniesPage() {
                   <th className="px-4 py-3">企業名</th>
                   <th className="px-4 py-3">企業ID</th>
                   <th className="px-4 py-3 text-right">ペア数</th>
+                  <th className="px-4 py-3">設定</th>
                   <th className="px-4 py-3">アクション</th>
                 </tr>
               </thead>
@@ -94,12 +95,46 @@ export default function AdminCompaniesPage() {
                     <td className="px-4 py-2 font-mono text-xs text-slate-600">{c.id}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{c.pairCount}</td>
                     <td className="px-4 py-2">
-                      <Link
-                        href={`/admin/companies/${encodeURIComponent(c.id)}`}
-                        className="font-medium text-indigo-700 no-underline hover:underline"
-                      >
-                        詳細を開く →
-                      </Link>
+                      {c.overriddenCount > 0 ? (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-900"
+                          title={`この企業は ${c.overriddenCount} 項目を上書きしています`}
+                        >
+                          上書きあり {c.overriddenCount}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                          全体設定を使用
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2">
+                      <div className="flex flex-wrap gap-3">
+                        <Link
+                          href={`/admin/companies/${encodeURIComponent(c.id)}`}
+                          className="font-medium text-indigo-700 no-underline hover:underline"
+                        >
+                          詳細を開く →
+                        </Link>
+                        <Link
+                          href={`/admin/companies/${encodeURIComponent(c.id)}/settings`}
+                          className="text-sm text-slate-600 no-underline hover:underline"
+                        >
+                          設定を編集
+                        </Link>
+                        <Link
+                          href={`/admin/matches?company=${encodeURIComponent(c.id)}`}
+                          className="text-sm text-slate-600 no-underline hover:underline"
+                        >
+                          マッチ一覧
+                        </Link>
+                        <Link
+                          href={`/admin/sessions?company=${encodeURIComponent(c.id)}`}
+                          className="text-sm text-slate-600 no-underline hover:underline"
+                        >
+                          1on1日程
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

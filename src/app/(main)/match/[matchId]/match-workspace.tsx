@@ -79,6 +79,9 @@ type ScheduleSettingsPayload = {
   slotEarliestHour: number;
   slotLatestHour: number;
   allowWeekends: boolean;
+  effectiveCompanyId: string | null;
+  effectiveCompanyName: string | null;
+  overriddenFields: string[];
 };
 
 type MatchTab = "chat" | "schedule" | "fta" | "sessions";
@@ -158,6 +161,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     slotEarliestHour: 8,
     slotLatestHour: 20,
     allowWeekends: false,
+    effectiveCompanyId: null,
+    effectiveCompanyName: null,
+    overriddenFields: [],
   });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -235,6 +241,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         slotEarliestHour: typeof sJson.slotEarliestHour === "number" ? sJson.slotEarliestHour : 8,
         slotLatestHour: typeof sJson.slotLatestHour === "number" ? sJson.slotLatestHour : 20,
         allowWeekends: sJson.allowWeekends === true,
+        effectiveCompanyId:
+          typeof sJson.effectiveCompanyId === "string" ? sJson.effectiveCompanyId : null,
+        effectiveCompanyName:
+          typeof sJson.effectiveCompanyName === "string" ? sJson.effectiveCompanyName : null,
+        overriddenFields: Array.isArray(sJson.overriddenFields)
+          ? (sJson.overriddenFields as unknown[]).map((x) => String(x))
+          : [],
       });
     }
 
@@ -634,6 +647,34 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           <p className="text-sm text-zinc-600 sm:text-base">{withHonorificSan(me.displayName)} として表示中（メールなどは公開されません）</p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-500">
             <span className="rounded-full bg-indigo-50 px-2 py-1 text-indigo-800">MATCH #{matchId}</span>
+            {scheduleSettings.effectiveCompanyId ? (
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-1 ${
+                  scheduleSettings.overriddenFields.length > 0
+                    ? "bg-rose-50 text-rose-900"
+                    : "bg-slate-100 text-slate-800"
+                }`}
+                title={
+                  scheduleSettings.overriddenFields.length > 0
+                    ? `この企業は次の項目を上書きしています: ${scheduleSettings.overriddenFields.join(", ")}`
+                    : "この企業は全体設定をそのまま使っています"
+                }
+              >
+                設定:{" "}
+                {scheduleSettings.effectiveCompanyName ?? scheduleSettings.effectiveCompanyId}
+                {scheduleSettings.overriddenFields.length > 0 ? (
+                  <span className="rounded-sm bg-rose-200/70 px-1 text-[10px] font-semibold text-rose-900">
+                    上書きあり {scheduleSettings.overriddenFields.length}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-600">全体設定を使用</span>
+                )}
+              </span>
+            ) : (
+              <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">
+                設定: 全体（企業未割当）
+              </span>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">

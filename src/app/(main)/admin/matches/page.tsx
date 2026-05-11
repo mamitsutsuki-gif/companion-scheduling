@@ -24,7 +24,13 @@ type MatchRow = {
   id: string;
   createdAt: string;
   partner: { id: string; displayName: string; email: string };
-  client: { id: string; displayName: string; email: string; companyName?: string | null };
+  client: {
+    id: string;
+    displayName: string;
+    email: string;
+    companyId?: string | null;
+    companyName?: string | null;
+  };
 };
 
 function formatJa(iso: string) {
@@ -58,8 +64,18 @@ export default function AdminMatchesPage() {
     DEFAULT_AVAILABILITY_OPTIONS,
   );
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
+  // マッチ一覧を「企業で絞り込み」する。"" = 全企業 / "__none__" = 企業未割当のクライアントのみ
+  const [companyFilter, setCompanyFilter] = useState<string>("");
   const [editingAvailabilityUserId, setEditingAvailabilityUserId] = useState<string | null>(null);
   const [editingSelections, setEditingSelections] = useState<string[]>([]);
+
+  // URL の ?company= を初期値として反映（ブラウザのみ）
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const q = sp.get("company");
+    if (q) setCompanyFilter(q);
+  }, []);
 
   const reloadAll = useCallback(async () => {
     setError(null);
@@ -140,6 +156,15 @@ export default function AdminMatchesPage() {
         c.email.toLowerCase().includes(q),
     );
   }, [clients, clientFilter]);
+
+  /** マッチ一覧（クライアント所属企業で絞り込み） */
+  const filteredMatches = useMemo(() => {
+    if (!companyFilter) return matches;
+    if (companyFilter === "__none__") {
+      return matches.filter((m) => !((m.client.companyId ?? "").trim()));
+    }
+    return matches.filter((m) => (m.client.companyId ?? "") === companyFilter);
+  }, [matches, companyFilter]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -598,7 +623,11 @@ export default function AdminMatchesPage() {
             <h2 className="text-lg font-semibold text-zinc-950">登録済みマッチ一覧</h2>
             <div className="flex items-center gap-3">
               <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                {loading ? "読込中…" : `${matches.length} 件`}
+                {loading
+                  ? "読込中…"
+                  : companyFilter
+                    ? `${filteredMatches.length} / ${matches.length} 件`
+                    : `${matches.length} 件`}
               </span>
               <button
                 type="button"
@@ -611,6 +640,34 @@ export default function AdminMatchesPage() {
             </div>
           </div>
 
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <span className="font-medium">企業で絞り込み</span>
+              <select
+                value={companyFilter}
+                onChange={(e) => setCompanyFilter(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"
+              >
+                <option value="">すべて</option>
+                <option value="__none__">未登録（企業ID未設定）</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}（{c.id}）
+                  </option>
+                ))}
+              </select>
+            </label>
+            {companyFilter ? (
+              <button
+                type="button"
+                onClick={() => setCompanyFilter("")}
+                className="text-xs font-semibold text-indigo-700 underline hover:text-indigo-900"
+              >
+                絞り込みをクリア
+              </button>
+            ) : null}
+          </div>
+
           <div className="mt-6 overflow-x-auto rounded-xl ring-1 ring-slate-200/80">
             <table className="min-w-full border-collapse bg-white text-left text-sm">
               <thead className="bg-slate-50/90">
@@ -618,11 +675,20 @@ export default function AdminMatchesPage() {
                   <th className="py-3 pr-3 font-semibold">
                     <input
                       type="checkbox"
-                      aria-label="すべて選択"
-                      checked={matches.length > 0 && selectedMatchIds.length === matches.length}
+                      aria-label="表示中のマッチをすべて選択"
+                      checked={
+                        filteredMatches.length > 0 &&
+                        filteredMatches.every((m) => selectedMatchIds.includes(m.id))
+                      }
                       onChange={(e) => {
-                        if (e.target.checked) setSelectedMatchIds(matches.map((m) => m.id));
-                        else setSelectedMatchIds([]);
+                        if (e.target.checked) {
+                          setSelectedMatchIds((prev) =>
+                            Array.from(new Set([...prev, ...filteredMatches.map((m) => m.id)])),
+                          );
+                        } else {
+                          const visible = new Set(filteredMatches.map((m) => m.id));
+                          setSelectedMatchIds((prev) => prev.filter((id) => !visible.has(id)));
+                        }
                       }}
                     />
                   </th>
@@ -636,7 +702,7 @@ export default function AdminMatchesPage() {
                 </tr>
               </thead>
               <tbody>
-                {matches.map((row) => (
+                {filteredMatches.map((row) => (
                   <tr key={row.id} className="border-b border-zinc-100 text-zinc-800">
                     <td className="py-3 pr-3 align-top">
                       <input
@@ -682,6 +748,10 @@ export default function AdminMatchesPage() {
           {!loading && matches.length === 0 ? (
             <p className="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-8 text-center text-sm text-slate-600">
               まだマッチがありません。上のフォームから登録してください。
+            </p>
+          ) : !loading && filteredMatches.length === 0 ? (
+            <p className="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-8 text-center text-sm text-slate-600">
+              この絞り込み条件に該当するマッチはありません。
             </p>
           ) : null}
         </section>

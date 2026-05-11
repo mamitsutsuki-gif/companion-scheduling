@@ -1,5 +1,6 @@
 import { getAppSettings } from "@/lib/app-settings";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
+import { companyLabelFromRegistry } from "@/lib/company-display";
 import { jsonOk } from "@/lib/json";
 
 /**
@@ -10,7 +11,9 @@ import { jsonOk } from "@/lib/json";
  * セキュリティ補足:
  *   ここで返すフィールドは「枠の長さ・候補時間帯・選択肢一覧」など
  *   ユーザー識別を含まない設定値のみ。matchId を渡しても返却されるのは
- *   設定値のみで、ペアのメンバー情報は含めていない。
+ *   設定値 + その match に効いている企業の "ID と表示名 と どの項目が上書きされているか"
+ *   までで、ペアのメンバー情報は含めていない。company id / name は match のメンバーには
+ *   元々見えている情報なのでこの API 経由で渡しても情報露出は増えない。
  */
 export const dynamic = "force-dynamic";
 
@@ -20,6 +23,15 @@ export async function GET(request: Request) {
   const s = matchId
     ? await getEffectiveAppSettingsForMatch(matchId)
     : await getAppSettings();
+  const effectiveCompanyId =
+    "effectiveCompanyId" in s ? (s as { effectiveCompanyId: string | null }).effectiveCompanyId : null;
+  const overriddenFields =
+    "overriddenFields" in s
+      ? (s as { overriddenFields: string[] }).overriddenFields
+      : ([] as string[]);
+  const effectiveCompanyName = effectiveCompanyId
+    ? companyLabelFromRegistry(effectiveCompanyId, s.companies) ?? null
+    : null;
   return jsonOk({
     slotDurationMinutes: s.slotDurationMinutes,
     totalSessions: s.totalSessions,
@@ -28,5 +40,8 @@ export async function GET(request: Request) {
     slotEarliestHour: s.slotEarliestHour,
     slotLatestHour: s.slotLatestHour,
     allowWeekends: s.allowWeekends,
+    effectiveCompanyId,
+    effectiveCompanyName,
+    overriddenFields,
   });
 }
