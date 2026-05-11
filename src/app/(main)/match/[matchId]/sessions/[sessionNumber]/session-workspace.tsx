@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
-type Role = "ADMIN" | "PARTNER" | "CLIENT";
+type Role = "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
 
 type FeedbackAnswers = {
   insight?: string;
@@ -13,6 +13,8 @@ type FeedbackAnswers = {
   other?: string;
 };
 type PartnerChange = "continue" | "undecided" | "want_change";
+
+type AbandonReason = "no_show" | "late_cancel";
 
 type SessionDetail = {
   matchId: string;
@@ -28,6 +30,8 @@ type SessionDetail = {
   openable: boolean;
   viewerRole: Role;
   partnerExtraQuestions: string[];
+  guideline: { client: string; partner: string } | null;
+  abandonment: { reason: AbandonReason; markedAt: string; markedBy: string } | null;
   feedback: {
     answers: FeedbackAnswers;
     satisfactionScore: number | null;
@@ -80,6 +84,7 @@ export function SessionWorkspace({
   // partner form state
   const [reflection, setReflection] = useState("");
   const [extraAnswers, setExtraAnswers] = useState<Record<number, string>>({});
+  const [abandonSubmitting, setAbandonSubmitting] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -153,6 +158,52 @@ export function SessionWorkspace({
     void load();
   }
 
+  async function onMarkAbandoned(reason: AbandonReason) {
+    if (!detail) return;
+    const reasonLabel =
+      reason === "no_show"
+        ? "クライアントが連絡なく参加しなかった"
+        : "クライアントが24時間前を過ぎてキャンセルした";
+    if (!window.confirm(`この回を【未実施・消化】(${reasonLabel}) としてマークします。よろしいですか？`)) {
+      return;
+    }
+    setAbandonSubmitting(true);
+    setError(null);
+    setNotice(null);
+    const res = await fetch(`/api/matches/${matchId}/sessions/${sessionNumber}/abandon`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    });
+    const json = await res.json().catch(() => null);
+    setAbandonSubmitting(false);
+    if (!res.ok) {
+      setError(json?.error ?? "マークに失敗しました。");
+      return;
+    }
+    setNotice("【未実施・消化】としてマークしました。");
+    void load();
+  }
+
+  async function onClearAbandonment() {
+    if (!detail) return;
+    if (!window.confirm("【未実施・消化】マークを解除します。よろしいですか？")) return;
+    setAbandonSubmitting(true);
+    setError(null);
+    setNotice(null);
+    const res = await fetch(`/api/matches/${matchId}/sessions/${sessionNumber}/abandon`, {
+      method: "DELETE",
+    });
+    const json = await res.json().catch(() => null);
+    setAbandonSubmitting(false);
+    if (!res.ok) {
+      setError(json?.error ?? "解除に失敗しました。");
+      return;
+    }
+    setNotice("マークを解除しました。");
+    void load();
+  }
+
   async function onSubmitReport(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!detail) return;
@@ -205,6 +256,30 @@ export function SessionWorkspace({
   const reflectionLength = reflection.length;
   const reflectionTooLong = reflectionLength > 800;
 
+  const now = Date.now();
+  const endMs = detail.plan.endAt ? new Date(detail.plan.endAt).getTime() : null;
+  const isPast = endMs !== null && endMs <= now;
+  const isAbandoned = detail.abandonment !== null;
+  const statusInfo: { label: string; tone: string } = isAbandoned
+    ? { label: "未実施・消化", tone: "border-red-300 bg-red-50 text-red-800" }
+    : !detail.plan.confirmed
+      ? { label: "未確定", tone: "border-zinc-300 bg-white text-zinc-700" }
+      : isPast
+        ? { label: "実施済", tone: "border-emerald-300 bg-emerald-50 text-emerald-800" }
+        : { label: "予定", tone: "border-indigo-300 bg-indigo-50 text-indigo-800" };
+  const abandonReasonLabel = detail.abandonment
+    ? detail.abandonment.reason === "no_show"
+      ? "クライアントが連絡なく参加しなかった"
+      : "クライアントが24時間前を過ぎてキャンセルした"
+    : null;
+  const guidelineText =
+    role === "PARTNER"
+      ? detail.guideline?.partner?.trim() ?? ""
+      : role === "ADMIN"
+        ? // 管理者は両方表示するため、ここでは便宜上両方を結合せず別途出す
+          ""
+        : detail.guideline?.client?.trim() ?? "";
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-3 py-5 sm:gap-8 sm:px-6 sm:py-8">
       <header className="space-y-2 border-b border-zinc-200 pb-4">
@@ -229,7 +304,92 @@ export function SessionWorkspace({
       {error ? <p className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p> : null}
       {notice ? <p className="rounded-xl bg-emerald-50 px-4 py-2 text-sm text-emerald-900">{notice}</p> : null}
 
-      {role === "CLIENT" || role === "ADMIN" ? (
+      <section className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={`inline-flex items-center rounded-md border px-2.5 py-0.5 text-sm font-semibold ${statusInfo.tone}`}
+          >
+            {statusInfo.label}
+          </span>
+          {isAbandoned ? (
+            <span className="text-sm text-zinc-700">理由：{abandonReasonLabel}</span>
+          ) : null}
+        </div>
+
+        {role === "PARTNER" ? (
+          isAbandoned ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void onClearAbandonment()}
+                disabled={abandonSubmitting}
+                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50 disabled:opacity-60"
+              >
+                {abandonSubmitting ? "解除中…" : "マークを解除"}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-zinc-900">
+                クライアントの状況により、この回を【未実施・消化】としてマークします
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void onMarkAbandoned("no_show")}
+                  disabled={abandonSubmitting}
+                  className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-800 shadow-sm transition hover:bg-red-100 disabled:opacity-60"
+                >
+                  クライアントが連絡なく参加しなかった
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onMarkAbandoned("late_cancel")}
+                  disabled={abandonSubmitting}
+                  className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-800 shadow-sm transition hover:bg-red-100 disabled:opacity-60"
+                >
+                  クライアントが24時間前を過ぎてキャンセルした
+                </button>
+              </div>
+            </div>
+          )
+        ) : null}
+      </section>
+
+      {detail.guideline ? (
+        role === "ADMIN" ? (
+          <section className="space-y-3 rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm sm:p-5">
+            <h2 className="text-lg font-semibold text-violet-950">
+              {detail.sessionNumber}回目 のガイドライン（管理者ビュー）
+            </h2>
+            {detail.guideline.client?.trim() ? (
+              <div>
+                <h3 className="text-sm font-semibold text-violet-900">クライアント向け</h3>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-900">
+                  {detail.guideline.client}
+                </p>
+              </div>
+            ) : null}
+            {detail.guideline.partner?.trim() ? (
+              <div>
+                <h3 className="text-sm font-semibold text-violet-900">パートナー向け</h3>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-900">
+                  {detail.guideline.partner}
+                </p>
+              </div>
+            ) : null}
+          </section>
+        ) : guidelineText ? (
+          <section className="space-y-2 rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm sm:p-5">
+            <h2 className="text-lg font-semibold text-violet-950">
+              {detail.sessionNumber}回目 のガイドライン
+            </h2>
+            <p className="whitespace-pre-wrap text-sm text-zinc-900">{guidelineText}</p>
+          </section>
+        ) : null
+      ) : null}
+
+      {role === "CLIENT" || role === "CLIENT_ADMIN" || role === "ADMIN" ? (
         <section className="space-y-4 rounded-3xl border border-violet-100 bg-white p-4 shadow-sm sm:p-6">
           <header>
             <h2 className="text-xl font-semibold text-violet-900">クライアント振り返り</h2>
@@ -246,7 +406,7 @@ export function SessionWorkspace({
             </p>
           ) : null}
 
-          {role === "CLIENT" ? (
+          {role === "CLIENT" || role === "CLIENT_ADMIN" ? (
             <form onSubmit={onSubmitFeedback} className="space-y-5">
               <label className="block space-y-1 text-base font-medium text-zinc-900">
                 1. 今回の1on1でどのような気づきがありましたか？

@@ -9,6 +9,10 @@ import {
 /** { [sessionNumber: number]: string[] } 各回のレポートに表示する追加設問 */
 export type PartnerExtraQuestionsByRound = Record<string, string[]>;
 
+/** { [sessionNumber: number]: { client: string; partner: string } } 各回のガイドライン本文 */
+export type SessionGuidelineEntry = { client: string; partner: string };
+export type SessionGuidelinesByRound = Record<string, SessionGuidelineEntry>;
+
 export type AppSettingsRow = {
   id: string;
   slotDurationMinutes: number;
@@ -16,6 +20,7 @@ export type AppSettingsRow = {
   timezone: string;
   availabilitySlotOptions: AvailabilitySlotOption[];
   partnerExtraQuestionsByRound: PartnerExtraQuestionsByRound;
+  sessionGuidelinesByRound: SessionGuidelinesByRound;
   slotEarliestHour: number;
   slotLatestHour: number;
   allowWeekends: boolean;
@@ -54,6 +59,24 @@ export function normalizePartnerExtraQuestionsByRound(input: unknown): PartnerEx
   return out;
 }
 
+const DEFAULT_SESSION_GUIDELINES: SessionGuidelinesByRound = {};
+
+export function normalizeSessionGuidelinesByRound(input: unknown): SessionGuidelinesByRound {
+  if (!input || typeof input !== "object") return {};
+  const out: SessionGuidelinesByRound = {};
+  for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+    const round = String(Number(k));
+    if (round === "NaN" || Number(round) <= 0 || Number(round) > 60) continue;
+    if (!v || typeof v !== "object") continue;
+    const obj = v as Record<string, unknown>;
+    const client = typeof obj.client === "string" ? obj.client.slice(0, 4000) : "";
+    const partner = typeof obj.partner === "string" ? obj.partner.slice(0, 4000) : "";
+    if (client.length === 0 && partner.length === 0) continue;
+    out[round] = { client, partner };
+  }
+  return out;
+}
+
 const defaults: AppSettingsRow = {
   id: "app",
   slotDurationMinutes: 30,
@@ -61,6 +84,7 @@ const defaults: AppSettingsRow = {
   timezone: "Asia/Tokyo",
   availabilitySlotOptions: [...DEFAULT_AVAILABILITY_OPTIONS],
   partnerExtraQuestionsByRound: { ...DEFAULT_PARTNER_EXTRA_QUESTIONS },
+  sessionGuidelinesByRound: { ...DEFAULT_SESSION_GUIDELINES },
   slotEarliestHour: 8,
   slotLatestHour: 20,
   allowWeekends: false,
@@ -127,6 +151,10 @@ export async function getAppSettingsRow(): Promise<AppSettingsRow> {
         raw.partnerExtraQuestionsByRound !== undefined
           ? normalizePartnerExtraQuestionsByRound(raw.partnerExtraQuestionsByRound)
           : { ...DEFAULT_PARTNER_EXTRA_QUESTIONS },
+      sessionGuidelinesByRound:
+        raw.sessionGuidelinesByRound !== undefined
+          ? normalizeSessionGuidelinesByRound(raw.sessionGuidelinesByRound)
+          : { ...DEFAULT_SESSION_GUIDELINES },
       slotEarliestHour: clampHour(raw.slotEarliestHour, defaults.slotEarliestHour),
       slotLatestHour: clampHour(raw.slotLatestHour, defaults.slotLatestHour),
       allowWeekends: raw.allowWeekends === true,
@@ -163,6 +191,10 @@ export async function getAppSettingsRow(): Promise<AppSettingsRow> {
         row.partnerExtraQuestionsByRound !== undefined && row.partnerExtraQuestionsByRound !== null
           ? normalizePartnerExtraQuestionsByRound(row.partnerExtraQuestionsByRound)
           : { ...DEFAULT_PARTNER_EXTRA_QUESTIONS },
+      sessionGuidelinesByRound:
+        row.sessionGuidelinesByRound !== undefined && row.sessionGuidelinesByRound !== null
+          ? normalizeSessionGuidelinesByRound(row.sessionGuidelinesByRound)
+          : { ...DEFAULT_SESSION_GUIDELINES },
       slotEarliestHour: clampHour(row.slotEarliestHour, defaults.slotEarliestHour),
       slotLatestHour: clampHour(row.slotLatestHour, defaults.slotLatestHour),
       allowWeekends: row.allowWeekends === true,
@@ -186,6 +218,7 @@ export async function upsertAppSettingsRow(input: {
   timezone: string;
   availabilitySlotOptions?: AvailabilitySlotOption[];
   partnerExtraQuestionsByRound?: PartnerExtraQuestionsByRound;
+  sessionGuidelinesByRound?: SessionGuidelinesByRound;
   slotEarliestHour?: number;
   slotLatestHour?: number;
   allowWeekends?: boolean;
@@ -194,6 +227,10 @@ export async function upsertAppSettingsRow(input: {
   const partnerExtraQuestionsByRound =
     input.partnerExtraQuestionsByRound !== undefined
       ? normalizePartnerExtraQuestionsByRound(input.partnerExtraQuestionsByRound)
+      : undefined;
+  const sessionGuidelinesByRound =
+    input.sessionGuidelinesByRound !== undefined
+      ? normalizeSessionGuidelinesByRound(input.sessionGuidelinesByRound)
       : undefined;
   const slotEarliestHour =
     input.slotEarliestHour !== undefined ? clampHour(input.slotEarliestHour, defaults.slotEarliestHour) : undefined;
@@ -212,6 +249,8 @@ export async function upsertAppSettingsRow(input: {
         availabilitySlotOptions,
         partnerExtraQuestionsByRound:
           partnerExtraQuestionsByRound ?? defaults.partnerExtraQuestionsByRound,
+        sessionGuidelinesByRound:
+          sessionGuidelinesByRound ?? defaults.sessionGuidelinesByRound,
       };
     }
     const ref = db.collection("appSettings").doc("app");
@@ -225,6 +264,9 @@ export async function upsertAppSettingsRow(input: {
     };
     if (partnerExtraQuestionsByRound !== undefined) {
       baseDoc.partnerExtraQuestionsByRound = partnerExtraQuestionsByRound;
+    }
+    if (sessionGuidelinesByRound !== undefined) {
+      baseDoc.sessionGuidelinesByRound = sessionGuidelinesByRound;
     }
     if (slotEarliestHour !== undefined) baseDoc.slotEarliestHour = slotEarliestHour;
     if (slotLatestHour !== undefined) baseDoc.slotLatestHour = slotLatestHour;
@@ -242,6 +284,10 @@ export async function upsertAppSettingsRow(input: {
         raw.partnerExtraQuestionsByRound !== undefined
           ? normalizePartnerExtraQuestionsByRound(raw.partnerExtraQuestionsByRound)
           : partnerExtraQuestionsByRound ?? { ...DEFAULT_PARTNER_EXTRA_QUESTIONS },
+      sessionGuidelinesByRound:
+        raw.sessionGuidelinesByRound !== undefined
+          ? normalizeSessionGuidelinesByRound(raw.sessionGuidelinesByRound)
+          : sessionGuidelinesByRound ?? { ...DEFAULT_SESSION_GUIDELINES },
       slotEarliestHour: clampHour(raw.slotEarliestHour, slotEarliestHour ?? defaults.slotEarliestHour),
       slotLatestHour: clampHour(raw.slotLatestHour, slotLatestHour ?? defaults.slotLatestHour),
       allowWeekends:
@@ -266,6 +312,8 @@ export async function upsertAppSettingsRow(input: {
       availabilitySlotOptions,
       partnerExtraQuestionsByRound:
         partnerExtraQuestionsByRound ?? { ...DEFAULT_PARTNER_EXTRA_QUESTIONS },
+      sessionGuidelinesByRound:
+        sessionGuidelinesByRound ?? { ...DEFAULT_SESSION_GUIDELINES },
       slotEarliestHour: slotEarliestHour ?? defaults.slotEarliestHour,
       slotLatestHour: slotLatestHour ?? defaults.slotLatestHour,
       allowWeekends: allowWeekends ?? defaults.allowWeekends,
@@ -278,6 +326,9 @@ export async function upsertAppSettingsRow(input: {
   };
   if (partnerExtraQuestionsByRound !== undefined) {
     writeData.partnerExtraQuestionsByRound = partnerExtraQuestionsByRound;
+  }
+  if (sessionGuidelinesByRound !== undefined) {
+    writeData.sessionGuidelinesByRound = sessionGuidelinesByRound;
   }
   if (slotEarliestHour !== undefined) writeData.slotEarliestHour = slotEarliestHour;
   if (slotLatestHour !== undefined) writeData.slotLatestHour = slotLatestHour;
@@ -298,6 +349,10 @@ export async function upsertAppSettingsRow(input: {
         row.partnerExtraQuestionsByRound !== undefined && row.partnerExtraQuestionsByRound !== null
           ? normalizePartnerExtraQuestionsByRound(row.partnerExtraQuestionsByRound)
           : partnerExtraQuestionsByRound ?? { ...DEFAULT_PARTNER_EXTRA_QUESTIONS },
+      sessionGuidelinesByRound:
+        row.sessionGuidelinesByRound !== undefined && row.sessionGuidelinesByRound !== null
+          ? normalizeSessionGuidelinesByRound(row.sessionGuidelinesByRound)
+          : sessionGuidelinesByRound ?? { ...DEFAULT_SESSION_GUIDELINES },
       slotEarliestHour: clampHour(row.slotEarliestHour, slotEarliestHour ?? defaults.slotEarliestHour),
       slotLatestHour: clampHour(row.slotLatestHour, slotLatestHour ?? defaults.slotLatestHour),
       allowWeekends:
@@ -308,6 +363,7 @@ export async function upsertAppSettingsRow(input: {
       error instanceof Error &&
       (error.message.includes("Unknown argument `totalSessions`") ||
         error.message.includes("Unknown argument `partnerExtraQuestionsByRound`") ||
+        error.message.includes("Unknown argument `sessionGuidelinesByRound`") ||
         error.message.includes("Unknown argument `slotEarliestHour`") ||
         error.message.includes("Unknown argument `slotLatestHour`") ||
         error.message.includes("Unknown argument `allowWeekends`") ||
@@ -331,6 +387,8 @@ export async function upsertAppSettingsRow(input: {
         availabilitySlotOptions,
         partnerExtraQuestionsByRound:
           partnerExtraQuestionsByRound ?? { ...DEFAULT_PARTNER_EXTRA_QUESTIONS },
+        sessionGuidelinesByRound:
+          sessionGuidelinesByRound ?? { ...DEFAULT_SESSION_GUIDELINES },
         slotEarliestHour: slotEarliestHour ?? defaults.slotEarliestHour,
         slotLatestHour: slotLatestHour ?? defaults.slotLatestHour,
         allowWeekends: allowWeekends ?? defaults.allowWeekends,
@@ -349,6 +407,8 @@ export async function upsertAppSettingsRow(input: {
       availabilitySlotOptions,
       partnerExtraQuestionsByRound:
         partnerExtraQuestionsByRound ?? { ...DEFAULT_PARTNER_EXTRA_QUESTIONS },
+      sessionGuidelinesByRound:
+        sessionGuidelinesByRound ?? { ...DEFAULT_SESSION_GUIDELINES },
       slotEarliestHour: slotEarliestHour ?? defaults.slotEarliestHour,
       slotLatestHour: slotLatestHour ?? defaults.slotLatestHour,
       allowWeekends: allowWeekends ?? defaults.allowWeekends,

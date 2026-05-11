@@ -21,6 +21,15 @@ const patchSchema = z
     partnerExtraQuestionsByRound: z
       .record(z.string(), z.array(z.string().min(1).max(500)).max(8))
       .optional(),
+    sessionGuidelinesByRound: z
+      .record(
+        z.string(),
+        z.object({
+          client: z.string().max(4000).optional(),
+          partner: z.string().max(4000).optional(),
+        }),
+      )
+      .optional(),
     slotEarliestHour: z.number().int().min(0).max(24).optional(),
     slotLatestHour: z.number().int().min(0).max(24).optional(),
     allowWeekends: z.boolean().optional(),
@@ -50,12 +59,22 @@ export async function PATCH(request: Request) {
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("枠時間(15〜240分)、回数(1〜24回)、タイムゾーン、対応可能時間の選択肢を確認してください。");
 
+  const normalizedGuidelines = parsed.data.sessionGuidelinesByRound
+    ? Object.fromEntries(
+        Object.entries(parsed.data.sessionGuidelinesByRound).map(([k, v]) => [
+          k,
+          { client: v.client ?? "", partner: v.partner ?? "" },
+        ]),
+      )
+    : undefined;
+
   const row = await upsertAppSettingsRow({
     slotDurationMinutes: parsed.data.slotDurationMinutes,
     totalSessions: parsed.data.totalSessions,
     timezone: parsed.data.timezone,
     availabilitySlotOptions: parsed.data.availabilitySlotOptions,
     partnerExtraQuestionsByRound: parsed.data.partnerExtraQuestionsByRound,
+    sessionGuidelinesByRound: normalizedGuidelines,
     slotEarliestHour: parsed.data.slotEarliestHour,
     slotLatestHour: parsed.data.slotLatestHour,
     allowWeekends: parsed.data.allowWeekends,

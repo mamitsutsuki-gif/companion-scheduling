@@ -1,12 +1,10 @@
 import { readSession } from "@/lib/session";
 import { getMatchIfAllowed } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
-import {
-  determineOpenableSessions,
-  listSessionPlanForMatch,
-} from "@/lib/repositories/match-sessions-repository";
+import { listSessionPlanForMatch } from "@/lib/repositories/match-sessions-repository";
 import { getSessionFeedback } from "@/lib/repositories/session-feedback-repository";
 import { getSessionReport } from "@/lib/repositories/session-report-repository";
+import { getSessionAbandonment } from "@/lib/repositories/session-abandonment-repository";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 
 type RouteContext = { params: Promise<{ matchId: string; sessionNumber: string }> };
@@ -26,20 +24,34 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const plan = await listSessionPlanForMatch(matchId);
-  const target = plan.find((p) => p.sessionNumber === n);
-  if (!target) return jsonError("回が見つかりません。", 404);
-  const openable = determineOpenableSessions(plan);
-  const isOpen = openable.has(n);
-
-  if (!isOpen && session.role !== "ADMIN") {
-    return jsonError("この回はまだ開けません。", 403);
-  }
+  // 詳細ページは「全ての回」を最初から開けるので、plan に該当回が無くても empty plan を返す。
+  const target =
+    plan.find((p) => p.sessionNumber === n) ?? {
+      matchId,
+      sessionNumber: n,
+      confirmed: false,
+      round: null,
+      startAt: null,
+      endAt: null,
+      negotiationId: null,
+      zoomUrl: null,
+      zoomMeetingId: null,
+      zoomPass: null,
+    };
 
   const settings = await getAppSettingsRow();
   const partnerExtraQuestions = settings.partnerExtraQuestionsByRound[String(n)] ?? [];
+  const guidelineRaw = settings.sessionGuidelinesByRound[String(n)] ?? null;
+  // ロールに応じてガイドラインを返す。クライアント管理者はクライアント向けと同じものを参照。
+  const guideline = guidelineRaw
+    ? session.role === "PARTNER" || session.role === "ADMIN"
+      ? { partner: guidelineRaw.partner ?? "", client: guidelineRaw.client ?? "" }
+      : { partner: "", client: guidelineRaw.client ?? "" }
+    : null;
 
   const feedbackRow = await getSessionFeedback(matchId, n);
   const reportRow = await getSessionReport(matchId, n);
+  const abandonmentRow = await getSessionAbandonment(matchId, n);
 
   // Visibility:
   // - CLIENT: own feedback only (cannot read partner report)
@@ -52,9 +64,17 @@ export async function GET(_request: Request, context: RouteContext) {
     matchId,
     sessionNumber: n,
     plan: target,
-    openable: isOpen,
+    openable: true,
     viewerRole: session.role,
     partnerExtraQuestions,
+    guideline,
+    abandonment: abandonmentRow
+      ? {
+          reason: abandonmentRow.reason,
+          markedAt: abandonmentRow.markedAt,
+          markedBy: abandonmentRow.markedBy,
+        }
+      : null,
     feedback: includeFeedback ? feedbackRow : null,
     report: includeReport ? reportRow : null,
     match: {

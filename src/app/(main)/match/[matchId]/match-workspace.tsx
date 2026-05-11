@@ -95,6 +95,12 @@ type MemberNotificationRow = {
 
 type MatchTab = "chat" | "schedule" | "fta" | "sessions" | "notifications";
 
+type SessionAbandonmentApi = {
+  reason: "no_show" | "late_cancel";
+  markedAt: string;
+  markedBy: string;
+};
+
 type SessionPlanApiRow = {
   matchId: string;
   sessionNumber: number;
@@ -106,6 +112,7 @@ type SessionPlanApiRow = {
   openable: boolean;
   hasClientFeedback: boolean;
   hasPartnerReport: boolean;
+  abandonment?: SessionAbandonmentApi | null;
   zoomUrl?: string | null;
   zoomMeetingId?: string | null;
   zoomPass?: string | null;
@@ -1010,30 +1017,48 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             {sessionPlans.map((row) => {
               const eligibility = getRescheduleEligibility(row.slot);
               const apiRow = sessionRows.find((r) => r.sessionNumber === row.index);
-              const isOpenable = Boolean(apiRow?.openable);
               const isRescheduling = isReschedulingSession(row.index);
               const zoomUrl = apiRow?.zoomUrl ?? null;
               const zoomMeetingId = apiRow?.zoomMeetingId ?? null;
               const zoomPass = apiRow?.zoomPass ?? null;
+              const abandonment = apiRow?.abandonment ?? null;
+              const now = Date.now();
+              const endMs = row.slot ? new Date(row.slot.endAt).getTime() : null;
+              const isPast = endMs !== null && endMs <= now;
+              const statusBadge: { label: string; className: string } | null = abandonment
+                ? { label: "未実施・消化", className: "border-red-300 bg-red-50 text-red-800" }
+                : !row.slot
+                  ? { label: "未確定", className: "border-zinc-300 bg-white text-zinc-700" }
+                  : isPast
+                    ? { label: "実施済", className: "border-emerald-300 bg-emerald-50 text-emerald-800" }
+                    : { label: "予定", className: "border-indigo-300 bg-indigo-50 text-indigo-800" };
               return (
                 <li key={row.index} className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span>
-                      {row.index}回目の日程：{row.slot ? `${formatJa(row.slot.startAt)} 〜 ${formatJa(row.slot.endAt)}` : "未確定"}
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {isOpenable ? (
-                        <Link
-                          href={`/match/${matchId}/sessions/${row.index}`}
-                          className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-900 no-underline shadow-sm transition hover:bg-indigo-100"
+                    <div className="flex flex-wrap items-center gap-2">
+                      {statusBadge ? (
+                        <span
+                          className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${statusBadge.className}`}
                         >
-                          {me.role === "CLIENT" || me.role === "CLIENT_ADMIN"
-                            ? "振り返りを開く"
-                            : me.role === "PARTNER"
-                              ? "レポートを開く"
-                              : "詳細を開く"}
-                        </Link>
+                          {statusBadge.label}
+                        </span>
                       ) : null}
+                      <span>
+                        {row.index}回目の日程：
+                        {row.slot ? `${formatJa(row.slot.startAt)} 〜 ${formatJa(row.slot.endAt)}` : "未確定"}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={`/match/${matchId}/sessions/${row.index}`}
+                        className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-900 no-underline shadow-sm transition hover:bg-indigo-100"
+                      >
+                        {me.role === "CLIENT" || me.role === "CLIENT_ADMIN"
+                          ? "振り返りを開く"
+                          : me.role === "PARTNER"
+                            ? "レポートを開く"
+                            : "詳細を開く"}
+                      </Link>
                       {isRescheduling ? (
                         <span className="rounded-md border border-amber-300 bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-900">
                           再調整中

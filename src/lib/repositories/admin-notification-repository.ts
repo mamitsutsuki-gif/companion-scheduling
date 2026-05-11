@@ -8,7 +8,8 @@ export type AdminNotificationType =
   | "SLOT_CONFIRMED"
   | "RESCHEDULE"
   | "FEEDBACK_SUBMITTED"
-  | "REPORT_SUBMITTED";
+  | "REPORT_SUBMITTED"
+  | "SESSION_ABANDONED";
 
 export type AdminNotificationRow = {
   id: string;

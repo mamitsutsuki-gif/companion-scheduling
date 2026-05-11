@@ -35,11 +35,14 @@ export default function AdminAppSettingsPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [adminUserId, setAdminUserId] = useState("");
   const [partnerExtraQuestions, setPartnerExtraQuestions] = useState<Record<string, string[]>>({});
+  const [sessionGuidelines, setSessionGuidelines] = useState<
+    Record<string, { client: string; partner: string }>
+  >({});
   const [slotEarliestHour, setSlotEarliestHour] = useState(8);
   const [slotLatestHour, setSlotLatestHour] = useState(20);
   const [allowWeekends, setAllowWeekends] = useState(false);
   const [settingsSection, setSettingsSection] = useState<
-    "session" | "availability" | "constraints" | "partner" | "admin"
+    "session" | "availability" | "constraints" | "partner" | "guidelines" | "admin"
   >("session");
 
   useEffect(() => {
@@ -75,6 +78,20 @@ export default function AdminAppSettingsPage() {
           }
           setPartnerExtraQuestions(cleaned);
         }
+        const sg = sData.settings.sessionGuidelinesByRound;
+        if (sg && typeof sg === "object") {
+          const cleaned: Record<string, { client: string; partner: string }> = {};
+          for (const [k, v] of Object.entries(sg)) {
+            if (v && typeof v === "object") {
+              const obj = v as Record<string, unknown>;
+              cleaned[String(k)] = {
+                client: typeof obj.client === "string" ? obj.client : "",
+                partner: typeof obj.partner === "string" ? obj.partner : "",
+              };
+            }
+          }
+          setSessionGuidelines(cleaned);
+        }
         if (typeof sData.settings.slotEarliestHour === "number") setSlotEarliestHour(sData.settings.slotEarliestHour);
         if (typeof sData.settings.slotLatestHour === "number") setSlotLatestHour(sData.settings.slotLatestHour);
         if (typeof sData.settings.allowWeekends === "boolean") setAllowWeekends(sData.settings.allowWeekends);
@@ -108,6 +125,14 @@ export default function AdminAppSettingsPage() {
       const list = (prev[key] ?? []).slice();
       list.splice(index, 1);
       return { ...prev, [key]: list };
+    });
+  }
+
+  function setGuidelineField(round: number, who: "client" | "partner", text: string) {
+    setSessionGuidelines((prev) => {
+      const key = String(round);
+      const cur = prev[key] ?? { client: "", partner: "" };
+      return { ...prev, [key]: { ...cur, [who]: text } };
     });
   }
 
@@ -169,6 +194,13 @@ export default function AdminAppSettingsPage() {
       setErr("候補時間帯の開始時刻は終了時刻より前にしてください。");
       return;
     }
+    const guidelines: Record<string, { client: string; partner: string }> = {};
+    for (const [k, v] of Object.entries(sessionGuidelines)) {
+      const client = (v.client ?? "").trim();
+      const partner = (v.partner ?? "").trim();
+      if (client.length === 0 && partner.length === 0) continue;
+      guidelines[k] = { client, partner };
+    }
     const res = await fetch("/api/admin/app-settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -178,6 +210,7 @@ export default function AdminAppSettingsPage() {
         timezone,
         availabilitySlotOptions: cleaned,
         partnerExtraQuestionsByRound: partnerExtra,
+        sessionGuidelinesByRound: guidelines,
         slotEarliestHour: Number(slotEarliestHour),
         slotLatestHour: Number(slotLatestHour),
         allowWeekends,
@@ -235,6 +268,7 @@ export default function AdminAppSettingsPage() {
             ["availability", "対応可能時間"],
             ["constraints", "候補日の制約"],
             ["partner", "パートナー追加質問"],
+            ["guidelines", "セッションガイドライン"],
             ["admin", "管理者"],
           ] as const
         ).map(([id, label]) => (
@@ -399,6 +433,58 @@ export default function AdminAppSettingsPage() {
                 />
                 土日も候補日として選択可能にする
               </label>
+            </div>
+          ) : null}
+
+          {settingsSection === "guidelines" ? (
+            <div className="space-y-3 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
+              <div>
+                <h3 className="text-base font-semibold text-violet-950">各回のセッションガイドライン</h3>
+                <p className="mt-1 text-sm text-violet-900/80">
+                  クライアント・パートナーそれぞれに向けたガイドラインを、1on1の回ごとに設定できます。空欄の回は詳細ページでも非表示になります。
+                </p>
+              </div>
+              <div className="space-y-3">
+                {Array.from({ length: Math.max(1, totalSessions) }, (_, i) => i + 1).map((round) => {
+                  const cur = sessionGuidelines[String(round)] ?? { client: "", partner: "" };
+                  const filled = (cur.client?.trim().length ?? 0) + (cur.partner?.trim().length ?? 0) > 0;
+                  return (
+                    <details
+                      key={round}
+                      className="rounded-md border border-violet-200 bg-white px-3 py-2"
+                      open={filled}
+                    >
+                      <summary className="cursor-pointer text-sm font-semibold text-violet-900">
+                        {round} 回目 のガイドライン{filled ? "（設定あり）" : ""}
+                      </summary>
+                      <div className="mt-2 space-y-3">
+                        <label className="block space-y-1 text-sm font-medium text-zinc-900">
+                          クライアント向けガイドライン
+                          <textarea
+                            value={cur.client}
+                            onChange={(e) => setGuidelineField(round, "client", e.target.value)}
+                            rows={4}
+                            maxLength={4000}
+                            className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900"
+                            placeholder="例: 今回は『1on1に期待すること』を持ち寄ってください。"
+                          />
+                        </label>
+                        <label className="block space-y-1 text-sm font-medium text-zinc-900">
+                          パートナー向けガイドライン
+                          <textarea
+                            value={cur.partner}
+                            onChange={(e) => setGuidelineField(round, "partner", e.target.value)}
+                            rows={4}
+                            maxLength={4000}
+                            className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900"
+                            placeholder="例: 初回は信頼関係づくりを最優先に。質問は7:3の傾聴比率で。"
+                          />
+                        </label>
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
 

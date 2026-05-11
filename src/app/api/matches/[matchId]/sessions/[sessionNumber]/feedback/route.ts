@@ -2,10 +2,7 @@ import { z } from "zod";
 import { readSession } from "@/lib/session";
 import { getMatchIfAllowed } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
-import {
-  determineOpenableSessions,
-  listSessionPlanForMatch,
-} from "@/lib/repositories/match-sessions-repository";
+import { listSessionPlanForMatch } from "@/lib/repositories/match-sessions-repository";
 import { upsertSessionFeedback } from "@/lib/repositories/session-feedback-repository";
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
@@ -48,8 +45,6 @@ export async function PUT(request: Request, context: RouteContext) {
   const plan = await listSessionPlanForMatch(matchId);
   const target = plan.find((p) => p.sessionNumber === n);
   if (!target) return jsonError("回が見つかりません。", 404);
-  const openable = determineOpenableSessions(plan);
-  if (!openable.has(n)) return jsonError("この回はまだ開けません。", 403);
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");

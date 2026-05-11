@@ -1,12 +1,10 @@
 import { readSession } from "@/lib/session";
 import { getMatchIfAllowed } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
-import {
-  determineOpenableSessions,
-  listSessionPlanForMatch,
-} from "@/lib/repositories/match-sessions-repository";
+import { listSessionPlanForMatch } from "@/lib/repositories/match-sessions-repository";
 import { listSessionFeedbacksForMatch } from "@/lib/repositories/session-feedback-repository";
 import { listSessionReportsForMatch } from "@/lib/repositories/session-report-repository";
+import { listSessionAbandonmentsForMatch } from "@/lib/repositories/session-abandonment-repository";
 
 type RouteContext = { params: Promise<{ matchId: string }> };
 
@@ -22,19 +20,28 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const plan = await listSessionPlanForMatch(matchId);
-  const openable = determineOpenableSessions(plan);
   const feedbacks = await listSessionFeedbacksForMatch(matchId);
   const reports = await listSessionReportsForMatch(matchId);
+  const abandonments = await listSessionAbandonmentsForMatch(matchId);
 
   const fbSet = new Set(feedbacks.map((f) => f.sessionNumber));
   const rpSet = new Set(reports.map((r) => r.sessionNumber));
+  const abMap = new Map(abandonments.map((a) => [a.sessionNumber, a]));
 
-  const rows = plan.map((row) => ({
-    ...row,
-    openable: openable.has(row.sessionNumber),
-    hasClientFeedback: fbSet.has(row.sessionNumber),
-    hasPartnerReport: rpSet.has(row.sessionNumber),
-  }));
+  // 詳細ボタンは「最初から全て押せる」要件のため、openable は全 true で返す。
+  // フロントで「予定 / 実施済 / 未実施・消化」のバッジを表示する。
+  const rows = plan.map((row) => {
+    const ab = abMap.get(row.sessionNumber) ?? null;
+    return {
+      ...row,
+      openable: true,
+      hasClientFeedback: fbSet.has(row.sessionNumber),
+      hasPartnerReport: rpSet.has(row.sessionNumber),
+      abandonment: ab
+        ? { reason: ab.reason, markedAt: ab.markedAt, markedBy: ab.markedBy }
+        : null,
+    };
+  });
 
   return jsonOk({ sessions: rows, viewerRole: session.role });
 }
