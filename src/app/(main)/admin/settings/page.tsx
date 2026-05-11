@@ -45,6 +45,39 @@ export default function AdminAppSettingsPage() {
     "session" | "availability" | "constraints" | "partner" | "guidelines" | "admin"
   >("session");
 
+  // メール送信テスト用 state
+  const [testMailTo, setTestMailTo] = useState("");
+  const [testMailSending, setTestMailSending] = useState(false);
+  const [testMailResult, setTestMailResult] = useState<string | null>(null);
+
+  async function onSendTestMail() {
+    setTestMailSending(true);
+    setTestMailResult(null);
+    try {
+      const res = await fetch("/api/admin/test-mail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(testMailTo.trim() ? { to: testMailTo.trim() } : {}),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        setTestMailResult(`❌ ${json?.error ?? "送信に失敗しました。"}`);
+      } else if (json?.ok) {
+        setTestMailResult(
+          `✅ 送信OK → ${json.sentTo}（ドライバ: ${json.driver}、from: ${json.from}）\n受信箱と迷惑メールフォルダの両方を確認してください。`,
+        );
+      } else {
+        setTestMailResult(
+          `⚠️ サーバーは応答しましたが送信に失敗しました。${json?.hint ?? ""}（ドライバ: ${json?.driver ?? "?"}）`,
+        );
+      }
+    } catch (e) {
+      setTestMailResult(`❌ ネットワーク／通信エラー: ${String(e)}`);
+    } finally {
+      setTestMailSending(false);
+    }
+  }
+
   useEffect(() => {
     async function load() {
       const [sRes, uRes] = await Promise.all([
@@ -593,6 +626,43 @@ export default function AdminAppSettingsPage() {
             管理者に追加
           </button>
         </form>
+      ) : null}
+
+      {settingsSection === "admin" ? (
+        <section className="space-y-4 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-6 md:p-8">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">メール送信テスト</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              本番でメールが届くかを確認するためのテスト送信です。Resend
+              の送信ドメイン認証や環境変数（<code>RESEND_API_KEY</code> /
+              <code>SMTP_FROM</code> / <code>APP_ORIGIN</code>）が正しく設定されているかを検証します。
+              空欄の場合はログイン中の管理者のメールアドレス宛てに送信されます。
+            </p>
+          </div>
+          <label className="block space-y-2 text-sm font-medium text-slate-900">
+            送信先（省略すると自分宛）
+            <input
+              type="email"
+              value={testMailTo}
+              onChange={(e) => setTestMailTo(e.target.value)}
+              placeholder="例: customer@motive-iji.com"
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-xs"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void onSendTestMail()}
+            disabled={testMailSending}
+            className="rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-2.5 text-sm font-semibold text-emerald-900 shadow-sm hover:bg-emerald-100 disabled:opacity-60"
+          >
+            {testMailSending ? "送信中…" : "テストメールを送信"}
+          </button>
+          {testMailResult ? (
+            <pre className="whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+              {testMailResult}
+            </pre>
+          ) : null}
+        </section>
       ) : null}
     </div>
   );
