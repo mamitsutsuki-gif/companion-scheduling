@@ -38,6 +38,34 @@ export type AppSettingsRow = {
   companies: CompanyOption[];
 };
 
+/**
+ * 企業（テナント）ごとに上書きできるフィールドの集合。
+ * `companies` と管理者一覧はテナント横断の運用なので含まれない。
+ */
+export type AppSettingsOverridableFields = Pick<
+  AppSettingsRow,
+  | "slotDurationMinutes"
+  | "totalSessions"
+  | "timezone"
+  | "availabilitySlotOptions"
+  | "partnerExtraQuestionsByRound"
+  | "sessionGuidelinesByRound"
+  | "slotEarliestHour"
+  | "slotLatestHour"
+  | "allowWeekends"
+>;
+
+/**
+ * 企業ごとに保存できる「上書き」。
+ * - undefined / 未設定 = グローバル設定を継承する
+ * - 値あり = その項目をこの企業に限り上書きする
+ * Firestore では companyAppSettings/{companyId} に保存する。
+ */
+export type CompanyAppSettingsOverride = Partial<AppSettingsOverridableFields> & {
+  companyId: string;
+  updatedAt?: string;
+};
+
 export function normalizeCompanies(input: unknown): CompanyOption[] {
   if (!Array.isArray(input)) return [];
   const out: CompanyOption[] = [];
@@ -108,6 +136,55 @@ export function normalizeSessionGuidelinesByRound(input: unknown): SessionGuidel
     const partner = typeof obj.partner === "string" ? obj.partner.slice(0, 4000) : "";
     if (client.length === 0 && partner.length === 0) continue;
     out[round] = { client, partner };
+  }
+  return out;
+}
+
+/**
+ * 受け取った任意オブジェクトを CompanyAppSettingsOverride に正規化する。
+ * - 認識しないキーは捨てる
+ * - undefined / null は「未設定（=グローバル継承）」として落とす
+ * - 数値・boolean は clamp / 厳密チェック
+ */
+export function normalizeCompanyAppSettingsOverride(
+  companyId: string,
+  input: unknown,
+): CompanyAppSettingsOverride {
+  const out: CompanyAppSettingsOverride = { companyId };
+  if (!input || typeof input !== "object") return out;
+  const raw = input as Record<string, unknown>;
+
+  if (typeof raw.slotDurationMinutes === "number" && Number.isFinite(raw.slotDurationMinutes)) {
+    const n = Math.round(raw.slotDurationMinutes);
+    if (n >= 5 && n <= 240) out.slotDurationMinutes = n;
+  }
+  if (typeof raw.totalSessions === "number" && Number.isFinite(raw.totalSessions)) {
+    const n = Math.round(raw.totalSessions);
+    if (n >= 1 && n <= 60) out.totalSessions = n;
+  }
+  if (typeof raw.timezone === "string" && raw.timezone.trim().length > 0) {
+    out.timezone = raw.timezone.trim().slice(0, 64);
+  }
+  if (Array.isArray(raw.availabilitySlotOptions)) {
+    out.availabilitySlotOptions = normalizeAvailabilityOptions(raw.availabilitySlotOptions);
+  }
+  if (raw.partnerExtraQuestionsByRound !== undefined && raw.partnerExtraQuestionsByRound !== null) {
+    out.partnerExtraQuestionsByRound = normalizePartnerExtraQuestionsByRound(raw.partnerExtraQuestionsByRound);
+  }
+  if (raw.sessionGuidelinesByRound !== undefined && raw.sessionGuidelinesByRound !== null) {
+    out.sessionGuidelinesByRound = normalizeSessionGuidelinesByRound(raw.sessionGuidelinesByRound);
+  }
+  if (raw.slotEarliestHour !== undefined && raw.slotEarliestHour !== null) {
+    out.slotEarliestHour = clampHour(raw.slotEarliestHour, 0);
+  }
+  if (raw.slotLatestHour !== undefined && raw.slotLatestHour !== null) {
+    out.slotLatestHour = clampHour(raw.slotLatestHour, 24);
+  }
+  if (typeof raw.allowWeekends === "boolean") {
+    out.allowWeekends = raw.allowWeekends;
+  }
+  if (typeof raw.updatedAt === "string") {
+    out.updatedAt = raw.updatedAt;
   }
   return out;
 }
@@ -462,4 +539,134 @@ export async function upsertAppSettingsRow(input: {
       allowWeekends: allowWeekends ?? defaults.allowWeekends,
     };
   }
+}
+
+/* ============================================================== *
+ * Company-specific override (per-tenant settings)
+ * Firestore: companyAppSettings/{companyId}
+ * Prisma フォールバックでは現状の DB スキーマに該当テーブルがないため未保存。
+ * （本番は Firebase バックエンドで動作する想定）
+ * ============================================================== */
+
+function sanitizeCompanyId(id: string | null | undefined): string {
+  return (id ?? "")
+    .normalize("NFKC")
+    .replace(/[^a-zA-Z0-9_-]/g, "")
+    .slice(0, 60);
+}
+
+/**
+ * 企業ごとの上書き設定を取得する。未設定 / 不正な companyId の場合は null。
+ * グローバル設定との合成は `getEffectiveAppSettings` を使う。
+ */
+export async function getCompanyAppSettingsOverride(
+  companyId: string | null | undefined,
+): Promise<CompanyAppSettingsOverride | null> {
+  const cid = sanitizeCompanyId(companyId);
+  if (!cid) return null;
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return null;
+    const snap = await db.collection("companyAppSettings").doc(cid).get();
+    if (!snap.exists) return null;
+    return normalizeCompanyAppSettingsOverride(cid, snap.data() ?? {});
+  }
+  return null;
+}
+
+/**
+ * 企業ごとの上書き設定を upsert する。
+ * - `clear: true` の場合は当該フィールドを未設定（=グローバル継承）に戻す
+ * - 指定されていないフィールドは既存値を保持する
+ */
+export async function upsertCompanyAppSettingsOverride(
+  companyId: string,
+  patch: Partial<AppSettingsOverridableFields> & {
+    clearFields?: Array<keyof AppSettingsOverridableFields>;
+  },
+): Promise<CompanyAppSettingsOverride | null> {
+  const cid = sanitizeCompanyId(companyId);
+  if (!cid) return null;
+  if (!isFirebaseDataBackend()) return null;
+  const db = getFirebaseFirestoreClient();
+  if (!db) return null;
+  const ref = db.collection("companyAppSettings").doc(cid);
+
+  const normalized = normalizeCompanyAppSettingsOverride(cid, patch);
+  const writeData: Record<string, unknown> = {
+    companyId: cid,
+    updatedAt: new Date().toISOString(),
+  };
+  for (const [k, v] of Object.entries(normalized)) {
+    if (k === "companyId" || k === "updatedAt") continue;
+    if (v !== undefined) writeData[k] = v;
+  }
+  if (patch.clearFields && patch.clearFields.length > 0) {
+    const { FieldValue } = await import("firebase-admin/firestore");
+    for (const key of patch.clearFields) {
+      writeData[key] = FieldValue.delete();
+    }
+  }
+  await ref.set(writeData, { merge: true });
+  const snap = await ref.get();
+  return normalizeCompanyAppSettingsOverride(cid, snap.data() ?? {});
+}
+
+/** 企業上書きをまるごと削除する（=グローバル設定をそのまま使う状態に戻す）。 */
+export async function deleteCompanyAppSettingsOverride(companyId: string): Promise<void> {
+  const cid = sanitizeCompanyId(companyId);
+  if (!cid) return;
+  if (!isFirebaseDataBackend()) return;
+  const db = getFirebaseFirestoreClient();
+  if (!db) return;
+  await db.collection("companyAppSettings").doc(cid).delete().catch(() => undefined);
+}
+
+/**
+ * 実効設定（global + company override）を返す。
+ * - `companyId` 無し / 未登録 / 上書き無し → グローバル設定そのまま
+ * - 上書きあり → 当該フィールドだけ差し替える
+ * 戻り値の `overriddenFields` で「どのフィールドが企業側で上書きされているか」が分かる。
+ */
+export type EffectiveAppSettings = AppSettingsRow & {
+  effectiveCompanyId: string | null;
+  overriddenFields: Array<keyof AppSettingsOverridableFields>;
+};
+
+export async function getEffectiveAppSettings(opts: {
+  companyId?: string | null;
+  global?: AppSettingsRow | null;
+  override?: CompanyAppSettingsOverride | null;
+} = {}): Promise<EffectiveAppSettings> {
+  const global = opts.global ?? (await getAppSettingsRow());
+  const cid = sanitizeCompanyId(opts.companyId);
+  if (!cid) {
+    return { ...global, effectiveCompanyId: null, overriddenFields: [] };
+  }
+  const override =
+    opts.override !== undefined ? opts.override : await getCompanyAppSettingsOverride(cid);
+  if (!override) {
+    return { ...global, effectiveCompanyId: cid, overriddenFields: [] };
+  }
+  const overridden: Array<keyof AppSettingsOverridableFields> = [];
+  const merged: AppSettingsRow = { ...global };
+  const keys: Array<keyof AppSettingsOverridableFields> = [
+    "slotDurationMinutes",
+    "totalSessions",
+    "timezone",
+    "availabilitySlotOptions",
+    "partnerExtraQuestionsByRound",
+    "sessionGuidelinesByRound",
+    "slotEarliestHour",
+    "slotLatestHour",
+    "allowWeekends",
+  ];
+  for (const k of keys) {
+    const v = override[k];
+    if (v !== undefined) {
+      (merged as Record<string, unknown>)[k] = v;
+      overridden.push(k);
+    }
+  }
+  return { ...merged, effectiveCompanyId: cid, overriddenFields: overridden };
 }
