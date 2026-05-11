@@ -3,6 +3,7 @@ import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
 import {
   deleteUserAsAdmin,
+  getUserById,
   listAdminVisibleUsers,
   setUserCompany,
   updateUserAvailability,
@@ -54,6 +55,19 @@ export async function PATCH(request: Request) {
     parsed.data.role !== "ADMIN"
   ) {
     return jsonError("自分の管理者権限は外せません。", 400);
+  }
+
+  if (parsed.data.role && parsed.data.role !== "ADMIN") {
+    const target = await getUserById(parsed.data.userId);
+    if (target?.role === "ADMIN") {
+      const admins = await listAdminVisibleUsers("ADMIN");
+      if (admins.length <= 1) {
+        return jsonError(
+          "最後の管理者の権限は外せません。先に別のユーザーを管理者にしてください。",
+          400,
+        );
+      }
+    }
   }
 
   let resultUser: unknown = null;
@@ -108,6 +122,17 @@ export async function DELETE(request: Request) {
   const parsed = deleteSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
   if (parsed.data.userId === session.sub) return jsonError("自分自身は削除できません。", 400);
+
+  const target = await getUserById(parsed.data.userId);
+  if (target?.role === "ADMIN") {
+    const admins = await listAdminVisibleUsers("ADMIN");
+    if (admins.length <= 1) {
+      return jsonError(
+        "最後の管理者は削除できません。先に別のユーザーを管理者にしてください。",
+        400,
+      );
+    }
+  }
 
   const result = await deleteUserAsAdmin(parsed.data.userId);
   if (!result.ok) return jsonError(result.error, result.status ?? 400);

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   DEFAULT_AVAILABILITY_OPTIONS,
   type AvailabilitySlotOption,
@@ -11,7 +11,10 @@ type UserRow = {
   displayName: string;
   email: string;
   role: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
+  companyId?: string | null;
 };
+
+type AssignableNonAdminRole = "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
 
 function slugify(input: string) {
   return input
@@ -33,6 +36,10 @@ export default function AdminAppSettingsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  /** 管理者解除時に付与するロール（ユーザーごと） */
+  const [revokeRoleByUserId, setRevokeRoleByUserId] = useState<Record<string, AssignableNonAdminRole>>({});
+  const [adminActionBusy, setAdminActionBusy] = useState<string | null>(null);
   const [adminUserId, setAdminUserId] = useState("");
   const [partnerExtraQuestions, setPartnerExtraQuestions] = useState<Record<string, string[]>>({});
   const [sessionGuidelines, setSessionGuidelines] = useState<
@@ -107,14 +114,37 @@ export default function AdminAppSettingsPage() {
     }
   }
 
+  const reloadUsers = useCallback(async () => {
+    const uRes = await fetch("/api/admin/users");
+    const uData = await uRes.json().catch(() => null);
+    if (!uRes.ok) {
+      setErr(uData?.error ?? "ユーザー一覧の再取得に失敗しました。");
+      return false;
+    }
+    const userList: UserRow[] = Array.isArray(uData?.users) ? uData.users : [];
+    setUsers(userList);
+    const used = new Set<string>();
+    for (const u of userList) {
+      const cid = (u.companyId ?? "").trim();
+      if (cid) used.add(cid);
+    }
+    setCompanyIdsInUse(used);
+    return true;
+  }, []);
+
   useEffect(() => {
     async function load() {
-      const [sRes, uRes] = await Promise.all([
+      const [sRes, uRes, meRes] = await Promise.all([
         fetch("/api/admin/app-settings"),
         fetch("/api/admin/users"),
+        fetch("/api/me", { cache: "no-store" }),
       ]);
       const sData = await sRes.json().catch(() => null);
       const uData = await uRes.json().catch(() => null);
+      const meData = await meRes.json().catch(() => null);
+      if (meRes.ok && meData?.user?.id) {
+        setCurrentUserId(String(meData.user.id));
+      }
       if (!sRes.ok) {
         setErr(sData?.error ?? "読込に失敗しました。");
         setLoading(false);
@@ -175,7 +205,7 @@ export default function AdminAppSettingsPage() {
       const userList: UserRow[] = Array.isArray(uData?.users) ? uData.users : [];
       setUsers(userList);
       const used = new Set<string>();
-      for (const u of userList as Array<UserRow & { companyId?: string | null }>) {
+      for (const u of userList) {
         const cid = (u.companyId ?? "").trim();
         if (cid) used.add(cid);
       }
@@ -184,6 +214,17 @@ export default function AdminAppSettingsPage() {
     }
     void load();
   }, []);
+
+  const adminUsers = useMemo(() => {
+    const admins = users.filter((u) => u.role === "ADMIN");
+    return admins.sort((a, b) => {
+      if (currentUserId) {
+        if (a.id === currentUserId) return -1;
+        if (b.id === currentUserId) return 1;
+      }
+      return a.displayName.localeCompare(b.displayName, "ja");
+    });
+  }, [users, currentUserId]);
 
   function slugifyCompanyId(input: string) {
     return input
@@ -382,9 +423,62 @@ export default function AdminAppSettingsPage() {
     }
     setMsg("管理者を追加しました。");
     setAdminUserId("");
-    const uRes = await fetch("/api/admin/users");
-    const uData = await uRes.json().catch(() => null);
-    if (uRes.ok) setUsers(Array.isArray(uData?.users) ? uData.users : []);
+    await reloadUsers();
+  }
+
+  async function onRevokeAdmin(userId: string) {
+    const newRole = revokeRoleByUserId[userId] ?? "CLIENT";
+    setMsg(null);
+    setErr(null);
+    const ok = window.confirm(
+      `このユーザーの管理者権限を外し、ロールを「${newRole}」に変更しますか？`,
+    );
+    if (!ok) return;
+    setAdminActionBusy(userId);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, role: newRole }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setErr(data?.error ?? "管理者の解除に失敗しました。");
+        return;
+      }
+      setMsg("管理者権限を解除しました。");
+      await reloadUsers();
+    } finally {
+      setAdminActionBusy(null);
+    }
+  }
+
+  async function onDeleteAdminUser(userId: string, displayName: string) {
+    setMsg(null);
+    setErr(null);
+    const ok = window.confirm(
+      `本当に ${displayName} のアカウントを削除しますか？\n\n` +
+        `このアカウントはアプリから完全に削除され、以降ログインできなくなります。\n` +
+        `同じメールアドレスでの再利用には、Firebase Authentication 側の整理や新規登録が必要になる場合があります。`,
+    );
+    if (!ok) return;
+    setAdminActionBusy(userId);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setErr(data?.error ?? "アカウント削除に失敗しました。");
+        return;
+      }
+      setMsg("ユーザーを削除しました。");
+      await reloadUsers();
+    } finally {
+      setAdminActionBusy(null);
+    }
   }
 
   if (loading) {
@@ -775,73 +869,158 @@ export default function AdminAppSettingsPage() {
       ) : null}
 
       {settingsSection === "admin" ? (
-        <form
-          className="space-y-4 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-6 md:p-8"
-          onSubmit={onAddAdmin}
-        >
-          <h2 className="text-lg font-semibold text-slate-900">管理者の追加</h2>
-          <p className="text-sm text-slate-600">既存ユーザーを管理者ロール（ADMIN）に変更します。</p>
-          <label className="block space-y-2 text-sm font-medium text-slate-900">
-            追加するユーザー
-            <select
-              value={adminUserId}
-              onChange={(e) => setAdminUserId(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-xs"
-            >
-              <option value="">選択してください</option>
-              {users.filter((u) => u.role !== "ADMIN").map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.displayName}（{u.email}）
-                </option>
-              ))}
-            </select>
-          </label>
-          {err ? <p className="text-sm text-red-700">{err}</p> : null}
-          {msg ? <p className="text-sm text-emerald-800">{msg}</p> : null}
-          <button
-            type="submit"
-            className="rounded-xl border border-indigo-300 bg-indigo-50 px-5 py-2.5 text-sm font-semibold text-indigo-900 shadow-sm hover:bg-indigo-100"
-          >
-            管理者に追加
-          </button>
-        </form>
-      ) : null}
-
-      {settingsSection === "admin" ? (
-        <section className="space-y-4 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-6 md:p-8">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">メール送信テスト</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              本番でメールが届くかを確認するためのテスト送信です。Resend
-              の送信ドメイン認証や環境変数（<code>RESEND_API_KEY</code> /
-              <code>SMTP_FROM</code> / <code>APP_ORIGIN</code>）が正しく設定されているかを検証します。
-              空欄の場合はログイン中の管理者のメールアドレス宛てに送信されます。
-            </p>
-          </div>
-          <label className="block space-y-2 text-sm font-medium text-slate-900">
-            送信先（省略すると自分宛）
-            <input
-              type="email"
-              value={testMailTo}
-              onChange={(e) => setTestMailTo(e.target.value)}
-              placeholder="例: customer@motive-iji.com"
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-xs"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => void onSendTestMail()}
-            disabled={testMailSending}
-            className="rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-2.5 text-sm font-semibold text-emerald-900 shadow-sm hover:bg-emerald-100 disabled:opacity-60"
-          >
-            {testMailSending ? "送信中…" : "テストメールを送信"}
-          </button>
-          {testMailResult ? (
-            <pre className="whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
-              {testMailResult}
-            </pre>
+        <div className="space-y-6">
+          {err ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{err}</p> : null}
+          {msg ? (
+            <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{msg}</p>
           ) : null}
-        </section>
+          <section className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-6 md:p-8">
+            <h2 className="text-lg font-semibold text-slate-900">現在の管理者</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              ログイン中のアカウントは自分で管理者権限を外せません。他の管理者が 2 人以上いるときだけ、他者の権限解除やアカウント削除ができます。
+              システム上、管理者が 0 人になる操作（最後の管理者の解除・削除）はできません。
+            </p>
+            {currentUserId === null ? (
+              <p className="mt-3 text-xs text-amber-800">
+                ログイン中のアカウント情報を取得できませんでした。再読み込みするか、しばらくしてから再度お試しください。
+              </p>
+            ) : null}
+            {adminUsers.length === 0 ? (
+              <p className="mt-4 text-sm text-amber-800">管理者が登録されていません。下のフォームからユーザーを追加してください。</p>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {adminUsers.map((u) => {
+                  const isSelf = currentUserId !== null && u.id === currentUserId;
+                  const canModifyOthers = currentUserId !== null && adminUsers.length >= 2 && !isSelf;
+                  const busy = adminActionBusy === u.id;
+                  const revokeRole = revokeRoleByUserId[u.id] ?? "CLIENT";
+                  return (
+                    <li
+                      key={u.id}
+                      className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 shadow-xs"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-base font-semibold text-zinc-900 break-words">{u.displayName}</p>
+                          <p className="text-xs text-zinc-600 break-all">{u.email}</p>
+                          {isSelf ? (
+                            <p className="mt-1 text-xs font-medium text-indigo-800">ログイン中のあなた</p>
+                          ) : null}
+                        </div>
+                        {canModifyOthers ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <label className="flex items-center gap-2 text-xs text-slate-700">
+                              <span className="whitespace-nowrap">解除後のロール</span>
+                              <select
+                                value={revokeRole}
+                                disabled={busy}
+                                onChange={(e) =>
+                                  setRevokeRoleByUserId((prev) => ({
+                                    ...prev,
+                                    [u.id]: e.target.value as AssignableNonAdminRole,
+                                  }))
+                                }
+                                className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-zinc-900"
+                              >
+                                <option value="CLIENT">CLIENT</option>
+                                <option value="CLIENT_ADMIN">CLIENT_ADMIN</option>
+                                <option value="PARTNER">PARTNER</option>
+                              </select>
+                            </label>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void onRevokeAdmin(u.id)}
+                              className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                            >
+                              {busy ? "処理中…" : "管理者を解除"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void onDeleteAdminUser(u.id, u.displayName)}
+                              className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-800 hover:bg-red-100 disabled:opacity-50"
+                            >
+                              アカウント削除
+                            </button>
+                          </div>
+                        ) : isSelf ? (
+                          <p className="max-w-xs text-xs text-slate-500">
+                            自分の管理者権限はここからは外せません。別の管理者に依頼するか、別アカウントを先に管理者にしてください。
+                          </p>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+
+          <form
+            className="space-y-4 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-6 md:p-8"
+            onSubmit={onAddAdmin}
+          >
+            <h2 className="text-lg font-semibold text-slate-900">管理者の追加</h2>
+            <p className="text-sm text-slate-600">既存ユーザーを管理者ロール（ADMIN）に変更します。</p>
+            <label className="block space-y-2 text-sm font-medium text-slate-900">
+              追加するユーザー
+              <select
+                value={adminUserId}
+                onChange={(e) => setAdminUserId(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-xs"
+              >
+                <option value="">選択してください</option>
+                {users.filter((u) => u.role !== "ADMIN").map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.displayName}（{u.email}）
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="submit"
+              className="rounded-xl border border-indigo-300 bg-indigo-50 px-5 py-2.5 text-sm font-semibold text-indigo-900 shadow-sm hover:bg-indigo-100"
+            >
+              管理者に追加
+            </button>
+          </form>
+
+          <section className="space-y-4 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-6 md:p-8">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">メール送信テスト</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                本番でメールが届くかを確認するためのテスト送信です。Resend
+                の送信ドメイン認証や環境変数（<code>RESEND_API_KEY</code> /
+                <code>SMTP_FROM</code> / <code>APP_ORIGIN</code>）が正しく設定されているかを検証します。
+                空欄の場合はログイン中の管理者のメールアドレス宛てに送信されます。
+              </p>
+            </div>
+            <label className="block space-y-2 text-sm font-medium text-slate-900">
+              送信先（省略すると自分宛）
+              <input
+                type="email"
+                value={testMailTo}
+                onChange={(e) => setTestMailTo(e.target.value)}
+                placeholder="例: customer@motive-iji.com"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-xs"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => void onSendTestMail()}
+              disabled={testMailSending}
+              className="rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-2.5 text-sm font-semibold text-emerald-900 shadow-sm hover:bg-emerald-100 disabled:opacity-60"
+            >
+              {testMailSending ? "送信中…" : "テストメールを送信"}
+            </button>
+            {testMailResult ? (
+              <pre className="whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+                {testMailResult}
+              </pre>
+            ) : null}
+          </section>
+        </div>
       ) : null}
     </div>
   );
