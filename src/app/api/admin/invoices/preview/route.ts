@@ -6,7 +6,7 @@ import {
 } from "@/lib/repositories/partner-invoice-repository";
 import { getPartnerBillingProfile } from "@/lib/repositories/partner-billing-profile-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
-import { buildInvoiceCandidatesForPartner } from "@/lib/invoice-candidates";
+import { buildInvoiceCandidatesForPartner, enrichInvoiceItemsClientCompanyNames } from "@/lib/invoice-candidates";
 
 /**
  * 管理者用: パートナーがまだ請求書を作成していない月でも、レポート入力済セッションから
@@ -23,11 +23,12 @@ export async function GET(request: Request) {
   if (!partnerId || !Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
     return jsonError("パラメータが不正です。");
   }
-  const [partner, profile, items] = await Promise.all([
+  const [partner, profile, itemsRaw] = await Promise.all([
     getUserById(partnerId),
     getPartnerBillingProfile(partnerId),
     buildInvoiceCandidatesForPartner(partnerId, year, month),
   ]);
+  const items = await enrichInvoiceItemsClientCompanyNames(itemsRaw);
   const preview: {
     partnerId: string;
     partnerDisplayName: string;

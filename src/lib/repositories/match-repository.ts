@@ -1,8 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
+import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { companyLabelFromRegistry } from "@/lib/company-display";
 
-type MatchUser = { id: string; displayName: string; email?: string };
+type MatchUser = { id: string; displayName: string; email?: string; companyId?: string | null };
+
+export type MatchClientWithCompany = MatchUser & { companyName?: string | null };
 
 async function getUserMap(ids: string[]) {
   const db = getFirebaseFirestoreClient();
@@ -13,10 +17,12 @@ async function getUserMap(ids: string[]) {
   for (const snap of snaps) {
     if (!snap.exists) continue;
     const data = snap.data() as Record<string, unknown>;
+    const cid = data.companyId;
     map.set(snap.id, {
       id: snap.id,
       displayName: String(data.displayName ?? "ユーザー"),
       email: typeof data.email === "string" ? data.email : undefined,
+      companyId: typeof cid === "string" ? cid : cid === null ? null : undefined,
     });
   }
   return map;
@@ -47,36 +53,73 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
     const users = await getUserMap(
       docs.flatMap((d) => [String(d.partnerId ?? ""), String(d.clientId ?? "")]).filter(Boolean),
     );
+    const settings = await getAppSettingsRow();
 
     return docs
-      .map((m) => ({
-        id: m.id,
-        createdAt: String(m.createdAt ?? new Date().toISOString()),
-        partner: users.get(String(m.partnerId ?? "")) ?? { id: String(m.partnerId ?? ""), displayName: "不明" },
-        client: users.get(String(m.clientId ?? "")) ?? { id: String(m.clientId ?? ""), displayName: "不明" },
-      }))
+      .map((m) => {
+        const partner = users.get(String(m.partnerId ?? "")) ?? {
+          id: String(m.partnerId ?? ""),
+          displayName: "不明",
+        };
+        const clientRaw = users.get(String(m.clientId ?? "")) ?? {
+          id: String(m.clientId ?? ""),
+          displayName: "不明",
+        };
+        const client: MatchClientWithCompany = {
+          ...clientRaw,
+          companyName: companyLabelFromRegistry(clientRaw.companyId, settings.companies),
+        };
+        return {
+          id: m.id,
+          createdAt: String(m.createdAt ?? new Date().toISOString()),
+          partner,
+          client,
+        };
+      })
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
+  const settings = await getAppSettingsRow();
+
   if (input.role === "ADMIN") {
-    return prisma.match.findMany({
+    const rows = await prisma.match.findMany({
       orderBy: { createdAt: "desc" },
       include: {
         partner: { select: { id: true, displayName: true, email: true } },
-        client: { select: { id: true, displayName: true, email: true } },
+        client: { select: { id: true, displayName: true, email: true, companyId: true } },
       },
     });
+    return rows.map((r) => ({
+      ...r,
+      client: {
+        ...r.client,
+        companyName: companyLabelFromRegistry(
+          (r.client as { companyId?: string | null }).companyId,
+          settings.companies,
+        ),
+      },
+    }));
   }
 
   const where = input.role === "PARTNER" ? { partnerId: input.userId } : { clientId: input.userId };
-  return prisma.match.findMany({
+  const rows = await prisma.match.findMany({
     where,
     orderBy: { createdAt: "desc" },
     include: {
       partner: { select: { id: true, displayName: true } },
-      client: { select: { id: true, displayName: true } },
+      client: { select: { id: true, displayName: true, companyId: true } },
     },
   });
+  return rows.map((r) => ({
+    ...r,
+    client: {
+      ...r.client,
+      companyName: companyLabelFromRegistry(
+        (r.client as { companyId?: string | null }).companyId,
+        settings.companies,
+      ),
+    },
+  }));
 }
 
 export async function createMatchAsAdmin(partnerId: string, clientId: string) {

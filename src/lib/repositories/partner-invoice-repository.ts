@@ -9,6 +9,8 @@ export type PartnerInvoiceItem = {
   sessionDate: string;
   /** クライアント名 (パートナーが編集可能) */
   clientName: string;
+  /** クライアント所属企業の表示名（アプリ設定の企業名（ID）。パートナーが編集可能） */
+  clientCompanyName: string;
   /** 税抜単価 (円, 整数) */
   unitPriceExclTax: number;
 };
@@ -71,6 +73,7 @@ function normalizeItems(input: unknown): PartnerInvoiceItem[] {
       sessionNumber,
       sessionDate: String(r.sessionDate ?? ""),
       clientName: String(r.clientName ?? "").slice(0, 200),
+      clientCompanyName: String(r.clientCompanyName ?? "").slice(0, 200),
       unitPriceExclTax: Math.max(
         0,
         Math.round(Number(r.unitPriceExclTax ?? 0)) || 0,

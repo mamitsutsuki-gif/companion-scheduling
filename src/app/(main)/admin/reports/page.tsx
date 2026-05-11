@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { companyLabelFromRegistry } from "@/lib/company-display";
+import type { CompanyOption } from "@/lib/repositories/app-settings-repository";
 
-type ClientUser = { id: string; displayName: string; role: string };
+type ClientUser = { id: string; displayName: string; role: string; companyId?: string | null };
 
 type PerQuestionResult = {
   format: "per-question";
@@ -78,6 +80,8 @@ function ppKey(clientId: string, sessionNumber: number, q: AnswerKey) {
 
 export default function AdminReportsPage() {
   const [clients, setClients] = useState<ClientUser[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [filterCompanyId, setFilterCompanyId] = useState<string>("");
   const [totalSessions, setTotalSessions] = useState<number>(8);
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
   const [selectedSessions, setSelectedSessions] = useState<number[]>([]);
@@ -100,10 +104,11 @@ export default function AdminReportsPage() {
   // 初期データ：クライアント一覧 + 合計セッション数
   useEffect(() => {
     async function load() {
-      const [uA, uB, sRes] = await Promise.all([
+      const [uA, uB, sRes, appRes] = await Promise.all([
         fetch("/api/admin/users?role=CLIENT").then((r) => r.json().catch(() => null)),
         fetch("/api/admin/users?role=CLIENT_ADMIN").then((r) => r.json().catch(() => null)),
         fetch("/api/settings").then((r) => r.json().catch(() => null)),
+        fetch("/api/admin/app-settings").then((r) => r.json().catch(() => null)),
       ]);
       const all: ClientUser[] = [
         ...(Array.isArray(uA?.users) ? uA.users : []),
@@ -112,6 +117,19 @@ export default function AdminReportsPage() {
       setClients(all);
       if (typeof sRes?.totalSessions === "number") {
         setTotalSessions(Math.max(1, Math.min(20, sRes.totalSessions)));
+      }
+      if (appRes?.settings && Array.isArray(appRes.settings.companies)) {
+        const list = (appRes.settings.companies as unknown[])
+          .map((v) => {
+            if (!v || typeof v !== "object") return null;
+            const o = v as Record<string, unknown>;
+            const id = typeof o.id === "string" ? o.id : "";
+            const name = typeof o.name === "string" ? o.name : "";
+            if (!id || !name) return null;
+            return { id, name };
+          })
+          .filter((x): x is CompanyOption => x !== null);
+        setCompanies(list);
       }
     }
     void load();
@@ -141,6 +159,7 @@ export default function AdminReportsPage() {
     setEditedAnswersPq({});
     const body: Record<string, unknown> = { format, anonymous };
     if (selectedClientIds.length > 0) body.clientIds = selectedClientIds;
+    if (filterCompanyId.trim()) body.filterCompanyId = filterCompanyId.trim();
     if (selectedSessions.length > 0) body.sessionNumbers = selectedSessions;
     if (fromDate) body.fromIso = new Date(`${fromDate}T00:00:00`).toISOString();
     if (toDate) body.toIso = new Date(`${toDate}T23:59:59`).toISOString();
@@ -156,7 +175,7 @@ export default function AdminReportsPage() {
       return;
     }
     setResult(data as ReportResult);
-  }, [format, anonymous, selectedClientIds, selectedSessions, fromDate, toDate]);
+  }, [format, anonymous, selectedClientIds, selectedSessions, fromDate, toDate, filterCompanyId]);
 
   function onPrintPdf() {
     if (typeof window === "undefined") return;
@@ -185,6 +204,33 @@ export default function AdminReportsPage() {
       <section className="space-y-6 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-6 print:hidden">
         <h2 className="text-lg font-semibold text-slate-900">抽出条件</h2>
 
+        <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+          <h3 className="text-sm font-semibold text-slate-800">企業で絞り込み（任意）</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            選択すると、その企業 ID に所属するクライアント／クライアント管理者の回答だけが集計されます。個別の「対象クライアント」チェックと併用した場合は、両方を満たすデータのみ含まれます。
+          </p>
+          <label className="mt-3 block max-w-md text-sm font-medium text-slate-800">
+            企業（テナント）
+            <select
+              value={filterCompanyId}
+              onChange={(e) => setFilterCompanyId(e.target.value)}
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
+            >
+              <option value="">すべての企業</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}（{c.id}）
+                </option>
+              ))}
+            </select>
+          </label>
+          {companies.length === 0 ? (
+            <p className="mt-2 text-xs text-amber-800">
+              企業が未登録です。「アプリ設定 → 企業（テナント）」で登録すると選択できます。
+            </p>
+          ) : null}
+        </div>
+
         <div className="grid gap-6 md:grid-cols-2">
           <div>
             <h3 className="text-sm font-semibold text-slate-800">対象クライアント</h3>
@@ -196,19 +242,27 @@ export default function AdminReportsPage() {
                 <p className="text-sm text-slate-500">クライアントがいません。</p>
               ) : (
                 <ul className="space-y-1.5">
-                  {clients.map((c) => (
+                  {clients.map((c) => {
+                    const coLabel = companyLabelFromRegistry(c.companyId, companies);
+                    return (
                     <li key={c.id}>
-                      <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <label className="flex cursor-pointer items-start gap-2 text-sm">
                         <input
                           type="checkbox"
                           checked={selectedClientIds.includes(c.id)}
                           onChange={() => toggleClient(c.id)}
-                          className="h-4 w-4 accent-indigo-700"
+                          className="mt-0.5 h-4 w-4 accent-indigo-700"
                         />
-                        <span>{c.displayName}</span>
+                        <span>
+                          <span className="font-medium text-slate-900">{c.displayName}</span>
+                          {coLabel ? (
+                            <span className="ml-2 text-xs text-slate-500">({coLabel})</span>
+                          ) : null}
+                        </span>
                       </label>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               )}
             </div>

@@ -77,6 +77,11 @@ export default async function DashboardPage() {
                     <span className="mx-2 font-normal text-slate-400">↔</span>
                     {withHonorificSan(match.client.displayName)}
                   </p>
+                  {(match.client as { companyName?: string | null }).companyName ? (
+                    <p className="mt-1.5 text-sm text-slate-600">
+                      クライアント企業: {(match.client as { companyName?: string | null }).companyName}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <span className="font-mono text-xs text-slate-400">ID {match.id}</span>

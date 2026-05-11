@@ -8,6 +8,7 @@ import {
   getPartnerDisplayNames,
   listPartnersWithReportsForMonth,
   buildInvoiceCandidatesForPartner,
+  enrichInvoiceItemsClientCompanyNames,
 } from "@/lib/invoice-candidates";
 
 export async function GET(request: Request) {
@@ -41,15 +42,20 @@ export async function GET(request: Request) {
   const missingPreviews = await Promise.all(
     missingPartnerIds.map(async (partnerId) => {
       const items = await buildInvoiceCandidatesForPartner(partnerId, year, month);
-      return { partnerId, items };
+      return { partnerId, items: await enrichInvoiceItemsClientCompanyNames(items) };
     }),
   );
 
-  return jsonOk({
-    invoices: invoices.map((inv) => ({
+  const enrichedInvoices = await Promise.all(
+    invoices.map(async (inv) => ({
       ...inv,
       partnerDisplayName: partnerNames.get(inv.partnerId) ?? inv.partnerName ?? "",
+      items: await enrichInvoiceItemsClientCompanyNames(inv.items),
     })),
+  );
+
+  return jsonOk({
+    invoices: enrichedInvoices,
     missing: missingPreviews.map((m) => ({
       partnerId: m.partnerId,
       partnerDisplayName: partnerNames.get(m.partnerId) ?? "",

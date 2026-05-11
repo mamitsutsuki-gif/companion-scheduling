@@ -9,6 +9,7 @@ type InvoiceItem = {
   sessionNumber: number;
   sessionDate: string;
   clientName: string;
+  clientCompanyName: string;
   unitPriceExclTax: number;
 };
 
@@ -118,8 +119,20 @@ export function AdminInvoicesWorkspace() {
       return;
     }
     const d = json as AdminInvoiceListResp;
-    setInvoices(Array.isArray(d.invoices) ? d.invoices : []);
-    setMissing(Array.isArray(d.missing) ? d.missing : []);
+    const normItems = (items: InvoiceItem[]) =>
+      (items ?? []).map((it) => ({ ...it, clientCompanyName: it.clientCompanyName ?? "" }));
+    setInvoices(
+      (Array.isArray(d.invoices) ? d.invoices : []).map((inv) => ({
+        ...inv,
+        items: normItems(inv.items),
+      })),
+    );
+    setMissing(
+      (Array.isArray(d.missing) ? d.missing : []).map((m) => ({
+        ...m,
+        items: normItems(m.items),
+      })),
+    );
   }, [year, month]);
 
   useEffect(() => {
@@ -461,6 +474,7 @@ export function AdminInvoicesWorkspace() {
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-2 py-2">実施日</th>
+                  <th className="px-2 py-2">企業名</th>
                   <th className="px-2 py-2">クライアント</th>
                   <th className="px-2 py-2">セッション</th>
                   <th className="px-2 py-2 text-right">税抜単価</th>
@@ -469,7 +483,7 @@ export function AdminInvoicesWorkspace() {
               <tbody className="divide-y divide-slate-200">
                 {selected.items.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-2 py-3 text-center text-slate-500">
+                    <td colSpan={5} className="px-2 py-3 text-center text-slate-500">
                       明細はありません。
                     </td>
                   </tr>
@@ -477,6 +491,7 @@ export function AdminInvoicesWorkspace() {
                   selected.items.map((it, i) => (
                     <tr key={i}>
                       <td className="px-2 py-2">{formatDate(it.sessionDate)}</td>
+                      <td className="px-2 py-2">{(it.clientCompanyName ?? "").trim() || "—"}</td>
                       <td className="px-2 py-2">{it.clientName}</td>
                       <td className="px-2 py-2">{it.sessionNumber} 回目</td>
                       <td className="px-2 py-2 text-right">{formatJpy(it.unitPriceExclTax)}</td>
@@ -486,7 +501,7 @@ export function AdminInvoicesWorkspace() {
               </tbody>
               <tfoot>
                 <tr className="bg-slate-50">
-                  <td colSpan={3} className="px-2 py-2 text-right font-semibold text-slate-800">
+                  <td colSpan={4} className="px-2 py-2 text-right font-semibold text-slate-800">
                     合計（税抜）
                   </td>
                   <td className="px-2 py-2 text-right font-semibold text-slate-900">
@@ -631,6 +646,7 @@ export function AdminInvoicesWorkspace() {
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-2 py-2">実施日</th>
+                  <th className="px-2 py-2">企業名</th>
                   <th className="px-2 py-2">クライアント</th>
                   <th className="px-2 py-2">セッション</th>
                   <th className="px-2 py-2 text-right">税抜単価</th>
@@ -639,7 +655,7 @@ export function AdminInvoicesWorkspace() {
               <tbody className="divide-y divide-slate-200">
                 {selectedMissing.items.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-2 py-3 text-center text-slate-500">
+                    <td colSpan={5} className="px-2 py-3 text-center text-slate-500">
                       実施済セッションはありません。
                     </td>
                   </tr>
@@ -647,6 +663,7 @@ export function AdminInvoicesWorkspace() {
                   selectedMissing.items.map((it, i) => (
                     <tr key={i}>
                       <td className="px-2 py-2">{formatDate(it.sessionDate)}</td>
+                      <td className="px-2 py-2">{(it.clientCompanyName ?? "").trim() || "—"}</td>
                       <td className="px-2 py-2">{it.clientName}</td>
                       <td className="px-2 py-2">{it.sessionNumber} 回目</td>
                       <td className="px-2 py-2 text-right text-zinc-500">未入力</td>
@@ -656,7 +673,7 @@ export function AdminInvoicesWorkspace() {
               </tbody>
               <tfoot>
                 <tr className="bg-slate-50">
-                  <td colSpan={3} className="px-2 py-2 text-right font-semibold text-slate-800">
+                  <td colSpan={4} className="px-2 py-2 text-right font-semibold text-slate-800">
                     合計（税抜）
                   </td>
                   <td className="px-2 py-2 text-right font-semibold text-slate-900">

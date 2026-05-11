@@ -12,6 +12,8 @@ export const dynamic = "force-dynamic";
 const querySchema = z.object({
   /** 対象クライアント ID。空のときは全クライアント */
   clientIds: z.array(z.string().min(1)).optional(),
+  /** 所属企業 ID（アプリ設定の企業テナント）。指定時はその企業に所属するクライアントのみ */
+  filterCompanyId: z.string().max(80).optional(),
   /** 対象セッション回（1〜N）。空のときは全回 */
   sessionNumbers: z.array(z.number().int().min(1).max(99)).optional(),
   /** 期間（実施日 from / to）。ISO 文字列 */
@@ -53,7 +55,12 @@ export async function POST(request: Request) {
     listAdminVisibleUsers("CLIENT_ADMIN"),
   ]);
   const clientNameById = new Map<string, string>();
-  for (const u of [...clientUsers, ...clientAdminUsers]) clientNameById.set(u.id, u.displayName);
+  const clientCompanyIdById = new Map<string, string | null>();
+  for (const u of [...clientUsers, ...clientAdminUsers]) {
+    clientNameById.set(u.id, u.displayName);
+    const cid = (u as { companyId?: string | null }).companyId;
+    clientCompanyIdById.set(u.id, typeof cid === "string" && cid.trim() ? cid.trim() : null);
+  }
 
   // 全フィードバック + 確定セッション（実施日付） + match->client
   const [allFeedbacks, confirmed, matchClient] = await Promise.all([
@@ -81,6 +88,11 @@ export async function POST(request: Request) {
     if (!clientId) continue;
     if (opts.clientIds && opts.clientIds.length > 0 && !opts.clientIds.includes(clientId))
       continue;
+    if (opts.filterCompanyId && opts.filterCompanyId.trim()) {
+      const want = opts.filterCompanyId.trim();
+      const userCo = clientCompanyIdById.get(clientId) ?? null;
+      if (!userCo || userCo !== want) continue;
+    }
     if (
       opts.sessionNumbers &&
       opts.sessionNumbers.length > 0 &&

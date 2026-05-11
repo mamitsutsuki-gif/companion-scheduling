@@ -9,6 +9,7 @@ type InvoiceItem = {
   sessionNumber: number;
   sessionDate: string;
   clientName: string;
+  clientCompanyName: string;
   unitPriceExclTax: number;
 };
 
@@ -121,7 +122,12 @@ export function PartnerInvoicesWorkspace() {
     setAddress(inv?.address?.trim() || d.profile?.address || "");
     setPhone(inv?.phone?.trim() || d.profile?.phone || "");
     setBankAccount(inv?.bankAccount?.trim() || d.profile?.bankAccount || "");
-    setItems(d.itemsForView ?? []);
+    setItems(
+      (d.itemsForView ?? []).map((it) => ({
+        ...it,
+        clientCompanyName: it.clientCompanyName ?? "",
+      })),
+    );
   }, [year, month]);
 
   useEffect(() => {
@@ -157,6 +163,7 @@ export function PartnerInvoicesWorkspace() {
           ...it,
           unitPriceExclTax: Math.max(0, Math.round(Number(it.unitPriceExclTax) || 0)),
           clientName: it.clientName.trim(),
+          clientCompanyName: (it.clientCompanyName ?? "").trim(),
         })),
       }),
     });
@@ -203,6 +210,7 @@ export function PartnerInvoicesWorkspace() {
           ...it,
           unitPriceExclTax: Math.max(0, Math.round(Number(it.unitPriceExclTax) || 0)),
           clientName: it.clientName.trim(),
+          clientCompanyName: (it.clientCompanyName ?? "").trim(),
         })),
       }),
     });
@@ -427,6 +435,7 @@ export function PartnerInvoicesWorkspace() {
                   <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="px-2 py-2">実施日</th>
+                      <th className="px-2 py-2">企業名</th>
                       <th className="px-2 py-2">クライアント</th>
                       <th className="px-2 py-2">セッション</th>
                       <th className="px-2 py-2 text-right">税抜単価</th>
@@ -451,6 +460,18 @@ export function PartnerInvoicesWorkspace() {
                                 })
                               }
                               className="w-36 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
+                            />
+                          )}
+                        </td>
+                        <td className="px-2 py-2 align-top">
+                          {!canEditFields ? (
+                            (it.clientCompanyName ?? "").trim() || "—"
+                          ) : (
+                            <input
+                              value={it.clientCompanyName ?? ""}
+                              onChange={(e) => updateItem(i, { clientCompanyName: e.target.value })}
+                              placeholder="企業名（自動）"
+                              className="w-44 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
                             />
                           )}
                         </td>
@@ -502,7 +523,7 @@ export function PartnerInvoicesWorkspace() {
                   </tbody>
                   <tfoot>
                     <tr className="bg-slate-50">
-                      <td colSpan={3} className="px-2 py-2 text-right font-semibold text-slate-800">
+                      <td colSpan={4} className="px-2 py-2 text-right font-semibold text-slate-800">
                         合計（税抜）
                       </td>
                       <td className="px-2 py-2 text-right font-semibold text-slate-900">

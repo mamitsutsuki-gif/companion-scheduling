@@ -1,6 +1,8 @@
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { listSessionPlanForMatch } from "@/lib/repositories/match-sessions-repository";
 import { listAllSessionAbandonments } from "@/lib/repositories/session-abandonment-repository";
+import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { companyLabelFromRegistry } from "@/lib/company-display";
 import type { PartnerInvoiceItem } from "@/lib/repositories/partner-invoice-repository";
 
 type RawMatchDoc = {
@@ -78,6 +80,75 @@ async function getUserDisplayNames(ids: string[]): Promise<Map<string, string>> 
   return out;
 }
 
+/** クライアント userId → 企業表示ラベル（未所属は空文字） */
+async function getClientCompanyLabels(clientIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (!isFirebaseDataBackend()) return out;
+  const db = getFirebaseFirestoreClient();
+  if (!db) return out;
+  const settings = await getAppSettingsRow();
+  const uniq = [...new Set(clientIds.filter(Boolean))];
+  const snaps = await Promise.all(uniq.map((id) => db.collection("users").doc(id).get()));
+  for (const snap of snaps) {
+    if (!snap.exists) continue;
+    const raw = snap.data() as Record<string, unknown>;
+    const cid = raw.companyId;
+    const companyId = typeof cid === "string" ? cid : null;
+    const label = companyLabelFromRegistry(companyId, settings.companies) ?? "";
+    out.set(snap.id, label);
+  }
+  return out;
+}
+
+/**
+ * 保存済み明細などで clientCompanyName が空の行に、マッチから所属企業を補完する。
+ */
+export async function enrichInvoiceItemsClientCompanyNames(
+  items: PartnerInvoiceItem[],
+): Promise<PartnerInvoiceItem[]> {
+  if (items.length === 0) return items;
+  const settings = await getAppSettingsRow();
+  if (!isFirebaseDataBackend()) {
+    return items.map((i) => ({ ...i, clientCompanyName: i.clientCompanyName ?? "" }));
+  }
+  const db = getFirebaseFirestoreClient();
+  if (!db) return items.map((i) => ({ ...i, clientCompanyName: i.clientCompanyName ?? "" }));
+
+  const needsFill = items.filter((i) => !(i.clientCompanyName ?? "").trim());
+  if (needsFill.length === 0) return items.map((i) => ({ ...i, clientCompanyName: i.clientCompanyName ?? "" }));
+
+  const matchIds = [...new Set(needsFill.map((i) => i.matchId).filter(Boolean))];
+  const clientByMatch = new Map<string, string>();
+  await Promise.all(
+    matchIds.map(async (mid) => {
+      const snap = await db.collection("matches").doc(mid).get();
+      if (!snap.exists) return;
+      const raw = snap.data() as Record<string, unknown>;
+      clientByMatch.set(mid, String(raw.clientId ?? ""));
+    }),
+  );
+  const clientIds = [...new Set([...clientByMatch.values()].filter(Boolean))];
+  const companyIdByClient = new Map<string, string | null>();
+  await Promise.all(
+    clientIds.map(async (cid) => {
+      const snap = await db.collection("users").doc(cid).get();
+      if (!snap.exists) return;
+      const raw = snap.data() as Record<string, unknown>;
+      const co = raw.companyId;
+      companyIdByClient.set(cid, typeof co === "string" ? co : null);
+    }),
+  );
+
+  return items.map((it) => {
+    const cur = (it.clientCompanyName ?? "").trim();
+    if (cur) return { ...it, clientCompanyName: cur };
+    const clientId = clientByMatch.get(it.matchId) ?? "";
+    const label =
+      companyLabelFromRegistry(companyIdByClient.get(clientId) ?? null, settings.companies) ?? "";
+    return { ...it, clientCompanyName: label };
+  });
+}
+
 /**
  * 指定パートナーが対象月に実施したセッションを請求書の明細候補として返す。
  *
@@ -118,6 +189,7 @@ export async function buildInvoiceCandidatesForPartner(
   }
 
   const clientNames = await getUserDisplayNames(matches.map((m) => m.clientId));
+  const clientCompanies = await getClientCompanyLabels(matches.map((m) => m.clientId));
 
   const items: PartnerInvoiceItem[] = [];
   for (const r of reports) {
@@ -135,6 +207,7 @@ export async function buildInvoiceCandidatesForPartner(
       sessionNumber: r.sessionNumber,
       sessionDate: session.startAt,
       clientName: clientNames.get(match.clientId) ?? "クライアント",
+      clientCompanyName: clientCompanies.get(match.clientId) ?? "",
       unitPriceExclTax: 0,
     });
   }

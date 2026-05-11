@@ -11,7 +11,10 @@ import {
 import { getPartnerBillingProfile } from "@/lib/repositories/partner-billing-profile-repository";
 import { isPartnerInvoiceUnlocked } from "@/lib/repositories/partner-invoice-unlock-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
-import { buildInvoiceCandidatesForPartner } from "@/lib/invoice-candidates";
+import {
+  buildInvoiceCandidatesForPartner,
+  enrichInvoiceItemsClientCompanyNames,
+} from "@/lib/invoice-candidates";
 import { isMonthWithinDefaultEditWindow } from "@/lib/invoice-editability";
 
 const itemSchema = z.object({
@@ -19,6 +22,7 @@ const itemSchema = z.object({
   sessionNumber: z.number().int().min(1).max(60),
   sessionDate: z.string().min(1).max(80),
   clientName: z.string().max(200).default(""),
+  clientCompanyName: z.string().max(200).default(""),
   unitPriceExclTax: z.number().int().min(0).max(10_000_000),
 });
 
@@ -36,13 +40,18 @@ function mergeItems(
   existing: PartnerInvoiceItem[],
   candidates: PartnerInvoiceItem[],
 ): PartnerInvoiceItem[] {
-  // existing を優先しつつ、未追加の candidates を末尾に追加する。
   const key = (i: PartnerInvoiceItem) => `${i.matchId}|${i.sessionNumber}`;
+  const candByKey = new Map(candidates.map((c) => [key(c), c]));
   const seen = new Set(existing.map(key));
-  const out = [...existing];
+  const out: PartnerInvoiceItem[] = existing.map((ex) => {
+    const c = candByKey.get(key(ex));
+    const company =
+      (ex.clientCompanyName ?? "").trim() || (c?.clientCompanyName ?? "").trim() || "";
+    return { ...ex, clientCompanyName: company };
+  });
   for (const c of candidates) {
     if (!seen.has(key(c))) {
-      out.push(c);
+      out.push({ ...c, clientCompanyName: c.clientCompanyName ?? "" });
       seen.add(key(c));
     }
   }
@@ -78,11 +87,12 @@ export async function GET(request: Request) {
 
   const partnerName = me?.displayName ?? "";
   // 既存があれば items は既存のまま（編集内容を保持）。新規セッションが追加されていればマージ。
-  const itemsForView: PartnerInvoiceItem[] = existing
+  let itemsForView: PartnerInvoiceItem[] = existing
     ? existing.status === "CONFIRMED" || existing.status === "SUBMITTED"
       ? existing.items
       : mergeItems(existing.items, candidates)
     : candidates;
+  itemsForView = await enrichInvoiceItemsClientCompanyNames(itemsForView);
 
   const editable = isMonthWithinDefaultEditWindow(year, month) || unlocked;
 

@@ -24,7 +24,7 @@ type MatchRow = {
   id: string;
   createdAt: string;
   partner: { id: string; displayName: string; email: string };
-  client: { id: string; displayName: string; email: string };
+  client: { id: string; displayName: string; email: string; companyName?: string | null };
 };
 
 function formatJa(iso: string) {
@@ -630,6 +630,7 @@ export default function AdminMatchesPage() {
                   <th className="py-3 pr-4 font-semibold">パートナー</th>
                   <th className="py-3 pr-4 font-semibold">メール（管理用）</th>
                   <th className="py-3 pr-4 font-semibold">クライアント</th>
+                  <th className="py-3 pr-4 font-semibold">クライアント企業</th>
                   <th className="py-3 pr-4 font-semibold">メール（管理用）</th>
                   <th className="py-3 font-semibold">操作</th>
                 </tr>
@@ -651,6 +652,9 @@ export default function AdminMatchesPage() {
                     <td className="py-3 pr-4 align-top font-medium text-zinc-950">{withHonorificSan(row.partner.displayName)}</td>
                     <td className="py-3 pr-4 align-top text-xs text-zinc-500">{row.partner.email}</td>
                     <td className="py-3 pr-4 align-top font-medium text-zinc-950">{withHonorificSan(row.client.displayName)}</td>
+                    <td className="py-3 pr-4 align-top text-sm text-zinc-700">
+                      {row.client.companyName?.trim() ? row.client.companyName : "—"}
+                    </td>
                     <td className="py-3 pr-4 align-top text-xs text-zinc-500">{row.client.email}</td>
                     <td className="py-3 align-top">
                       <div className="flex flex-wrap gap-2">
