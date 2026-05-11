@@ -9,8 +9,10 @@ import {
   type PartnerInvoiceItem,
 } from "@/lib/repositories/partner-invoice-repository";
 import { getPartnerBillingProfile } from "@/lib/repositories/partner-billing-profile-repository";
+import { isPartnerInvoiceUnlocked } from "@/lib/repositories/partner-invoice-unlock-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
 import { buildInvoiceCandidatesForPartner } from "@/lib/invoice-candidates";
+import { isMonthWithinDefaultEditWindow } from "@/lib/invoice-editability";
 
 const itemSchema = z.object({
   matchId: z.string().min(1).max(120),
@@ -66,11 +68,12 @@ export async function GET(request: Request) {
   if (!Number.isInteger(year) || !Number.isInteger(month) || year < 2024 || year > 2099 || month < 1 || month > 12) {
     return jsonError("対象月の指定が不正です。");
   }
-  const [existing, profile, candidates, me] = await Promise.all([
+  const [existing, profile, candidates, me, unlocked] = await Promise.all([
     getPartnerInvoice(session.sub, year, month),
     getPartnerBillingProfile(session.sub),
     buildInvoiceCandidatesForPartner(session.sub, year, month),
     getUserById(session.sub),
+    isPartnerInvoiceUnlocked(session.sub, year, month),
   ]);
 
   const partnerName = me?.displayName ?? "";
@@ -81,6 +84,8 @@ export async function GET(request: Request) {
       : mergeItems(existing.items, candidates)
     : candidates;
 
+  const editable = isMonthWithinDefaultEditWindow(year, month) || unlocked;
+
   return jsonOk({
     invoice: existing ?? null,
     candidates,
@@ -88,6 +93,8 @@ export async function GET(request: Request) {
     partnerName,
     transferDate: computeTransferDate(year, month),
     itemsForView,
+    editable,
+    unlocked,
   });
 }
 
@@ -99,6 +106,18 @@ export async function PUT(request: Request) {
   }
   const parsed = putSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
+
+  const unlocked = await isPartnerInvoiceUnlocked(
+    session.sub,
+    parsed.data.year,
+    parsed.data.month,
+  );
+  if (!isMonthWithinDefaultEditWindow(parsed.data.year, parsed.data.month) && !unlocked) {
+    return jsonError(
+      "編集できる期間（当月・前月）を過ぎています。過去分を編集したい場合は管理者にアンロックを依頼してください。",
+      403,
+    );
+  }
 
   try {
     const saved = await upsertPartnerInvoice({

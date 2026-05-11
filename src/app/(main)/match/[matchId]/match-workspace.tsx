@@ -10,7 +10,6 @@ import { FtaViewer } from "@/components/fta-chart";
 import type { FtaChart } from "@/lib/fta";
 import { SCHEDULE_RULES_CLIENT, SCHEDULE_RULES_PARTNER } from "@/lib/scheduling-rules-copy";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 
 type Role = "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
@@ -82,25 +81,7 @@ type ScheduleSettingsPayload = {
   allowWeekends: boolean;
 };
 
-type MemberNotificationRow = {
-  id: string;
-  type:
-    | "CHAT"
-    | "SLOT_PROPOSED"
-    | "SLOT_VOTED"
-    | "SLOT_CONFIRMED"
-    | "RESCHEDULE"
-    | "INVOICE_CONFIRMED"
-    | "INVOICE_RETURNED";
-  matchId: string | null;
-  sessionNumber: number | null;
-  summary: string;
-  link: string | null;
-  readAt: string | null;
-  createdAt: string;
-};
-
-type MatchTab = "chat" | "schedule" | "fta" | "sessions" | "notifications";
+type MatchTab = "chat" | "schedule" | "fta" | "sessions";
 
 type SessionAbandonmentApi = {
   reason: "no_show" | "late_cancel";
@@ -167,7 +148,6 @@ function msUntilStart(iso: string) {
 }
 
 export function MatchWorkspace({ matchId }: { matchId: string }) {
-  const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [negotiations, setNegotiations] = useState<NegotiationRow[]>([]);
@@ -189,8 +169,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [proposeSubmitting, setProposeSubmitting] = useState(false);
   const [proposeJustSent, setProposeJustSent] = useState(false);
   const [voteSubmittingForSlot, setVoteSubmittingForSlot] = useState<string | null>(null);
-  const [memberNotifications, setMemberNotifications] = useState<MemberNotificationRow[]>([]);
-  const [memberUnreadCount, setMemberUnreadCount] = useState(0);
   const [chatLastReadAt, setChatLastReadAt] = useState<number>(0);
   const timeOptions = useMemo(() => {
     const interval = Math.max(1, scheduleSettings.slotDurationMinutes);
@@ -291,71 +269,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     }
   }, [matchId]);
 
-  const loadMemberNotifications = useCallback(async () => {
-    const res = await fetch(`/api/me/notifications`, { cache: "no-store" });
-    const json = await res.json().catch(() => null);
-    if (res.ok && Array.isArray(json?.notifications)) {
-      setMemberNotifications(json.notifications as MemberNotificationRow[]);
-      setMemberUnreadCount(typeof json.unreadCount === "number" ? json.unreadCount : 0);
-    }
-  }, []);
-
-  const markAllNotificationsRead = useCallback(async () => {
-    const res = await fetch(`/api/me/notifications/read`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ all: true }),
-    });
-    if (res.ok) {
-      setMemberNotifications((prev) => prev.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })));
-      setMemberUnreadCount(0);
-    }
-  }, []);
-
-  const markOneNotificationRead = useCallback(async (id: string) => {
-    setMemberNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, readAt: n.readAt ?? new Date().toISOString() } : n)));
-    setMemberUnreadCount((c) => Math.max(0, c - 1));
-    await fetch(`/api/me/notifications/read`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    }).catch(() => null);
-  }, []);
-
-  const openMemberNotificationTarget = useCallback(
-    (link: string, id: string) => {
-      void markOneNotificationRead(id);
-      const hashPart = link.includes("#") ? (link.split("#")[1] ?? "") : "";
-      const pathOnly = (link.split("#")[0] ?? link).trim();
-      if (!pathOnly.startsWith("/")) {
-        router.push(link);
-        return;
-      }
-      const subPath = pathOnly.startsWith(`/match/${matchId}/`) && pathOnly !== `/match/${matchId}`;
-      if (subPath) {
-        router.push(link);
-        return;
-      }
-      const isThisMatchRoom = pathOnly === `/match/${matchId}`;
-      if (isThisMatchRoom) {
-        if (hashPart === "schedule") {
-          setActiveTab("schedule");
-          window.setTimeout(() => {
-            document.getElementById("partner-confirm-section")?.scrollIntoView({
-              behavior: "smooth",
-              block: "start",
-            });
-          }, 80);
-        } else {
-          setActiveTab("chat");
-        }
-        return;
-      }
-      router.push(link);
-    },
-    [markOneNotificationRead, matchId, router],
-  );
-
   const loadAvailability = useCallback(async () => {
     const res = await fetch(`/api/matches/${matchId}/availability`, { cache: "no-store" });
     const json = await res.json().catch(() => null);
@@ -380,8 +293,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     void loadClientFta();
     void loadAvailability();
     void loadSessions();
-    void loadMemberNotifications();
-  }, [load, loadClientFta, loadAvailability, loadSessions, loadMemberNotifications]);
+  }, [load, loadClientFta, loadAvailability, loadSessions]);
 
   useEffect(() => {
     // 軽量ポーリング: チャット反映を高速化（1.2 秒）
@@ -392,13 +304,12 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   }, [load]);
 
   useEffect(() => {
-    // セッション一覧 / 通知バッジは少し緩めに更新
+    // セッション一覧は少し緩めに更新
     const id = window.setInterval(() => {
       void loadSessions();
-      void loadMemberNotifications();
     }, 3000);
     return () => window.clearInterval(id);
-  }, [loadSessions, loadMemberNotifications]);
+  }, [loadSessions]);
 
   useEffect(() => {
     // FTAは独立で短い間隔で取得し、チャット/日程APIの成否に影響されないようにする。
@@ -823,21 +734,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "sessions" ? "bg-indigo-700 text-white" : "border border-zinc-300 bg-white text-zinc-700"}`}
         >
           1on1セッション
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab("notifications");
-            void markAllNotificationsRead();
-          }}
-          className={`relative rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "notifications" ? "bg-indigo-700 text-white" : "border border-zinc-300 bg-white text-zinc-700"}`}
-        >
-          通知
-          {memberUnreadCount > 0 ? (
-            <span className="ml-1.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1.5 text-xs font-bold text-white">
-              {memberUnreadCount > 99 ? "99+" : memberUnreadCount}
-            </span>
-          ) : null}
         </button>
       </div>
 
@@ -1442,81 +1338,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         </section>
       ) : null}
 
-      {activeTab === "notifications" ? (
-        <section className="space-y-3 rounded-3xl border border-rose-100 bg-rose-50/30 px-3 py-5 sm:px-6 sm:py-8">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-2xl font-semibold text-rose-900">通知</h2>
-              <p className="text-base text-rose-800/90">
-                相手のアクション（チャット・日程提案・回答・確定・変更希望）を時系列で表示します。
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void markAllNotificationsRead()}
-              className="rounded-md border border-rose-300 bg-white px-3 py-1.5 text-sm font-semibold text-rose-900 hover:bg-rose-50"
-            >
-              すべて既読に
-            </button>
-          </div>
-          <ul className="space-y-2">
-            {memberNotifications.length === 0 ? (
-              <li className="rounded-xl border border-dashed border-rose-200 bg-white px-4 py-6 text-sm text-rose-800">
-                通知はまだありません。
-              </li>
-            ) : null}
-            {memberNotifications.map((n) => {
-              const isUnread = !n.readAt;
-              return (
-                <li
-                  key={n.id}
-                  className={`rounded-xl border px-3 py-2 shadow-xs ${isUnread ? "border-rose-300 bg-rose-50/80" : "border-zinc-200 bg-white"}`}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs uppercase tracking-wide text-rose-900/80">
-                      {labelForNotificationType(n.type)} · {formatJa(n.createdAt)}
-                    </span>
-                    {isUnread ? (
-                      <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white">未読</span>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 text-sm text-zinc-900">{n.summary}</p>
-                  {n.link ? (
-                    <button
-                      type="button"
-                      onClick={() => openMemberNotificationTarget(n.link!, n.id)}
-                      className="mt-2 inline-block text-left text-sm font-semibold text-indigo-700 underline-offset-4 hover:underline"
-                    >
-                      該当ページを開く →
-                    </button>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
     </div>
   );
-}
-
-function labelForNotificationType(type: MemberNotificationRow["type"]) {
-  switch (type) {
-    case "CHAT":
-      return "💬 チャット";
-    case "SLOT_PROPOSED":
-      return "📅 日程候補";
-    case "SLOT_VOTED":
-      return "🟢 日程回答";
-    case "SLOT_CONFIRMED":
-      return "✅ 日程確定";
-    case "RESCHEDULE":
-      return "🔁 変更希望";
-    case "INVOICE_CONFIRMED":
-      return "🧾 請求書 確定";
-    case "INVOICE_RETURNED":
-      return "🧾 請求書 差し戻し";
-    default:
-      return type;
-  }
 }

@@ -31,3 +31,47 @@ button {
 label {
   @apply text-base;
 }
+
+/*
+ * 印刷スタイル: 請求書ページなどで window.print() → PDF保存を綺麗に出すための整形。
+ * - ヘッダー（ナビ）と print:hidden を付けた要素は非表示。
+ * - 背景・影は外し、罫線はくっきり残す。
+ */
+@media print {
+  @page {
+    margin: 14mm 12mm;
+  }
+  body {
+    background: white !important;
+  }
+  header.sticky,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+  .shadow-sm,
+  .shadow,
+  .shadow-md,
+  .shadow-lg,
+  .ring-1 {
+    box-shadow: none !important;
+  }
+  section,
+  article {
+    page-break-inside: avoid;
+  }
+  input,
+  textarea,
+  select {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    resize: none;
+  }
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+  }
+}

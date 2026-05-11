@@ -5,6 +5,7 @@ import { SignOut } from "@/components/sign-out";
 import type { Role } from "@prisma/client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 type Profile = {
   displayName: string;
@@ -23,10 +24,69 @@ export function ApplicationChrome({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [invoiceBadge, setInvoiceBadge] = useState<number>(0);
+  const [memberUnreadBadge, setMemberUnreadBadge] = useState<number>(0);
 
-  type NavLink = { href: string; label: string };
+  useEffect(() => {
+    if (profile.role !== "PARTNER") return;
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch("/api/me/invoice-alerts", { cache: "no-store" });
+        if (!res.ok) return;
+        const json = (await res.json().catch(() => null)) as { count?: number } | null;
+        if (!cancelled) setInvoiceBadge(json?.count ?? 0);
+      } catch {
+        /* ignore */
+      }
+    }
+    void load();
+    const id = window.setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [profile.role]);
+
+  // メンバー向け通知（PARTNER / CLIENT / CLIENT_ADMIN）の未読バッジ
+  useEffect(() => {
+    if (
+      profile.role !== "PARTNER" &&
+      profile.role !== "CLIENT" &&
+      profile.role !== "CLIENT_ADMIN"
+    ) {
+      return;
+    }
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch("/api/me/notifications", { cache: "no-store" });
+        if (!res.ok) return;
+        const json = (await res.json().catch(() => null)) as { unreadCount?: number } | null;
+        if (!cancelled) setMemberUnreadBadge(json?.unreadCount ?? 0);
+      } catch {
+        /* ignore */
+      }
+    }
+    void load();
+    const id = window.setInterval(load, 5_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [profile.role]);
+
+  type NavLink = { href: string; label: string; badge?: number };
 
   const nav: NavLink[] = [{ href: "/dashboard", label: "ホーム" }];
+  // メンバー（パートナー / クライアント / クライアント管理者）はホーム横にグローバル「通知」タブを置く
+  if (
+    profile.role === "PARTNER" ||
+    profile.role === "CLIENT" ||
+    profile.role === "CLIENT_ADMIN"
+  ) {
+    nav.push({ href: "/notifications", label: "通知", badge: memberUnreadBadge });
+  }
   if (profile.role === "ADMIN") {
     nav.push({ href: "/admin/matches", label: "マッチ管理" });
     nav.push({ href: "/admin/sessions", label: "1on1日程一覧" });
@@ -39,7 +99,7 @@ export function ApplicationChrome({
     nav.push({ href: "/client-admin/sessions", label: "1on1セッション一覧" });
   }
   if (profile.role === "PARTNER") {
-    nav.push({ href: "/partner/invoices", label: "請求書" });
+    nav.push({ href: "/partner/invoices", label: "請求書", badge: invoiceBadge });
     nav.push({ href: "/partner/zoom", label: "会議リンク設定" });
   }
   if (profile.role === "PARTNER" || profile.role === "CLIENT" || profile.role === "CLIENT_ADMIN") {
@@ -94,6 +154,11 @@ export function ApplicationChrome({
             {nav.map((item) => (
               <Link key={item.href} href={item.href} className={itemClass(item.href)}>
                 {item.label}
+                {item.badge && item.badge > 0 ? (
+                  <span className="ml-1 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-bold text-white shadow-sm">
+                    {item.badge}
+                  </span>
+                ) : null}
               </Link>
             ))}
           </nav>

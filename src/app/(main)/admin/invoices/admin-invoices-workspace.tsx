@@ -33,6 +33,18 @@ type InvoiceRow = {
   updatedAt: string;
 };
 
+type MissingPreviewRow = {
+  partnerId: string;
+  partnerDisplayName: string;
+  items: InvoiceItem[];
+  transferDate: string;
+};
+
+type AdminInvoiceListResp = {
+  invoices: InvoiceRow[];
+  missing: MissingPreviewRow[];
+};
+
 const STATUS_LABEL: Record<InvoiceStatus, string> = {
   DRAFT: "下書き",
   SUBMITTED: "提出済（確認待ち）",
@@ -83,10 +95,12 @@ export function AdminInvoicesWorkspace() {
   const [year, setYear] = useState<number>(DEFAULT_YEAR);
   const [month, setMonth] = useState<number>(DEFAULT_MONTH);
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
+  const [missing, setMissing] = useState<MissingPreviewRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [selected, setSelected] = useState<InvoiceRow | null>(null);
+  const [selectedMissing, setSelectedMissing] = useState<MissingPreviewRow | null>(null);
   const [acting, setActing] = useState(false);
   const [returnComment, setReturnComment] = useState("");
 
@@ -95,14 +109,17 @@ export function AdminInvoicesWorkspace() {
     setError(null);
     setNotice(null);
     const res = await fetch(`/api/admin/invoices?year=${year}&month=${month}`, { cache: "no-store" });
-    const json = await res.json().catch(() => null);
+    const json = (await res.json().catch(() => null)) as AdminInvoiceListResp | { error?: string } | null;
     setLoading(false);
-    if (!res.ok) {
-      setError(json?.error ?? "取得に失敗しました。");
+    if (!res.ok || !json) {
+      setError((json && "error" in json && json.error) || "取得に失敗しました。");
       setInvoices([]);
+      setMissing([]);
       return;
     }
-    setInvoices(Array.isArray(json?.invoices) ? json.invoices : []);
+    const d = json as AdminInvoiceListResp;
+    setInvoices(Array.isArray(d.invoices) ? d.invoices : []);
+    setMissing(Array.isArray(d.missing) ? d.missing : []);
   }, [year, month]);
 
   useEffect(() => {
@@ -112,6 +129,7 @@ export function AdminInvoicesWorkspace() {
   useEffect(() => {
     // 月切り替えで選択をクリア
     setSelected(null);
+    setSelectedMissing(null);
     setReturnComment("");
   }, [year, month]);
 
@@ -119,6 +137,36 @@ export function AdminInvoicesWorkspace() {
     if (!selected) return 0;
     return selected.items.reduce((s, it) => s + (it.unitPriceExclTax || 0), 0);
   }, [selected]);
+
+  const totalForMissing = useMemo(() => {
+    if (!selectedMissing) return 0;
+    return selectedMissing.items.reduce((s, it) => s + (it.unitPriceExclTax || 0), 0);
+  }, [selectedMissing]);
+
+  async function onUnlock(partnerId: string) {
+    if (
+      !window.confirm(
+        "このパートナーに対し、対象月の請求書編集を例外的に許可します。よろしいですか？",
+      )
+    ) {
+      return;
+    }
+    setActing(true);
+    setError(null);
+    setNotice(null);
+    const res = await fetch(`/api/admin/invoices/unlock`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ partnerId, year, month }),
+    });
+    const json = await res.json().catch(() => null);
+    setActing(false);
+    if (!res.ok) {
+      setError(json?.error ?? "アンロックに失敗しました。");
+      return;
+    }
+    setNotice("対象パートナーに編集権限を付与しました。通知済みです。");
+  }
 
   async function refreshSelected(invoiceId: string) {
     const res = await fetch(`/api/admin/invoices/${invoiceId}`, { cache: "no-store" });
@@ -220,13 +268,16 @@ export function AdminInvoicesWorkspace() {
         <h2 className="text-base font-semibold text-slate-900">
           {year}年{month}月 の請求書一覧
         </h2>
+        <p className="mt-1 text-xs text-slate-500">
+          未作成のパートナーも、レポート入力済セッションがあれば「未作成」行として表示されます。
+        </p>
         {loading ? (
           <p className="mt-3 rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600">
             読込中…
           </p>
-        ) : invoices.length === 0 ? (
+        ) : invoices.length === 0 && missing.length === 0 ? (
           <p className="mt-3 rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600">
-            この月の請求書はまだありません。
+            この月に該当する請求書（実施済セッションを含む）はありません。
           </p>
         ) : (
           <ul className="mt-3 divide-y divide-slate-200">
@@ -237,7 +288,10 @@ export function AdminInvoicesWorkspace() {
                 <li key={inv.id} className="py-2">
                   <button
                     type="button"
-                    onClick={() => setSelected(inv)}
+                    onClick={() => {
+                      setSelected(inv);
+                      setSelectedMissing(null);
+                    }}
                     className="flex w-full flex-wrap items-center justify-between gap-3 rounded-md px-2 py-2 text-left hover:bg-slate-50"
                   >
                     <span className="flex items-center gap-2">
@@ -258,13 +312,40 @@ export function AdminInvoicesWorkspace() {
                 </li>
               );
             })}
+            {missing.map((m) => {
+              const total = m.items.reduce((s, it) => s + (it.unitPriceExclTax || 0), 0);
+              const partnerLabel = m.partnerDisplayName || m.partnerId;
+              return (
+                <li key={`missing-${m.partnerId}`} className="py-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMissing(m);
+                      setSelected(null);
+                    }}
+                    className="flex w-full flex-wrap items-center justify-between gap-3 rounded-md px-2 py-2 text-left hover:bg-slate-50"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-md border border-zinc-300 bg-zinc-50 px-2 py-0.5 text-xs font-semibold text-zinc-700">
+                        未作成
+                      </span>
+                      <span className="font-semibold text-slate-900">{partnerLabel}</span>
+                      <span className="text-sm text-slate-500">
+                        実施済 {m.items.length}件 / 合計 {formatJpy(total)}（未入力）
+                      </span>
+                    </span>
+                    <span className="text-xs text-slate-500">パートナー未提出</span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
 
       {selected ? (
         <section className="space-y-5 rounded-2xl border border-indigo-200 bg-white p-4 shadow-sm sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
             <div>
               <p className="text-xs font-semibold tracking-wide text-indigo-700">請求書詳細</p>
               <h2 className="text-xl font-semibold text-slate-900">
@@ -276,13 +357,31 @@ export function AdminInvoicesWorkspace() {
                 {STATUS_LABEL[selected.status]}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setSelected(null)}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              閉じる
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-sm font-semibold text-indigo-800 shadow-sm hover:bg-indigo-50"
+              >
+                PDFダウンロード（印刷）
+              </button>
+              <button
+                type="button"
+                onClick={() => void onUnlock(selected.partnerId)}
+                disabled={acting}
+                className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-900 shadow-sm hover:bg-amber-100 disabled:opacity-60"
+                title="このパートナーの当月分の編集を例外的に許可します"
+              >
+                編集アンロック
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                閉じる
+              </button>
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -396,6 +495,105 @@ export function AdminInvoicesWorkspace() {
               パートナーは下書きを保存中です。提出後に確定／差し戻しの操作ができるようになります。
             </p>
           )}
+        </section>
+      ) : null}
+
+      {selectedMissing ? (
+        <section className="space-y-5 rounded-2xl border border-zinc-300 bg-white p-4 shadow-sm sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+            <div>
+              <p className="text-xs font-semibold tracking-wide text-zinc-600">請求書プレビュー（未作成）</p>
+              <h2 className="text-xl font-semibold text-slate-900">
+                {selectedMissing.partnerDisplayName || selectedMissing.partnerId} ／ {year}年{month}月
+              </h2>
+              <span className="mt-1 inline-flex items-center rounded-md border border-zinc-300 bg-zinc-50 px-2 py-0.5 text-xs font-semibold text-zinc-700">
+                未作成（パートナーが請求書を作成していません）
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-sm font-semibold text-indigo-800 shadow-sm hover:bg-indigo-50"
+              >
+                PDFダウンロード（印刷）
+              </button>
+              <button
+                type="button"
+                onClick={() => void onUnlock(selectedMissing.partnerId)}
+                disabled={acting}
+                className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-900 shadow-sm hover:bg-amber-100 disabled:opacity-60"
+                title="このパートナーの当月分の編集を例外的に許可します"
+              >
+                編集アンロック
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedMissing(null)}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+              <p className="font-semibold text-slate-800">請求元</p>
+              <p>{selectedMissing.partnerDisplayName}</p>
+              <p className="text-zinc-500">（住所・電話番号・振込先口座はパートナー未入力）</p>
+            </div>
+            <div className="space-y-1 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+              <p className="font-semibold text-slate-800">宛先</p>
+              <p className="whitespace-pre-line text-slate-700">
+                {"株式会社モチベイジ\n代表取締役　筒木麻未\n〒103-0006\n東京都中央区日本橋富沢町9-4"}
+              </p>
+              <p className="mt-2 font-semibold text-slate-800">日付</p>
+              <p>請求月: {year}年{month}月</p>
+              <p>振込日: {formatDate(selectedMissing.transferDate)}</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-2 py-2">実施日</th>
+                  <th className="px-2 py-2">クライアント</th>
+                  <th className="px-2 py-2">セッション</th>
+                  <th className="px-2 py-2 text-right">税抜単価</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {selectedMissing.items.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-2 py-3 text-center text-slate-500">
+                      実施済セッションはありません。
+                    </td>
+                  </tr>
+                ) : (
+                  selectedMissing.items.map((it, i) => (
+                    <tr key={i}>
+                      <td className="px-2 py-2">{formatDate(it.sessionDate)}</td>
+                      <td className="px-2 py-2">{it.clientName}</td>
+                      <td className="px-2 py-2">{it.sessionNumber} 回目</td>
+                      <td className="px-2 py-2 text-right text-zinc-500">未入力</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+              <tfoot>
+                <tr className="bg-slate-50">
+                  <td colSpan={3} className="px-2 py-2 text-right font-semibold text-slate-800">
+                    合計（税抜）
+                  </td>
+                  <td className="px-2 py-2 text-right font-semibold text-slate-900">
+                    {formatJpy(totalForMissing)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </section>
       ) : null}
     </div>

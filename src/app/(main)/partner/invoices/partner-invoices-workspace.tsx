@@ -47,6 +47,8 @@ type LoadResp = {
   partnerName: string;
   transferDate: string;
   itemsForView: InvoiceItem[];
+  editable: boolean;
+  unlocked: boolean;
 };
 
 const STATUS_LABEL: Record<InvoiceStatus, string> = {
@@ -132,6 +134,9 @@ export function PartnerInvoicesWorkspace() {
   );
 
   const isLocked = data?.invoice?.status === "SUBMITTED" || data?.invoice?.status === "CONFIRMED";
+  const isMonthEditable = data?.editable ?? true;
+  // 編集可: 月の範囲内 かつ 状態的にロックされていない
+  const canEditFields = isMonthEditable && !isLocked;
 
   async function onSaveDraft() {
     if (!data) return;
@@ -315,7 +320,7 @@ export function PartnerInvoicesWorkspace() {
                   <input
                     value={partnerName}
                     onChange={(e) => setPartnerName(e.target.value)}
-                    disabled={isLocked}
+                    disabled={!canEditFields}
                     className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base disabled:bg-slate-50"
                   />
                 </label>
@@ -324,7 +329,7 @@ export function PartnerInvoicesWorkspace() {
                   <textarea
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    disabled={isLocked}
+                    disabled={!canEditFields}
                     rows={2}
                     className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base disabled:bg-slate-50"
                   />
@@ -334,7 +339,7 @@ export function PartnerInvoicesWorkspace() {
                   <input
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    disabled={isLocked}
+                    disabled={!canEditFields}
                     className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base disabled:bg-slate-50"
                   />
                 </label>
@@ -343,7 +348,7 @@ export function PartnerInvoicesWorkspace() {
                   <textarea
                     value={bankAccount}
                     onChange={(e) => setBankAccount(e.target.value)}
-                    disabled={isLocked}
+                    disabled={!canEditFields}
                     rows={3}
                     placeholder="例: ◯◯銀行 ◯◯支店 普通 1234567 名義: ヤマダ タロウ"
                     className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base disabled:bg-slate-50"
@@ -390,14 +395,14 @@ export function PartnerInvoicesWorkspace() {
                       <th className="px-2 py-2">クライアント</th>
                       <th className="px-2 py-2">セッション</th>
                       <th className="px-2 py-2 text-right">税抜単価</th>
-                      {isLocked ? null : <th className="px-2 py-2"></th>}
+                      {canEditFields ? <th className="px-2 py-2 print:hidden"></th> : null}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {items.map((it, i) => (
                       <tr key={`${it.matchId}-${it.sessionNumber}-${i}`}>
                         <td className="px-2 py-2 align-top">
-                          {isLocked ? (
+                          {!canEditFields ? (
                             formatDate(it.sessionDate)
                           ) : (
                             <input
@@ -415,7 +420,7 @@ export function PartnerInvoicesWorkspace() {
                           )}
                         </td>
                         <td className="px-2 py-2 align-top">
-                          {isLocked ? (
+                          {!canEditFields ? (
                             it.clientName
                           ) : (
                             <input
@@ -429,7 +434,7 @@ export function PartnerInvoicesWorkspace() {
                           {it.sessionNumber} 回目
                         </td>
                         <td className="px-2 py-2 align-top text-right">
-                          {isLocked ? (
+                          {!canEditFields ? (
                             formatJpy(it.unitPriceExclTax)
                           ) : (
                             <input
@@ -446,8 +451,8 @@ export function PartnerInvoicesWorkspace() {
                             />
                           )}
                         </td>
-                        {isLocked ? null : (
-                          <td className="px-2 py-2 align-top">
+                        {canEditFields ? (
+                          <td className="px-2 py-2 align-top print:hidden">
                             <button
                               type="button"
                               onClick={() => removeItem(i)}
@@ -456,7 +461,7 @@ export function PartnerInvoicesWorkspace() {
                               削除
                             </button>
                           </td>
-                        )}
+                        ) : null}
                       </tr>
                     ))}
                   </tbody>
@@ -468,7 +473,7 @@ export function PartnerInvoicesWorkspace() {
                       <td className="px-2 py-2 text-right font-semibold text-slate-900">
                         {formatJpy(total)}
                       </td>
-                      {isLocked ? null : <td></td>}
+                      {canEditFields ? <td className="print:hidden"></td> : null}
                     </tr>
                   </tfoot>
                 </table>
@@ -476,34 +481,47 @@ export function PartnerInvoicesWorkspace() {
             )}
           </div>
 
-          {!isLocked ? (
-            <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4">
-              <button
-                type="button"
-                onClick={() => void onSaveDraft()}
-                disabled={saving}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
-              >
-                {saving ? "保存中…" : "下書きを保存"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void onSubmit()}
-                disabled={saving}
-                className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-800 disabled:opacity-60"
-              >
-                {saving ? "送信中…" : "確定・提出"}
-              </button>
-            </div>
-          ) : data?.invoice?.status === "SUBMITTED" ? (
-            <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
-              管理者の確認待ちです。差し戻しまたは確定の連絡があるまでお待ちください。
-            </p>
-          ) : (
-            <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-              確定しました。お振込をお待ちください。
-            </p>
-          )}
+          <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4 print:hidden">
+            {canEditFields ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void onSaveDraft()}
+                  disabled={saving}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {saving ? "保存中…" : "下書きを保存"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onSubmit()}
+                  disabled={saving}
+                  className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-800 disabled:opacity-60"
+                >
+                  {saving ? "送信中…" : "確定・提出"}
+                </button>
+              </>
+            ) : isLocked && data?.invoice?.status === "SUBMITTED" ? (
+              <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                提出済みです。管理者の確認をお待ちください。差し戻しまたは確定の連絡があるまで編集できません。
+              </p>
+            ) : isLocked && data?.invoice?.status === "CONFIRMED" ? (
+              <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                確定しました。お振込をお待ちください。
+              </p>
+            ) : !isMonthEditable ? (
+              <p className="rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-800">
+                編集できる期間（当月・前月）を過ぎているため、過去分は閲覧のみとなります。例外的に編集が必要な場合は管理者にアンロックを依頼してください。
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="ml-auto rounded-lg border border-indigo-300 bg-white px-4 py-2 text-sm font-semibold text-indigo-800 shadow-sm transition hover:bg-indigo-50"
+            >
+              PDFダウンロード（印刷）
+            </button>
+          </div>
         </section>
       ) : null}
     </div>

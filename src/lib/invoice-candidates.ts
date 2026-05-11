@@ -112,3 +112,49 @@ export async function buildInvoiceCandidatesForPartner(
 export async function getPartnerDisplayNames(partnerIds: string[]): Promise<Map<string, string>> {
   return getUserDisplayNames(partnerIds);
 }
+
+/**
+ * 対象月 (year, month) に SessionReport を 1 件以上提出している（= 実施済）パートナーの id 一覧。
+ * 未提出の請求書も管理者画面に並べるために使用。
+ */
+export async function listPartnersWithReportsForMonth(
+  year: number,
+  month: number,
+): Promise<string[]> {
+  if (!isFirebaseDataBackend()) return [];
+  const db = getFirebaseFirestoreClient();
+  if (!db) return [];
+  const snap = await db.collection("sessionReports").get();
+  const reports = snap.docs.map((d) => {
+    const raw = d.data() as Record<string, unknown>;
+    return {
+      partnerId: String(raw.partnerId ?? ""),
+      matchId: String(raw.matchId ?? ""),
+      sessionNumber: Number(raw.sessionNumber ?? 0),
+    };
+  });
+  if (reports.length === 0) return [];
+
+  // 各 (matchId, sessionNumber) について確定済セッションの開始日が対象月かを確認する。
+  // listSessionPlanForMatch は一度のクエリで全回分を返すのでマッチ単位でキャッシュする。
+  const planByMatch = new Map<string, Awaited<ReturnType<typeof listSessionPlanForMatch>>>();
+  const matchIds = [...new Set(reports.map((r) => r.matchId).filter(Boolean))];
+  await Promise.all(
+    matchIds.map(async (mid) => {
+      planByMatch.set(mid, await listSessionPlanForMatch(mid));
+    }),
+  );
+
+  const partnerIds = new Set<string>();
+  for (const r of reports) {
+    if (!r.partnerId) continue;
+    const plan = planByMatch.get(r.matchId) ?? [];
+    const session = plan.find((p) => p.sessionNumber === r.sessionNumber);
+    if (!session?.confirmed || !session.startAt) continue;
+    const d = new Date(session.startAt);
+    if (d.getFullYear() === year && d.getMonth() + 1 === month) {
+      partnerIds.add(r.partnerId);
+    }
+  }
+  return [...partnerIds];
+}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/require-user";
 import { APP_DISPLAY_NAME } from "@/lib/brand";
 import { listMatchesForRole } from "@/lib/repositories/match-repository";
+import { PartnerInvoiceAlert } from "@/components/partner-invoice-alert";
 
 function withHonorificSan(name: string) {
   return `${name}さん`;
@@ -33,6 +34,8 @@ export default async function DashboardPage() {
                 : "クライアント"}
         </div>
       </header>
+
+      {me.role === "PARTNER" ? <PartnerInvoiceAlert /> : null}
 
       <section className="space-y-5">
         {(me.role === "CLIENT" || me.role === "PARTNER" || me.role === "CLIENT_ADMIN") ? (
