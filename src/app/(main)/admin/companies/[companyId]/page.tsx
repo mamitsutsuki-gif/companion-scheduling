@@ -136,6 +136,12 @@ export default function AdminCompanyDetailPage({
             ← 企業一覧へ
           </Link>
           <Link
+            href={`/admin/companies/${encodeURIComponent(companyId)}/settings`}
+            className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-900 no-underline hover:bg-indigo-100"
+          >
+            企業ごとの設定を編集 →
+          </Link>
+          <Link
             href={`/admin/sessions?company=${encodeURIComponent(companyId)}`}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 no-underline hover:bg-slate-50"
           >
