@@ -9,7 +9,8 @@ export type AdminNotificationType =
   | "RESCHEDULE"
   | "FEEDBACK_SUBMITTED"
   | "REPORT_SUBMITTED"
-  | "SESSION_ABANDONED";
+  | "SESSION_ABANDONED"
+  | "INVOICE_SUBMITTED";
 
 export type AdminNotificationRow = {
   id: string;

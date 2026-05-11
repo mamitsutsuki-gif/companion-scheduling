@@ -10,7 +10,9 @@ export type MemberNotificationType =
   | "SLOT_PROPOSED"
   | "SLOT_VOTED"
   | "SLOT_CONFIRMED"
-  | "RESCHEDULE";
+  | "RESCHEDULE"
+  | "INVOICE_CONFIRMED"
+  | "INVOICE_RETURNED";
 
 export type MemberNotificationRow = {
   id: string;
@@ -32,7 +34,9 @@ function isType(value: unknown): value is MemberNotificationType {
     value === "SLOT_PROPOSED" ||
     value === "SLOT_VOTED" ||
     value === "SLOT_CONFIRMED" ||
-    value === "RESCHEDULE"
+    value === "RESCHEDULE" ||
+    value === "INVOICE_CONFIRMED" ||
+    value === "INVOICE_RETURNED"
   );
 }
 

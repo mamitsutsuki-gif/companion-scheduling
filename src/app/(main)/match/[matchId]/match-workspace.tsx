@@ -84,7 +84,14 @@ type ScheduleSettingsPayload = {
 
 type MemberNotificationRow = {
   id: string;
-  type: "CHAT" | "SLOT_PROPOSED" | "SLOT_VOTED" | "SLOT_CONFIRMED" | "RESCHEDULE";
+  type:
+    | "CHAT"
+    | "SLOT_PROPOSED"
+    | "SLOT_VOTED"
+    | "SLOT_CONFIRMED"
+    | "RESCHEDULE"
+    | "INVOICE_CONFIRMED"
+    | "INVOICE_RETURNED";
   matchId: string | null;
   sessionNumber: number | null;
   summary: string;
@@ -1505,6 +1512,10 @@ function labelForNotificationType(type: MemberNotificationRow["type"]) {
       return "✅ 日程確定";
     case "RESCHEDULE":
       return "🔁 変更希望";
+    case "INVOICE_CONFIRMED":
+      return "🧾 請求書 確定";
+    case "INVOICE_RETURNED":
+      return "🧾 請求書 差し戻し";
     default:
       return type;
   }

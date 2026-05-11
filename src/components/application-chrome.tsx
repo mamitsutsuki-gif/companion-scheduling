@@ -30,6 +30,7 @@ export function ApplicationChrome({
   if (profile.role === "ADMIN") {
     nav.push({ href: "/admin/matches", label: "マッチ管理" });
     nav.push({ href: "/admin/sessions", label: "1on1日程一覧" });
+    nav.push({ href: "/admin/invoices", label: "請求書" });
     nav.push({ href: "/admin/reports", label: "レポート作成" });
     nav.push({ href: "/admin/notifications", label: "通知" });
     nav.push({ href: "/admin/settings", label: "アプリ設定" });
@@ -38,6 +39,7 @@ export function ApplicationChrome({
     nav.push({ href: "/client-admin/sessions", label: "1on1セッション一覧" });
   }
   if (profile.role === "PARTNER") {
+    nav.push({ href: "/partner/invoices", label: "請求書" });
     nav.push({ href: "/partner/zoom", label: "会議リンク設定" });
   }
   if (profile.role === "PARTNER" || profile.role === "CLIENT" || profile.role === "CLIENT_ADMIN") {
