@@ -67,9 +67,24 @@ export default function AdminAppSettingsPage() {
           `✅ 送信OK → ${json.sentTo}（ドライバ: ${json.driver}、from: ${json.from}）\n受信箱と迷惑メールフォルダの両方を確認してください。`,
         );
       } else {
-        setTestMailResult(
-          `⚠️ サーバーは応答しましたが送信に失敗しました。${json?.hint ?? ""}（ドライバ: ${json?.driver ?? "?"}）`,
-        );
+        const lines: string[] = [];
+        lines.push(`⚠️ 送信失敗（ドライバ: ${json?.driver ?? "?"}）`);
+        if (json?.from) lines.push(`送信元: ${json.from}`);
+        if (typeof json?.resendStatus === "number")
+          lines.push(`Resend HTTP ステータス: ${json.resendStatus}`);
+        if (json?.resendBody) {
+          const bodyStr =
+            typeof json.resendBody === "string"
+              ? json.resendBody
+              : JSON.stringify(json.resendBody, null, 2);
+          lines.push("Resend のレスポンス本体:");
+          lines.push(bodyStr);
+        }
+        if (json?.hint) {
+          lines.push("");
+          lines.push(`💡 ${json.hint}`);
+        }
+        setTestMailResult(lines.join("\n"));
       }
     } catch (e) {
       setTestMailResult(`❌ ネットワーク／通信エラー: ${String(e)}`);
