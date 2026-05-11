@@ -75,3 +75,32 @@ label {
     page-break-inside: avoid;
   }
 }
+
+/*
+ * 「この請求書だけ印刷」モード:
+ *   1. JS から `document.body.classList.add("print-invoice-only")` を付けて window.print()
+ *   2. ページ上で印刷したい唯一の要素には `invoice-print-target` クラスを付けておく
+ *   3. afterprint で `print-invoice-only` を外す
+ * visibility:hidden を使うのは、display:none と違いリフロー量が少なく
+ * ページ番号やネストの破壊が起こりにくいから（古典的な "print only this section" パターン）。
+ */
+@media print {
+  body.print-invoice-only * {
+    visibility: hidden;
+  }
+  body.print-invoice-only .invoice-print-target,
+  body.print-invoice-only .invoice-print-target * {
+    visibility: visible;
+  }
+  body.print-invoice-only .invoice-print-target {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none !important;
+    border: none !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}

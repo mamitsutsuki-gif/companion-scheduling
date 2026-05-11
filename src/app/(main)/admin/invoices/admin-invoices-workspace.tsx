@@ -248,6 +248,23 @@ export function AdminInvoicesWorkspace() {
     await refreshSelected(selected.id);
   }
 
+  /**
+   * 「この請求書だけ」を印刷／PDF化する。
+   * body に `print-invoice-only` を付けると、CSS 側が
+   * `invoice-print-target` 以外を visibility:hidden にする。
+   */
+  function onPrintInvoiceOnly() {
+    if (typeof window === "undefined") return;
+    document.body.classList.add("print-invoice-only");
+    const cleanup = () => {
+      document.body.classList.remove("print-invoice-only");
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    window.print();
+    setTimeout(cleanup, 2000);
+  }
+
   const yearOptions = Array.from({ length: 5 }, (_, i) => DEFAULT_YEAR - 1 + i);
 
   return (
@@ -376,7 +393,7 @@ export function AdminInvoicesWorkspace() {
       </section>
 
       {selected ? (
-        <section className="space-y-5 rounded-2xl border border-indigo-200 bg-white p-4 shadow-sm sm:p-6">
+        <section className="invoice-print-target space-y-5 rounded-2xl border border-indigo-200 bg-white p-4 shadow-sm sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
             <div>
               <p className="text-xs font-semibold tracking-wide text-indigo-700">請求書詳細</p>
@@ -392,7 +409,7 @@ export function AdminInvoicesWorkspace() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={onPrintInvoiceOnly}
                 className="rounded-md bg-indigo-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-800"
                 title="ブラウザの印刷画面で「PDFとして保存」を選択してください"
               >
@@ -553,7 +570,7 @@ export function AdminInvoicesWorkspace() {
       ) : null}
 
       {selectedMissing ? (
-        <section className="space-y-5 rounded-2xl border border-zinc-300 bg-white p-4 shadow-sm sm:p-6">
+        <section className="invoice-print-target space-y-5 rounded-2xl border border-zinc-300 bg-white p-4 shadow-sm sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
             <div>
               <p className="text-xs font-semibold tracking-wide text-zinc-600">請求書プレビュー（未作成）</p>
@@ -567,7 +584,7 @@ export function AdminInvoicesWorkspace() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={onPrintInvoiceOnly}
                 className="rounded-md bg-indigo-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-800"
                 title="ブラウザの印刷画面で「PDFとして保存」を選択してください"
               >

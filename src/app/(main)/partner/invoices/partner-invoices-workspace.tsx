@@ -243,6 +243,24 @@ export function PartnerInvoicesWorkspace() {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   }
 
+  /**
+   * 「この請求書だけ」をPDF/印刷する。
+   * body に `print-invoice-only` を付けると CSS 側が
+   * `invoice-print-target` 以外を visibility:hidden にする。
+   */
+  function onPrintInvoiceOnly() {
+    if (typeof window === "undefined") return;
+    document.body.classList.add("print-invoice-only");
+    const cleanup = () => {
+      document.body.classList.remove("print-invoice-only");
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    window.print();
+    // Safari など afterprint が発火しない環境向けの保険
+    setTimeout(cleanup, 2000);
+  }
+
   const yearOptions = Array.from({ length: 5 }, (_, i) => DEFAULT_YEAR - 1 + i);
 
   return (
@@ -310,7 +328,7 @@ export function PartnerInvoicesWorkspace() {
       ) : null}
 
       {data ? (
-        <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <section className="invoice-print-target space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
             <p className="text-sm text-slate-600">
               {data.invoice?.status === "CONFIRMED"
@@ -321,7 +339,7 @@ export function PartnerInvoicesWorkspace() {
             </p>
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={onPrintInvoiceOnly}
               className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-800"
             >
               🧾 PDFダウンロード
