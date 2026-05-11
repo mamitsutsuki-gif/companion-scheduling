@@ -399,133 +399,137 @@ export default function AdminMatchesPage() {
               「所属企業ID」は、クライアント管理者が見られるメンバーをグルーピングするための任意キーです（例: <code>motive-iji</code>）。同じ ID のクライアントが「1on1セッション一覧」に表示されます。
             </span>
           </p>
-          <div className="mt-6 overflow-x-auto rounded-xl ring-1 ring-slate-200/80">
-            <table className="min-w-full border-collapse bg-white text-left text-sm">
-              <thead className="bg-slate-50/90">
-                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-3 pr-4 font-semibold">表示名</th>
-                  <th className="py-3 pr-4 font-semibold">メール</th>
-                  <th className="py-3 pr-4 font-semibold">Firebase</th>
-                  <th className="py-3 pr-4 font-semibold">ロール</th>
-                  <th className="py-3 pr-4 font-semibold">対応可能時間</th>
-                  <th className="py-3 pr-4 font-semibold">所属企業ID</th>
-                  <th className="py-3 font-semibold">削除</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.filter((u) => u.role !== "ADMIN").map((u) => {
-                  const isEditing = editingAvailabilityUserId === u.id;
-                  const labels = labelsForSlotIds(u.availabilitySlotIds, availabilityOptions);
-                  return (
-                    <tr key={u.id} className="border-b border-zinc-100 align-top text-zinc-800">
-                      <td className="py-3 pr-4">{u.displayName}</td>
-                      <td className="py-3 pr-4 text-xs text-zinc-600">{u.email}</td>
-                      <td className="py-3 pr-4 text-xs">{u.firebaseUid ? "連携済み" : "未連携"}</td>
-                      <td className="py-3 pr-4">
-                        <select
-                          value={u.role}
-                          onChange={(e) =>
-                            void onRoleChange(u.id, e.target.value as AssignableRole)
-                          }
-                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm"
-                        >
-                          <option value="PARTNER">PARTNER</option>
-                          <option value="CLIENT">CLIENT</option>
-                          <option value="CLIENT_ADMIN">CLIENT_ADMIN（クライアント管理者）</option>
-                        </select>
-                      </td>
-                      <td className="py-3 pr-4 text-sm">
-                        {isEditing ? (
-                          <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50/60 p-3">
-                            {availabilityOptions.map((opt) => (
-                              <label
-                                key={opt.id}
-                                className="flex cursor-pointer items-center gap-2 text-sm text-emerald-950"
+          <ul className="mt-6 space-y-3">
+            {users.filter((u) => u.role !== "ADMIN").map((u) => {
+              const isEditing = editingAvailabilityUserId === u.id;
+              const labels = labelsForSlotIds(u.availabilitySlotIds, availabilityOptions);
+              const isClientRole = u.role === "CLIENT" || u.role === "CLIENT_ADMIN";
+              return (
+                <li
+                  key={u.id}
+                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-base font-semibold text-zinc-900 break-words">
+                        {u.displayName}
+                      </p>
+                      <p className="text-xs text-zinc-600 break-all">{u.email}</p>
+                      <p className="mt-0.5 text-xs text-zinc-500">
+                        Firebase: {u.firebaseUid ? "連携済み" : "未連携"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void onDeleteUser(u.id, u.displayName, u.role as AssignableRole)}
+                      className="shrink-0 rounded-md border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800 hover:bg-red-100"
+                    >
+                      削除
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      ロール
+                      <select
+                        value={u.role}
+                        onChange={(e) =>
+                          void onRoleChange(u.id, e.target.value as AssignableRole)
+                        }
+                        className="block w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm font-normal normal-case text-zinc-900"
+                      >
+                        <option value="PARTNER">PARTNER</option>
+                        <option value="CLIENT">CLIENT</option>
+                        <option value="CLIENT_ADMIN">CLIENT_ADMIN（クライアント管理者）</option>
+                      </select>
+                    </label>
+                    <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      所属企業ID
+                      {isClientRole ? (
+                        <input
+                          type="text"
+                          defaultValue={u.companyId ?? ""}
+                          onBlur={(e) => {
+                            const next = e.target.value.trim();
+                            if (next === (u.companyId ?? "")) return;
+                            void onCompanyChange(u.id, next);
+                          }}
+                          placeholder="例: motive-iji"
+                          className="block w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm font-normal normal-case text-zinc-900"
+                        />
+                      ) : (
+                        <span className="block text-sm font-normal normal-case text-zinc-400">—</span>
+                      )}
+                    </label>
+                  </div>
+
+                  <div className="mt-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      対応可能時間
+                    </p>
+                    {isEditing ? (
+                      <div className="mt-2 space-y-2 rounded-md border border-emerald-200 bg-emerald-50/60 p-3">
+                        {availabilityOptions.map((opt) => (
+                          <label
+                            key={opt.id}
+                            className="flex cursor-pointer items-center gap-2 text-sm text-emerald-950"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={editingSelections.includes(opt.id)}
+                              onChange={() => toggleEditingSlot(opt.id)}
+                              className="h-4 w-4 accent-emerald-700"
+                            />
+                            <span>{opt.label}</span>
+                          </label>
+                        ))}
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => void saveAvailability(u.id)}
+                            className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-800"
+                          >
+                            保存
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEditingAvailability}
+                            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                          >
+                            キャンセル
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        {labels.length === 0 ? (
+                          <span className="text-sm text-zinc-400">未設定</span>
+                        ) : (
+                          <ul className="flex flex-wrap gap-1">
+                            {labels.map((label, i) => (
+                              <li
+                                key={`${u.id}-slot-${i}`}
+                                className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-900"
                               >
-                                <input
-                                  type="checkbox"
-                                  checked={editingSelections.includes(opt.id)}
-                                  onChange={() => toggleEditingSlot(opt.id)}
-                                  className="h-4 w-4 accent-emerald-700"
-                                />
-                                <span>{opt.label}</span>
-                              </label>
+                                {label}
+                              </li>
                             ))}
-                            <div className="flex gap-2 pt-1">
-                              <button
-                                type="button"
-                                onClick={() => void saveAvailability(u.id)}
-                                className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-800"
-                              >
-                                保存
-                              </button>
-                              <button
-                                type="button"
-                                onClick={cancelEditingAvailability}
-                                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-                              >
-                                キャンセル
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="space-y-1.5">
-                            {labels.length === 0 ? (
-                              <span className="text-zinc-400">未設定</span>
-                            ) : (
-                              <ul className="flex flex-wrap gap-1">
-                                {labels.map((label, i) => (
-                                  <li
-                                    key={`${u.id}-slot-${i}`}
-                                    className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-900"
-                                  >
-                                    {label}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => startEditingAvailability(u)}
-                              className="text-xs font-semibold text-indigo-700 underline hover:text-indigo-900"
-                            >
-                              {u.role === "PARTNER" ? "編集（管理者入力）" : "編集（本人選択を上書き）"}
-                            </button>
-                          </div>
+                          </ul>
                         )}
-                      </td>
-                      <td className="py-3 pr-4">
-                        {u.role === "CLIENT" || u.role === "CLIENT_ADMIN" ? (
-                          <input
-                            type="text"
-                            defaultValue={u.companyId ?? ""}
-                            onBlur={(e) => {
-                              const next = e.target.value.trim();
-                              if (next === (u.companyId ?? "")) return;
-                              void onCompanyChange(u.id, next);
-                            }}
-                            placeholder="例: motive-iji"
-                            className="w-44 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm"
-                          />
-                        ) : (
-                          <span className="text-xs text-zinc-400">—</span>
-                        )}
-                      </td>
-                      <td className="py-3">
                         <button
                           type="button"
-                          onClick={() => void onDeleteUser(u.id, u.displayName, u.role as AssignableRole)}
-                          className="rounded-md border border-red-300 bg-red-50 px-2 py-1 text-sm font-semibold text-red-800 hover:bg-red-100"
+                          onClick={() => startEditingAvailability(u)}
+                          className="text-xs font-semibold text-indigo-700 underline hover:text-indigo-900"
                         >
-                          削除
+                          {u.role === "PARTNER" ? "編集（管理者入力）" : "編集（本人選択を上書き）"}
                         </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </section>
 
         <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-6 md:p-8">

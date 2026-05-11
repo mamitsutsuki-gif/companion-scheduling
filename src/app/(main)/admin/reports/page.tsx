@@ -62,6 +62,20 @@ function formatJaDate(iso: string | null) {
   }
 }
 
+type AnswerKey = "insight" | "feeling" | "nextActions" | "satisfactionReason" | "other";
+const ANSWER_KEYS: readonly AnswerKey[] = [
+  "insight",
+  "feeling",
+  "nextActions",
+  "satisfactionReason",
+  "other",
+] as const;
+
+/** per-person 用キー: clientId|sessionNumber|question */
+function ppKey(clientId: string, sessionNumber: number, q: AnswerKey) {
+  return `${clientId}|${sessionNumber}|${q}`;
+}
+
 export default function AdminReportsPage() {
   const [clients, setClients] = useState<ClientUser[]>([]);
   const [totalSessions, setTotalSessions] = useState<number>(8);
@@ -76,6 +90,10 @@ export default function AdminReportsPage() {
     "本レポートは、対象期間のクライアント・アンケート結果を集計したものです。",
   );
   const [editableConclusion, setEditableConclusion] = useState<string>("");
+  /** クライアント回答の編集オーバーライド（per-person） */
+  const [editedAnswersPp, setEditedAnswersPp] = useState<Record<string, string>>({});
+  /** クライアント回答の編集オーバーライド（per-question）。キー: `${question}|${index}` */
+  const [editedAnswersPq, setEditedAnswersPq] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -119,6 +137,8 @@ export default function AdminReportsPage() {
     setError(null);
     setLoading(true);
     setResult(null);
+    setEditedAnswersPp({});
+    setEditedAnswersPq({});
     const body: Record<string, unknown> = { format, anonymous };
     if (selectedClientIds.length > 0) body.clientIds = selectedClientIds;
     if (selectedSessions.length > 0) body.sessionNumbers = selectedSessions;
@@ -315,7 +335,7 @@ export default function AdminReportsPage() {
         <section className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm print:border-0 print:p-0 print:shadow-none">
           <div className="print:hidden">
             <p className="text-xs text-slate-500">
-              レポート本文は編集できます。編集内容を反映した状態で PDF に出力されます。
+              レポート本文は編集できます（クライアントの回答も書き換え可）。編集内容を反映した状態で PDF に出力されます。
             </p>
           </div>
           <textarea
@@ -348,53 +368,60 @@ export default function AdminReportsPage() {
                     </h3>
                     <div className="mt-3 space-y-4">
                       {person.sessions.map((s) => (
-                        <div key={s.sessionNumber} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                        <div key={s.sessionNumber} className="rounded-lg border border-slate-100 bg-slate-50 p-3 print:bg-white">
                           <p className="text-sm font-semibold text-slate-800">
                             第{s.sessionNumber}回　{formatJaDate(s.sessionDateIso)}
                           </p>
                           <dl className="mt-2 space-y-2 text-sm">
+                            {ANSWER_KEYS.map((q) => {
+                              if (q === "satisfactionReason") return null;
+                              const key = ppKey(person.clientId, s.sessionNumber, q);
+                              const value = key in editedAnswersPp ? editedAnswersPp[key]! : s.answers[q];
+                              return (
+                                <div key={q}>
+                                  <dt className="font-semibold text-slate-700">
+                                    {QUESTION_LABELS[q]}
+                                  </dt>
+                                  <dd>
+                                    <textarea
+                                      value={value}
+                                      onChange={(e) =>
+                                        setEditedAnswersPp((prev) => ({ ...prev, [key]: e.target.value }))
+                                      }
+                                      rows={Math.max(2, Math.min(6, (value || "").split("\n").length))}
+                                      className="mt-1 w-full whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-slate-800 print:border-0 print:bg-transparent print:p-0"
+                                    />
+                                  </dd>
+                                </div>
+                              );
+                            })}
                             <div>
-                              <dt className="font-semibold text-slate-700">{QUESTION_LABELS.insight}</dt>
-                              <dd className="whitespace-pre-wrap text-slate-800">
-                                {s.answers.insight || "—"}
-                              </dd>
-                            </div>
-                            <div>
-                              <dt className="font-semibold text-slate-700">{QUESTION_LABELS.feeling}</dt>
-                              <dd className="whitespace-pre-wrap text-slate-800">
-                                {s.answers.feeling || "—"}
-                              </dd>
-                            </div>
-                            <div>
-                              <dt className="font-semibold text-slate-700">
-                                {QUESTION_LABELS.nextActions}
-                              </dt>
-                              <dd className="whitespace-pre-wrap text-slate-800">
-                                {s.answers.nextActions || "—"}
-                              </dd>
-                            </div>
-                            <div>
-                              <dt className="font-semibold text-slate-700">
-                                4. 満足度（1〜10）
-                              </dt>
+                              <dt className="font-semibold text-slate-700">4. 満足度（1〜10）</dt>
                               <dd className="text-slate-800">
                                 {s.satisfactionScore != null ? `${s.satisfactionScore} / 10` : "—"}
                               </dd>
                             </div>
-                            <div>
-                              <dt className="font-semibold text-slate-700">
-                                {QUESTION_LABELS.satisfactionReason}
-                              </dt>
-                              <dd className="whitespace-pre-wrap text-slate-800">
-                                {s.answers.satisfactionReason || "—"}
-                              </dd>
-                            </div>
-                            <div>
-                              <dt className="font-semibold text-slate-700">{QUESTION_LABELS.other}</dt>
-                              <dd className="whitespace-pre-wrap text-slate-800">
-                                {s.answers.other || "—"}
-                              </dd>
-                            </div>
+                            {(() => {
+                              const key = ppKey(person.clientId, s.sessionNumber, "satisfactionReason");
+                              const value = key in editedAnswersPp ? editedAnswersPp[key]! : s.answers.satisfactionReason;
+                              return (
+                                <div>
+                                  <dt className="font-semibold text-slate-700">
+                                    {QUESTION_LABELS.satisfactionReason}
+                                  </dt>
+                                  <dd>
+                                    <textarea
+                                      value={value}
+                                      onChange={(e) =>
+                                        setEditedAnswersPp((prev) => ({ ...prev, [key]: e.target.value }))
+                                      }
+                                      rows={Math.max(2, Math.min(6, (value || "").split("\n").length))}
+                                      className="mt-1 w-full whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-slate-800 print:border-0 print:bg-transparent print:p-0"
+                                    />
+                                  </dd>
+                                </div>
+                              );
+                            })()}
                           </dl>
                         </div>
                       ))}
@@ -405,24 +432,36 @@ export default function AdminReportsPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              {(["insight", "feeling", "nextActions", "satisfactionReason", "other"] as const).map(
-                (k) => (
-                  <section key={k} className="rounded-xl border border-slate-200 p-4 print:break-inside-avoid">
-                    <h3 className="text-base font-semibold text-slate-900">{QUESTION_LABELS[k]}</h3>
-                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
-                      {result.perQuestion[k].length === 0 ? (
-                        <li className="list-none text-slate-500">回答なし</li>
-                      ) : (
-                        result.perQuestion[k].map((v, idx) => (
-                          <li key={idx} className="whitespace-pre-wrap">
-                            {v}
+              {ANSWER_KEYS.map((k) => (
+                <section key={k} className="rounded-xl border border-slate-200 p-4 print:break-inside-avoid">
+                  <h3 className="text-base font-semibold text-slate-900">{QUESTION_LABELS[k]}</h3>
+                  <ul className="mt-2 space-y-2 text-sm text-slate-800">
+                    {result.perQuestion[k].length === 0 ? (
+                      <li className="text-slate-500">回答なし</li>
+                    ) : (
+                      result.perQuestion[k].map((v, idx) => {
+                        const pqKey = `${k}|${idx}`;
+                        const value = pqKey in editedAnswersPq ? editedAnswersPq[pqKey]! : v;
+                        return (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span aria-hidden className="mt-2 select-none text-slate-400 print:text-slate-700">
+                              •
+                            </span>
+                            <textarea
+                              value={value}
+                              onChange={(e) =>
+                                setEditedAnswersPq((prev) => ({ ...prev, [pqKey]: e.target.value }))
+                              }
+                              rows={Math.max(2, Math.min(6, (value || "").split("\n").length))}
+                              className="w-full whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-slate-800 print:border-0 print:bg-transparent print:p-0"
+                            />
                           </li>
-                        ))
-                      )}
-                    </ul>
-                  </section>
-                ),
-              )}
+                        );
+                      })
+                    )}
+                  </ul>
+                </section>
+              ))}
               <section className="rounded-xl border border-slate-200 p-4 print:break-inside-avoid">
                 <h3 className="text-base font-semibold text-slate-900">4. 満足度（1〜10）</h3>
                 <p className="mt-1 text-sm text-slate-800">

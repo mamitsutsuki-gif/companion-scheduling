@@ -71,11 +71,13 @@ export default function PartnerZoomPage() {
           />
         </label>
         <label className="block space-y-2 text-sm font-medium text-slate-900">
-          パスコード（任意）
+          パスコード
           <input
             name="zoomPass"
             value={zoomPass}
             onChange={(e) => setZoomPass(e.target.value)}
+            required
+            placeholder="例: 123456"
             className={field}
             autoComplete="off"
           />

@@ -250,7 +250,7 @@ export default function RegisterPage() {
         <fieldset className="mt-4 space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/70 px-4 py-4">
           <legend className="px-1 text-base font-semibold text-indigo-950">Zoom 会議（必須）</legend>
           <p className="text-sm leading-relaxed text-indigo-900/85">
-            登録後も「会議リンク設定」から変更できます。パスワードがない場合は「なし」と入力してください。
+            登録後も「会議リンク設定」から変更できます。
           </p>
           <label className="block space-y-1 text-sm font-medium text-indigo-950">
             会議URL
@@ -272,7 +272,7 @@ export default function RegisterPage() {
               required
               maxLength={120}
               autoComplete="off"
-              placeholder="例: 123456 または なし"
+              placeholder="例: 123456"
               className={authFieldClass}
             />
           </label>
@@ -292,7 +292,7 @@ export default function RegisterPage() {
           }
           if (partnerZoomPass.trim().length < 1) {
             e.preventDefault();
-            setError("Zoom パスを入力してください（不要な場合は「なし」）。");
+            setError("Zoom パスコードを入力してください。");
           }
         }}
         className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 shadow-xs no-underline transition hover:bg-slate-50"

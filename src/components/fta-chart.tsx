@@ -266,21 +266,25 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
   const slotAngularStepDeg = wedge / itemsPerRing; // = 360 / (bCount*itemsPerRing)
   const slotAngularStepRad = (slotAngularStepDeg * Math.PI) / 180;
 
-  // C 円同士が重ならない最小半径: 弦長 = 2 r sin(step/2) ≥ 2cR + edgeGap
+  // 1) 先に B の配置半径を確定する（B は半径 bRadius 上に並ぶ）。
+  const minBRadiusBySpacing =
+    bCount > 1 ? (bR + 8) / Math.sin((wedge * Math.PI) / 360) : 0;
+  const bRadius = Math.max(visionR + bR + 22, 150, minBRadiusBySpacing);
+
+  // 2) C のリング半径は次の両方を満たす必要がある:
+  //    (a) C 同士がリング上で重ならない: 弦長 = 2r sin(step/2) ≥ 2cR + edgeGap
+  //    (b) B と C が径方向で重ならない: bRadius + bR + cR + gap ≤ ringR
+  // ※ 以前は (b) を `bR + cR + 30`（B が中心にある前提）で計算していたため、
+  //   B 枠を増減すると C が B にめり込む不具合があった。
   const edgeGap = 18;
   const minRingByCircle = (2 * cR + edgeGap) / (2 * Math.sin(slotAngularStepRad / 2));
-  const minRingByB = bR + cR + 30;
+  const minRingByB = bRadius + bR + cR + 22;
   const baseRingRadius = Math.max(minRingByCircle, minRingByB, 220);
   const ringStep = 2 * cR + 22; // 半径方向のリング間隔
   const cRingRadii = Array.from(
     { length: ringCount },
     (_, i) => baseRingRadius + i * ringStep,
   );
-
-  // B の半径。同心リング配置で、隣 B 同士が重ならない最小値も担保。
-  const minBRadiusBySpacing =
-    bCount > 1 ? (bR + 8) / Math.sin((wedge * Math.PI) / 360) : 0;
-  const bRadius = Math.max(visionR + bR + 22, 150, minBRadiusBySpacing);
 
   const outerMost = cRingRadii[cRingRadii.length - 1]! + cR;
   const size = Math.ceil((outerMost + 40) * 2);
