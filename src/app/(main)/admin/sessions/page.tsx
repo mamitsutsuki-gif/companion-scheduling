@@ -64,14 +64,23 @@ export default function AdminSessionsPage() {
       return;
     }
     setRows(Array.isArray(data?.sessions) ? data.sessions : []);
-    if (Array.isArray(settings?.companies)) {
+    // GET /api/admin/app-settings は { settings: { companies: [...] } } という入れ子で返す。
+    // 以前は settings.companies を直接見ていたため、企業リストが常に空になっていた（＝企業フィルタが選択不能）。
+    const companiesRaw =
+      (settings as { settings?: { companies?: unknown } } | null)?.settings?.companies;
+    if (Array.isArray(companiesRaw)) {
       setCompanies(
-        settings.companies
-          .filter((c: unknown): c is CompanyOption =>
-            !!c && typeof (c as { id?: unknown }).id === "string" && typeof (c as { name?: unknown }).name === "string",
+        companiesRaw
+          .filter(
+            (c: unknown): c is CompanyOption =>
+              !!c &&
+              typeof (c as { id?: unknown }).id === "string" &&
+              typeof (c as { name?: unknown }).name === "string",
           )
           .map((c: CompanyOption) => ({ id: c.id, name: c.name })),
       );
+    } else {
+      setCompanies([]);
     }
   }, []);
 
