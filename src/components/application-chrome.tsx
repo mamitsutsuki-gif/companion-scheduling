@@ -167,10 +167,22 @@ export function ApplicationChrome({
           </nav>
 
           <div className="order-2 mr-0 ml-auto flex shrink-0 items-center gap-2 sm:order-none sm:gap-3 md:gap-5">
-            <div className="hidden text-end sm:block">
-              <div className="max-w-[12rem] truncate text-sm font-medium text-slate-900 sm:text-base">{withHonorificSan(profile.displayName)}</div>
+            <Link
+              href="/account"
+              className="rounded-lg px-2 py-1 text-xs font-semibold text-indigo-800 no-underline hover:bg-indigo-50 sm:hidden"
+            >
+              アカウント
+            </Link>
+            <Link
+              href="/account"
+              className="hidden text-end no-underline transition hover:opacity-90 sm:block"
+              title="マイアカウント"
+            >
+              <div className="max-w-[12rem] truncate text-sm font-medium text-slate-900 underline decoration-slate-300 underline-offset-2 sm:text-base">
+                {withHonorificSan(profile.displayName)}
+              </div>
               <div className="text-xs text-slate-500 sm:text-sm">{roleLabel}</div>
-            </div>
+            </Link>
             <SignOut variant="compact" />
           </div>
         </div>

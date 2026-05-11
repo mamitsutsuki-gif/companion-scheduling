@@ -1,6 +1,6 @@
 import { readSession, clearSessionCookie } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
-import { getUserById, isDeletedUser, updateUserAvailability } from "@/lib/repositories/user-repository";
+import { getUserById, isDeletedUser, updateUserAvailability, updateUserDisplayName } from "@/lib/repositories/user-repository";
 import {
   getAppSettingsRow,
   getEffectiveAppSettings,
@@ -30,9 +30,15 @@ export async function GET() {
   return jsonOk({ user: safe });
 }
 
-const patchSchema = z.object({
-  availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64),
-});
+const patchSchema = z
+  .object({
+    availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64).optional(),
+    displayName: z.string().min(1).max(80).optional(),
+  })
+  .refine(
+    (d) => d.availabilitySlotIds !== undefined || d.displayName !== undefined,
+    "availabilitySlotIds または displayName のいずれかを指定してください。",
+  );
 
 export async function PATCH(request: Request) {
   const session = await readSession();
@@ -41,29 +47,59 @@ export async function PATCH(request: Request) {
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
 
-  // クライアント／クライアント管理者は所属企業の選択肢で正規化する。
-  // パートナー・管理者は企業に紐づかないため従来通りグローバル設定で正規化する。
-  let settings;
-  if (session.role === "CLIENT" || session.role === "CLIENT_ADMIN") {
-    const user = await getUserById(session.sub);
-    const companyId = (user as { companyId?: string | null } | null)?.companyId ?? null;
-    settings = await getEffectiveAppSettings({ companyId });
-  } else {
-    settings = await getAppSettingsRow();
+  let userOut:
+    | {
+        id: string;
+        displayName: string;
+        role: string;
+        availabilitySlotIds: string[];
+        companyId: string | null;
+      }
+    | null = null;
+
+  if (parsed.data.displayName !== undefined) {
+    const updated = await updateUserDisplayName(session.sub, parsed.data.displayName).catch(() => null);
+    if (!updated) return jsonError("表示名の更新に失敗しました。", 400);
+    userOut = {
+      id: updated.id,
+      displayName: updated.displayName,
+      role: updated.role,
+      availabilitySlotIds: updated.availabilitySlotIds ?? [],
+      companyId: (updated as { companyId?: string | null }).companyId ?? null,
+    };
   }
-  const ids = normalizeAvailabilitySelections(parsed.data.availabilitySlotIds, settings.availabilitySlotOptions);
 
-  const updated = await updateUserAvailability(session.sub, ids).catch(() => null);
-  if (!updated) return jsonError("対応可能時間の更新に失敗しました。", 400);
+  if (parsed.data.availabilitySlotIds !== undefined) {
+    // クライアント／クライアント管理者は所属企業の選択肢で正規化する。
+    // パートナー・管理者は企業に紐づかないため従来通りグローバル設定で正規化する。
+    let settings;
+    if (session.role === "CLIENT" || session.role === "CLIENT_ADMIN") {
+      const user = await getUserById(session.sub);
+      const companyId = (user as { companyId?: string | null } | null)?.companyId ?? null;
+      settings = await getEffectiveAppSettings({ companyId });
+    } else {
+      settings = await getAppSettingsRow();
+    }
+    const ids = normalizeAvailabilitySelections(
+      parsed.data.availabilitySlotIds,
+      settings.availabilitySlotOptions,
+    );
 
-  return jsonOk({
-    ok: true,
-    user: {
+    const updated = await updateUserAvailability(session.sub, ids).catch(() => null);
+    if (!updated) return jsonError("対応可能時間の更新に失敗しました。", 400);
+    userOut = {
       id: updated.id,
       displayName: updated.displayName,
       role: updated.role,
       availabilitySlotIds: updated.availabilitySlotIds,
       companyId: (updated as { companyId?: string | null }).companyId ?? null,
-    },
+    };
+  }
+
+  if (!userOut) return jsonError("更新内容がありません。", 400);
+
+  return jsonOk({
+    ok: true,
+    user: userOut,
   });
 }

@@ -200,6 +200,38 @@ export async function updateUserAvailability(userId: string, availabilitySlotIds
   return null;
 }
 
+export async function updateUserDisplayName(userId: string, displayName: string) {
+  const name = displayName.normalize("NFKC").trim().slice(0, 80);
+  if (!name) return null;
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return null;
+    const ref = db.collection("users").doc(userId);
+    await ref.set({ displayName: name, updatedAt: new Date().toISOString() }, { merge: true });
+    const snap = await ref.get();
+    if (!snap.exists) return null;
+    return userFromDoc(snap.id, snap.data() as Record<string, unknown>);
+  }
+  try {
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { displayName: name },
+      select: {
+        id: true,
+        displayName: true,
+        role: true,
+        firebaseUid: true,
+        googleSub: true,
+        email: true,
+        companyId: true,
+      },
+    });
+    return { ...updated, availabilitySlotIds: [] as string[] };
+  } catch {
+    return null;
+  }
+}
+
 export async function attachFirebaseUid(userId: string, firebaseUid: string) {
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();

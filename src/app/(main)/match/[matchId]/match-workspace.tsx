@@ -84,7 +84,7 @@ type ScheduleSettingsPayload = {
   overriddenFields: string[];
 };
 
-type MatchTab = "chat" | "schedule" | "fta" | "sessions";
+type MatchTab = "chat" | "schedule" | "fta" | "sessions" | "overview";
 
 type SessionAbandonmentApi = {
   reason: "no_show" | "late_cancel";
@@ -108,6 +108,78 @@ type SessionPlanApiRow = {
   zoomMeetingId?: string | null;
   zoomPass?: string | null;
 };
+
+type PartnerOverviewRow = {
+  companyName: string;
+  sessionPeriod: string;
+  sessionFrequency: string;
+  background: string;
+  sessionFocus: string;
+  expectations: string;
+  other: string;
+};
+
+type ClientOverviewRow = {
+  sessionPeriod: string;
+  sessionFrequency: string;
+  background: string;
+  sessionFocus: string;
+  expectations: string;
+  other: string;
+};
+
+function fieldBlock(label: string, value: string) {
+  const v = value.trim();
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+      <h3 className="text-sm font-semibold text-slate-800">{label}</h3>
+      <p className={`mt-2 whitespace-pre-wrap text-sm ${v ? "text-slate-700" : "text-slate-400"}`}>
+        {v || "（未入力）"}
+      </p>
+    </div>
+  );
+}
+
+function renderPartnerOverview(o: PartnerOverviewRow | null) {
+  if (!o) {
+    return (
+      <p className="text-sm text-slate-600">
+        この企業のプロジェクト概要（パートナー向け）は、まだ管理者が「企業ごとの設定」で入力していません。
+      </p>
+    );
+  }
+  return (
+    <div className="grid gap-3 sm:grid-cols-1">
+      {fieldBlock("企業名", o.companyName)}
+      {fieldBlock("1on1セッション期間", o.sessionPeriod)}
+      {fieldBlock("1on1セッション頻度", o.sessionFrequency)}
+      {fieldBlock("導入背景", o.background)}
+      {fieldBlock("1on1セッションで行うこと", o.sessionFocus)}
+      {fieldBlock("期待すること", o.expectations)}
+      {fieldBlock("その他", o.other)}
+    </div>
+  );
+}
+
+function renderClientOverview(o: ClientOverviewRow | null) {
+  if (!o) {
+    return (
+      <p className="text-sm text-slate-600">
+        この企業のプロジェクト概要（クライアント向け）は、まだ管理者が「企業ごとの設定」で入力していません。
+      </p>
+    );
+  }
+  return (
+    <div className="grid gap-3 sm:grid-cols-1">
+      {fieldBlock("1on1セッション期間", o.sessionPeriod)}
+      {fieldBlock("1on1セッション頻度", o.sessionFrequency)}
+      {fieldBlock("導入背景", o.background)}
+      {fieldBlock("1on1セッションで行うこと", o.sessionFocus)}
+      {fieldBlock("期待すること", o.expectations)}
+      {fieldBlock("その他", o.other)}
+    </div>
+  );
+}
 
 const statusLabel: Record<NegotiationRow["status"], string> = {
   AWAITING_CLIENT_RESPONSE: "クライアント回答待ち",
@@ -173,6 +245,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [availability, setAvailability] = useState<AvailabilityPayload | null>(null);
   const [sessionRows, setSessionRows] = useState<SessionPlanApiRow[]>([]);
   const [activeTab, setActiveTab] = useState<MatchTab>("chat");
+  const [projectOverviewJson, setProjectOverviewJson] = useState<unknown>(null);
+  const [overviewLoading, setOverviewLoading] = useState(false);
   const [proposeSubmitting, setProposeSubmitting] = useState(false);
   const [proposeJustSent, setProposeJustSent] = useState(false);
   const [voteSubmittingForSlot, setVoteSubmittingForSlot] = useState<string | null>(null);
@@ -304,12 +378,26 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     }
   }, [matchId]);
 
+  const loadProjectOverview = useCallback(async () => {
+    setOverviewLoading(true);
+    const res = await fetch(`/api/matches/${matchId}/project-overview`, { cache: "no-store" });
+    const json = await res.json().catch(() => null);
+    if (res.ok) setProjectOverviewJson(json);
+    else setProjectOverviewJson(null);
+    setOverviewLoading(false);
+  }, [matchId]);
+
   useEffect(() => {
     void load();
     void loadClientFta();
     void loadAvailability();
     void loadSessions();
   }, [load, loadClientFta, loadAvailability, loadSessions]);
+
+  useEffect(() => {
+    if (activeTab !== "overview") return;
+    void loadProjectOverview();
+  }, [activeTab, loadProjectOverview]);
 
   useEffect(() => {
     // 軽量ポーリング: チャット反映を高速化（1.2 秒）
@@ -647,54 +735,56 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Match Detail</p>
           <p className="text-sm text-zinc-600 sm:text-base">{withHonorificSan(me.displayName)} として表示中（メールなどは公開されません）</p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-500">
-            <span className="rounded-full bg-indigo-50 px-2 py-1 text-indigo-800">MATCH #{matchId}</span>
-            {scheduleSettings.effectiveCompanyId ? (
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2 py-1 ${
-                  scheduleSettings.overriddenFields.length > 0
-                    ? "bg-rose-50 text-rose-900"
-                    : "bg-slate-100 text-slate-800"
-                }`}
-                title={
-                  scheduleSettings.overriddenFields.length > 0
-                    ? `この企業は次の項目を上書きしています: ${scheduleSettings.overriddenFields.join(", ")}`
-                    : "この企業は全体設定をそのまま使っています"
-                }
-              >
-                設定:{" "}
-                {scheduleSettings.effectiveCompanyName ?? scheduleSettings.effectiveCompanyId}
-                {scheduleSettings.overriddenFields.length > 0 ? (
-                  <span className="rounded-sm bg-rose-200/70 px-1 text-[10px] font-semibold text-rose-900">
-                    上書きあり {scheduleSettings.overriddenFields.length}
+            {me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (
+              <>
+                <span className="rounded-full bg-indigo-50 px-2 py-1 text-indigo-800">MATCH #{matchId}</span>
+                {scheduleSettings.effectiveCompanyId ? (
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-1 ${
+                      scheduleSettings.overriddenFields.length > 0
+                        ? "bg-rose-50 text-rose-900"
+                        : "bg-slate-100 text-slate-800"
+                    }`}
+                    title={
+                      scheduleSettings.overriddenFields.length > 0
+                        ? `この企業は次の項目を上書きしています: ${scheduleSettings.overriddenFields.join(", ")}`
+                        : "この企業は全体設定をそのまま使っています"
+                    }
+                  >
+                    設定:{" "}
+                    {scheduleSettings.effectiveCompanyName ?? scheduleSettings.effectiveCompanyId}
+                    {scheduleSettings.overriddenFields.length > 0 ? (
+                      <span className="rounded-sm bg-rose-200/70 px-1 text-[10px] font-semibold text-rose-900">
+                        上書きあり {scheduleSettings.overriddenFields.length}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-600">全体設定を使用</span>
+                    )}
                   </span>
                 ) : (
-                  <span className="text-[10px] text-slate-600">全体設定を使用</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">
+                    設定: 全体（企業未割当）
+                  </span>
                 )}
-              </span>
-            ) : (
-              <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">
-                設定: 全体（企業未割当）
-              </span>
-            )}
-            {(me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") &&
-            scheduleSettings.effectiveCompanyId ? (
-              <Link
-                href={`/admin/companies/${encodeURIComponent(scheduleSettings.effectiveCompanyId)}/settings`}
-                title="管理者専用：この企業の設定編集ページへ"
-                className="inline-flex items-center gap-1 rounded-full border border-indigo-300 bg-white px-2 py-1 text-[11px] font-semibold text-indigo-800 no-underline hover:bg-indigo-50"
-              >
-                ⚙ 設定を編集（管理者）
-              </Link>
-            ) : null}
-            {(me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") &&
-            !scheduleSettings.effectiveCompanyId ? (
-              <Link
-                href="/admin/matches"
-                title="管理者専用：この match に紐づくクライアントの所属企業を割り当てる"
-                className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-900 no-underline hover:bg-amber-100"
-              >
-                ⚠ 所属企業を割り当てる（管理者）
-              </Link>
+                {scheduleSettings.effectiveCompanyId ? (
+                  <Link
+                    href={`/admin/companies/${encodeURIComponent(scheduleSettings.effectiveCompanyId)}/settings`}
+                    title="管理者専用：この企業の設定編集ページへ"
+                    className="inline-flex items-center gap-1 rounded-full border border-indigo-300 bg-white px-2 py-1 text-[11px] font-semibold text-indigo-800 no-underline hover:bg-indigo-50"
+                  >
+                    ⚙ 設定を編集（管理者）
+                  </Link>
+                ) : null}
+                {!scheduleSettings.effectiveCompanyId ? (
+                  <Link
+                    href="/admin/matches"
+                    title="管理者専用：この match に紐づくクライアントの所属企業を割り当てる"
+                    className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-900 no-underline hover:bg-amber-100"
+                  >
+                    ⚠ 所属企業を割り当てる（管理者）
+                  </Link>
+                ) : null}
+              </>
             ) : null}
           </div>
         </div>
@@ -726,23 +816,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           </p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <div className="rounded-xl border border-emerald-200 bg-white px-4 py-3">
-              <p className="text-sm font-semibold text-emerald-900">パートナー：{withHonorificSan(availability.partner.displayName)}</p>
-              {availability.partner.labels.length === 0 ? (
-                <p className="mt-1.5 text-sm text-zinc-500">未設定</p>
-              ) : (
-                <ul className="mt-2 flex flex-wrap gap-1.5">
-                  {availability.partner.labels.map((label, i) => (
-                    <li
-                      key={`p-${i}`}
-                      className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-sm text-emerald-900"
-                    >
-                      {label}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <div className="rounded-xl border border-emerald-200 bg-white px-4 py-3">
               <p className="text-sm font-semibold text-emerald-900">クライアント：{withHonorificSan(availability.client.displayName)}</p>
               {availability.client.labels.length === 0 ? (
                 <p className="mt-1.5 text-sm text-zinc-500">未設定</p>
@@ -759,11 +832,35 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 </ul>
               )}
             </div>
+            <div className="rounded-xl border border-emerald-200 bg-white px-4 py-3">
+              <p className="text-sm font-semibold text-emerald-900">パートナー：{withHonorificSan(availability.partner.displayName)}</p>
+              {availability.partner.labels.length === 0 ? (
+                <p className="mt-1.5 text-sm text-zinc-500">未設定</p>
+              ) : (
+                <ul className="mt-2 flex flex-wrap gap-1.5">
+                  {availability.partner.labels.map((label, i) => (
+                    <li
+                      key={`p-${i}`}
+                      className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-sm text-emerald-900"
+                    >
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </section>
       ) : null}
 
       <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab("overview")}
+          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "overview" ? "bg-indigo-700 text-white" : "border border-zinc-300 bg-white text-zinc-700"}`}
+        >
+          プロジェクト概要
+        </button>
         <button
           type="button"
           onClick={() => setActiveTab("chat")}
@@ -800,6 +897,50 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           1on1セッション
         </button>
       </div>
+
+      {activeTab === "overview" ? (
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold text-slate-900">プロジェクト概要</h2>
+          <p className="text-sm text-slate-600">
+            管理者が「企業」→ 各企業の「設定」で入力した内容が表示されます（クライアント企業に未割当の場合は空になります）。
+          </p>
+          {overviewLoading ? (
+            <p className="text-sm text-zinc-500">読込中…</p>
+          ) : (
+            (() => {
+              const j = projectOverviewJson as Record<string, unknown> | null;
+              if (!j || typeof j !== "object") {
+                return <p className="text-sm text-zinc-500">表示する情報がありません。</p>;
+              }
+              if (j.viewer === "partner") {
+                return renderPartnerOverview((j.overview as PartnerOverviewRow | null) ?? null);
+              }
+              if (j.viewer === "client") {
+                return renderClientOverview((j.overview as ClientOverviewRow | null) ?? null);
+              }
+              if (j.viewer === "admin") {
+                return (
+                  <div className="space-y-8">
+                    <div>
+                      <h3 className="text-lg font-semibold text-indigo-900">パートナー向け（閲覧）</h3>
+                      <div className="mt-3">
+                        {renderPartnerOverview((j.partnerOverview as PartnerOverviewRow | null) ?? null)}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-emerald-900">クライアント向け（閲覧）</h3>
+                      <div className="mt-3">
+                        {renderClientOverview((j.clientOverview as ClientOverviewRow | null) ?? null)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              return <p className="text-sm text-red-600">表示できませんでした。</p>;
+            })()
+          )}
+        </section>
+      ) : null}
 
       {activeTab === "chat" ? (
       <section className="space-y-5">

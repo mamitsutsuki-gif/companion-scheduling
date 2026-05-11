@@ -68,6 +68,9 @@ export default function AdminMatchesPage() {
   const [companyFilter, setCompanyFilter] = useState<string>("");
   const [editingAvailabilityUserId, setEditingAvailabilityUserId] = useState<string | null>(null);
   const [editingSelections, setEditingSelections] = useState<string[]>([]);
+  const [editingNameUserId, setEditingNameUserId] = useState<string | null>(null);
+  const [editingNameDraft, setEditingNameDraft] = useState("");
+  const [viewerRole, setViewerRole] = useState<string | null>(null);
 
   // URL の ?company= を初期値として反映（ブラウザのみ）
   useEffect(() => {
@@ -75,6 +78,13 @@ export default function AdminMatchesPage() {
     const sp = new URLSearchParams(window.location.search);
     const q = sp.get("company");
     if (q) setCompanyFilter(q);
+  }, []);
+
+  useEffect(() => {
+    void fetch("/api/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => setViewerRole(typeof j?.user?.role === "string" ? j.user.role : null))
+      .catch(() => setViewerRole(null));
   }, []);
 
   const reloadAll = useCallback(async () => {
@@ -313,22 +323,106 @@ export default function AdminMatchesPage() {
     );
   }
 
+  function startEditingName(u: RoleUser) {
+    setEditingNameUserId(u.id);
+    setEditingNameDraft(u.displayName);
+    setError(null);
+  }
+
+  function cancelEditingName() {
+    setEditingNameUserId(null);
+    setEditingNameDraft("");
+  }
+
+  async function saveDisplayName(userId: string) {
+    const name = editingNameDraft.trim();
+    if (!name) {
+      setError("表示名を入力してください。");
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    const res = await fetch("/api/admin/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, displayName: name }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      setError(data?.error ?? "表示名の更新に失敗しました。");
+      return;
+    }
+    setMessage("表示名を更新しました。");
+    cancelEditingName();
+    void reloadAll();
+  }
+
   /**
    * 1 ユーザー分の li を描画する。
    * `users.filter(...)` でクライアント / パートナーの 2 グループに分けて呼び出す。
    */
   function renderUserItem(u: RoleUser) {
     const isEditing = editingAvailabilityUserId === u.id;
+    const isEditingName = editingNameUserId === u.id;
     const labels = labelsForSlotIds(u.availabilitySlotIds, availabilityOptions);
     const isClientRole = u.role === "CLIENT" || u.role === "CLIENT_ADMIN";
+    const canEditName = viewerRole === "ADMIN";
     return (
       <li
         key={u.id}
         className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs"
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-base font-semibold text-zinc-900 break-words">{u.displayName}</p>
+          <div className="min-w-0 flex-1">
+            {isEditingName ? (
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="block min-w-[12rem] flex-1 space-y-1 text-xs font-semibold text-slate-600">
+                  表示名
+                  <input
+                    value={editingNameDraft}
+                    onChange={(e) => setEditingNameDraft(e.target.value)}
+                    maxLength={80}
+                    className="block w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm font-normal text-zinc-900"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void saveDisplayName(u.id)}
+                  className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                >
+                  保存
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelEditingName}
+                  className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                >
+                  キャンセル
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-base font-semibold text-zinc-900 break-words">{u.displayName}</p>
+                {canEditName ? (
+                  <button
+                    type="button"
+                    onClick={() => startEditingName(u)}
+                    className="rounded-md border border-slate-200 bg-slate-50 p-1.5 text-slate-600 hover:bg-slate-100"
+                    title="表示名を編集"
+                    aria-label={`${u.displayName}の表示名を編集`}
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                      />
+                    </svg>
+                  </button>
+                ) : null}
+              </div>
+            )}
             <p className="text-xs text-zinc-600 break-all">{u.email}</p>
             <p className="mt-0.5 text-xs text-zinc-500">
               Firebase: {u.firebaseUid ? "連携済み" : "未連携"}
@@ -733,10 +827,10 @@ export default function AdminMatchesPage() {
                     />
                   </th>
                   <th className="py-3 pr-4 font-semibold">登録日時</th>
-                  <th className="py-3 pr-4 font-semibold">パートナー</th>
-                  <th className="py-3 pr-4 font-semibold">メール（管理用）</th>
                   <th className="py-3 pr-4 font-semibold">クライアント</th>
+                  <th className="py-3 pr-4 font-semibold">メール（管理用）</th>
                   <th className="py-3 pr-4 font-semibold">クライアント企業</th>
+                  <th className="py-3 pr-4 font-semibold">パートナー</th>
                   <th className="py-3 pr-4 font-semibold">メール（管理用）</th>
                   <th className="py-3 font-semibold">操作</th>
                 </tr>
@@ -749,19 +843,19 @@ export default function AdminMatchesPage() {
                         type="checkbox"
                         checked={selectedMatchIds.includes(row.id)}
                         onChange={() => toggleMatchSelection(row.id)}
-                        aria-label={`${row.partner.displayName}-${row.client.displayName}を選択`}
+                        aria-label={`${row.client.displayName}-${row.partner.displayName}を選択`}
                       />
                     </td>
                     <td className="whitespace-nowrap py-3 pr-4 align-top text-zinc-600">
                       {formatJa(row.createdAt)}
                     </td>
-                    <td className="py-3 pr-4 align-top font-medium text-zinc-950">{withHonorificSan(row.partner.displayName)}</td>
-                    <td className="py-3 pr-4 align-top text-xs text-zinc-500">{row.partner.email}</td>
                     <td className="py-3 pr-4 align-top font-medium text-zinc-950">{withHonorificSan(row.client.displayName)}</td>
+                    <td className="py-3 pr-4 align-top text-xs text-zinc-500">{row.client.email}</td>
                     <td className="py-3 pr-4 align-top text-sm text-zinc-700">
                       {row.client.companyName?.trim() ? row.client.companyName : "—"}
                     </td>
-                    <td className="py-3 pr-4 align-top text-xs text-zinc-500">{row.client.email}</td>
+                    <td className="py-3 pr-4 align-top font-medium text-zinc-950">{withHonorificSan(row.partner.displayName)}</td>
+                    <td className="py-3 pr-4 align-top text-xs text-zinc-500">{row.partner.email}</td>
                     <td className="py-3 align-top">
                       <div className="flex flex-wrap gap-2">
                         <Link

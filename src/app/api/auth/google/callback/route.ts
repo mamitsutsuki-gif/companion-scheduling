@@ -49,6 +49,10 @@ export async function GET(request: NextRequest) {
         ? "CLIENT"
         : null;
 
+  if (requestedRole && payload.legalAccepted !== true) {
+    return redirectLogin(request, "legal_required");
+  }
+
   if (requestedRole === "PARTNER") {
     const zoomUrl = payload.partnerZoomUrl?.trim() ?? "";
     const zoomPass = payload.partnerZoomPass?.trim() ?? "";
@@ -86,6 +90,7 @@ export async function GET(request: NextRequest) {
       }
       const role =
         raw.role === "ADMIN" ||
+        raw.role === "ADMIN_ASSISTANT" ||
         raw.role === "PARTNER" ||
         raw.role === "CLIENT" ||
         raw.role === "CLIENT_ADMIN"

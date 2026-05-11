@@ -160,9 +160,9 @@ export default async function DashboardPage({
                 <div>
                   <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Pair</p>
                   <p className="mt-2 text-lg font-semibold text-slate-900">
-                    {withHonorificSan(match.partner.displayName)}
-                    <span className="mx-2 font-normal text-slate-400">↔</span>
                     {withHonorificSan(match.client.displayName)}
+                    <span className="mx-2 font-normal text-slate-400">↔</span>
+                    {withHonorificSan(match.partner.displayName)}
                   </p>
                   {(match.client as { companyName?: string | null }).companyName ? (
                     <p className="mt-1.5 text-sm text-slate-600">
@@ -170,8 +170,12 @@ export default async function DashboardPage({
                     </p>
                   ) : null}
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <span className="font-mono text-xs text-slate-400">ID {match.id}</span>
+                <div
+                  className={`flex flex-wrap items-center gap-3 ${isAdmin ? "justify-between" : "justify-end"}`}
+                >
+                  {isAdmin ? (
+                    <span className="font-mono text-xs text-slate-400">ID {match.id}</span>
+                  ) : null}
                   <Link
                     href={`/match/${match.id}`}
                     className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-base font-semibold !text-white no-underline shadow-sm transition hover:bg-indigo-700"

@@ -10,6 +10,25 @@ type AvailabilityOption = {
   endMin: number;
 };
 
+type PartnerProjectOverviewForm = {
+  companyName: string;
+  sessionPeriod: string;
+  sessionFrequency: string;
+  background: string;
+  sessionFocus: string;
+  expectations: string;
+  other: string;
+};
+
+type ClientProjectOverviewForm = {
+  sessionPeriod: string;
+  sessionFrequency: string;
+  background: string;
+  sessionFocus: string;
+  expectations: string;
+  other: string;
+};
+
 type SettingsSnapshot = {
   slotDurationMinutes: number;
   totalSessions: number;
@@ -20,6 +39,8 @@ type SettingsSnapshot = {
   slotEarliestHour: number;
   slotLatestHour: number;
   allowWeekends: boolean;
+  partnerProjectOverview?: PartnerProjectOverviewForm | null;
+  clientProjectOverview?: ClientProjectOverviewForm | null;
 };
 
 type OverridableKey = keyof Pick<
@@ -91,6 +112,26 @@ export default function AdminCompanySettingsPage({
   const [vPartnerQs, setPartnerQs] = useState<Record<string, string[]>>({});
   const [vGuidelines, setGuidelines] = useState<Record<string, { client: string; partner: string }>>({});
 
+  const emptyPartnerPo: PartnerProjectOverviewForm = {
+    companyName: "",
+    sessionPeriod: "",
+    sessionFrequency: "",
+    background: "",
+    sessionFocus: "",
+    expectations: "",
+    other: "",
+  };
+  const emptyClientPo: ClientProjectOverviewForm = {
+    sessionPeriod: "",
+    sessionFrequency: "",
+    background: "",
+    sessionFocus: "",
+    expectations: "",
+    other: "",
+  };
+  const [vPartnerPo, setVPartnerPo] = useState<PartnerProjectOverviewForm>(emptyPartnerPo);
+  const [vClientPo, setVClientPo] = useState<ClientProjectOverviewForm>(emptyClientPo);
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -134,6 +175,33 @@ export default function AdminCompanySettingsPage({
         setAvailability(eff.availabilitySlotOptions);
         setPartnerQs(eff.partnerExtraQuestionsByRound);
         setGuidelines(eff.sessionGuidelinesByRound);
+        const po = eff.partnerProjectOverview;
+        setVPartnerPo(
+          po
+            ? {
+                companyName: po.companyName ?? "",
+                sessionPeriod: po.sessionPeriod ?? "",
+                sessionFrequency: po.sessionFrequency ?? "",
+                background: po.background ?? "",
+                sessionFocus: po.sessionFocus ?? "",
+                expectations: po.expectations ?? "",
+                other: po.other ?? "",
+              }
+            : emptyPartnerPo,
+        );
+        const co = eff.clientProjectOverview;
+        setVClientPo(
+          co
+            ? {
+                sessionPeriod: co.sessionPeriod ?? "",
+                sessionFrequency: co.sessionFrequency ?? "",
+                background: co.background ?? "",
+                sessionFocus: co.sessionFocus ?? "",
+                expectations: co.expectations ?? "",
+                other: co.other ?? "",
+              }
+            : emptyClientPo,
+        );
       } catch {
         if (!cancelled) setError("ネットワークエラーが発生しました。");
       } finally {
@@ -382,7 +450,94 @@ export default function AdminCompanySettingsPage({
           setAvailability(next.global.availabilitySlotOptions);
           setPartnerQs(next.global.partnerExtraQuestionsByRound);
           setGuidelines(next.global.sessionGuidelinesByRound);
+          setVPartnerPo(emptyPartnerPo);
+          setVClientPo(emptyClientPo);
         }
+      }
+    } catch {
+      setError("ネットワークエラーが発生しました。");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onSaveProjectOverview() {
+    if (!data) return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch(
+        `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            partnerProjectOverview: { ...vPartnerPo },
+            clientProjectOverview: { ...vClientPo },
+          }),
+        },
+      );
+      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!res.ok || !json?.ok) {
+        setError(json?.error ?? "プロジェクト概要の保存に失敗しました。");
+      } else {
+        setMessage("プロジェクト概要を保存しました。");
+        const reload = await fetch(
+          `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
+          { cache: "no-store" },
+        );
+        const next = (await reload.json().catch(() => null)) as ApiResponse | null;
+        if (next) setData(next);
+      }
+    } catch {
+      setError("ネットワークエラーが発生しました。");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onClearProjectOverview(which: "partner" | "client" | "both") {
+    if (!data) return;
+    if (
+      !confirm(
+        which === "both"
+          ? "パートナー向け・クライアント向けのプロジェクト概要を削除します。よろしいですか？"
+          : which === "partner"
+            ? "パートナー向けのプロジェクト概要を削除します。よろしいですか？"
+            : "クライアント向けのプロジェクト概要を削除します。よろしいですか？",
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const body: Record<string, boolean> = {};
+      if (which === "partner" || which === "both") body.clearPartnerProjectOverview = true;
+      if (which === "client" || which === "both") body.clearClientProjectOverview = true;
+      const res = await fetch(
+        `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!res.ok || !json?.ok) {
+        setError(json?.error ?? "削除に失敗しました。");
+      } else {
+        setMessage("プロジェクト概要を削除しました。");
+        if (which === "partner" || which === "both") setVPartnerPo(emptyPartnerPo);
+        if (which === "client" || which === "both") setVClientPo(emptyClientPo);
+        const reload = await fetch(
+          `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
+          { cache: "no-store" },
+        );
+        const next = (await reload.json().catch(() => null)) as ApiResponse | null;
+        if (next) setData(next);
       }
     } catch {
       setError("ネットワークエラーが発生しました。");
@@ -445,6 +600,98 @@ export default function AdminCompanySettingsPage({
 
       {data && data.isRegistered ? (
         <>
+          <section className="rounded-2xl border border-violet-200 bg-violet-50/40 p-5 shadow-sm sm:p-8">
+            <h2 className="text-lg font-semibold text-violet-950">プロジェクト概要（マッチルーム表示用）</h2>
+            <p className="mt-2 text-sm text-violet-900/90">
+              クライアント・パートナーのマッチ画面の「プロジェクト概要」タブに表示されます。パートナー向けとクライアント向けは別内容です。
+            </p>
+            <div className="mt-6 grid gap-8 lg:grid-cols-2">
+              <div className="space-y-3 rounded-xl border border-white bg-white/80 p-4 shadow-xs">
+                <h3 className="text-base font-semibold text-indigo-950">パートナー向け</h3>
+                {(
+                  [
+                    ["companyName", "企業名"],
+                    ["sessionPeriod", "1on1セッション期間"],
+                    ["sessionFrequency", "1on1セッション頻度"],
+                    ["background", "導入背景"],
+                    ["sessionFocus", "1on1セッションで行うこと"],
+                    ["expectations", "期待すること"],
+                    ["other", "その他"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key} className="block space-y-1 text-xs font-semibold text-slate-700">
+                    {label}
+                    <textarea
+                      value={vPartnerPo[key]}
+                      onChange={(e) => setVPartnerPo((p) => ({ ...p, [key]: e.target.value }))}
+                      maxLength={8000}
+                      rows={key === "background" || key === "sessionFocus" ? 4 : 2}
+                      className="w-full resize-y rounded-md border border-slate-300 px-2 py-1.5 text-sm font-normal text-slate-900"
+                    />
+                  </label>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => void onClearProjectOverview("partner")}
+                  disabled={saving}
+                  className="text-xs font-semibold text-rose-700 underline hover:text-rose-900 disabled:opacity-50"
+                >
+                  パートナー向けを削除
+                </button>
+              </div>
+              <div className="space-y-3 rounded-xl border border-white bg-white/80 p-4 shadow-xs">
+                <h3 className="text-base font-semibold text-emerald-950">クライアント向け</h3>
+                {(
+                  [
+                    ["sessionPeriod", "1on1セッション期間"],
+                    ["sessionFrequency", "1on1セッション頻度"],
+                    ["background", "導入背景"],
+                    ["sessionFocus", "1on1セッションで行うこと"],
+                    ["expectations", "期待すること"],
+                    ["other", "その他"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key} className="block space-y-1 text-xs font-semibold text-slate-700">
+                    {label}
+                    <textarea
+                      value={vClientPo[key]}
+                      onChange={(e) => setVClientPo((p) => ({ ...p, [key]: e.target.value }))}
+                      maxLength={8000}
+                      rows={key === "background" || key === "sessionFocus" ? 4 : 2}
+                      className="w-full resize-y rounded-md border border-slate-300 px-2 py-1.5 text-sm font-normal text-slate-900"
+                    />
+                  </label>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => void onClearProjectOverview("client")}
+                  disabled={saving}
+                  className="text-xs font-semibold text-rose-700 underline hover:text-rose-900 disabled:opacity-50"
+                >
+                  クライアント向けを削除
+                </button>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void onSaveProjectOverview()}
+                disabled={saving}
+                className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-violet-800 disabled:opacity-50"
+              >
+                プロジェクト概要を保存
+              </button>
+              <button
+                type="button"
+                onClick={() => void onClearProjectOverview("both")}
+                disabled={saving}
+                className="rounded-lg border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-900 hover:bg-rose-100 disabled:opacity-50"
+              >
+                両方とも削除
+              </button>
+            </div>
+          </section>
+
           {/* 枠・回数・TZ */}
           <SectionCard
             title="枠・回数・タイムゾーン"

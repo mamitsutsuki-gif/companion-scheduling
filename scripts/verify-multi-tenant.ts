@@ -84,6 +84,8 @@ async function main() {
     assertEq("1-1 companyId=null は global と同じ slotDurationMinutes", eff.slotDurationMinutes, 30);
     assertEq("1-2 companyId=null は effectiveCompanyId=null", eff.effectiveCompanyId, null);
     assertEq("1-3 companyId=null は overriddenFields=[]", eff.overriddenFields, []);
+    assertEq("1-4 companyId=null partnerProjectOverview=null", eff.partnerProjectOverview, null);
+    assertEq("1-5 companyId=null clientProjectOverview=null", eff.clientProjectOverview, null);
   }
   {
     const eff = await getEffectiveAppSettings({

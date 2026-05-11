@@ -26,12 +26,14 @@ export default function RegisterPage() {
   const [partnerZoomUrl, setPartnerZoomUrl] = useState("");
   const [partnerZoomMeetingId, setPartnerZoomMeetingId] = useState("");
   const [partnerZoomPass, setPartnerZoomPass] = useState("");
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
   const googleHref = useMemo(() => {
     const params = new URLSearchParams({
       next: "/dashboard",
       role,
       register: "1",
     });
+    if (acceptedLegal) params.set("legal", "1");
     if (role === "CLIENT" && selectedSlotIds.length > 0) {
       params.set("slots", selectedSlotIds.join(","));
     }
@@ -44,7 +46,7 @@ export default function RegisterPage() {
       if (zp) params.set("zoomPass", zp);
     }
     return `/api/auth/google?${params.toString()}`;
-  }, [role, selectedSlotIds, partnerZoomUrl, partnerZoomMeetingId, partnerZoomPass]);
+  }, [role, selectedSlotIds, partnerZoomUrl, partnerZoomMeetingId, partnerZoomPass, acceptedLegal]);
 
   useEffect(() => {
     fetch("/api/settings", { cache: "no-store" })
@@ -69,6 +71,10 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
     setSentMessage(null);
+    if (!acceptedLegal) {
+      setError("利用規約およびプライバシーポリシーに同意してください。");
+      return;
+    }
     const fd = new FormData(e.currentTarget);
     const email = String(fd.get("email") ?? "").trim().toLowerCase();
     const displayName = String(fd.get("displayName") ?? "").trim();
@@ -106,6 +112,7 @@ export default function RegisterPage() {
         email,
         displayName,
         role: selectedRole,
+        acceptedLegal: true as const,
         availabilitySlotIds,
         zoomUrl: selectedRole === "PARTNER" ? zoomUrl : undefined,
         zoomMeetingId: selectedRole === "PARTNER" ? zoomMeetingId : undefined,
@@ -229,9 +236,34 @@ export default function RegisterPage() {
           </label>
         </fieldset>
       ) : null}
+      <fieldset className="mt-4 space-y-2 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-800">
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            checked={acceptedLegal}
+            onChange={(e) => setAcceptedLegal(e.target.checked)}
+            className="mt-1 h-4 w-4 accent-indigo-700"
+          />
+          <span className="leading-relaxed">
+            <Link href="/legal/terms" className="font-semibold text-indigo-800 underline" target="_blank" rel="noopener noreferrer">
+              利用規約
+            </Link>
+            および
+            <Link href="/legal/privacy" className="font-semibold text-indigo-800 underline" target="_blank" rel="noopener noreferrer">
+              プライバシーポリシー
+            </Link>
+            の内容を確認し、同意します。
+          </span>
+        </label>
+      </fieldset>
       <Link
         href={googleHref}
         onClick={(e) => {
+          if (!acceptedLegal) {
+            e.preventDefault();
+            setError("利用規約およびプライバシーポリシーに同意してください。");
+            return;
+          }
           if (role !== "PARTNER") return;
           try {
             // eslint-disable-next-line no-new

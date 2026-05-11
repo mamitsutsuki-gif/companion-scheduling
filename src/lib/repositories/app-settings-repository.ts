@@ -61,9 +61,84 @@ export type AppSettingsOverridableFields = Pick<
  * - 値あり = その項目をこの企業に限り上書きする
  * Firestore では companyAppSettings/{companyId} に保存する。
  */
+
+/** 企業設定の「プロジェクト概要」— パートナー向け（マッチルームに表示） */
+export type PartnerProjectOverview = {
+  companyName: string;
+  sessionPeriod: string;
+  sessionFrequency: string;
+  background: string;
+  sessionFocus: string;
+  expectations: string;
+  other: string;
+};
+
+/** 企業設定の「プロジェクト概要」— クライアント向け */
+export type ClientProjectOverview = {
+  sessionPeriod: string;
+  sessionFrequency: string;
+  background: string;
+  sessionFocus: string;
+  expectations: string;
+  other: string;
+};
+
+const OVERVIEW_TEXT_MAX = 8000;
+
+function trimOverviewField(v: unknown): string {
+  if (typeof v !== "string") return "";
+  return v.trim().slice(0, OVERVIEW_TEXT_MAX);
+}
+
+export function normalizePartnerProjectOverview(input: unknown): PartnerProjectOverview | null {
+  if (!input || typeof input !== "object") return null;
+  const o = input as Record<string, unknown>;
+  const out: PartnerProjectOverview = {
+    companyName: trimOverviewField(o.companyName),
+    sessionPeriod: trimOverviewField(o.sessionPeriod),
+    sessionFrequency: trimOverviewField(o.sessionFrequency),
+    background: trimOverviewField(o.background),
+    sessionFocus: trimOverviewField(o.sessionFocus),
+    expectations: trimOverviewField(o.expectations),
+    other: trimOverviewField(o.other),
+  };
+  const any =
+    out.companyName ||
+    out.sessionPeriod ||
+    out.sessionFrequency ||
+    out.background ||
+    out.sessionFocus ||
+    out.expectations ||
+    out.other;
+  return any ? out : null;
+}
+
+export function normalizeClientProjectOverview(input: unknown): ClientProjectOverview | null {
+  if (!input || typeof input !== "object") return null;
+  const o = input as Record<string, unknown>;
+  const out: ClientProjectOverview = {
+    sessionPeriod: trimOverviewField(o.sessionPeriod),
+    sessionFrequency: trimOverviewField(o.sessionFrequency),
+    background: trimOverviewField(o.background),
+    sessionFocus: trimOverviewField(o.sessionFocus),
+    expectations: trimOverviewField(o.expectations),
+    other: trimOverviewField(o.other),
+  };
+  const any =
+    out.sessionPeriod ||
+    out.sessionFrequency ||
+    out.background ||
+    out.sessionFocus ||
+    out.expectations ||
+    out.other;
+  return any ? out : null;
+}
+
 export type CompanyAppSettingsOverride = Partial<AppSettingsOverridableFields> & {
   companyId: string;
   updatedAt?: string;
+  partnerProjectOverview?: PartnerProjectOverview | null;
+  clientProjectOverview?: ClientProjectOverview | null;
 };
 
 export function normalizeCompanies(input: unknown): CompanyOption[] {
@@ -185,6 +260,14 @@ export function normalizeCompanyAppSettingsOverride(
   }
   if (typeof raw.updatedAt === "string") {
     out.updatedAt = raw.updatedAt;
+  }
+  if (raw.partnerProjectOverview !== undefined && raw.partnerProjectOverview !== null) {
+    const po = normalizePartnerProjectOverview(raw.partnerProjectOverview);
+    if (po) out.partnerProjectOverview = po;
+  }
+  if (raw.clientProjectOverview !== undefined && raw.clientProjectOverview !== null) {
+    const co = normalizeClientProjectOverview(raw.clientProjectOverview);
+    if (co) out.clientProjectOverview = co;
   }
   return out;
 }
@@ -583,6 +666,10 @@ export async function upsertCompanyAppSettingsOverride(
   companyId: string,
   patch: Partial<AppSettingsOverridableFields> & {
     clearFields?: Array<keyof AppSettingsOverridableFields>;
+    partnerProjectOverview?: PartnerProjectOverview | null;
+    clientProjectOverview?: ClientProjectOverview | null;
+    clearPartnerProjectOverview?: boolean;
+    clearClientProjectOverview?: boolean;
   },
 ): Promise<CompanyAppSettingsOverride | null> {
   const cid = sanitizeCompanyId(companyId);
@@ -592,7 +679,15 @@ export async function upsertCompanyAppSettingsOverride(
   if (!db) return null;
   const ref = db.collection("companyAppSettings").doc(cid);
 
-  const normalized = normalizeCompanyAppSettingsOverride(cid, patch);
+  const {
+    clearPartnerProjectOverview,
+    clearClientProjectOverview,
+    partnerProjectOverview: patchPartnerPo,
+    clientProjectOverview: patchClientPo,
+    ...restPatch
+  } = patch;
+
+  const normalized = normalizeCompanyAppSettingsOverride(cid, restPatch);
   const writeData: Record<string, unknown> = {
     companyId: cid,
     updatedAt: new Date().toISOString(),
@@ -601,11 +696,23 @@ export async function upsertCompanyAppSettingsOverride(
     if (k === "companyId" || k === "updatedAt") continue;
     if (v !== undefined) writeData[k] = v;
   }
+  const { FieldValue } = await import("firebase-admin/firestore");
   if (patch.clearFields && patch.clearFields.length > 0) {
-    const { FieldValue } = await import("firebase-admin/firestore");
     for (const key of patch.clearFields) {
       writeData[key] = FieldValue.delete();
     }
+  }
+  if (clearPartnerProjectOverview) {
+    writeData.partnerProjectOverview = FieldValue.delete();
+  } else if (patchPartnerPo !== undefined) {
+    const po = patchPartnerPo === null ? null : normalizePartnerProjectOverview(patchPartnerPo);
+    writeData.partnerProjectOverview = po ?? FieldValue.delete();
+  }
+  if (clearClientProjectOverview) {
+    writeData.clientProjectOverview = FieldValue.delete();
+  } else if (patchClientPo !== undefined) {
+    const co = patchClientPo === null ? null : normalizeClientProjectOverview(patchClientPo);
+    writeData.clientProjectOverview = co ?? FieldValue.delete();
   }
   await ref.set(writeData, { merge: true });
   const snap = await ref.get();
@@ -631,6 +738,8 @@ export async function deleteCompanyAppSettingsOverride(companyId: string): Promi
 export type EffectiveAppSettings = AppSettingsRow & {
   effectiveCompanyId: string | null;
   overriddenFields: Array<keyof AppSettingsOverridableFields>;
+  partnerProjectOverview: PartnerProjectOverview | null;
+  clientProjectOverview: ClientProjectOverview | null;
 };
 
 export async function getEffectiveAppSettings(opts: {
@@ -641,12 +750,24 @@ export async function getEffectiveAppSettings(opts: {
   const global = opts.global ?? (await getAppSettingsRow());
   const cid = sanitizeCompanyId(opts.companyId);
   if (!cid) {
-    return { ...global, effectiveCompanyId: null, overriddenFields: [] };
+    return {
+      ...global,
+      effectiveCompanyId: null,
+      overriddenFields: [],
+      partnerProjectOverview: null,
+      clientProjectOverview: null,
+    };
   }
   const override =
     opts.override !== undefined ? opts.override : await getCompanyAppSettingsOverride(cid);
   if (!override) {
-    return { ...global, effectiveCompanyId: cid, overriddenFields: [] };
+    return {
+      ...global,
+      effectiveCompanyId: cid,
+      overriddenFields: [],
+      partnerProjectOverview: null,
+      clientProjectOverview: null,
+    };
   }
   const overridden: Array<keyof AppSettingsOverridableFields> = [];
   const merged: AppSettingsRow = { ...global };
@@ -668,5 +789,19 @@ export async function getEffectiveAppSettings(opts: {
       overridden.push(k);
     }
   }
-  return { ...merged, effectiveCompanyId: cid, overriddenFields: overridden };
+  const partnerPO =
+    override.partnerProjectOverview !== undefined && override.partnerProjectOverview !== null
+      ? normalizePartnerProjectOverview(override.partnerProjectOverview)
+      : null;
+  const clientPO =
+    override.clientProjectOverview !== undefined && override.clientProjectOverview !== null
+      ? normalizeClientProjectOverview(override.clientProjectOverview)
+      : null;
+  return {
+    ...merged,
+    effectiveCompanyId: cid,
+    overriddenFields: overridden,
+    partnerProjectOverview: partnerPO,
+    clientProjectOverview: clientPO,
+  };
 }

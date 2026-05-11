@@ -10,6 +10,8 @@ type OAuthStatePayload = {
   next?: string;
   role?: "PARTNER" | "CLIENT";
   allowCreate?: boolean;
+  /** 新規登録フローで利用規約・プライバシーポリシーに同意済み */
+  legalAccepted?: boolean;
   availabilitySlotIds?: string[];
   /** パートナー新規登録時のみ（OAuth state サイズ制限のため短めに） */
   partnerZoomUrl?: string;
@@ -33,6 +35,7 @@ export async function openOAuthState(token: string): Promise<OAuthStatePayload |
     const next = typeof payload.next === "string" ? payload.next : undefined;
     const role = payload.role === "PARTNER" || payload.role === "CLIENT" ? payload.role : undefined;
     const allowCreate = payload.allowCreate === true;
+    const legalAccepted = payload.legalAccepted === true;
     const availabilitySlotIds = Array.isArray(payload.availabilitySlotIds)
       ? payload.availabilitySlotIds.filter((v): v is string => typeof v === "string").slice(0, 64)
       : undefined;
@@ -48,6 +51,7 @@ export async function openOAuthState(token: string): Promise<OAuthStatePayload |
       next,
       role,
       allowCreate,
+      legalAccepted: legalAccepted || undefined,
       availabilitySlotIds,
       partnerZoomUrl: partnerZoomUrl || undefined,
       partnerZoomMeetingId: partnerZoomMeetingId || undefined,

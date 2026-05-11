@@ -9,6 +9,8 @@ const bodySchema = z.object({
   email: z.string().email().max(200),
   displayName: z.string().min(1).max(80),
   role: z.enum(["PARTNER", "CLIENT"]),
+  /** 利用規約・プライバシーポリシーへの同意（必須） */
+  acceptedLegal: z.literal(true),
   availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64).optional(),
   zoomUrl: z.string().url().max(500).optional(),
   zoomMeetingId: z.string().max(60).optional(),

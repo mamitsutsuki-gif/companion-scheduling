@@ -8,6 +8,7 @@ import {
   listAdminVisibleUsers,
   setUserCompany,
   updateUserAvailability,
+  updateUserDisplayName,
   updateUserRole,
 } from "@/lib/repositories/user-repository";
 import {
@@ -37,15 +38,17 @@ const patchSchema = z
   .object({
     userId: z.string().min(1),
     role: z.enum(["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN", "ADMIN_ASSISTANT"]).optional(),
+    displayName: z.string().min(1).max(80).optional(),
     availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64).optional(),
     companyId: z.string().trim().max(80).nullable().optional(),
   })
   .refine(
     (v) =>
       v.role !== undefined ||
+      v.displayName !== undefined ||
       v.availabilitySlotIds !== undefined ||
       v.companyId !== undefined,
-    "role / availabilitySlotIds / companyId のいずれかを指定してください。",
+    "role / displayName / availabilitySlotIds / companyId のいずれかを指定してください。",
   );
 
 export async function PATCH(request: Request) {
@@ -81,6 +84,14 @@ export async function PATCH(request: Request) {
   if (parsed.data.role) {
     const updated = await updateUserRole(parsed.data.userId, parsed.data.role).catch(() => null);
     if (!updated) return jsonError("ユーザー更新に失敗しました。", 400);
+    resultUser = updated;
+  }
+
+  if (parsed.data.displayName !== undefined) {
+    const updated = await updateUserDisplayName(parsed.data.userId, parsed.data.displayName).catch(
+      () => null,
+    );
+    if (!updated) return jsonError("表示名の更新に失敗しました。", 400);
     resultUser = updated;
   }
 

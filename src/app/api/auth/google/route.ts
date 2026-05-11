@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const rawRole = request.nextUrl.searchParams.get("role");
     const role = rawRole === "PARTNER" || rawRole === "CLIENT" ? rawRole : undefined;
     const allowCreate = request.nextUrl.searchParams.get("register") === "1";
+    const legalAccepted = request.nextUrl.searchParams.get("legal") === "1";
     const slotsRaw = request.nextUrl.searchParams.get("slots") ?? "";
     const availabilitySlotIds = slotsRaw
       ? slotsRaw.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 64)
@@ -24,6 +25,7 @@ export async function GET(request: NextRequest) {
       next: next.startsWith("/") ? next : "/dashboard",
       role,
       allowCreate,
+      legalAccepted: legalAccepted || undefined,
       availabilitySlotIds,
       partnerZoomUrl: request.nextUrl.searchParams.get("zoomUrl")?.trim().slice(0, 500) || undefined,
       partnerZoomMeetingId:

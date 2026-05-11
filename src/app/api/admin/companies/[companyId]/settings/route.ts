@@ -29,6 +29,27 @@ const guidelineEntrySchema = z.object({
 });
 const sessionGuidelinesSchema = z.record(z.string(), guidelineEntrySchema);
 
+const overviewTextField = z.string().max(8000);
+
+const partnerProjectOverviewBodySchema = z.object({
+  companyName: overviewTextField,
+  sessionPeriod: overviewTextField,
+  sessionFrequency: overviewTextField,
+  background: overviewTextField,
+  sessionFocus: overviewTextField,
+  expectations: overviewTextField,
+  other: overviewTextField,
+});
+
+const clientProjectOverviewBodySchema = z.object({
+  sessionPeriod: overviewTextField,
+  sessionFrequency: overviewTextField,
+  background: overviewTextField,
+  sessionFocus: overviewTextField,
+  expectations: overviewTextField,
+  other: overviewTextField,
+});
+
 const OVERRIDABLE_KEYS = [
   "slotDurationMinutes",
   "totalSessions",
@@ -56,6 +77,10 @@ const patchSchema = z.object({
     .array(z.enum(OVERRIDABLE_KEYS))
     .max(OVERRIDABLE_KEYS.length)
     .optional(),
+  partnerProjectOverview: partnerProjectOverviewBodySchema.optional(),
+  clientProjectOverview: clientProjectOverviewBodySchema.optional(),
+  clearPartnerProjectOverview: z.boolean().optional(),
+  clearClientProjectOverview: z.boolean().optional(),
 });
 
 /**
@@ -105,13 +130,20 @@ export async function PATCH(request: Request, ctx: RouteContext) {
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
 
-  const { clearFields, ...rest } = parsed.data;
+  const { clearFields, clearPartnerProjectOverview, clearClientProjectOverview, ...rest } =
+    parsed.data;
   if (clearFields && clearFields.length > 0) {
     for (const k of clearFields) {
       if (rest[k] !== undefined) {
         return jsonError(`同じフィールド (${k}) を clear と set 両方で指定することはできません。`);
       }
     }
+  }
+  if (clearPartnerProjectOverview && rest.partnerProjectOverview !== undefined) {
+    return jsonError("partnerProjectOverview を同時に clear と set することはできません。");
+  }
+  if (clearClientProjectOverview && rest.clientProjectOverview !== undefined) {
+    return jsonError("clientProjectOverview を同時に clear と set することはできません。");
   }
   if (
     typeof rest.slotEarliestHour === "number" &&
@@ -124,9 +156,18 @@ export async function PATCH(request: Request, ctx: RouteContext) {
   const next = await upsertCompanyAppSettingsOverride(companyId, {
     ...rest,
     clearFields,
+    clearPartnerProjectOverview: clearPartnerProjectOverview === true,
+    clearClientProjectOverview: clearClientProjectOverview === true,
   });
 
-  const onlyMeta = !next || Object.keys(next).every((k) => k === "companyId" || k === "updatedAt");
+  const substantiveKeys = next
+    ? Object.keys(next).filter((k) => {
+        if (k === "companyId" || k === "updatedAt") return false;
+        const v = (next as Record<string, unknown>)[k];
+        return v !== undefined && v !== null;
+      })
+    : [];
+  const onlyMeta = !next || substantiveKeys.length === 0;
   if (onlyMeta) {
     await deleteCompanyAppSettingsOverride(companyId);
   }

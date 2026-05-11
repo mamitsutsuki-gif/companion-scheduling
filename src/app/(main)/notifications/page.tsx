@@ -184,11 +184,8 @@ export default function MemberNotificationsPage() {
                     ) : null}
                   </div>
                   <p className="break-words text-sm text-slate-900">{n.summary}</p>
-                  {n.matchId ? (
-                    <p className="mt-1 text-xs text-slate-500">
-                      ペアルーム: <span className="font-mono">#{n.matchId}</span>
-                      {n.sessionNumber ? `・第${n.sessionNumber}回` : ""}
-                    </p>
+                  {n.matchId && n.sessionNumber ? (
+                    <p className="mt-1 text-xs text-slate-500">第{n.sessionNumber}回</p>
                   ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
