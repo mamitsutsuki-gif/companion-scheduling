@@ -57,6 +57,7 @@ type NegotiationRow = {
     | "SUPERSEDED";
   slots: SlotRow[];
   confirmedZoomUrl?: string | null;
+  confirmedZoomMeetingId?: string | null;
   confirmedZoomPass?: string | null;
   rescheduleRequestedAt?: string | null;
 };
@@ -106,6 +107,7 @@ type SessionPlanApiRow = {
   hasClientFeedback: boolean;
   hasPartnerReport: boolean;
   zoomUrl?: string | null;
+  zoomMeetingId?: string | null;
   zoomPass?: string | null;
 };
 
@@ -1011,6 +1013,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               const isOpenable = Boolean(apiRow?.openable);
               const isRescheduling = isReschedulingSession(row.index);
               const zoomUrl = apiRow?.zoomUrl ?? null;
+              const zoomMeetingId = apiRow?.zoomMeetingId ?? null;
               const zoomPass = apiRow?.zoomPass ?? null;
               return (
                 <li key={row.index} className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
@@ -1047,7 +1050,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                       )}
                     </div>
                   </div>
-                  {(zoomUrl || zoomPass) ? (
+                  {(zoomUrl || zoomMeetingId || zoomPass) ? (
                     <p className="mt-1 text-xs text-zinc-700">
                       {zoomUrl ? (
                         <a
@@ -1059,6 +1062,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                           Zoom: {zoomUrl}
                         </a>
                       ) : null}
+                      {zoomMeetingId ? <span className="ml-2">ID: {zoomMeetingId}</span> : null}
                       {zoomPass ? <span className="ml-2">パス: {zoomPass}</span> : null}
                     </p>
                   ) : null}
@@ -1358,7 +1362,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                       {row.sessionNumber}回目
                       <span className="ml-2 text-sm font-normal text-violet-900/85">{dateLabel}</span>
                     </p>
-                    {(row.zoomUrl || row.zoomPass) ? (
+                    {(row.zoomUrl || row.zoomMeetingId || row.zoomPass) ? (
                       <p className="mt-1 text-xs text-violet-900/85">
                         {row.zoomUrl ? (
                           <a
@@ -1370,6 +1374,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                             Zoom: {row.zoomUrl}
                           </a>
                         ) : null}
+                        {row.zoomMeetingId ? <span className="ml-2">ID: {row.zoomMeetingId}</span> : null}
                         {row.zoomPass ? <span className="ml-2">パス: {row.zoomPass}</span> : null}
                       </p>
                     ) : null}

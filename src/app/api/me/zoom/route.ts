@@ -5,6 +5,7 @@ import { getPartnerZoomProfile, upsertPartnerZoomProfile } from "@/lib/repositor
 
 const putSchema = z.object({
   zoomUrl: z.string().url(),
+  zoomMeetingId: z.string().max(60).optional().default(""),
   zoomPass: z.string().max(120),
 });
 
@@ -29,6 +30,8 @@ export async function PUT(request: Request) {
   const profile = await upsertPartnerZoomProfile({
     partnerId: session.sub,
     zoomUrl: parsed.data.zoomUrl,
+    zoomMeetingId:
+      parsed.data.zoomMeetingId.trim() === "" ? null : parsed.data.zoomMeetingId.trim(),
     zoomPass: parsed.data.zoomPass.trim() === "" ? null : parsed.data.zoomPass,
   });
 

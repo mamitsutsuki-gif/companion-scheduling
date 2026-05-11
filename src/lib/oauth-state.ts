@@ -13,6 +13,7 @@ type OAuthStatePayload = {
   availabilitySlotIds?: string[];
   /** パートナー新規登録時のみ（OAuth state サイズ制限のため短めに） */
   partnerZoomUrl?: string;
+  partnerZoomMeetingId?: string;
   partnerZoomPass?: string;
 };
 
@@ -37,6 +38,10 @@ export async function openOAuthState(token: string): Promise<OAuthStatePayload |
       : undefined;
     const partnerZoomUrl =
       typeof payload.partnerZoomUrl === "string" ? payload.partnerZoomUrl.trim().slice(0, 500) : undefined;
+    const partnerZoomMeetingId =
+      typeof payload.partnerZoomMeetingId === "string"
+        ? payload.partnerZoomMeetingId.trim().slice(0, 60)
+        : undefined;
     const partnerZoomPass =
       typeof payload.partnerZoomPass === "string" ? payload.partnerZoomPass.trim().slice(0, 120) : undefined;
     return {
@@ -45,6 +50,7 @@ export async function openOAuthState(token: string): Promise<OAuthStatePayload |
       allowCreate,
       availabilitySlotIds,
       partnerZoomUrl: partnerZoomUrl || undefined,
+      partnerZoomMeetingId: partnerZoomMeetingId || undefined,
       partnerZoomPass: partnerZoomPass || undefined,
     };
   } catch {

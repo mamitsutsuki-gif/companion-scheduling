@@ -125,6 +125,7 @@ export async function GET(request: NextRequest) {
         await upsertPartnerZoomProfile({
           partnerId: ref.id,
           zoomUrl: payload.partnerZoomUrl.trim(),
+          zoomMeetingId: payload.partnerZoomMeetingId?.trim() || null,
           zoomPass: payload.partnerZoomPass.trim() === "なし" ? null : payload.partnerZoomPass.trim(),
         });
       }
@@ -153,6 +154,7 @@ export async function GET(request: NextRequest) {
         await upsertPartnerZoomProfile({
           partnerId: user.id,
           zoomUrl: payload.partnerZoomUrl.trim(),
+          zoomMeetingId: payload.partnerZoomMeetingId?.trim() || null,
           zoomPass: payload.partnerZoomPass.trim() === "なし" ? null : payload.partnerZoomPass.trim(),
         });
       }

@@ -54,14 +54,17 @@ export async function POST(request: Request, context: RouteContext) {
   const zoom = await getPartnerZoomProfile(matchFull.partnerId);
   await confirmNegotiationSlot(negotiationId, parsed.data.slotId, {
     zoomUrl: zoom?.zoomUrl ?? null,
+    zoomMeetingId: zoom?.zoomMeetingId ?? null,
     zoomPass: zoom?.zoomPass ?? null,
   });
   // 同じセッション番号で過去に立てられた「再調整中」フラグをクリア
   await clearRescheduleFlagsForSession(matchId, Number(negotiation.sessionNumber ?? 1)).catch(() => null);
 
-  const zoomLine = zoom
-    ? `オンライン: ${zoom.zoomUrl}${zoom.zoomPass ? `\nパスコード: ${zoom.zoomPass}` : ""}`
-    : "";
+  const zoomLines: string[] = [];
+  if (zoom?.zoomUrl) zoomLines.push(`Zoom URL: ${zoom.zoomUrl}`);
+  if (zoom?.zoomMeetingId) zoomLines.push(`ミーティング ID: ${zoom.zoomMeetingId}`);
+  if (zoom?.zoomPass) zoomLines.push(`パスコード: ${zoom.zoomPass}`);
+  const zoomLine = zoomLines.join("\n");
 
   const ics = buildIcsEvent({
     uid: `${chosen.id}@companion-scheduling`,
@@ -130,6 +133,7 @@ export async function POST(request: Request, context: RouteContext) {
       start: chosen.startAt,
       end: chosen.endAt,
       zoomUrl: zoom?.zoomUrl ?? null,
+      zoomMeetingId: zoom?.zoomMeetingId ?? null,
       zoomPass: zoom?.zoomPass ?? null,
       icsContent: ics,
       googleCalendarUrl: googleCalendarLink,

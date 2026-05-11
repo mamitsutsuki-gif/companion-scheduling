@@ -14,6 +14,7 @@ export type SessionPlanRow = {
   negotiationId: string | null;
   /** 確定時にスナップショットされた Zoom URL（無ければ null） */
   zoomUrl: string | null;
+  zoomMeetingId: string | null;
   zoomPass: string | null;
 };
 
@@ -25,6 +26,7 @@ type RawNeg = {
   round: number;
   slots: Array<{ startAt: string; endAt: string; isConfirmed: boolean }>;
   confirmedZoomUrl: string | null;
+  confirmedZoomMeetingId: string | null;
   confirmedZoomPass: string | null;
 };
 
@@ -52,6 +54,8 @@ async function loadConfirmedNegotiationsForMatch(matchId: string): Promise<RawNe
           isConfirmed: Boolean(s.isConfirmed),
         })),
         confirmedZoomUrl: typeof raw.confirmedZoomUrl === "string" ? raw.confirmedZoomUrl : null,
+        confirmedZoomMeetingId:
+          typeof raw.confirmedZoomMeetingId === "string" ? raw.confirmedZoomMeetingId : null,
         confirmedZoomPass: typeof raw.confirmedZoomPass === "string" ? raw.confirmedZoomPass : null,
       };
     });
@@ -63,6 +67,7 @@ async function loadConfirmedNegotiationsForMatch(matchId: string): Promise<RawNe
   return negs.map((n) => {
     const ext = n as unknown as {
       confirmedZoomUrl?: string | null;
+      confirmedZoomMeetingId?: string | null;
       confirmedZoomPass?: string | null;
     };
     return {
@@ -77,6 +82,7 @@ async function loadConfirmedNegotiationsForMatch(matchId: string): Promise<RawNe
         isConfirmed: s.isConfirmed,
       })),
       confirmedZoomUrl: ext.confirmedZoomUrl ?? null,
+      confirmedZoomMeetingId: ext.confirmedZoomMeetingId ?? null,
       confirmedZoomPass: ext.confirmedZoomPass ?? null,
     };
   });
@@ -109,6 +115,7 @@ export async function listSessionPlanForMatch(matchId: string): Promise<SessionP
       endAt: found?.slot.endAt ?? null,
       negotiationId: found?.id ?? null,
       zoomUrl: found?.confirmedZoomUrl ?? null,
+      zoomMeetingId: found?.confirmedZoomMeetingId ?? null,
       zoomPass: found?.confirmedZoomPass ?? null,
     } satisfies SessionPlanRow;
   });

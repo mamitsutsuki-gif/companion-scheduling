@@ -7,50 +7,24 @@ import {
   authFieldClass,
 } from "@/components/auth-shell";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from "firebase/auth";
-import { getFirebaseAuthClient } from "@/lib/firebase-client";
 import {
   AVAILABILITY_NOTICE,
   DEFAULT_AVAILABILITY_OPTIONS,
   type AvailabilitySlotOption,
 } from "@/lib/availability";
 
-function firebaseRegisterErrorMessage(error: unknown) {
-  const message =
-    typeof error === "object" && error && "message" in error
-      ? String((error as { message?: unknown }).message ?? "")
-      : "";
-  const code = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
-  if (code === "auth/operation-not-allowed") {
-    return "Firebase Authentication でメール/パスワードログインが無効です。管理画面で有効化してください。";
-  }
-  if (code === "auth/unauthorized-domain") {
-    return "認証ドメインが未許可です。Firebase Authentication の承認済みドメインにこのURLを追加してください。";
-  }
-  if (code === "auth/email-already-in-use") {
-    return "このメールアドレスは既に使用されています。";
-  }
-  if (code === "auth/invalid-email") {
-    return "メールアドレスの形式が正しくありません。";
-  }
-  if (code === "auth/weak-password") {
-    return "パスワードが弱すぎます。8文字以上で設定してください。";
-  }
-  return `登録に失敗しました（${code || "unknown"}）。入力内容と設定を確認してください。`;
-}
-
 export default function RegisterPage() {
-  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sentMessage, setSentMessage] = useState<string | null>(null);
   const [role, setRole] = useState<"PARTNER" | "CLIENT">("PARTNER");
   const [availabilityOptions, setAvailabilityOptions] = useState<AvailabilitySlotOption[]>(
     DEFAULT_AVAILABILITY_OPTIONS,
   );
   const [selectedSlotIds, setSelectedSlotIds] = useState<string[]>([]);
   const [partnerZoomUrl, setPartnerZoomUrl] = useState("");
+  const [partnerZoomMeetingId, setPartnerZoomMeetingId] = useState("");
   const [partnerZoomPass, setPartnerZoomPass] = useState("");
   const googleHref = useMemo(() => {
     const params = new URLSearchParams({
@@ -63,12 +37,14 @@ export default function RegisterPage() {
     }
     if (role === "PARTNER") {
       const zu = partnerZoomUrl.trim();
+      const zid = partnerZoomMeetingId.trim();
       const zp = partnerZoomPass.trim();
       if (zu) params.set("zoomUrl", zu);
+      if (zid) params.set("zoomMeetingId", zid);
       if (zp) params.set("zoomPass", zp);
     }
     return `/api/auth/google?${params.toString()}`;
-  }, [role, selectedSlotIds, partnerZoomUrl, partnerZoomPass]);
+  }, [role, selectedSlotIds, partnerZoomUrl, partnerZoomMeetingId, partnerZoomPass]);
 
   useEffect(() => {
     fetch("/api/settings", { cache: "no-store" })
@@ -92,104 +68,65 @@ export default function RegisterPage() {
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
+    setSentMessage(null);
     const fd = new FormData(e.currentTarget);
     const email = String(fd.get("email") ?? "").trim().toLowerCase();
-    const password = String(fd.get("password") ?? "");
     const displayName = String(fd.get("displayName") ?? "").trim();
     const selectedRole = String(fd.get("role") ?? role) as "PARTNER" | "CLIENT";
     const availabilitySlotIds = selectedRole === "CLIENT" ? selectedSlotIds : [];
     if (selectedRole === "CLIENT" && availabilitySlotIds.length === 0) {
-      setLoading(false);
       setError("対応可能時間を1つ以上選択してください。");
       return;
     }
     const zoomUrl = partnerZoomUrl.trim();
+    const zoomMeetingId = partnerZoomMeetingId.trim();
     const zoomPass = partnerZoomPass.trim();
     if (selectedRole === "PARTNER") {
       try {
         // eslint-disable-next-line no-new
         new URL(zoomUrl);
       } catch {
-        setLoading(false);
         setError("Zoom の会議URLを https:// から始まる正しい形式で入力してください。");
         return;
       }
-      if (zoomPass.length < 1 || zoomPass.length > 120) {
-        setLoading(false);
-        setError("Zoom パスを入力してください（不要な場合は「なし」と入力）。");
+      if (zoomMeetingId.length < 1) {
+        setError("Zoom のミーティング ID を入力してください。");
+        return;
+      }
+      if (zoomPass.length < 1) {
+        setError("Zoom のパスコードを入力してください。");
         return;
       }
     }
-    const res = await fetch("/api/auth/register", {
+    setLoading(true);
+    const res = await fetch("/api/auth/register-email-init", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         email,
-        password,
         displayName,
         role: selectedRole,
+        availabilitySlotIds,
+        zoomUrl: selectedRole === "PARTNER" ? zoomUrl : undefined,
+        zoomMeetingId: selectedRole === "PARTNER" ? zoomMeetingId : undefined,
+        zoomPass: selectedRole === "PARTNER" ? zoomPass : undefined,
       }),
     });
     const data = await res.json().catch(() => null);
+    setLoading(false);
     if (!res.ok) {
-      const apiError = typeof data?.error === "string" ? data.error : "登録に失敗しました。";
-      if (apiError.includes("Firebaseログインで初回サインイン")) {
-        try {
-          const { auth } = getFirebaseAuthClient();
-          const cred = await createUserWithEmailAndPassword(auth, email, password);
-          if (displayName) {
-            await updateProfile(cred.user, { displayName });
-          }
-          // メール所有者本人であることを確認するため、Firebase からメール認証
-          // リンクを送る。失敗してもログイン自体は通すため await のエラーは無視。
-          try {
-            await sendEmailVerification(cred.user);
-          } catch {
-            // 認証メール送信失敗（Firebase設定不足など）はブロッキングしない。
-          }
-          const idToken = await cred.user.getIdToken();
-          const bridge = await fetch("/api/auth/firebase-login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              idToken,
-              intent: "register",
-              role: selectedRole,
-              displayName,
-              availabilitySlotIds,
-              zoomUrl: selectedRole === "PARTNER" ? zoomUrl : undefined,
-              zoomPass: selectedRole === "PARTNER" ? zoomPass : undefined,
-            }),
-          });
-          const bridgeData = await bridge.json().catch(() => null);
-          setLoading(false);
-          if (!bridge.ok) {
-            setError(typeof bridgeData?.error === "string" ? bridgeData.error : "登録に失敗しました。");
-            return;
-          }
-          router.push("/dashboard");
-          router.refresh();
-          return;
-        } catch (error) {
-          setLoading(false);
-          setError(firebaseRegisterErrorMessage(error));
-          return;
-        }
-      }
-      setLoading(false);
-      setError(apiError);
+      setError(typeof data?.error === "string" ? data.error : "登録メールの送信に失敗しました。");
       return;
     }
-    setLoading(false);
-    router.push("/login");
-    router.refresh();
+    setSentMessage(
+      `${email} にパスワード設定リンクを送信しました。メール内のリンクからパスワードを設定すると登録が完了し、ログイン画面に進めます（リンクの有効期限は24時間です）。`,
+    );
   }
 
   return (
     <AuthShell
       title="新規登録"
-      subtitle="Google SSO またはメールアドレス＋パスワードで作成できます。"
+      subtitle="Google SSO、またはメールアドレスを登録すると確認メールからパスワード設定できます。"
     >
       <fieldset className="mt-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
         <legend className="px-1 text-sm font-semibold text-slate-900">利用ロール（Google/メール登録 共通）</legend>
@@ -264,6 +201,20 @@ export default function RegisterPage() {
             />
           </label>
           <label className="block space-y-1 text-sm font-medium text-indigo-950">
+            ミーティング ID
+            <input
+              value={partnerZoomMeetingId}
+              onChange={(e) => setPartnerZoomMeetingId(e.target.value)}
+              type="text"
+              required
+              maxLength={60}
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="例: 123 4567 8901"
+              className={authFieldClass}
+            />
+          </label>
+          <label className="block space-y-1 text-sm font-medium text-indigo-950">
             パスコード
             <input
               value={partnerZoomPass}
@@ -290,9 +241,14 @@ export default function RegisterPage() {
             setError("Google で登録する前に、有効な Zoom 会議URLを入力してください。");
             return;
           }
+          if (partnerZoomMeetingId.trim().length < 1) {
+            e.preventDefault();
+            setError("Zoom のミーティング ID を入力してください。");
+            return;
+          }
           if (partnerZoomPass.trim().length < 1) {
             e.preventDefault();
-            setError("Zoom パスコードを入力してください。");
+            setError("Zoom のパスコードを入力してください。");
           }
         }}
         className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 shadow-xs no-underline transition hover:bg-slate-50"
@@ -347,21 +303,17 @@ export default function RegisterPage() {
             className={authFieldClass}
           />
         </label>
-        <label className="block space-y-2 text-sm font-medium text-zinc-900">
-          パスワード（10文字以上、英数字を含めて推奨）
-          <input
-            name="password"
-            type="password"
-            required
-            minLength={10}
-            autoComplete="new-password"
-            className={authFieldClass}
-          />
-        </label>
         {error ? <p className="text-sm font-medium text-red-700">{error}</p> : null}
-        <AuthPrimaryButton disabled={loading}>{loading ? "送信中…" : "作成する"}</AuthPrimaryButton>
+        {sentMessage ? (
+          <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-900">
+            {sentMessage}
+          </p>
+        ) : null}
+        <AuthPrimaryButton disabled={loading}>
+          {loading ? "送信中…" : "確認メールを送信"}
+        </AuthPrimaryButton>
         <p className="text-xs leading-relaxed text-slate-500">
-          作成後、入力したメールアドレス宛に確認メールが届きます。受信できなかった場合は、別の方が同じアドレスを所有している可能性があります。
+          入力したメールアドレス宛に確認メールを送信します。メールに記載のリンクからパスワードを設定すると登録が完了します（リンクの有効期限は24時間）。
         </p>
       </form>
       <p className="mt-10 border-t border-zinc-100 pt-8 text-center text-sm text-zinc-600">

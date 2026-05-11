@@ -23,6 +23,7 @@ type NegotiationRow = {
   slots: SlotRow[];
   createdAt: string;
   confirmedZoomUrl?: string | null;
+  confirmedZoomMeetingId?: string | null;
   confirmedZoomPass?: string | null;
   rescheduleRequestedAt?: string | null;
 };
@@ -62,6 +63,8 @@ export async function listNegotiationsForMatch(matchId: string) {
         return {
           ...r,
           confirmedZoomUrl: typeof raw?.confirmedZoomUrl === "string" ? raw.confirmedZoomUrl : null,
+          confirmedZoomMeetingId:
+            typeof raw?.confirmedZoomMeetingId === "string" ? raw.confirmedZoomMeetingId : null,
           confirmedZoomPass: typeof raw?.confirmedZoomPass === "string" ? raw.confirmedZoomPass : null,
           rescheduleRequestedAt:
             typeof raw?.rescheduleRequestedAt === "string" ? raw.rescheduleRequestedAt : null,
@@ -78,6 +81,7 @@ export async function listNegotiationsForMatch(matchId: string) {
   return negotiations.map((n) => {
     const ext = n as unknown as {
       confirmedZoomUrl?: string | null;
+      confirmedZoomMeetingId?: string | null;
       confirmedZoomPass?: string | null;
       rescheduleRequestedAt?: Date | null;
     };
@@ -96,6 +100,7 @@ export async function listNegotiationsForMatch(matchId: string) {
         isConfirmed: s.isConfirmed,
       })),
       confirmedZoomUrl: ext.confirmedZoomUrl ?? null,
+      confirmedZoomMeetingId: ext.confirmedZoomMeetingId ?? null,
       confirmedZoomPass: ext.confirmedZoomPass ?? null,
       rescheduleRequestedAt: ext.rescheduleRequestedAt?.toISOString() ?? null,
     };
@@ -238,6 +243,8 @@ export async function getNegotiationById(negotiationId: string) {
         };
       }),
       confirmedZoomUrl: typeof raw.confirmedZoomUrl === "string" ? raw.confirmedZoomUrl : null,
+      confirmedZoomMeetingId:
+        typeof raw.confirmedZoomMeetingId === "string" ? raw.confirmedZoomMeetingId : null,
       confirmedZoomPass: typeof raw.confirmedZoomPass === "string" ? raw.confirmedZoomPass : null,
       rescheduleRequestedAt:
         typeof raw.rescheduleRequestedAt === "string" ? raw.rescheduleRequestedAt : null,
@@ -248,6 +255,7 @@ export async function getNegotiationById(negotiationId: string) {
   if (!n) return null;
   const ext = n as unknown as {
     confirmedZoomUrl?: string | null;
+    confirmedZoomMeetingId?: string | null;
     confirmedZoomPass?: string | null;
     rescheduleRequestedAt?: Date | null;
   };
@@ -265,6 +273,7 @@ export async function getNegotiationById(negotiationId: string) {
       isConfirmed: s.isConfirmed,
     })),
     confirmedZoomUrl: ext.confirmedZoomUrl ?? null,
+    confirmedZoomMeetingId: ext.confirmedZoomMeetingId ?? null,
     confirmedZoomPass: ext.confirmedZoomPass ?? null,
     rescheduleRequestedAt: ext.rescheduleRequestedAt?.toISOString() ?? null,
   };
@@ -298,7 +307,7 @@ export async function submitVotes(negotiationId: string, votes: Record<string, "
 export async function confirmNegotiationSlot(
   negotiationId: string,
   slotId: string,
-  options?: { zoomUrl?: string | null; zoomPass?: string | null },
+  options?: { zoomUrl?: string | null; zoomMeetingId?: string | null; zoomPass?: string | null },
 ) {
   const negotiation = await getNegotiationById(negotiationId);
   if (!negotiation) return null;
@@ -313,6 +322,7 @@ export async function confirmNegotiationSlot(
         slots,
         status: "CONFIRMED",
         confirmedZoomUrl: options?.zoomUrl ?? null,
+        confirmedZoomMeetingId: options?.zoomMeetingId ?? null,
         confirmedZoomPass: options?.zoomPass ?? null,
         updatedAt: new Date().toISOString(),
       },
@@ -329,6 +339,7 @@ export async function confirmNegotiationSlot(
           status: "CONFIRMED",
           confirmedZoomUrl: options?.zoomUrl ?? null,
           confirmedZoomPass: options?.zoomPass ?? null,
+          ...({ confirmedZoomMeetingId: options?.zoomMeetingId ?? null } as Record<string, unknown>),
         },
       }),
     ]);

@@ -126,6 +126,7 @@ async function migratePartnerZoomProfiles(counters: Counters) {
       {
         partnerId: row.partnerId,
         zoomUrl: row.zoomUrl,
+        zoomMeetingId: (row as unknown as { zoomMeetingId?: string | null }).zoomMeetingId ?? null,
         zoomPass: row.zoomPass ?? null,
         updatedAt: toIso(row.updatedAt),
       },

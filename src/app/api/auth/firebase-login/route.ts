@@ -22,6 +22,7 @@ const bodySchema = z.object({
   availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64).optional(),
   /** パートナー新規登録時は必須（会議リンク設定と同期） */
   zoomUrl: z.string().url().max(500).optional(),
+  zoomMeetingId: z.string().max(60).optional(),
   zoomPass: z.string().min(1).max(120).optional(),
 });
 
@@ -91,7 +92,7 @@ export async function POST(request: Request) {
     const targetRole = parsed.data.role ?? "CLIENT";
     if (targetRole === "PARTNER") {
       if (!parsed.data.zoomUrl || !parsed.data.zoomPass) {
-        return jsonError("パートナー登録では Zoom の会議URLとパス（不要の場合は「なし」）の入力が必要です。", 400);
+        return jsonError("パートナー登録では Zoom の会議URLとパスコードが必要です。", 400);
       }
     }
     user = await createFirebaseUser({ email, displayName, firebaseUid, availabilitySlotIds });
@@ -104,6 +105,7 @@ export async function POST(request: Request) {
       await upsertPartnerZoomProfile({
         partnerId: user.id,
         zoomUrl: parsed.data.zoomUrl,
+        zoomMeetingId: parsed.data.zoomMeetingId?.trim() || null,
         zoomPass: parsed.data.zoomPass?.trim() === "なし" ? null : (parsed.data.zoomPass ?? null),
       });
     }

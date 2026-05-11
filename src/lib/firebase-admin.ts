@@ -72,3 +72,24 @@ export async function getFirebaseAuthUserEmail(uid: string): Promise<string | nu
     return null;
   }
 }
+
+/**
+ * Admin SDK で Firebase Auth に新規ユーザーを作成する。
+ * メール本文のリンクを踏んで来た本人だけが叩く finish API で使う。
+ * 失敗時は throw（呼び出し側で 4xx を返すこと）。
+ */
+export async function createFirebaseAuthUserWithPassword(input: {
+  email: string;
+  password: string;
+  displayName: string;
+}): Promise<{ uid: string }> {
+  const app = getFirebaseAdminApp();
+  if (!app) throw new Error("Firebase Admin SDK is not configured");
+  const rec = await getAuth(app).createUser({
+    email: input.email,
+    password: input.password,
+    displayName: input.displayName,
+    emailVerified: true,
+  });
+  return { uid: rec.uid };
+}

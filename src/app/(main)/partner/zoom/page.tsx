@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 
 export default function PartnerZoomPage() {
   const [zoomUrl, setZoomUrl] = useState("");
+  const [zoomMeetingId, setZoomMeetingId] = useState("");
   const [zoomPass, setZoomPass] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -15,6 +16,7 @@ export default function PartnerZoomPage() {
       if (!res.ok) return;
       if (data?.zoom) {
         setZoomUrl(data.zoom.zoomUrl ?? "");
+        setZoomMeetingId(data.zoom.zoomMeetingId ?? "");
         setZoomPass(data.zoom.zoomPass ?? "");
       }
     }
@@ -31,6 +33,7 @@ export default function PartnerZoomPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         zoomUrl: fd.get("zoomUrl"),
+        zoomMeetingId: fd.get("zoomMeetingId"),
         zoomPass: fd.get("zoomPass"),
       }),
     });
@@ -68,6 +71,19 @@ export default function PartnerZoomPage() {
             onChange={(e) => setZoomUrl(e.target.value)}
             placeholder="https://zoom.us/j/..."
             className={field}
+          />
+        </label>
+        <label className="block space-y-2 text-sm font-medium text-slate-900">
+          ミーティング ID
+          <input
+            name="zoomMeetingId"
+            value={zoomMeetingId}
+            onChange={(e) => setZoomMeetingId(e.target.value)}
+            required
+            placeholder="例: 123 4567 8901"
+            inputMode="numeric"
+            className={field}
+            autoComplete="off"
           />
         </label>
         <label className="block space-y-2 text-sm font-medium text-slate-900">

@@ -97,14 +97,15 @@ model PasswordResetToken {
   createdAt DateTime @default(now())
 }
 
-/// Fixed Zoom room per partner (URL + optional pass); injected into confirmations.
+/// Fixed Zoom room per partner (URL + Meeting ID + optional pass); injected into confirmations.
 model PartnerZoomProfile {
-  id        String @id @default(cuid())
-  partnerId String @unique
-  partner   User   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
-  zoomUrl   String
-  zoomPass  String?
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  partnerId      String   @unique
+  partner        User     @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  zoomUrl        String
+  zoomMeetingId  String?
+  zoomPass       String?
+  updatedAt      DateTime @updatedAt
 }
 
 /// Optional weekly template (minutes from midnight, weekday 0=Sun .. 6=Sat).
@@ -156,8 +157,9 @@ model Negotiation {
   status  NegotiationStatus @default(AWAITING_CLIENT_RESPONSE)
 
   /// 確定時にスナップショットされる Zoom 情報（後でパートナーが URL を変えても、確定済みは固定）
-  confirmedZoomUrl  String?
-  confirmedZoomPass String?
+  confirmedZoomUrl       String?
+  confirmedZoomMeetingId String?
+  confirmedZoomPass      String?
   /// 確定後に変更希望が出された時刻。新しい round が CONFIRMED されたらクリア。
   rescheduleRequestedAt DateTime?
 

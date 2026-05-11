@@ -50,11 +50,13 @@ async function main() {
     where: { partnerId: partner.id },
     update: {
       zoomUrl: "https://zoom.us/j/0000000000",
+      zoomMeetingId: "000 0000 0000",
       zoomPass: "demo",
     },
     create: {
       partnerId: partner.id,
       zoomUrl: "https://zoom.us/j/0000000000",
+      zoomMeetingId: "000 0000 0000",
       zoomPass: "demo",
     },
   });

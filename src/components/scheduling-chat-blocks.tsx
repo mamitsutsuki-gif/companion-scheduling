@@ -22,6 +22,7 @@ const scheduleConfirmedPayloadSchema = z.object({
   start: z.string(),
   end: z.string(),
   zoomUrl: z.string().nullable().optional(),
+  zoomMeetingId: z.string().nullable().optional(),
   zoomPass: z.string().nullable().optional(),
   icsContent: z.string().nullable().optional(),
   googleCalendarUrl: z.string().nullable().optional(),
@@ -162,8 +163,9 @@ function downloadIcs(filename: string, content: string) {
 export function ScheduleConfirmedCard({ payload }: ScheduleConfirmedCardProps) {
   const p = scheduleConfirmedPayloadSchema.safeParse(payload);
   if (!p.success) return null;
-  const zoomBits = [];
+  const zoomBits: string[] = [];
   if (p.data.zoomUrl) zoomBits.push(p.data.zoomUrl);
+  if (p.data.zoomMeetingId) zoomBits.push(`ID: ${p.data.zoomMeetingId}`);
   if (p.data.zoomPass) zoomBits.push(`パス: ${p.data.zoomPass}`);
   const sessionLabel = p.data.sessionNumber ? `第${p.data.sessionNumber}回 / ` : "";
   return (

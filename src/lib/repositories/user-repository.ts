@@ -97,6 +97,45 @@ export async function findUserForFirebaseLogin(params: { email: string; firebase
   }
 }
 
+/**
+ * メール（小文字化）で既存ユーザーを引く。重複登録判定用。
+ * Firebase バックエンドのみ実装（本フローは Firestore 想定）。
+ */
+export async function findUserByEmail(email: string) {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return null;
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return null;
+    const snap = await db.collection("users").where("email", "==", normalized).limit(1).get();
+    if (snap.empty) return null;
+    const d = snap.docs[0]!;
+    return userFromDoc(d.id, d.data() as Record<string, unknown>);
+  }
+  try {
+    const row = await prisma.user.findFirst({
+      where: { email: normalized },
+      select: {
+        id: true,
+        displayName: true,
+        role: true,
+        firebaseUid: true,
+        googleSub: true,
+        email: true,
+        deletedAt: true,
+      },
+    });
+    if (!row) return null;
+    return {
+      ...row,
+      deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
+      availabilitySlotIds: [] as string[],
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** soft-delete されたユーザーかを判定 */
 export function isDeletedUser(user: { deletedAt?: string | Date | null } | null | undefined) {
   if (!user) return false;
