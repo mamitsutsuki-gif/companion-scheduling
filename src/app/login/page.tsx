@@ -28,6 +28,8 @@ function oauthErrorMessage(code: string | null) {
     oauth_error: "ログイン処理でエラーが発生しました。",
     partner_zoom_required:
       "パートナー登録には Zoom の会議URLとパスコードが必要です。最初からやり直してください。",
+    legal_required:
+      "新規登録には利用規約とプライバシーポリシーへの同意が必要です。新規登録ページで同意のチェックを入れてからお試しください。",
     user_deleted:
       "このアカウントは管理者により削除されているため、ログインできません。管理者にお問い合わせください。",
   };
