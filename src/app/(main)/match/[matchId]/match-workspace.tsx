@@ -263,7 +263,28 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [clientFta, setClientFta] = useState<MatchFtaPayload | null>(null);
   const [availability, setAvailability] = useState<AvailabilityPayload | null>(null);
   const [sessionRows, setSessionRows] = useState<SessionPlanApiRow[]>([]);
-  const [activeTab, setActiveTab] = useState<MatchTab>("chat");
+  // 初期タブは URL ハッシュから決定する。
+  // 例: 通知メールやアプリ内通知から `/match/<id>#schedule` で飛んできた場合に
+  // 「日程調整」タブを自動で開く（以前はハッシュ無視で常に "chat" タブが開いていた）。
+  const [activeTab, setActiveTab] = useState<MatchTab>(() => {
+    if (typeof window === "undefined") return "chat";
+    const h = (window.location.hash || "").replace(/^#/, "").toLowerCase();
+    if (h === "schedule" || h === "fta" || h === "sessions" || h === "overview") {
+      return h;
+    }
+    return "chat";
+  });
+  // クライアント側マウント後にハッシュが変わったときも追随する（戻る/進む対応）。
+  useEffect(() => {
+    function onHashChange() {
+      const h = (window.location.hash || "").replace(/^#/, "").toLowerCase();
+      if (h === "chat" || h === "schedule" || h === "fta" || h === "sessions" || h === "overview") {
+        setActiveTab(h as MatchTab);
+      }
+    }
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
   const [projectOverviewJson, setProjectOverviewJson] = useState<unknown>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [proposeSubmitting, setProposeSubmitting] = useState(false);

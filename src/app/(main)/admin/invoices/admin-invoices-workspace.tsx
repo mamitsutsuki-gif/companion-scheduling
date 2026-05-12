@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type InvoiceStatus = "DRAFT" | "SUBMITTED" | "RETURNED" | "CONFIRMED";
@@ -93,8 +94,19 @@ const DEFAULT_YEAR = CURRENT_DATE.getFullYear();
 const DEFAULT_MONTH = CURRENT_DATE.getMonth() + 1;
 
 export function AdminInvoicesWorkspace() {
-  const [year, setYear] = useState<number>(DEFAULT_YEAR);
-  const [month, setMonth] = useState<number>(DEFAULT_MONTH);
+  // 通知（請求書 提出など）の「開く」リンクは `/admin/invoices?year=&month=` で
+  // 期間指定して飛んでくる。URL のクエリがあればそちらを優先（範囲外なら無視）。
+  const searchParams = useSearchParams();
+  const initialYear = (() => {
+    const y = Number(searchParams?.get("year") ?? "");
+    return Number.isInteger(y) && y >= 2020 && y <= 2100 ? y : DEFAULT_YEAR;
+  })();
+  const initialMonth = (() => {
+    const m = Number(searchParams?.get("month") ?? "");
+    return Number.isInteger(m) && m >= 1 && m <= 12 ? m : DEFAULT_MONTH;
+  })();
+  const [year, setYear] = useState<number>(initialYear);
+  const [month, setMonth] = useState<number>(initialMonth);
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [missing, setMissing] = useState<MissingPreviewRow[]>([]);
   const [loading, setLoading] = useState(false);

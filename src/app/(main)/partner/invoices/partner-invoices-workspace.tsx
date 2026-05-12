@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type InvoiceStatus = "DRAFT" | "SUBMITTED" | "RETURNED" | "CONFIRMED";
@@ -87,8 +88,19 @@ const DEFAULT_YEAR = CURRENT_DATE.getFullYear();
 const DEFAULT_MONTH = CURRENT_DATE.getMonth() + 1;
 
 export function PartnerInvoicesWorkspace() {
-  const [year, setYear] = useState<number>(DEFAULT_YEAR);
-  const [month, setMonth] = useState<number>(DEFAULT_MONTH);
+  // 通知（請求書確定 / 差し戻し）のリンクは `/partner/invoices?year=&month=` で
+  // 該当月を指定して飛んでくる。URL のクエリがあればそちらを優先（範囲外なら無視）。
+  const searchParams = useSearchParams();
+  const initialYear = (() => {
+    const y = Number(searchParams?.get("year") ?? "");
+    return Number.isInteger(y) && y >= 2020 && y <= 2100 ? y : DEFAULT_YEAR;
+  })();
+  const initialMonth = (() => {
+    const m = Number(searchParams?.get("month") ?? "");
+    return Number.isInteger(m) && m >= 1 && m <= 12 ? m : DEFAULT_MONTH;
+  })();
+  const [year, setYear] = useState<number>(initialYear);
+  const [month, setMonth] = useState<number>(initialMonth);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

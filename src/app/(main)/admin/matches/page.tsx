@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   DEFAULT_AVAILABILITY_OPTIONS,
@@ -58,6 +59,12 @@ export default function AdminMatchesPage() {
   const [clientFilter, setClientFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [selectedMatchIds, setSelectedMatchIds] = useState<string[]>([]);
+
+  // 通知から `/admin/matches?focus=<matchId>` で遷移してきた場合に、
+  // 該当行をスクロール＆一時的にハイライトする。
+  const searchParams = useSearchParams();
+  const focusMatchId = searchParams?.get("focus") ?? null;
+  const [focusedMatchId, setFocusedMatchId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [availabilityOptions, setAvailabilityOptions] = useState<AvailabilitySlotOption[]>(
@@ -181,6 +188,34 @@ export default function AdminMatchesPage() {
     }
     return matches.filter((m) => (m.client.companyId ?? "") === companyFilter);
   }, [matches, companyFilter]);
+
+  // `?focus=<matchId>` で指定された行があれば、企業フィルタを「すべて」に戻し
+  // （絞り込みでヒットせず行が無いと意味が無いので）、行へスクロールしてハイライト。
+  useEffect(() => {
+    if (!focusMatchId) return;
+    if (matches.length === 0) return;
+    const target = matches.find((m) => m.id === focusMatchId);
+    if (!target) return;
+    if (
+      companyFilter &&
+      companyFilter !== (target.client.companyId ?? "") &&
+      !(companyFilter === "__none__" && !((target.client.companyId ?? "").trim()))
+    ) {
+      setCompanyFilter("");
+    }
+    setFocusedMatchId(focusMatchId);
+    // DOM の更新後にスクロール（次フレーム以降に reflow させる）。
+    const t = window.setTimeout(() => {
+      const el = document.getElementById(`match-row-${focusMatchId}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+    // 2.5 秒でハイライトを自動解除（同じ行を再度ハイライトできるよう）。
+    const clear = window.setTimeout(() => setFocusedMatchId(null), 2500);
+    return () => {
+      window.clearTimeout(t);
+      window.clearTimeout(clear);
+    };
+  }, [focusMatchId, matches, companyFilter]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -948,7 +983,13 @@ export default function AdminMatchesPage() {
               </thead>
               <tbody>
                 {filteredMatches.map((row) => (
-                  <tr key={row.id} className="border-b border-zinc-100 text-zinc-800">
+                  <tr
+                    key={row.id}
+                    id={`match-row-${row.id}`}
+                    className={`border-b border-zinc-100 text-zinc-800 transition-colors ${
+                      focusedMatchId === row.id ? "bg-amber-100/70 ring-2 ring-amber-400" : ""
+                    }`}
+                  >
                     <td className="py-3 pr-3 align-top">
                       <input
                         type="checkbox"
