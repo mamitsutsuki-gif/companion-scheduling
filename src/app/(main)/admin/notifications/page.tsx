@@ -148,7 +148,13 @@ export default function AdminNotificationsPage() {
       ) : (
         <ul className="space-y-2">
           {items.map((n) => {
-            const link = n.link ?? (n.matchId ? `/admin/matches?focus=${n.matchId}` : null);
+            const link =
+              n.link ??
+              (n.matchId
+                ? n.type === "CHAT"
+                  ? `/match/${n.matchId}#chat`
+                  : `/match/${n.matchId}#schedule`
+                : null);
             return (
               <li
                 key={n.id}

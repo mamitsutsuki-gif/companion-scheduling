@@ -33,8 +33,58 @@ function isType(value: unknown): value is AdminNotificationType {
     value === "SLOT_CONFIRMED" ||
     value === "RESCHEDULE" ||
     value === "FEEDBACK_SUBMITTED" ||
-    value === "REPORT_SUBMITTED"
+    value === "REPORT_SUBMITTED" ||
+    value === "SESSION_ABANDONED" ||
+    value === "INVOICE_SUBMITTED"
   );
+}
+
+/**
+ * 通知の遷移先 URL を「種別ごとの最適な場所」に正規化する。
+ *
+ * 過去に発火した通知は Firestore 上に `/admin/matches?focus=<id>` という
+ * 旧リンクが保存されているため、種別 + matchId から正しい match ページ
+ * （チャットタブ・日程調整タブ）に書き換える。
+ *
+ * - CHAT             → /match/<id>#chat
+ * - SLOT_* / RESCHEDULE → /match/<id>#schedule
+ * - FEEDBACK / REPORT / SESSION_ABANDONED → /match/<id>/sessions/<n>
+ * - INVOICE_SUBMITTED は保存済みの link（/admin/invoices?...）をそのまま使用
+ *
+ * これにより、「該当ページを開く」ボタンから 1 アクションで該当ペアの
+ * 該当タブに飛べる。
+ */
+function resolveLink(
+  type: AdminNotificationType,
+  matchId: string | null,
+  sessionNumber: number | null,
+  storedLink: string | null,
+): string | null {
+  const isLegacyMatchesLink = !!storedLink && /^\/admin\/matches(\?|$)/.test(storedLink);
+
+  if (storedLink && !isLegacyMatchesLink) return storedLink;
+  if (!matchId) return storedLink;
+
+  switch (type) {
+    case "CHAT":
+      return `/match/${matchId}#chat`;
+    case "SLOT_PROPOSED":
+    case "SLOT_VOTED":
+    case "SLOT_CONFIRMED":
+    case "RESCHEDULE":
+      return `/match/${matchId}#schedule`;
+    case "FEEDBACK_SUBMITTED":
+    case "REPORT_SUBMITTED":
+    case "SESSION_ABANDONED":
+      if (sessionNumber != null) {
+        return `/match/${matchId}/sessions/${sessionNumber}`;
+      }
+      return `/match/${matchId}#sessions`;
+    case "INVOICE_SUBMITTED":
+      return storedLink;
+    default:
+      return storedLink;
+  }
 }
 
 /**
@@ -149,15 +199,18 @@ export async function listAdminNotifications(input?: { limit?: number }): Promis
     return snap.docs.map((d) => {
       const raw = d.data() as Record<string, unknown>;
       const type = isType(raw.type) ? raw.type : "CHAT";
+      const matchId = raw.matchId ? String(raw.matchId) : null;
+      const sessionNumber = typeof raw.sessionNumber === "number" ? raw.sessionNumber : null;
+      const storedLink = raw.link ? String(raw.link) : null;
       return {
         id: d.id,
         type,
-        matchId: raw.matchId ? String(raw.matchId) : null,
-        sessionNumber: typeof raw.sessionNumber === "number" ? raw.sessionNumber : null,
+        matchId,
+        sessionNumber,
         actorUserId: raw.actorUserId ? String(raw.actorUserId) : null,
         actorRole: raw.actorRole ? String(raw.actorRole) : null,
         summary: String(raw.summary ?? ""),
-        link: raw.link ? String(raw.link) : null,
+        link: resolveLink(type, matchId, sessionNumber, storedLink),
         readAt: raw.readAt ? String(raw.readAt) : null,
         createdAt: String(raw.createdAt ?? new Date().toISOString()),
       } as AdminNotificationRow;
@@ -171,26 +224,32 @@ export async function listAdminNotifications(input?: { limit?: number }): Promis
     orderBy: { createdAt: "desc" },
     take: limit,
   })) as Array<Record<string, unknown>>;
-  return rows.map((row) => ({
-    id: String(row.id),
-    type: isType(row.type) ? row.type : "CHAT",
-    matchId: row.matchId ? String(row.matchId) : null,
-    sessionNumber: typeof row.sessionNumber === "number" ? row.sessionNumber : null,
-    actorUserId: row.actorUserId ? String(row.actorUserId) : null,
-    actorRole: row.actorRole ? String(row.actorRole) : null,
-    summary: String(row.summary ?? ""),
-    link: row.link ? String(row.link) : null,
-    readAt:
-      row.readAt instanceof Date
-        ? row.readAt.toISOString()
-        : row.readAt
-          ? String(row.readAt)
-          : null,
-    createdAt:
-      row.createdAt instanceof Date
-        ? row.createdAt.toISOString()
-        : String(row.createdAt ?? new Date().toISOString()),
-  }));
+  return rows.map((row) => {
+    const type = isType(row.type) ? row.type : "CHAT";
+    const matchId = row.matchId ? String(row.matchId) : null;
+    const sessionNumber = typeof row.sessionNumber === "number" ? row.sessionNumber : null;
+    const storedLink = row.link ? String(row.link) : null;
+    return {
+      id: String(row.id),
+      type,
+      matchId,
+      sessionNumber,
+      actorUserId: row.actorUserId ? String(row.actorUserId) : null,
+      actorRole: row.actorRole ? String(row.actorRole) : null,
+      summary: String(row.summary ?? ""),
+      link: resolveLink(type, matchId, sessionNumber, storedLink),
+      readAt:
+        row.readAt instanceof Date
+          ? row.readAt.toISOString()
+          : row.readAt
+            ? String(row.readAt)
+            : null,
+      createdAt:
+        row.createdAt instanceof Date
+          ? row.createdAt.toISOString()
+          : String(row.createdAt ?? new Date().toISOString()),
+    };
+  });
 }
 
 export async function markAdminNotificationRead(id: string): Promise<void> {
