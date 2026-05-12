@@ -331,6 +331,13 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
     });
   });
 
+  // 配色は「Variant C: ブランド統一」を採用。
+  // - 中央 (A / Vision): インディゴ (indigo-100 塗り / indigo-800 縁)
+  // - B: ティール (cyan-50 塗り / cyan-700 縁)
+  // - C: アンバー (orange-50 塗り / orange-600 縁)
+  // 縁を太く (A: 3 / B,C: 2.5)、文字は中央と同じ font-semibold で揃え、SVG filter で
+  // 控えめな影を全ノードにかけて立体感を出している。位置計算は変更していないため、
+  // 円同士が重なることはない。
   return (
     <div className="space-y-4">
       <div className="overflow-auto rounded-2xl border border-slate-200 bg-white p-3">
@@ -341,6 +348,22 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
           className="mx-auto block"
           style={{ minWidth: Math.min(size, 720) }}
         >
+          <defs>
+            {/* 立体感用の控えめなドロップシャドウ。box-shadow ではなく SVG filter で
+                やんわり影を落とすことで、フラットになりがちな円形ノードに奥行きを出す。 */}
+            <filter id="fta-soft-shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur in="SourceAlpha" stdDeviation="2" />
+              <feOffset dx="0" dy="2" result="off" />
+              <feComponentTransfer>
+                <feFuncA type="linear" slope="0.2" />
+              </feComponentTransfer>
+              <feMerge>
+                <feMergeNode />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
           {/* Bへの線（中心→B） */}
           {bNodes.map((b, bi) => {
             const angle = wedge * bi - 90;
@@ -352,7 +375,7 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
                 y1={center}
                 x2={p.x}
                 y2={p.y}
-                stroke="#cbd5e1"
+                stroke="#0e7490"
                 strokeWidth="2"
               />
             );
@@ -368,7 +391,7 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
                 y1={p1.y}
                 x2={item.pos.x}
                 y2={item.pos.y}
-                stroke="#e2e8f0"
+                stroke="#a5f3fc"
                 strokeWidth="1.5"
               />
             );
@@ -382,10 +405,18 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
             const inner = bR - padding;
             return (
               <g key={`b-${b.id}`}>
-                <circle cx={p.x} cy={p.y} r={bR} fill="#f8fafc" stroke="#94a3b8" />
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r={bR}
+                  fill="#ecfeff"
+                  stroke="#0e7490"
+                  strokeWidth={2.5}
+                  filter="url(#fta-soft-shadow)"
+                />
                 <foreignObject x={p.x - inner} y={p.y - inner} width={inner * 2} height={inner * 2}>
                   <div
-                    className="flex h-full w-full items-center justify-center overflow-y-auto break-words text-center text-[13px] font-medium leading-snug text-slate-800"
+                    className="flex h-full w-full items-center justify-center overflow-y-auto break-words text-center text-[14px] font-semibold leading-snug text-cyan-950"
                     style={{ scrollbarWidth: "thin" }}
                   >
                     <span className="px-1">{labelText(b.text, b.locked)}</span>
@@ -401,7 +432,15 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
             const inner = cR - padding;
             return (
               <g key={`c-${i}`}>
-                <circle cx={item.pos.x} cy={item.pos.y} r={cR} fill="#fefce8" stroke="#f59e0b" />
+                <circle
+                  cx={item.pos.x}
+                  cy={item.pos.y}
+                  r={cR}
+                  fill="#fff7ed"
+                  stroke="#ea580c"
+                  strokeWidth={2.5}
+                  filter="url(#fta-soft-shadow)"
+                />
                 <foreignObject
                   x={item.pos.x - inner}
                   y={item.pos.y - inner}
@@ -409,7 +448,7 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
                   height={inner * 2}
                 >
                   <div
-                    className="flex h-full w-full items-center justify-center overflow-y-auto break-words text-center text-[12px] font-medium leading-snug text-amber-900"
+                    className="flex h-full w-full items-center justify-center overflow-y-auto break-words text-center text-[13px] font-semibold leading-snug text-orange-950"
                     style={{ scrollbarWidth: "thin" }}
                   >
                     <span className="px-1">{labelText(item.action.text, item.action.locked)}</span>
@@ -420,7 +459,15 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
           })}
 
           {/* 中心 (Vision/A) */}
-          <circle cx={center} cy={center} r={visionR} fill="#e0e7ff" stroke="#4f46e5" strokeWidth="2.5" />
+          <circle
+            cx={center}
+            cy={center}
+            r={visionR}
+            fill="#e0e7ff"
+            stroke="#3730a3"
+            strokeWidth={3}
+            filter="url(#fta-soft-shadow)"
+          />
           <foreignObject
             x={center - (visionR - 10)}
             y={center - (visionR - 10)}
@@ -428,7 +475,7 @@ export function FtaViewer({ chart }: { chart: FtaChart }) {
             height={(visionR - 10) * 2}
           >
             <div
-              className="flex h-full w-full items-center justify-center overflow-y-auto break-words text-center text-[14px] font-semibold leading-snug text-indigo-900"
+              className="flex h-full w-full items-center justify-center overflow-y-auto break-words text-center text-[15px] font-semibold leading-snug text-indigo-950"
               style={{ scrollbarWidth: "thin" }}
             >
               <span className="px-1">{labelText(safe.vision.text, safe.vision.locked)}</span>
