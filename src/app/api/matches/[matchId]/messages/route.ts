@@ -77,7 +77,10 @@ export async function POST(request: Request, context: RouteContext) {
       actorUserId: session.sub,
       actorRole: session.role,
       summary: `${sender?.displayName ?? "参加者"}さん（${session.role === "PARTNER" ? "パートナー" : "クライアント"}）が新規チャット: ${excerpt}`,
-      link: `/admin/matches?focus=${encodeURIComponent(matchId)}`,
+      // チャット通知は当該ペアの match ページのチャットタブを直接開く。
+      // 以前は `/admin/matches?focus=...` でマッチ管理一覧に飛んでいたが、
+      // 一覧→該当ペアを探して開く、と 2 アクション必要だったため修正。
+      link: `/match/${matchId}#chat`,
     });
   }
 

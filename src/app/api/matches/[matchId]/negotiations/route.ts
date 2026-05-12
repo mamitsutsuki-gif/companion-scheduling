@@ -215,7 +215,8 @@ export async function POST(request: Request, context: RouteContext) {
     actorUserId: session.sub,
     actorRole: session.role,
     summary: `${sender?.displayName ?? "パートナー"}さんが ${sessionNumber} 回目の日程候補（Round ${negotiation.round}）を提示しました。`,
-    link: `/admin/matches?focus=${encodeURIComponent(matchId)}`,
+    // 日程候補は match ページの日程調整タブに直接飛ばす。
+    link: `/match/${matchId}#schedule`,
   });
 
   const matchInfo = await getMatchById(matchId).catch(() => null);

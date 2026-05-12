@@ -123,7 +123,8 @@ export async function POST(request: Request, context: RouteContext) {
     actorUserId: session.sub,
     actorRole: session.role,
     summary: `${sender?.displayName ?? "参加者"}さん（${roleLabel(session.role)}）が ${nextConfirmed.sessionNumber} 回目の日程変更を希望しました（${pretty}）。`,
-    link: `/admin/matches?focus=${encodeURIComponent(matchId)}`,
+    // 変更希望は match ページの日程調整タブに直接飛ばす。
+    link: `/match/${matchId}#schedule`,
   });
 
   // 相手側へ通知
