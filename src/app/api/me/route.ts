@@ -73,7 +73,11 @@ export async function PATCH(request: Request) {
     // クライアント／クライアント管理者は所属企業の選択肢で正規化する。
     // パートナー・管理者は企業に紐づかないため従来通りグローバル設定で正規化する。
     let settings;
-    if (session.role === "CLIENT" || session.role === "CLIENT_ADMIN") {
+    if (
+      session.role === "CLIENT" ||
+      session.role === "CLIENT_ADMIN" ||
+      session.role === "CLIENT_HR"
+    ) {
       const user = await getUserById(session.sub);
       const companyId = (user as { companyId?: string | null } | null)?.companyId ?? null;
       settings = await getEffectiveAppSettings({ companyId });

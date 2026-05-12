@@ -104,15 +104,17 @@ export default function AdminReportsPage() {
   // 初期データ：クライアント一覧 + 合計セッション数
   useEffect(() => {
     async function load() {
-      const [uA, uB, sRes, appRes] = await Promise.all([
+      const [uA, uB, uC, sRes, appRes] = await Promise.all([
         fetch("/api/admin/users?role=CLIENT").then((r) => r.json().catch(() => null)),
         fetch("/api/admin/users?role=CLIENT_ADMIN").then((r) => r.json().catch(() => null)),
+        fetch("/api/admin/users?role=CLIENT_HR").then((r) => r.json().catch(() => null)),
         fetch("/api/settings").then((r) => r.json().catch(() => null)),
         fetch("/api/admin/app-settings").then((r) => r.json().catch(() => null)),
       ]);
       const all: ClientUser[] = [
         ...(Array.isArray(uA?.users) ? uA.users : []),
         ...(Array.isArray(uB?.users) ? uB.users : []),
+        ...(Array.isArray(uC?.users) ? uC.users : []),
       ];
       setClients(all);
       if (typeof sRes?.totalSessions === "number") {

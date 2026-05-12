@@ -11,14 +11,14 @@ import {
 type RoleUser = {
   id: string;
   displayName: string;
-  role: "ADMIN" | "ADMIN_ASSISTANT" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
+  role: "ADMIN" | "ADMIN_ASSISTANT" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "CLIENT_HR";
   email: string;
   firebaseUid?: string | null;
   companyId?: string | null;
   availabilitySlotIds?: string[];
 };
 
-type AssignableRole = "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
+type AssignableRole = "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "CLIENT_HR";
 
 type MatchRow = {
   id: string;
@@ -149,7 +149,9 @@ export default function AdminMatchesPage() {
 
   const partners = users.filter((u) => u.role === "PARTNER");
   // クライアント管理者も「クライアント」として通常通りマッチング対象になる
-  const clients = users.filter((u) => u.role === "CLIENT" || u.role === "CLIENT_ADMIN");
+  const clients = users.filter(
+    (u) => u.role === "CLIENT" || u.role === "CLIENT_ADMIN" || u.role === "CLIENT_HR",
+  );
 
   const filteredPartners = useMemo(() => {
     const q = partnerFilter.trim().toLowerCase();
@@ -406,7 +408,8 @@ export default function AdminMatchesPage() {
     const isEditing = editingAvailabilityUserId === u.id;
     const isEditingName = editingNameUserId === u.id;
     const labels = labelsForSlotIds(u.availabilitySlotIds, availabilityOptions);
-    const isClientRole = u.role === "CLIENT" || u.role === "CLIENT_ADMIN";
+    const isClientRole =
+      u.role === "CLIENT" || u.role === "CLIENT_ADMIN" || u.role === "CLIENT_HR";
     const canEditName = viewerRole === "ADMIN";
     return (
       <li
@@ -443,7 +446,17 @@ export default function AdminMatchesPage() {
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-base font-semibold text-zinc-900 break-words">{u.displayName}</p>
+                {/* 名前をクリックすると、管理者専用「このユーザーの状況」ビューに飛ぶ。
+                    なりすましログインではなく、FTA や参加マッチを管理者として確認するための
+                    readonly ビュー。クライアント・パートナーが本人視点で見ているデータの実状を
+                    確認したい時の主要動線。 */}
+                <Link
+                  href={`/admin/users/${encodeURIComponent(u.id)}`}
+                  className="text-base font-semibold text-indigo-900 break-words no-underline hover:underline"
+                  title="このユーザーの状況（自分FTA・参加マッチ）を確認"
+                >
+                  {u.displayName}
+                </Link>
                 {canEditName ? (
                   <button
                     type="button"
@@ -489,6 +502,7 @@ export default function AdminMatchesPage() {
               <option value="PARTNER">PARTNER</option>
               <option value="CLIENT">CLIENT</option>
               <option value="CLIENT_ADMIN">CLIENT_ADMIN（クライアント管理者）</option>
+              <option value="CLIENT_HR">CLIENT_HR（クライアント人事）</option>
             </select>
           </label>
           <div className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -803,7 +817,8 @@ export default function AdminMatchesPage() {
           ) : null}
           {(() => {
             const clientUsers = users.filter(
-              (u) => u.role === "CLIENT" || u.role === "CLIENT_ADMIN",
+              (u) =>
+                u.role === "CLIENT" || u.role === "CLIENT_ADMIN" || u.role === "CLIENT_HR",
             );
             const partnerUsers = users.filter((u) => u.role === "PARTNER");
             return (
@@ -813,7 +828,7 @@ export default function AdminMatchesPage() {
                     <h3 className="text-base font-semibold text-slate-900">
                       クライアント
                       <span className="ml-2 text-xs font-medium text-slate-500">
-                        （CLIENT / CLIENT_ADMIN）
+                        （CLIENT / CLIENT_ADMIN / CLIENT_HR）
                       </span>
                     </h3>
                     <span className="text-xs font-medium text-slate-500">
@@ -945,12 +960,28 @@ export default function AdminMatchesPage() {
                     <td className="whitespace-nowrap py-3 pr-4 align-top text-zinc-600">
                       {formatJa(row.createdAt)}
                     </td>
-                    <td className="py-3 pr-4 align-top font-medium text-zinc-950">{withHonorificSan(row.client.displayName)}</td>
+                    <td className="py-3 pr-4 align-top font-medium text-zinc-950">
+                      <Link
+                        href={`/admin/users/${encodeURIComponent(row.client.id)}`}
+                        className="text-indigo-900 no-underline hover:underline"
+                        title={`${row.client.displayName} さんの状況（自分FTA・参加マッチ）`}
+                      >
+                        {withHonorificSan(row.client.displayName)}
+                      </Link>
+                    </td>
                     <td className="py-3 pr-4 align-top text-xs text-zinc-500">{row.client.email}</td>
                     <td className="py-3 pr-4 align-top text-sm text-zinc-700">
                       {row.client.companyName?.trim() ? row.client.companyName : "—"}
                     </td>
-                    <td className="py-3 pr-4 align-top font-medium text-zinc-950">{withHonorificSan(row.partner.displayName)}</td>
+                    <td className="py-3 pr-4 align-top font-medium text-zinc-950">
+                      <Link
+                        href={`/admin/users/${encodeURIComponent(row.partner.id)}`}
+                        className="text-indigo-900 no-underline hover:underline"
+                        title={`${row.partner.displayName} さんの状況（参加マッチ）`}
+                      >
+                        {withHonorificSan(row.partner.displayName)}
+                      </Link>
+                    </td>
                     <td className="py-3 pr-4 align-top text-xs text-zinc-500">{row.partner.email}</td>
                     <td className="py-3 align-top">
                       <div className="flex flex-wrap gap-2">

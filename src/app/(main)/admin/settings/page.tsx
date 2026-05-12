@@ -11,11 +11,11 @@ type UserRow = {
   id: string;
   displayName: string;
   email: string;
-  role: "ADMIN" | "ADMIN_ASSISTANT" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
+  role: "ADMIN" | "ADMIN_ASSISTANT" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "CLIENT_HR";
   companyId?: string | null;
 };
 
-type AssignableNonAdminRole = "PARTNER" | "CLIENT" | "CLIENT_ADMIN";
+type AssignableNonAdminRole = "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "CLIENT_HR";
 
 /** 「管理者追加」フォームで選べるロール（ADMIN / ADMIN_ASSISTANT） */
 type AdminRoleChoice = "ADMIN" | "ADMIN_ASSISTANT";
@@ -656,6 +656,7 @@ export default function AdminAppSettingsPage() {
                               >
                                 <option value="CLIENT">CLIENT</option>
                                 <option value="CLIENT_ADMIN">CLIENT_ADMIN</option>
+                                <option value="CLIENT_HR">CLIENT_HR</option>
                                 <option value="PARTNER">PARTNER</option>
                               </select>
                             </label>

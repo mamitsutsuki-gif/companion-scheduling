@@ -72,7 +72,9 @@ export default async function DashboardPage({
                 ? "パートナー"
                 : me.role === "CLIENT_ADMIN"
                   ? "クライアント管理者"
-                  : "クライアント"}
+                  : me.role === "CLIENT_HR"
+                    ? "クライアント人事"
+                    : "クライアント"}
         </div>
       </header>
 
@@ -110,7 +112,7 @@ export default async function DashboardPage({
       ) : null}
 
       <section className="space-y-5">
-        {(me.role === "CLIENT" || me.role === "PARTNER" || me.role === "CLIENT_ADMIN") ? (
+        {(me.role === "CLIENT" || me.role === "PARTNER" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR") ? (
           <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-4">
             <h2 className="text-xl font-semibold text-indigo-900">自分FTA</h2>
             <p className="mt-1 text-base text-indigo-800">

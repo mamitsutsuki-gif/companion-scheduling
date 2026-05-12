@@ -24,7 +24,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
   if (role === "PARTNER") {
     return jsonOk({ viewer: "partner" as const, overview: eff.partnerProjectOverview });
   }
-  if (role === "CLIENT" || role === "CLIENT_ADMIN") {
+  if (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR") {
     return jsonOk({ viewer: "client" as const, overview: eff.clientProjectOverview });
   }
   if (role === "ADMIN" || role === "ADMIN_ASSISTANT") {

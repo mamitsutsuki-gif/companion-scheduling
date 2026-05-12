@@ -12,7 +12,9 @@ export async function getMatchIfAllowed(matchId: string, actor: { id: string; ro
 
   if (actor.role === "PARTNER" && match.partnerId === actor.id) return { match };
   if (
-    (actor.role === "CLIENT" || actor.role === "CLIENT_ADMIN") &&
+    (actor.role === "CLIENT" ||
+      actor.role === "CLIENT_ADMIN" ||
+      actor.role === "CLIENT_HR") &&
     match.clientId === actor.id
   ) {
     return { match };

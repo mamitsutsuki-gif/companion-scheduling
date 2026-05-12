@@ -12,7 +12,13 @@ import { SCHEDULE_RULES_CLIENT, SCHEDULE_RULES_PARTNER } from "@/lib/scheduling-
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 
-type Role = "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "ADMIN_ASSISTANT";
+type Role =
+  | "ADMIN"
+  | "PARTNER"
+  | "CLIENT"
+  | "CLIENT_ADMIN"
+  | "CLIENT_HR"
+  | "ADMIN_ASSISTANT";
 
 type Me = {
   id: string;
@@ -140,12 +146,19 @@ function fieldBlock(label: string, value: string) {
   );
 }
 
-function renderPartnerOverview(o: PartnerOverviewRow | null) {
+function renderPartnerOverview(
+  o: PartnerOverviewRow | null,
+  options?: { showAdminHint?: boolean },
+) {
   if (!o) {
-    return (
+    // クライアント／パートナーには細かい運用事情（企業ごとの設定で入力が必要…等）を見せない。
+    // 管理者・管理者アシスタントには注釈付きの案内を出す。
+    return options?.showAdminHint ? (
       <p className="text-sm text-slate-600">
-        この企業のプロジェクト概要（パートナー向け）は、まだ管理者が「企業ごとの設定」で入力していません。
+        管理者側で未設定（「企業ごとの設定 → プロジェクト概要 → パートナー向け」で入力してください）
       </p>
+    ) : (
+      <p className="text-sm text-slate-500">管理者側で未設定</p>
     );
   }
   return (
@@ -161,12 +174,17 @@ function renderPartnerOverview(o: PartnerOverviewRow | null) {
   );
 }
 
-function renderClientOverview(o: ClientOverviewRow | null) {
+function renderClientOverview(
+  o: ClientOverviewRow | null,
+  options?: { showAdminHint?: boolean },
+) {
   if (!o) {
-    return (
+    return options?.showAdminHint ? (
       <p className="text-sm text-slate-600">
-        この企業のプロジェクト概要（クライアント向け）は、まだ管理者が「企業ごとの設定」で入力していません。
+        管理者側で未設定（「企業ごとの設定 → プロジェクト概要 → クライアント向け」で入力してください）
       </p>
+    ) : (
+      <p className="text-sm text-slate-500">管理者側で未設定</p>
     );
   }
   return (
@@ -195,6 +213,7 @@ const roleBadge: Record<Role, string> = {
   PARTNER: "パートナー",
   CLIENT: "クライアント",
   CLIENT_ADMIN: "クライアント管理者",
+  CLIENT_HR: "クライアント人事",
 };
 
 function formatJa(iso: string) {
@@ -632,7 +651,12 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   async function onChatVote(negotiationId: string, slotId: string, vote: "YES" | "NO") {
     const neg = negotiations.find((n) => n.id === negotiationId);
     if (!neg || neg.status !== "AWAITING_CLIENT_RESPONSE") return;
-    if (me?.role !== "CLIENT" && me?.role !== "CLIENT_ADMIN") return;
+    if (
+      me?.role !== "CLIENT" &&
+      me?.role !== "CLIENT_ADMIN" &&
+      me?.role !== "CLIENT_HR"
+    )
+      return;
 
     const votes: Record<string, "YES" | "NO"> = {};
     let allDecided = true;
@@ -690,7 +714,12 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   }
 
   function getRescheduleEligibility(slot: SlotRow | null) {
-    if (me?.role !== "PARTNER" && me?.role !== "CLIENT" && me?.role !== "CLIENT_ADMIN")
+    if (
+      me?.role !== "PARTNER" &&
+      me?.role !== "CLIENT" &&
+      me?.role !== "CLIENT_ADMIN" &&
+      me?.role !== "CLIENT_HR"
+    )
       return { can: false, reason: "パートナー・クライアントのみ利用できます。" };
     if (activeNegotiation) return { can: false, reason: "調整中のラウンドがあるため、完了後に変更希望を送れます。" };
     if (!slot) return { can: false, reason: "未確定のため送信できません。" };
@@ -901,22 +930,37 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       {activeTab === "overview" ? (
         <section className="space-y-4">
           <h2 className="text-2xl font-semibold text-slate-900">プロジェクト概要</h2>
-          <p className="text-sm text-slate-600">
-            管理者が「企業」→ 各企業の「設定」で入力した内容が表示されます（クライアント企業に未割当の場合は空になります）。
-          </p>
+          {me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (
+            <p className="text-sm text-slate-600">
+              管理者が「企業」→ 各企業の「設定」で入力した内容が表示されます。クライアント・パートナーには、未入力時は「管理者側で未設定」とだけ表示されます。
+            </p>
+          ) : null}
           {overviewLoading ? (
             <p className="text-sm text-zinc-500">読込中…</p>
           ) : (
             (() => {
               const j = projectOverviewJson as Record<string, unknown> | null;
               if (!j || typeof j !== "object") {
-                return <p className="text-sm text-zinc-500">表示する情報がありません。</p>;
+                return (
+                  <p className="text-sm text-zinc-500">
+                    {me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT"
+                      ? "表示する情報がありません。"
+                      : "管理者側で未設定"}
+                  </p>
+                );
               }
+              const isAdminView = me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT";
               if (j.viewer === "partner") {
-                return renderPartnerOverview((j.overview as PartnerOverviewRow | null) ?? null);
+                return renderPartnerOverview(
+                  (j.overview as PartnerOverviewRow | null) ?? null,
+                  { showAdminHint: isAdminView },
+                );
               }
               if (j.viewer === "client") {
-                return renderClientOverview((j.overview as ClientOverviewRow | null) ?? null);
+                return renderClientOverview(
+                  (j.overview as ClientOverviewRow | null) ?? null,
+                  { showAdminHint: isAdminView },
+                );
               }
               if (j.viewer === "admin") {
                 return (
@@ -924,13 +968,19 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                     <div>
                       <h3 className="text-lg font-semibold text-indigo-900">パートナー向け（閲覧）</h3>
                       <div className="mt-3">
-                        {renderPartnerOverview((j.partnerOverview as PartnerOverviewRow | null) ?? null)}
+                        {renderPartnerOverview(
+                          (j.partnerOverview as PartnerOverviewRow | null) ?? null,
+                          { showAdminHint: true },
+                        )}
                       </div>
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-emerald-900">クライアント向け（閲覧）</h3>
                       <div className="mt-3">
-                        {renderClientOverview((j.clientOverview as ClientOverviewRow | null) ?? null)}
+                        {renderClientOverview(
+                          (j.clientOverview as ClientOverviewRow | null) ?? null,
+                          { showAdminHint: true },
+                        )}
                       </div>
                     </div>
                   </div>
@@ -960,7 +1010,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             </pre>
           </details>
         ) : null}
-        {me.role === "CLIENT" || me.role === "CLIENT_ADMIN" ? (
+        {me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" ? (
           <details
             open
             className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md"
@@ -990,7 +1040,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               : null;
             const chatVoteCtx =
               msg.kind === "SLOT_PROPOSAL" &&
-              (me?.role === "CLIENT" || me?.role === "CLIENT_ADMIN") &&
+              (me?.role === "CLIENT" || me?.role === "CLIENT_ADMIN" || me?.role === "CLIENT_HR") &&
               proposalNeg?.status === "AWAITING_CLIENT_RESPONSE"
                 ? {
                     canVote: true as const,
@@ -1114,7 +1164,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               </pre>
             </details>
           ) : null}
-          {(me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
+          {(me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
             <details className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md">
               <summary className="cursor-pointer text-base font-semibold text-indigo-950">
                 クライアント向け：日程調整機能の使い方（最初にお読みください）
@@ -1175,7 +1225,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                         href={`/match/${matchId}/sessions/${row.index}`}
                         className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-900 no-underline shadow-sm transition hover:bg-indigo-100"
                       >
-                        {me.role === "CLIENT" || me.role === "CLIENT_ADMIN"
+                        {me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR"
                           ? "振り返りを開く"
                           : me.role === "PARTNER"
                             ? "レポートを開く"
@@ -1335,7 +1385,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           </div>
         ) : null}
 
-        {activeNegotiation && activeNegotiation.status === "AWAITING_CLIENT_RESPONSE" && (me.role === "CLIENT" || me.role === "CLIENT_ADMIN") ? (
+        {activeNegotiation && activeNegotiation.status === "AWAITING_CLIENT_RESPONSE" && (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR") ? (
           <form onSubmit={onVote} className="space-y-4 rounded-2xl border border-violet-200 bg-white px-5 py-4">
             <h3 className="text-xl font-semibold text-violet-900">ご希望の時間をすべて回答</h3>
             <p className="text-base text-violet-800">参加できる候補は「○」。どれにも入れられないときはすべて「×」を選んでください。</p>
@@ -1466,7 +1516,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           <div className="space-y-1">
             <h2 className="text-2xl font-semibold text-violet-900">1on1セッション</h2>
             <p className="text-base text-violet-800">
-              セッション計画（全 {scheduleSettings.totalSessions} 回）。各回をタップすると、その回の{me.role === "CLIENT" || me.role === "CLIENT_ADMIN" ? "振り返りフォーム" : me.role === "PARTNER" ? "レポート" : "クライアント振り返り＆パートナーレポート"}を開けます。
+              セッション計画（全 {scheduleSettings.totalSessions} 回）。各回をタップすると、その回の{me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" ? "振り返りフォーム" : me.role === "PARTNER" ? "レポート" : "クライアント振り返り＆パートナーレポート"}を開けます。
               <br />
               <span className="text-sm">
                 未来の回は開けません。直近で実施予定の回だけ、セッション中に開くことができます。
@@ -1500,7 +1550,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 : null;
               const filledBadges: string[] = [];
               if (!isAbandoned) {
-                if (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") {
+                if (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") {
                   filledBadges.push(row.hasClientFeedback ? "クライアント振り返り済" : "クライアント未提出");
                 }
                 if (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") {

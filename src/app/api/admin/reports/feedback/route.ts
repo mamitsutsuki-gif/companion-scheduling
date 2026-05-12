@@ -51,13 +51,14 @@ export async function POST(request: Request) {
   const opts: ReqBody = parsed.data;
 
   // 全クライアント名を取得（匿名指定でも内部判定で利用）
-  const [clientUsers, clientAdminUsers] = await Promise.all([
+  const [clientUsers, clientAdminUsers, clientHrUsers] = await Promise.all([
     listAdminVisibleUsers("CLIENT"),
     listAdminVisibleUsers("CLIENT_ADMIN"),
+    listAdminVisibleUsers("CLIENT_HR"),
   ]);
   const clientNameById = new Map<string, string>();
   const clientCompanyIdById = new Map<string, string | null>();
-  for (const u of [...clientUsers, ...clientAdminUsers]) {
+  for (const u of [...clientUsers, ...clientAdminUsers, ...clientHrUsers]) {
     clientNameById.set(u.id, u.displayName);
     const cid = (u as { companyId?: string | null }).companyId;
     clientCompanyIdById.set(u.id, typeof cid === "string" && cid.trim() ? cid.trim() : null);

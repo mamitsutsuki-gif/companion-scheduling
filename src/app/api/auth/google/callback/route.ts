@@ -73,7 +73,13 @@ export async function GET(request: NextRequest) {
   let user:
     | {
         id: string;
-        role: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "ADMIN_ASSISTANT";
+        role:
+          | "ADMIN"
+          | "PARTNER"
+          | "CLIENT"
+          | "CLIENT_ADMIN"
+          | "CLIENT_HR"
+          | "ADMIN_ASSISTANT";
       }
     | null = null;
 
@@ -93,7 +99,8 @@ export async function GET(request: NextRequest) {
         raw.role === "ADMIN_ASSISTANT" ||
         raw.role === "PARTNER" ||
         raw.role === "CLIENT" ||
-        raw.role === "CLIENT_ADMIN"
+        raw.role === "CLIENT_ADMIN" ||
+        raw.role === "CLIENT_HR"
           ? raw.role
           : ("CLIENT" as const);
       user = { id: d.id, role };

@@ -139,6 +139,13 @@ export type CompanyAppSettingsOverride = Partial<AppSettingsOverridableFields> &
   updatedAt?: string;
   partnerProjectOverview?: PartnerProjectOverview | null;
   clientProjectOverview?: ClientProjectOverview | null;
+  /**
+   * 同じ companyId のクライアント・クライアント管理者・クライアント人事の間で
+   * 自分FTA を相互閲覧できるかどうか。
+   * 未設定（undefined）= デフォルト共有あり（true）として扱う（後方互換）。
+   * false に明示的に設定された場合のみ、各自は自分の FTA だけを見ることになる。
+   */
+  shareFtaWithinCompany?: boolean;
 };
 
 export function normalizeCompanies(input: unknown): CompanyOption[] {
@@ -268,6 +275,9 @@ export function normalizeCompanyAppSettingsOverride(
   if (raw.clientProjectOverview !== undefined && raw.clientProjectOverview !== null) {
     const co = normalizeClientProjectOverview(raw.clientProjectOverview);
     if (co) out.clientProjectOverview = co;
+  }
+  if (typeof raw.shareFtaWithinCompany === "boolean") {
+    out.shareFtaWithinCompany = raw.shareFtaWithinCompany;
   }
   return out;
 }
@@ -670,6 +680,8 @@ export async function upsertCompanyAppSettingsOverride(
     clientProjectOverview?: ClientProjectOverview | null;
     clearPartnerProjectOverview?: boolean;
     clearClientProjectOverview?: boolean;
+    /** 明示的に true / false を指定。undefined の場合は変更しない（既存値を保持）。 */
+    shareFtaWithinCompany?: boolean;
   },
 ): Promise<CompanyAppSettingsOverride | null> {
   const cid = sanitizeCompanyId(companyId);
@@ -684,6 +696,7 @@ export async function upsertCompanyAppSettingsOverride(
     clearClientProjectOverview,
     partnerProjectOverview: patchPartnerPo,
     clientProjectOverview: patchClientPo,
+    shareFtaWithinCompany: patchShareFta,
     ...restPatch
   } = patch;
 
@@ -714,6 +727,9 @@ export async function upsertCompanyAppSettingsOverride(
     const co = patchClientPo === null ? null : normalizeClientProjectOverview(patchClientPo);
     writeData.clientProjectOverview = co ?? FieldValue.delete();
   }
+  if (patchShareFta !== undefined) {
+    writeData.shareFtaWithinCompany = patchShareFta;
+  }
   await ref.set(writeData, { merge: true });
   const snap = await ref.get();
   return normalizeCompanyAppSettingsOverride(cid, snap.data() ?? {});
@@ -740,6 +756,11 @@ export type EffectiveAppSettings = AppSettingsRow & {
   overriddenFields: Array<keyof AppSettingsOverridableFields>;
   partnerProjectOverview: PartnerProjectOverview | null;
   clientProjectOverview: ClientProjectOverview | null;
+  /**
+   * 同じ companyId 内で自分FTA を相互閲覧できるか。
+   * 企業設定で明示的に false が設定された場合のみ false。それ以外（未設定 / true）は true。
+   */
+  shareFtaWithinCompany: boolean;
 };
 
 export async function getEffectiveAppSettings(opts: {
@@ -756,6 +777,8 @@ export async function getEffectiveAppSettings(opts: {
       overriddenFields: [],
       partnerProjectOverview: null,
       clientProjectOverview: null,
+      // 企業未設定（=未割当 / 不正 ID）でもデフォルトは「共有する」。
+      shareFtaWithinCompany: true,
     };
   }
   const override =
@@ -767,6 +790,7 @@ export async function getEffectiveAppSettings(opts: {
       overriddenFields: [],
       partnerProjectOverview: null,
       clientProjectOverview: null,
+      shareFtaWithinCompany: true,
     };
   }
   const overridden: Array<keyof AppSettingsOverridableFields> = [];
@@ -803,5 +827,7 @@ export async function getEffectiveAppSettings(opts: {
     overriddenFields: overridden,
     partnerProjectOverview: partnerPO,
     clientProjectOverview: clientPO,
+    // 明示的に false が保存されている時のみ false（未設定 / true は true）。
+    shareFtaWithinCompany: override.shareFtaWithinCompany === false ? false : true,
   };
 }

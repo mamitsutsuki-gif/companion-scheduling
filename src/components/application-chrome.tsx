@@ -26,6 +26,7 @@ export function ApplicationChrome({
   const pathname = usePathname();
   const [invoiceBadge, setInvoiceBadge] = useState<number>(0);
   const [memberUnreadBadge, setMemberUnreadBadge] = useState<number>(0);
+  const [adminUnreadBadge, setAdminUnreadBadge] = useState<number>(0);
 
   useEffect(() => {
     if (profile.role !== "PARTNER") return;
@@ -48,12 +49,13 @@ export function ApplicationChrome({
     };
   }, [profile.role]);
 
-  // メンバー向け通知（PARTNER / CLIENT / CLIENT_ADMIN）の未読バッジ
+  // メンバー向け通知（PARTNER / CLIENT / CLIENT_ADMIN / CLIENT_HR）の未読バッジ
   useEffect(() => {
     if (
       profile.role !== "PARTNER" &&
       profile.role !== "CLIENT" &&
-      profile.role !== "CLIENT_ADMIN"
+      profile.role !== "CLIENT_ADMIN" &&
+      profile.role !== "CLIENT_HR"
     ) {
       return;
     }
@@ -76,34 +78,63 @@ export function ApplicationChrome({
     };
   }, [profile.role]);
 
+  // 管理者向け通知（ADMIN / ADMIN_ASSISTANT）の未読バッジ
+  useEffect(() => {
+    if (profile.role !== "ADMIN" && profile.role !== "ADMIN_ASSISTANT") return;
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch("/api/admin/notifications", { cache: "no-store" });
+        if (!res.ok) return;
+        const json = (await res.json().catch(() => null)) as { unreadCount?: number } | null;
+        if (!cancelled) setAdminUnreadBadge(json?.unreadCount ?? 0);
+      } catch {
+        /* ignore */
+      }
+    }
+    void load();
+    const id = window.setInterval(load, 5_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [profile.role]);
+
   type NavLink = { href: string; label: string; badge?: number };
 
   const nav: NavLink[] = [{ href: "/dashboard", label: "ホーム" }];
-  // メンバー（パートナー / クライアント / クライアント管理者）はホーム横にグローバル「通知」タブを置く
+  // メンバー（パートナー / クライアント / クライアント管理者 / クライアント人事）はホーム横にグローバル「通知」タブを置く
   if (
     profile.role === "PARTNER" ||
     profile.role === "CLIENT" ||
-    profile.role === "CLIENT_ADMIN"
+    profile.role === "CLIENT_ADMIN" ||
+    profile.role === "CLIENT_HR"
   ) {
     nav.push({ href: "/notifications", label: "通知", badge: memberUnreadBadge });
   }
   if (profile.role === "ADMIN" || profile.role === "ADMIN_ASSISTANT") {
+    // 並び順: ホーム → 通知 → 企業 → マッチ管理 → 1on1日程一覧 → レポート作成 → 請求書 → アプリ設定
+    nav.push({ href: "/admin/notifications", label: "通知", badge: adminUnreadBadge });
+    nav.push({ href: "/admin/companies", label: "企業" });
     nav.push({ href: "/admin/matches", label: "マッチ管理" });
     nav.push({ href: "/admin/sessions", label: "1on1日程一覧" });
-    nav.push({ href: "/admin/companies", label: "企業" });
-    nav.push({ href: "/admin/invoices", label: "請求書" });
     nav.push({ href: "/admin/reports", label: "レポート作成" });
-    nav.push({ href: "/admin/notifications", label: "通知" });
+    nav.push({ href: "/admin/invoices", label: "請求書" });
     nav.push({ href: "/admin/settings", label: "アプリ設定" });
   }
-  if (profile.role === "CLIENT_ADMIN") {
+  if (profile.role === "CLIENT_ADMIN" || profile.role === "CLIENT_HR") {
     nav.push({ href: "/client-admin/sessions", label: "1on1セッション一覧" });
   }
   if (profile.role === "PARTNER") {
     nav.push({ href: "/partner/invoices", label: "請求書", badge: invoiceBadge });
     nav.push({ href: "/partner/zoom", label: "会議リンク設定" });
   }
-  if (profile.role === "PARTNER" || profile.role === "CLIENT" || profile.role === "CLIENT_ADMIN") {
+  if (
+    profile.role === "PARTNER" ||
+    profile.role === "CLIENT" ||
+    profile.role === "CLIENT_ADMIN" ||
+    profile.role === "CLIENT_HR"
+  ) {
     nav.push({ href: "/fta", label: "自分FTA" });
   }
 
@@ -129,7 +160,9 @@ export function ApplicationChrome({
           ? "パートナー"
           : profile.role === "CLIENT_ADMIN"
             ? "クライアント管理者"
-            : "クライアント";
+            : profile.role === "CLIENT_HR"
+              ? "クライアント人事"
+              : "クライアント";
 
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-100/55 via-slate-50 to-slate-50">

@@ -24,21 +24,26 @@ export async function GET() {
   if (!me || isDeletedUser(me)) return jsonError("ユーザーが見つかりません。", 404);
 
   // 「DB 上の role」を権威ある情報源として使う。
-  // CLIENT_ADMIN / ADMIN / ADMIN_ASSISTANT のいずれでもないなら拒否。
-  if (me.role !== "CLIENT_ADMIN" && me.role !== "ADMIN" && me.role !== "ADMIN_ASSISTANT") {
+  // CLIENT_ADMIN / CLIENT_HR / ADMIN / ADMIN_ASSISTANT のいずれでもないなら拒否。
+  if (
+    me.role !== "CLIENT_ADMIN" &&
+    me.role !== "CLIENT_HR" &&
+    me.role !== "ADMIN" &&
+    me.role !== "ADMIN_ASSISTANT"
+  ) {
     return jsonError("権限がありません。", 403);
   }
 
   const companyId = (me as { companyId?: string | null }).companyId ?? null;
-  // CLIENT_ADMIN は所属企業必須。ADMIN / ADMIN_ASSISTANT は所属企業の概念がないため、
+  // CLIENT_ADMIN / CLIENT_HR は所属企業必須。ADMIN / ADMIN_ASSISTANT は所属企業の概念がないため、
   // 全企業のセッションを admin 用 API 経由で見られる想定 → ここでは空配列を返す。
-  if (me.role === "CLIENT_ADMIN") {
+  if (me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR") {
     if (!companyId) {
       return jsonOk({
         sessions: [],
         companyId: null,
         message:
-          "あなたのアカウントには所属企業 ID が設定されていません。管理者に「クライアント管理者として、所属企業」を割り当ててもらってください。",
+          "あなたのアカウントには所属企業 ID が設定されていません。管理者に「クライアント管理者 / クライアント人事として、所属企業」を割り当ててもらってください。",
       });
     }
     const sessions = await listConfirmedSessionsForCompany(companyId);

@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
-type Role = "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "ADMIN_ASSISTANT";
+type Role =
+  | "ADMIN"
+  | "PARTNER"
+  | "CLIENT"
+  | "CLIENT_ADMIN"
+  | "CLIENT_HR"
+  | "ADMIN_ASSISTANT";
 
 type FeedbackAnswers = {
   insight?: string;
@@ -389,7 +395,7 @@ export function SessionWorkspace({
         ) : null
       ) : null}
 
-      {role === "CLIENT" || role === "CLIENT_ADMIN" || role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
+      {role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR" || role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
         <section className="space-y-4 rounded-3xl border border-violet-100 bg-white p-4 shadow-sm sm:p-6">
           <header>
             <h2 className="text-xl font-semibold text-violet-900">クライアント振り返り</h2>
@@ -416,7 +422,7 @@ export function SessionWorkspace({
             </p>
           ) : null}
 
-          {!isAbandoned && (role === "CLIENT" || role === "CLIENT_ADMIN") ? (
+          {!isAbandoned && (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR") ? (
             <form onSubmit={onSubmitFeedback} className="space-y-5">
               <label className="block space-y-1 text-base font-medium text-zinc-900">
                 1. 今回の1on1でどのような気づきがありましたか？

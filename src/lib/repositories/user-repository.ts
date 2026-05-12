@@ -24,6 +24,7 @@ function asRole(input: unknown): Role {
     input === "PARTNER" ||
     input === "CLIENT" ||
     input === "CLIENT_ADMIN" ||
+    input === "CLIENT_HR" ||
     input === "ADMIN_ASSISTANT"
     ? input
     : "CLIENT";
@@ -268,9 +269,22 @@ function isStaleDeletedRow(u: {
 }
 
 export async function listAdminVisibleUsers(
-  role?: "ADMIN" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "ADMIN_ASSISTANT",
+  role?:
+    | "ADMIN"
+    | "PARTNER"
+    | "CLIENT"
+    | "CLIENT_ADMIN"
+    | "CLIENT_HR"
+    | "ADMIN_ASSISTANT",
 ) {
-  const allRoles = ["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN", "ADMIN_ASSISTANT"] as const;
+  const allRoles = [
+    "ADMIN",
+    "PARTNER",
+    "CLIENT",
+    "CLIENT_ADMIN",
+    "CLIENT_HR",
+    "ADMIN_ASSISTANT",
+  ] as const;
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
     if (!db) return [];
@@ -360,14 +374,18 @@ export async function listClientsInCompany(companyId: string) {
     return snap.docs
       .map((d) => userFromDoc(d.id, d.data() as Record<string, unknown>))
       .filter(
-        (u) => (u.role === "CLIENT" || u.role === "CLIENT_ADMIN") && !isDeletedUser(u),
+        (u) =>
+          (u.role === "CLIENT" ||
+            u.role === "CLIENT_ADMIN" ||
+            u.role === "CLIENT_HR") &&
+          !isDeletedUser(u),
       );
   }
   try {
     const rows = await prisma.user.findMany({
       where: {
         companyId,
-        role: { in: ["CLIENT", "CLIENT_ADMIN"] },
+        role: { in: ["CLIENT", "CLIENT_ADMIN", "CLIENT_HR"] },
         deletedAt: null,
       },
       select: { id: true, displayName: true, role: true, email: true, companyId: true },

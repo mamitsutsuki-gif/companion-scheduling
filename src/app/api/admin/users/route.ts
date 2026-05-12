@@ -18,7 +18,9 @@ import {
 import { normalizeAvailabilitySelections } from "@/lib/availability";
 
 const querySchema = z.object({
-  role: z.enum(["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN", "ADMIN_ASSISTANT"]).optional(),
+  role: z
+    .enum(["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN", "CLIENT_HR", "ADMIN_ASSISTANT"])
+    .optional(),
 });
 
 export async function GET(request: Request) {
@@ -37,7 +39,9 @@ export async function GET(request: Request) {
 const patchSchema = z
   .object({
     userId: z.string().min(1),
-    role: z.enum(["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN", "ADMIN_ASSISTANT"]).optional(),
+    role: z
+    .enum(["ADMIN", "PARTNER", "CLIENT", "CLIENT_ADMIN", "CLIENT_HR", "ADMIN_ASSISTANT"])
+    .optional(),
     displayName: z.string().min(1).max(80).optional(),
     availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64).optional(),
     companyId: z.string().trim().max(80).nullable().optional(),

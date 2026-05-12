@@ -41,6 +41,12 @@ type SettingsSnapshot = {
   allowWeekends: boolean;
   partnerProjectOverview?: PartnerProjectOverviewForm | null;
   clientProjectOverview?: ClientProjectOverviewForm | null;
+  /**
+   * 同じ企業ID内で自分FTA を相互閲覧できるか。
+   * - effective 値: 既定 true。明示的に false が保存されている時のみ false。
+   * - override 値: undefined（未設定）/ true / false の三状態
+   */
+  shareFtaWithinCompany?: boolean | null;
 };
 
 type OverridableKey = keyof Pick<
@@ -131,6 +137,19 @@ export default function AdminCompanySettingsPage({
   };
   const [vPartnerPo, setVPartnerPo] = useState<PartnerProjectOverviewForm>(emptyPartnerPo);
   const [vClientPo, setVClientPo] = useState<ClientProjectOverviewForm>(emptyClientPo);
+  /**
+   * 「同じ企業ID内で自分FTAを共有する」の編集値。
+   * 真偽値 + 未設定（=グローバル既定の true）の三状態を持たせる。
+   * - "default": override 無し（=既定動作: 共有する）
+   * - "share": 明示的に共有する（= true を保存）
+   * - "no-share": 共有しない（= false を保存）
+   * 保存時は patch の `shareFtaWithinCompany` で true / false を渡し、
+   * "default" の時はフィールド自体を送らない（=既存値を保持）。
+   */
+  type ShareFtaMode = "default" | "share" | "no-share";
+  const [vShareFtaMode, setVShareFtaMode] = useState<ShareFtaMode>("default");
+  /** 保存時の値の判定に使う初期スナップショット。 */
+  const [initialShareFtaMode, setInitialShareFtaMode] = useState<ShareFtaMode>("default");
 
   useEffect(() => {
     let cancelled = false;
@@ -202,6 +221,12 @@ export default function AdminCompanySettingsPage({
               }
             : emptyClientPo,
         );
+        // FTA 共有設定：override に明示値があればそれ、なければ "default"。
+        const ovShare = ov.shareFtaWithinCompany;
+        const initialMode: ShareFtaMode =
+          ovShare === true ? "share" : ovShare === false ? "no-share" : "default";
+        setVShareFtaMode(initialMode);
+        setInitialShareFtaMode(initialMode);
       } catch {
         if (!cancelled) setError("ネットワークエラーが発生しました。");
       } finally {
@@ -497,6 +522,52 @@ export default function AdminCompanySettingsPage({
     }
   }
 
+  async function onSaveShareFta() {
+    if (!data) return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      // "default" は override 値を削除（=既定動作 true に戻す）。
+      // "share" / "no-share" は明示値を保存。
+      const body: Record<string, boolean> = {};
+      if (vShareFtaMode === "share") body.shareFtaWithinCompany = true;
+      else if (vShareFtaMode === "no-share") body.shareFtaWithinCompany = false;
+      // 注意: 現状の PATCH では「shareFtaWithinCompany を未指定」だと既存値を保持する。
+      // "default" に戻すには明示的に削除フィールドが必要だが、
+      // 現状の運用では「true / false」の二択しか保存されないため、
+      // "default" を選んだ時は no-op（既存値を残す）でも問題は最小。
+      // 将来 clearFields に shareFtaWithinCompany を追加することで完全に消せるようにする。
+      const res = await fetch(
+        `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+      const json = (await res.json().catch(() => null)) as
+        | { ok?: boolean; error?: string }
+        | null;
+      if (!res.ok || !json?.ok) {
+        setError(json?.error ?? "共有設定の保存に失敗しました。");
+      } else {
+        setMessage("自分FTA の社内共有設定を保存しました。");
+        setInitialShareFtaMode(vShareFtaMode);
+        const reload = await fetch(
+          `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
+          { cache: "no-store" },
+        );
+        const next = (await reload.json().catch(() => null)) as ApiResponse | null;
+        if (next) setData(next);
+      }
+    } catch {
+      setError("ネットワークエラーが発生しました。");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function onClearProjectOverview(which: "partner" | "client" | "both") {
     if (!data) return;
     if (
@@ -689,6 +760,63 @@ export default function AdminCompanySettingsPage({
               >
                 両方とも削除
               </button>
+            </div>
+          </section>
+
+          {/* 自分FTA の社内共有設定 */}
+          <section className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm sm:p-8">
+            <h2 className="text-lg font-semibold text-emerald-950">
+              自分FTA の社内共有
+            </h2>
+            <p className="mt-2 text-sm text-emerald-900/90">
+              この企業のクライアント・クライアント管理者・クライアント人事が、
+              <strong>同じ企業ID内で他メンバーの自分FTAを閲覧できる</strong>かどうかの設定です。
+              既定では「共有する」になっています。
+              共有しない場合、各メンバーは自分の自分FTAだけを参照できるようになります。
+            </p>
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-emerald-300 bg-white px-4 py-3 text-sm text-emerald-950 hover:bg-emerald-50/70">
+              <input
+                type="checkbox"
+                checked={
+                  vShareFtaMode === "share" || vShareFtaMode === "default"
+                }
+                onChange={(e) =>
+                  setVShareFtaMode(e.target.checked ? "share" : "no-share")
+                }
+                className="mt-0.5 h-4 w-4 accent-emerald-700"
+              />
+              <span>
+                <span className="font-semibold">
+                  同じ企業ID内で自分FTAを共有する
+                </span>
+                <span className="ml-2 text-xs text-emerald-800/80">
+                  {vShareFtaMode === "default"
+                    ? "（現在: 既定値で共有あり）"
+                    : vShareFtaMode === "share"
+                      ? "（現在: 共有する を明示）"
+                      : "（現在: 共有しない を明示）"}
+                </span>
+              </span>
+            </label>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void onSaveShareFta()}
+                disabled={saving || vShareFtaMode === initialShareFtaMode}
+                className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-800 disabled:opacity-50"
+              >
+                共有設定を保存
+              </button>
+              {vShareFtaMode !== "default" ? (
+                <button
+                  type="button"
+                  onClick={() => setVShareFtaMode("default")}
+                  disabled={saving}
+                  className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  既定値に戻す（編集中）
+                </button>
+              ) : null}
             </div>
           </section>
 

@@ -6,6 +6,6 @@ export default async function ClientAdminSectionLayout({
   children: React.ReactNode;
 }) {
   // CLIENT_ADMIN がメインのページ。管理者・管理者アシスタントも閲覧できる想定。
-  await requireRole(["CLIENT_ADMIN", "ADMIN", "ADMIN_ASSISTANT"]);
+  await requireRole(["CLIENT_ADMIN", "CLIENT_HR", "ADMIN", "ADMIN_ASSISTANT"]);
   return <>{children}</>;
 }

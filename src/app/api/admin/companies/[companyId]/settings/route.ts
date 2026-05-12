@@ -81,6 +81,8 @@ const patchSchema = z.object({
   clientProjectOverview: clientProjectOverviewBodySchema.optional(),
   clearPartnerProjectOverview: z.boolean().optional(),
   clearClientProjectOverview: z.boolean().optional(),
+  /** 同じ企業ID内でクライアント同士の自分FTA を相互閲覧可能にするか。 */
+  shareFtaWithinCompany: z.boolean().optional(),
 });
 
 /**
