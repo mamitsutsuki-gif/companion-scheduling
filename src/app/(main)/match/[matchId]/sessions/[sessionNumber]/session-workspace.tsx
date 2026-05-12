@@ -36,10 +36,17 @@ type SessionDetail = {
   openable: boolean;
   viewerRole: Role;
   partnerExtraQuestions: string[];
+  /**
+   * 管理者が「企業ごとの設定 → クライアント振り返りの追加質問」で
+   * この回（sessionNumber）に追加した自由設問。
+   * 通常設問とは別に表示され、回答は feedback.extraAnswers に保存される。
+   */
+  clientExtraQuestions: string[];
   guideline: { client: string; partner: string } | null;
   abandonment: { reason: AbandonReason; markedAt: string; markedBy: string } | null;
   feedback: {
     answers: FeedbackAnswers;
+    extraAnswers: Record<string, string>;
     satisfactionScore: number | null;
     partnerChange: PartnerChange | null;
     updatedAt: string;
@@ -86,6 +93,8 @@ export function SessionWorkspace({
   const [satisfactionReason, setSatisfactionReason] = useState("");
   const [partnerChange, setPartnerChange] = useState<PartnerChange | "">("");
   const [other, setOther] = useState("");
+  // クライアント追加質問の回答（インデックス→文字列）
+  const [clientExtraAnswers, setClientExtraAnswers] = useState<Record<number, string>>({});
 
   // partner form state
   const [reflection, setReflection] = useState("");
@@ -114,6 +123,11 @@ export function SessionWorkspace({
       setSatisfactionReason(d.feedback.answers.satisfactionReason ?? "");
       setPartnerChange(d.feedback.partnerChange ?? "");
       setOther(d.feedback.answers.other ?? "");
+      const cea: Record<number, string> = {};
+      for (const [k, v] of Object.entries(d.feedback.extraAnswers ?? {})) {
+        cea[Number(k)] = v;
+      }
+      setClientExtraAnswers(cea);
     }
     if (d.report) {
       setReflection(d.report.reflection ?? "");
@@ -135,6 +149,10 @@ export function SessionWorkspace({
     setSubmitting(true);
     setNotice(null);
     setError(null);
+    const extraOut: Record<string, string> = {};
+    for (const [k, v] of Object.entries(clientExtraAnswers)) {
+      extraOut[String(k)] = v.trim();
+    }
     const body = {
       answers: {
         insight: insight.trim(),
@@ -143,6 +161,7 @@ export function SessionWorkspace({
         satisfactionReason: satisfactionReason.trim(),
         other: other.trim(),
       },
+      extraAnswers: extraOut,
       satisfactionScore: satisfactionScore === "" ? null : Number(satisfactionScore),
       partnerChange: partnerChange === "" ? null : partnerChange,
     };
@@ -533,6 +552,28 @@ export function SessionWorkspace({
                 />
               </label>
 
+              {detail.clientExtraQuestions.length > 0 ? (
+                <fieldset className="space-y-3 rounded-2xl border border-violet-200 bg-violet-50/40 px-4 py-3">
+                  <legend className="px-1 text-base font-semibold text-violet-900">
+                    {detail.sessionNumber} 回目の追加質問
+                  </legend>
+                  {detail.clientExtraQuestions.map((q, i) => (
+                    <label key={i} className="block space-y-1 text-sm font-medium text-zinc-900">
+                      {q}
+                      <textarea
+                        value={clientExtraAnswers[i] ?? ""}
+                        onChange={(e) =>
+                          setClientExtraAnswers((prev) => ({ ...prev, [i]: e.target.value }))
+                        }
+                        rows={3}
+                        maxLength={4000}
+                        className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
+                      />
+                    </label>
+                  ))}
+                </fieldset>
+              ) : null}
+
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="submit"
@@ -572,6 +613,13 @@ export function SessionWorkspace({
                   }
                 />
                 <ReadOnlyItem label="7. その他" value={detail.feedback.answers.other} />
+                {detail.clientExtraQuestions.map((q, i) => (
+                  <ReadOnlyItem
+                    key={`feedback-extra-${i}`}
+                    label={q}
+                    value={detail.feedback?.extraAnswers[String(i)] ?? ""}
+                  />
+                ))}
                 <p className="text-xs text-zinc-500">最終更新: {formatJa(detail.feedback.updatedAt)}</p>
               </dl>
             )

@@ -48,6 +48,7 @@ const GLOBAL: AppSettingsRow = {
   partnerExtraQuestionsByRound: {
     "4": ["これまで担当してみての気づきは？"],
   },
+  clientExtraQuestionsByRound: {},
   sessionGuidelinesByRound: {
     "1": { client: "初回はゴール設定中心", partner: "傾聴 7 : 質問 3 で" },
   },

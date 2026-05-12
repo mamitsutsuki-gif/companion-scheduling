@@ -17,6 +17,12 @@ const bodySchema = z.object({
       other: z.string().max(4000).optional(),
     })
     .default({}),
+  /**
+   * 管理者が「企業ごとの設定 → クライアント振り返りの追加質問」で
+   * 当該回（sessionNumber）に設定した自由設問の回答。
+   * key は設問のインデックス（"0","1",…）。値は string のみ。
+   */
+  extraAnswers: z.record(z.string(), z.string().max(4000)).optional(),
   satisfactionScore: z.union([z.number().int().min(1).max(10), z.null()]).optional(),
   partnerChange: z
     .union([z.literal("continue"), z.literal("undecided"), z.literal("want_change"), z.null()])
@@ -58,6 +64,7 @@ export async function PUT(request: Request, context: RouteContext) {
     sessionNumber: n,
     clientId: session.sub,
     answers: parsed.data.answers ?? {},
+    extraAnswers: parsed.data.extraAnswers ?? {},
     satisfactionScore: parsed.data.satisfactionScore ?? null,
     partnerChange: parsed.data.partnerChange ?? null,
   });

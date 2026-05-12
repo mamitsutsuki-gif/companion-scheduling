@@ -30,6 +30,9 @@ const patchSchema = z
     partnerExtraQuestionsByRound: z
       .record(z.string(), z.array(z.string().min(1).max(500)).max(8))
       .optional(),
+    clientExtraQuestionsByRound: z
+      .record(z.string(), z.array(z.string().min(1).max(500)).max(8))
+      .optional(),
     sessionGuidelinesByRound: z
       .record(
         z.string(),
@@ -93,6 +96,7 @@ export async function PATCH(request: Request) {
     timezone: parsed.data.timezone,
     availabilitySlotOptions: parsed.data.availabilitySlotOptions,
     partnerExtraQuestionsByRound: parsed.data.partnerExtraQuestionsByRound,
+    clientExtraQuestionsByRound: parsed.data.clientExtraQuestionsByRound,
     sessionGuidelinesByRound: normalizedGuidelines,
     slotEarliestHour: parsed.data.slotEarliestHour,
     slotLatestHour: parsed.data.slotLatestHour,

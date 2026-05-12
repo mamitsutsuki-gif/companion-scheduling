@@ -42,6 +42,7 @@ export async function GET(_request: Request, context: RouteContext) {
   // この match のクライアント企業に効く実効設定で、ガイドライン・追加質問を返す。
   const settings = await getEffectiveAppSettingsForMatch(matchId);
   const partnerExtraQuestions = settings.partnerExtraQuestionsByRound[String(n)] ?? [];
+  const clientExtraQuestions = settings.clientExtraQuestionsByRound[String(n)] ?? [];
   const guidelineRaw = settings.sessionGuidelinesByRound[String(n)] ?? null;
   // ロールに応じてガイドラインを返す。クライアント管理者はクライアント向けと同じものを参照。
   const guideline = guidelineRaw
@@ -72,6 +73,7 @@ export async function GET(_request: Request, context: RouteContext) {
     openable: true,
     viewerRole: session.role,
     partnerExtraQuestions,
+    clientExtraQuestions,
     guideline,
     abandonment: abandonmentRow
       ? {

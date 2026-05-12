@@ -39,6 +39,9 @@ export default function AdminAppSettingsPage() {
   /** 追加時に付与するロール。デフォルトは「管理者」 */
   const [addAdminRole, setAddAdminRole] = useState<AdminRoleChoice>("ADMIN");
   const [partnerExtraQuestions, setPartnerExtraQuestions] = useState<Record<string, string[]>>({});
+  // クライアント振り返り（フィードバック）の回ごと追加質問。
+  // 既存 partnerExtraQuestions と同じ形（{ [sessionNumber: string]: string[] }）。
+  const [clientExtraQuestions, setClientExtraQuestions] = useState<Record<string, string[]>>({});
   const [sessionGuidelines, setSessionGuidelines] = useState<
     Record<string, { client: string; partner: string }>
   >({});
@@ -163,6 +166,14 @@ export default function AdminAppSettingsPage() {
           }
           setPartnerExtraQuestions(cleaned);
         }
+        const ceq = (sData.settings as Record<string, unknown>).clientExtraQuestionsByRound;
+        if (ceq && typeof ceq === "object") {
+          const cleaned: Record<string, string[]> = {};
+          for (const [k, v] of Object.entries(ceq as Record<string, unknown>)) {
+            if (Array.isArray(v)) cleaned[String(k)] = v.map((x) => String(x));
+          }
+          setClientExtraQuestions(cleaned);
+        }
         const sg = sData.settings.sessionGuidelinesByRound;
         if (sg && typeof sg === "object") {
           const cleaned: Record<string, { client: string; partner: string }> = {};
@@ -281,6 +292,11 @@ export default function AdminAppSettingsPage() {
       const trimmed = list.map((q) => q.trim()).filter((q) => q.length > 0);
       if (trimmed.length > 0) partnerExtra[k] = trimmed;
     }
+    const clientExtra: Record<string, string[]> = {};
+    for (const [k, list] of Object.entries(clientExtraQuestions)) {
+      const trimmed = list.map((q) => q.trim()).filter((q) => q.length > 0);
+      if (trimmed.length > 0) clientExtra[k] = trimmed;
+    }
 
     if (slotEarliestHour >= slotLatestHour) {
       setErr("候補時間帯の開始時刻は終了時刻より前にしてください。");
@@ -325,6 +341,7 @@ export default function AdminAppSettingsPage() {
         timezone,
         availabilitySlotOptions: cleaned,
         partnerExtraQuestionsByRound: partnerExtra,
+        clientExtraQuestionsByRound: clientExtra,
         sessionGuidelinesByRound: guidelines,
         slotEarliestHour: Number(slotEarliestHour),
         slotLatestHour: Number(slotLatestHour),

@@ -35,6 +35,7 @@ type SettingsSnapshot = {
   timezone: string;
   availabilitySlotOptions: AvailabilityOption[];
   partnerExtraQuestionsByRound: Record<string, string[]>;
+  clientExtraQuestionsByRound: Record<string, string[]>;
   sessionGuidelinesByRound: Record<string, { client: string; partner: string }>;
   slotEarliestHour: number;
   slotLatestHour: number;
@@ -56,6 +57,7 @@ type OverridableKey = keyof Pick<
   | "timezone"
   | "availabilitySlotOptions"
   | "partnerExtraQuestionsByRound"
+  | "clientExtraQuestionsByRound"
   | "sessionGuidelinesByRound"
   | "slotEarliestHour"
   | "slotLatestHour"
@@ -79,6 +81,7 @@ const OVERRIDABLE_KEYS: readonly OverridableKey[] = [
   "allowWeekends",
   "availabilitySlotOptions",
   "partnerExtraQuestionsByRound",
+  "clientExtraQuestionsByRound",
   "sessionGuidelinesByRound",
 ] as const;
 
@@ -104,6 +107,7 @@ export default function AdminCompanySettingsPage({
     allowWeekends: false,
     availabilitySlotOptions: false,
     partnerExtraQuestionsByRound: false,
+    clientExtraQuestionsByRound: false,
     sessionGuidelinesByRound: false,
   }));
 
@@ -116,6 +120,7 @@ export default function AdminCompanySettingsPage({
   const [vAllowWeekends, setAllowWeekends] = useState(false);
   const [vAvailability, setAvailability] = useState<AvailabilityOption[]>([]);
   const [vPartnerQs, setPartnerQs] = useState<Record<string, string[]>>({});
+  const [vClientQs, setClientQs] = useState<Record<string, string[]>>({});
   const [vGuidelines, setGuidelines] = useState<Record<string, { client: string; partner: string }>>({});
 
   const emptyPartnerPo: PartnerProjectOverviewForm = {
@@ -181,6 +186,7 @@ export default function AdminCompanySettingsPage({
           allowWeekends: ov.allowWeekends !== undefined,
           availabilitySlotOptions: ov.availabilitySlotOptions !== undefined,
           partnerExtraQuestionsByRound: ov.partnerExtraQuestionsByRound !== undefined,
+          clientExtraQuestionsByRound: ov.clientExtraQuestionsByRound !== undefined,
           sessionGuidelinesByRound: ov.sessionGuidelinesByRound !== undefined,
         });
         // 編集値は「実効値」を初期表示する（上書き OFF の項目は global と同じ）
@@ -193,6 +199,7 @@ export default function AdminCompanySettingsPage({
         setAllowWeekends(eff.allowWeekends);
         setAvailability(eff.availabilitySlotOptions);
         setPartnerQs(eff.partnerExtraQuestionsByRound);
+        setClientQs(eff.clientExtraQuestionsByRound ?? {});
         setGuidelines(eff.sessionGuidelinesByRound);
         const po = eff.partnerProjectOverview;
         setVPartnerPo(
@@ -269,6 +276,9 @@ export default function AdminCompanySettingsPage({
         case "partnerExtraQuestionsByRound":
           setPartnerQs(g.partnerExtraQuestionsByRound);
           break;
+        case "clientExtraQuestionsByRound":
+          setClientQs(g.clientExtraQuestionsByRound ?? {});
+          break;
         case "sessionGuidelinesByRound":
           setGuidelines(g.sessionGuidelinesByRound);
           break;
@@ -277,6 +287,7 @@ export default function AdminCompanySettingsPage({
   }
 
   const onlinePartner = useMemo(() => Object.keys(vPartnerQs).length, [vPartnerQs]);
+  const onlineClient = useMemo(() => Object.keys(vClientQs).length, [vClientQs]);
   const onlineGuidelines = useMemo(() => Object.keys(vGuidelines).length, [vGuidelines]);
 
   function setPartnerQuestion(round: number, index: number, text: string) {
@@ -296,6 +307,32 @@ export default function AdminCompanySettingsPage({
   }
   function removePartnerQuestion(round: number, index: number) {
     setPartnerQs((p) => {
+      const key = String(round);
+      const list = (p[key] ?? []).filter((_, i) => i !== index);
+      const next = { ...p };
+      if (list.length === 0) delete next[key];
+      else next[key] = list;
+      return next;
+    });
+  }
+  // クライアント追加質問用のヘルパ。partner と同形で round → 文字列配列を編集する。
+  function setClientQuestion(round: number, index: number, text: string) {
+    setClientQs((p) => {
+      const key = String(round);
+      const list = [...(p[key] ?? [])];
+      list[index] = text;
+      return { ...p, [key]: list };
+    });
+  }
+  function addClientQuestion(round: number) {
+    setClientQs((p) => {
+      const key = String(round);
+      const list = [...(p[key] ?? []), ""];
+      return { ...p, [key]: list };
+    });
+  }
+  function removeClientQuestion(round: number, index: number) {
+    setClientQs((p) => {
       const key = String(round);
       const list = (p[key] ?? []).filter((_, i) => i !== index);
       const next = { ...p };
@@ -386,6 +423,15 @@ export default function AdminCompanySettingsPage({
           body.partnerExtraQuestionsByRound = cleaned;
           break;
         }
+        case "clientExtraQuestionsByRound": {
+          const cleaned: Record<string, string[]> = {};
+          for (const [round, list] of Object.entries(vClientQs)) {
+            const trimmed = list.map((q) => q.trim()).filter((q) => q.length > 0);
+            if (trimmed.length > 0) cleaned[round] = trimmed;
+          }
+          body.clientExtraQuestionsByRound = cleaned;
+          break;
+        }
         case "sessionGuidelinesByRound": {
           const cleaned: Record<string, { client: string; partner: string }> = {};
           for (const [round, v] of Object.entries(vGuidelines)) {
@@ -464,6 +510,7 @@ export default function AdminCompanySettingsPage({
             allowWeekends: false,
             availabilitySlotOptions: false,
             partnerExtraQuestionsByRound: false,
+            clientExtraQuestionsByRound: false,
             sessionGuidelinesByRound: false,
           });
           setSlotDurationMinutes(next.global.slotDurationMinutes);
@@ -474,6 +521,7 @@ export default function AdminCompanySettingsPage({
           setAllowWeekends(next.global.allowWeekends);
           setAvailability(next.global.availabilitySlotOptions);
           setPartnerQs(next.global.partnerExtraQuestionsByRound);
+          setClientQs(next.global.clientExtraQuestionsByRound ?? {});
           setGuidelines(next.global.sessionGuidelinesByRound);
           setVPartnerPo(emptyPartnerPo);
           setVClientPo(emptyClientPo);
@@ -1032,6 +1080,64 @@ export default function AdminCompanySettingsPage({
                         onClick={() => addPartnerQuestion(round)}
                         disabled={list.length >= 8}
                         className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                      >
+                        質問を追加
+                      </button>
+                    </div>
+                  </details>
+                );
+              })}
+            </fieldset>
+          </SectionCard>
+
+          {/* クライアント振り返り（フィードバック）の追加質問 */}
+          <SectionCard
+            title="クライアントの振り返り（フィードバック）の追加質問"
+            keys={["clientExtraQuestionsByRound"]}
+            overrideFlags={overrideFlags}
+            toggleOverride={toggleOverride}
+            global={data.global}
+            subtitle={`現在 ${onlineClient} 回分に設定があります`}
+          >
+            <fieldset disabled={!overrideFlags.clientExtraQuestionsByRound} className="space-y-3">
+              <p className="text-xs text-slate-600">
+                クライアントが各回の振り返り（フィードバック）提出時に追加で答える設問です。各回ごとに最大 8 件まで設定できます。
+              </p>
+              {Array.from({ length: Math.max(1, vTotalSessions) }, (_, i) => i + 1).map((round) => {
+                const list = vClientQs[String(round)] ?? [];
+                return (
+                  <details
+                    key={round}
+                    className="rounded-md border border-slate-200 bg-white px-3 py-2"
+                    open={list.length > 0}
+                  >
+                    <summary className="cursor-pointer text-sm font-semibold text-slate-800">
+                      {round} 回目 の追加質問{list.length > 0 ? `（${list.length}件）` : ""}
+                    </summary>
+                    <div className="mt-2 space-y-2">
+                      {list.map((q, i) => (
+                        <div key={i} className="flex gap-2">
+                          <textarea
+                            value={q}
+                            onChange={(e) => setClientQuestion(round, i, e.target.value)}
+                            rows={2}
+                            maxLength={500}
+                            className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeClientQuestion(round, i)}
+                            className="self-start rounded-md border border-red-300 bg-red-50 px-2 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+                          >
+                            削除
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => addClientQuestion(round)}
+                        disabled={list.length >= 8}
+                        className="rounded-md border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-900 hover:bg-violet-100 disabled:opacity-50"
                       >
                         質問を追加
                       </button>

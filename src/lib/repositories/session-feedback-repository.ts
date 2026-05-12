@@ -9,6 +9,13 @@ export type SessionFeedbackAnswers = {
   other?: string;
 };
 
+/**
+ * 管理者が「企業ごとの設定 → クライアント振り返りの追加質問」で
+ * 設定した自由設問の回答。key は設問のインデックスを文字列化したもの（"0","1",…）。
+ * SessionReport.extraAnswers と同じ形に揃えてある。
+ */
+export type SessionFeedbackExtraAnswers = Record<string, string>;
+
 export type PartnerChangeChoice = "continue" | "undecided" | "want_change";
 
 export type SessionFeedbackRow = {
@@ -17,6 +24,7 @@ export type SessionFeedbackRow = {
   sessionNumber: number;
   clientId: string;
   answers: SessionFeedbackAnswers;
+  extraAnswers: SessionFeedbackExtraAnswers;
   satisfactionScore: number | null;
   partnerChange: PartnerChangeChoice | null;
   createdAt: string;
@@ -47,6 +55,19 @@ function normalizePartnerChange(input: unknown): PartnerChangeChoice | null {
     : null;
 }
 
+function normalizeExtraAnswers(input: unknown): SessionFeedbackExtraAnswers {
+  if (!input || typeof input !== "object") return {};
+  const out: SessionFeedbackExtraAnswers = {};
+  for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+    const key = String(k);
+    if (!/^\d+$/.test(key)) continue;
+    if (typeof v !== "string") continue;
+    const trimmed = v.slice(0, 4000);
+    out[key] = trimmed;
+  }
+  return out;
+}
+
 export async function getSessionFeedback(
   matchId: string,
   sessionNumber: number,
@@ -63,6 +84,7 @@ export async function getSessionFeedback(
       sessionNumber,
       clientId: String(raw.clientId ?? ""),
       answers: normalizeAnswers(raw.answers),
+      extraAnswers: normalizeExtraAnswers(raw.extraAnswers),
       satisfactionScore:
         typeof raw.satisfactionScore === "number" ? raw.satisfactionScore : null,
       partnerChange: normalizePartnerChange(raw.partnerChange),
@@ -84,6 +106,7 @@ export async function getSessionFeedback(
     sessionNumber: Number(row.sessionNumber),
     clientId: String(row.clientId ?? ""),
     answers: normalizeAnswers(row.answers),
+    extraAnswers: normalizeExtraAnswers(row.extraAnswers),
     satisfactionScore:
       typeof row.satisfactionScore === "number" ? row.satisfactionScore : null,
     partnerChange: normalizePartnerChange(row.partnerChange),
@@ -117,6 +140,7 @@ export async function listSessionFeedbacksForMatch(
           sessionNumber: Number(raw.sessionNumber ?? 0),
           clientId: String(raw.clientId ?? ""),
           answers: normalizeAnswers(raw.answers),
+          extraAnswers: normalizeExtraAnswers(raw.extraAnswers),
           satisfactionScore:
             typeof raw.satisfactionScore === "number" ? raw.satisfactionScore : null,
           partnerChange: normalizePartnerChange(raw.partnerChange),
@@ -140,6 +164,7 @@ export async function listSessionFeedbacksForMatch(
     sessionNumber: Number(row.sessionNumber),
     clientId: String(row.clientId ?? ""),
     answers: normalizeAnswers(row.answers),
+    extraAnswers: normalizeExtraAnswers(row.extraAnswers),
     satisfactionScore:
       typeof row.satisfactionScore === "number" ? row.satisfactionScore : null,
     partnerChange: normalizePartnerChange(row.partnerChange),
@@ -171,6 +196,7 @@ export async function listAllSessionFeedbacks(): Promise<SessionFeedbackRow[]> {
         sessionNumber: Number(raw.sessionNumber ?? 0),
         clientId: String(raw.clientId ?? ""),
         answers: normalizeAnswers(raw.answers),
+        extraAnswers: normalizeExtraAnswers(raw.extraAnswers),
         satisfactionScore:
           typeof raw.satisfactionScore === "number" ? raw.satisfactionScore : null,
         partnerChange: normalizePartnerChange(raw.partnerChange),
@@ -192,6 +218,7 @@ export async function listAllSessionFeedbacks(): Promise<SessionFeedbackRow[]> {
     sessionNumber: Number(row.sessionNumber),
     clientId: String(row.clientId ?? ""),
     answers: normalizeAnswers(row.answers),
+    extraAnswers: normalizeExtraAnswers(row.extraAnswers),
     satisfactionScore:
       typeof row.satisfactionScore === "number" ? row.satisfactionScore : null,
     partnerChange: normalizePartnerChange(row.partnerChange),
@@ -211,10 +238,12 @@ export async function upsertSessionFeedback(input: {
   sessionNumber: number;
   clientId: string;
   answers: SessionFeedbackAnswers;
+  extraAnswers?: SessionFeedbackExtraAnswers;
   satisfactionScore: number | null;
   partnerChange: PartnerChangeChoice | null;
 }): Promise<SessionFeedbackRow> {
   const answers = normalizeAnswers(input.answers);
+  const extraAnswers = normalizeExtraAnswers(input.extraAnswers ?? {});
   const partnerChange = normalizePartnerChange(input.partnerChange);
   const satisfactionScore =
     input.satisfactionScore == null
@@ -235,6 +264,7 @@ export async function upsertSessionFeedback(input: {
       sessionNumber: input.sessionNumber,
       clientId: input.clientId,
       answers,
+      extraAnswers,
       satisfactionScore,
       partnerChange,
       createdAt,
@@ -253,28 +283,61 @@ export async function upsertSessionFeedback(input: {
   if (!delegate?.upsert) {
     throw new Error("SessionFeedback model is not available in Prisma client");
   }
-  const row = (await delegate.upsert({
-    where: { matchId_sessionNumber: { matchId: input.matchId, sessionNumber: input.sessionNumber } },
-    create: {
-      matchId: input.matchId,
-      sessionNumber: input.sessionNumber,
-      clientId: input.clientId,
-      answers,
-      satisfactionScore,
-      partnerChange,
-    },
-    update: {
-      answers,
-      satisfactionScore,
-      partnerChange,
-    },
-  })) as Record<string, unknown>;
+  // Prisma 経路では `extraAnswers` カラムが無いケースを許容。
+  // Firebase 経路が本番なので、まずは extraAnswers 付きで試し、ダメなら除外して再試行。
+  let row: Record<string, unknown>;
+  try {
+    row = (await delegate.upsert({
+      where: { matchId_sessionNumber: { matchId: input.matchId, sessionNumber: input.sessionNumber } },
+      create: {
+        matchId: input.matchId,
+        sessionNumber: input.sessionNumber,
+        clientId: input.clientId,
+        answers,
+        extraAnswers,
+        satisfactionScore,
+        partnerChange,
+      },
+      update: {
+        answers,
+        extraAnswers,
+        satisfactionScore,
+        partnerChange,
+      },
+    })) as Record<string, unknown>;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message.includes("Unknown argument `extraAnswers`") ||
+        error.message.includes("no such column"))
+    ) {
+      row = (await delegate.upsert({
+        where: { matchId_sessionNumber: { matchId: input.matchId, sessionNumber: input.sessionNumber } },
+        create: {
+          matchId: input.matchId,
+          sessionNumber: input.sessionNumber,
+          clientId: input.clientId,
+          answers,
+          satisfactionScore,
+          partnerChange,
+        },
+        update: {
+          answers,
+          satisfactionScore,
+          partnerChange,
+        },
+      })) as Record<string, unknown>;
+    } else {
+      throw error;
+    }
+  }
   return {
     id: String(row.id),
     matchId: String(row.matchId),
     sessionNumber: Number(row.sessionNumber),
     clientId: String(row.clientId),
     answers,
+    extraAnswers,
     satisfactionScore,
     partnerChange,
     createdAt:
