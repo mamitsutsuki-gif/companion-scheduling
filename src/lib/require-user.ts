@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { readSession } from "@/lib/session";
-import { getUserById } from "@/lib/repositories/user-repository";
+import { getUserById, touchUserLastSeen } from "@/lib/repositories/user-repository";
 
 export async function requireUser() {
   const session = await readSession();
@@ -11,6 +11,10 @@ export async function requireUser() {
   if (!user) {
     redirect("/login");
   }
+  // 最終アクセス時刻を更新（管理者の「塩漬けユーザー検知」用）。
+  // 1 時間に 1 回までに自動制限されるため毎ページ書き込みは発生しない。
+  // 例外は internal に握って ignore する（タッチ失敗で本処理は落とさない）。
+  void touchUserLastSeen(session.sub).catch(() => undefined);
   return { ...user, role: user.role };
 }
 

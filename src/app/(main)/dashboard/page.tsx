@@ -4,6 +4,10 @@ import { APP_DISPLAY_NAME } from "@/lib/brand";
 import { listMatchesForRole } from "@/lib/repositories/match-repository";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { PartnerInvoiceAlert } from "@/components/partner-invoice-alert";
+import { NextActionsSection } from "@/components/next-actions-section";
+import { AwaitingAssignment } from "@/components/awaiting-assignment";
+import { OnboardingModal } from "@/components/onboarding-modal";
+import { AdminStaleUsersPanel } from "@/components/admin-stale-users-panel";
 import { DashboardCompanyFilter } from "./company-filter";
 
 function withHonorificSan(name: string) {
@@ -80,6 +84,49 @@ export default async function DashboardPage({
 
       {me.role === "PARTNER" ? <PartnerInvoiceAlert /> : null}
 
+      {/*
+        初回オンボーディングモーダル（クライアント/パートナー系のみ）。
+        - `onboardedAt` がセットされていない && 管理者でない 場合に表示する。
+        - マッチがまだ無いときは「アサイン待ち」前提の文言に切り替える。
+        モーダル自体はクライアント側でしか表示しないが、出すかどうかの判定は
+        サーバー側で済ませて props として渡す（チラつき防止）。
+      */}
+      {!isAdmin ? (
+        <OnboardingModal
+          shouldShow={!((me as { onboardedAt?: string | null }).onboardedAt ?? null)}
+          role={me.role as "CLIENT" | "CLIENT_ADMIN" | "CLIENT_HR" | "PARTNER"}
+          hasMatches={allMatches.length > 0}
+        />
+      ) : null}
+
+      {/*
+        まだ管理者にマッチングされていないクライアント/パートナー向けの
+        「アサイン待ち」プレースホルダ。
+        - 自分の役割がメンバー側 (CLIENT / CLIENT_ADMIN / CLIENT_HR / PARTNER) で
+          かつ allMatches が空の時だけ出す。
+        - 出すと下の「担当ペア」セクションは冗長になるので、その下のセクションも
+          条件付きで隠す（後段で `allMatches.length === 0` を見て分岐）。
+      */}
+      {!isAdmin && allMatches.length === 0 ? (
+        <AwaitingAssignment
+          role={me.role as "CLIENT" | "CLIENT_ADMIN" | "CLIENT_HR" | "PARTNER"}
+        />
+      ) : null}
+
+      {/*
+        「あなたが次にやること」リスト。
+        - 管理者には何も表示しない（API が空配列を返す）
+        - マッチ未割当のときは API 側で抑制される
+      */}
+      {!isAdmin && allMatches.length > 0 ? <NextActionsSection /> : null}
+
+      {/*
+        管理者ホーム下部に「最近アクセスのないユーザー」を出す。
+        - `lastSeenAt` (requireUser から書き込み) が 14 日以上前 もしくは無い ユーザーが対象。
+        - 0 件のときは描画しない（API 側で 0 件を返したらコンポーネント側で抑制）。
+      */}
+      {isAdmin ? <AdminStaleUsersPanel /> : null}
+
       {isAdmin && adminUnassignedPairCount > 0 ? (
         <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -111,6 +158,14 @@ export default async function DashboardPage({
         </div>
       ) : null}
 
+      {/*
+        以下「自分FTA への導線 + 担当ペア一覧」は、
+        - 管理者は常に表示（マッチ管理画面の代わりに使う）
+        - メンバー側は「マッチが 1 件でもある」場合のみ表示
+        とする。マッチ未割当のメンバーには上の「アサイン待ち」表示だけにして、
+        押せない情報を並べないようにする。
+      */}
+      {(!isAdmin && allMatches.length === 0) ? null : (
       <section className="space-y-5">
         {(me.role === "CLIENT" || me.role === "PARTNER" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR") ? (
           <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-4">
@@ -190,6 +245,7 @@ export default async function DashboardPage({
           )}
         </ul>
       </section>
+      )}
     </div>
   );
 }

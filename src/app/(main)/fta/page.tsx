@@ -1,6 +1,7 @@
 "use client";
 
 import { FtaEditor, FtaViewer } from "@/components/fta-chart";
+import { FtaExampleToggle } from "@/components/fta-example-toggle";
 import { defaultFtaChart, type FtaChart } from "@/lib/fta";
 import { useCallback, useEffect, useState } from "react";
 
@@ -102,9 +103,12 @@ export default function FtaPage() {
         <p className="mt-2 text-base text-slate-600">中心(A)→要素(B)→アクション(C)の順で記入します。鍵マークで非公開にできます。</p>
       </section>
 
+      {/* 初心者向けに、書き方の例を畳んで提示する（既存 UI 上に追加するだけ）。 */}
+      <FtaExampleToggle />
+
       <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-6">
         <FtaEditor chart={chart} onChange={onEdit} />
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={() => void onSave()}
@@ -115,6 +119,10 @@ export default function FtaPage() {
           </button>
           {msg ? <span className="text-sm text-slate-600">{msg}</span> : null}
           {dirty ? <span className="text-xs text-amber-700">未保存の変更があります（2秒後に自動保存）</span> : null}
+          {/* 保存後の挙動を 1 行で説明し、押した結果がイメージしやすいようにする。 */}
+          <span className="text-xs text-slate-500">
+            → 保存すると、同企業のクライアント（共有 ON の場合）と担当パートナーが、最新の自分FTA を閲覧できます。
+          </span>
         </div>
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
           <h2 className="text-base font-semibold text-slate-900">プレビュー（保存内容の見え方）</h2>

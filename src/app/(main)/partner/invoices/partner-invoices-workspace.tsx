@@ -552,22 +552,27 @@ export function PartnerInvoicesWorkspace() {
           <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4 print:hidden">
             {canEditFields ? (
               <>
-                <button
-                  type="button"
-                  onClick={() => void onSaveDraft()}
-                  disabled={saving}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
-                >
-                  {saving ? "保存中…" : "下書きを保存"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void onSubmit()}
-                  disabled={saving}
-                  className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-800 disabled:opacity-60"
-                >
-                  {saving ? "送信中…" : "確定・提出"}
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void onSaveDraft()}
+                    disabled={saving}
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    {saving ? "保存中…" : "下書きを保存"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void onSubmit()}
+                    disabled={saving}
+                    className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-800 disabled:opacity-60"
+                  >
+                    {saving ? "送信中…" : "確定・提出"}
+                  </button>
+                </div>
+                <p className="w-full text-xs text-slate-500">
+                  → 「確定・提出」を押すと管理者に通知され、編集はロックされます。管理者からの差し戻しまたは確定までお待ちください。
+                </p>
               </>
             ) : isLocked && data?.invoice?.status === "SUBMITTED" ? (
               <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">

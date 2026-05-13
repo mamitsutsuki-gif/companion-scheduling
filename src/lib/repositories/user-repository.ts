@@ -623,6 +623,11 @@ export async function getUserById(userId: string) {
       email: typeof raw.email === "string" ? raw.email : null,
       deletedAt: typeof raw.deletedAt === "string" ? raw.deletedAt : null,
       companyId: typeof raw.companyId === "string" ? raw.companyId : null,
+      // 初回オンボーディングを終えたかどうか（モーダル制御に使用）。
+      // Firestore にしか書かない (Prisma 側スキーマには影響しない)。
+      onboardedAt: typeof raw.onboardedAt === "string" ? raw.onboardedAt : null,
+      // 最終アクセス時刻（管理者の「塩漬けユーザー」検知用）。
+      lastSeenAt: typeof raw.lastSeenAt === "string" ? raw.lastSeenAt : null,
       availabilitySlotIds: asStringArray(raw.availabilitySlotIds),
     };
   }
@@ -642,6 +647,8 @@ export async function getUserById(userId: string) {
     return {
       ...row,
       deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
+      onboardedAt: null as string | null,
+      lastSeenAt: null as string | null,
       availabilitySlotIds: [] as string[],
     };
   } catch (error) {
@@ -659,9 +666,122 @@ export async function getUserById(userId: string) {
       ...row,
       deletedAt: null,
       companyId: null,
+      onboardedAt: null as string | null,
+      lastSeenAt: null as string | null,
       availabilitySlotIds: [] as string[],
     };
   }
+}
+
+/**
+ * 初回オンボーディングモーダルを閉じたタイミングで呼び、
+ * `users.<id>.onboardedAt = <ISO>` を保存する。Firestore のみ。
+ */
+export async function markUserOnboarded(userId: string): Promise<void> {
+  if (!isFirebaseDataBackend()) return;
+  const db = getFirebaseFirestoreClient();
+  if (!db) return;
+  await db
+    .collection("users")
+    .doc(userId)
+    .set({ onboardedAt: new Date().toISOString() }, { merge: true });
+}
+
+/**
+ * ユーザーの最終アクセス時刻を更新する。`requireUser()` から fire-and-forget で
+ * 呼ばれることを想定。実装上は 1 時間に 1 回までしか書き込まない（書き過ぎ防止）。
+ * 管理者画面の「塩漬けユーザー一覧」で利用する。
+ */
+export async function touchUserLastSeen(userId: string): Promise<void> {
+  if (!isFirebaseDataBackend()) return;
+  const db = getFirebaseFirestoreClient();
+  if (!db) return;
+  try {
+    const ref = db.collection("users").doc(userId);
+    const snap = await ref.get();
+    if (!snap.exists) return;
+    const raw = snap.data() as Record<string, unknown>;
+    const lastSeen = typeof raw.lastSeenAt === "string" ? raw.lastSeenAt : null;
+    const now = Date.now();
+    if (lastSeen) {
+      const prev = new Date(lastSeen).getTime();
+      if (Number.isFinite(prev) && now - prev < 60 * 60 * 1000) {
+        // 1 時間以内に既に書いている → スキップ
+        return;
+      }
+    }
+    await ref.set({ lastSeenAt: new Date(now).toISOString() }, { merge: true });
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * 管理者用: 全ユーザーから「最終アクセスが古い」ユーザーを抽出する。
+ * `lastSeenAt` がそもそも記録されていないユーザーは「未ログイン」として
+ * 別カテゴリで返す（registered 後に一度もログインしていない可能性）。
+ */
+export type StaleUserRow = {
+  id: string;
+  displayName: string;
+  email: string | null;
+  role: Role;
+  companyId: string | null;
+  lastSeenAt: string | null;
+  /** 経過日数（never の時は null）*/
+  daysSinceLastSeen: number | null;
+};
+
+export async function listStaleUsers(
+  thresholdDays: number,
+): Promise<StaleUserRow[]> {
+  if (!isFirebaseDataBackend()) return [];
+  const db = getFirebaseFirestoreClient();
+  if (!db) return [];
+  const snap = await db.collection("users").get();
+  const now = Date.now();
+  const rows: StaleUserRow[] = [];
+  for (const d of snap.docs) {
+    const raw = d.data() as Record<string, unknown>;
+    if (typeof raw.deletedAt === "string" && raw.deletedAt.length > 0) continue;
+    const role = asRole(raw.role);
+    // 管理者・管理者アシスタントは検知対象から外す（運用者なので塩漬けの概念に当てはまらない）
+    if (role === "ADMIN" || role === "ADMIN_ASSISTANT") continue;
+    const lastSeenAt = typeof raw.lastSeenAt === "string" ? raw.lastSeenAt : null;
+    const ts = lastSeenAt ? new Date(lastSeenAt).getTime() : NaN;
+    const days = Number.isFinite(ts) ? Math.floor((now - ts) / 86_400_000) : null;
+    if (days === null) {
+      // 一度もログインしていないユーザーは常に対象に含める
+      rows.push({
+        id: d.id,
+        displayName: String(raw.displayName ?? "ユーザー"),
+        email: typeof raw.email === "string" ? raw.email : null,
+        role,
+        companyId: typeof raw.companyId === "string" ? raw.companyId : null,
+        lastSeenAt: null,
+        daysSinceLastSeen: null,
+      });
+      continue;
+    }
+    if (days < thresholdDays) continue;
+    rows.push({
+      id: d.id,
+      displayName: String(raw.displayName ?? "ユーザー"),
+      email: typeof raw.email === "string" ? raw.email : null,
+      role,
+      companyId: typeof raw.companyId === "string" ? raw.companyId : null,
+      lastSeenAt,
+      daysSinceLastSeen: days,
+    });
+  }
+  // 経過が古い順、never は最後にまとめる
+  rows.sort((a, b) => {
+    if (a.daysSinceLastSeen === null && b.daysSinceLastSeen === null) return 0;
+    if (a.daysSinceLastSeen === null) return 1;
+    if (b.daysSinceLastSeen === null) return -1;
+    return b.daysSinceLastSeen - a.daysSinceLastSeen;
+  });
+  return rows;
 }
 
 export async function getUserEmailById(userId: string) {

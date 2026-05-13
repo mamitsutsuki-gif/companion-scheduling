@@ -8,7 +8,12 @@ import {
 import { PartnerChatTemplates } from "@/components/partner-chat-templates";
 import { FtaViewer } from "@/components/fta-chart";
 import type { FtaChart } from "@/lib/fta";
-import { SCHEDULE_RULES_CLIENT, SCHEDULE_RULES_PARTNER } from "@/lib/scheduling-rules-copy";
+import {
+  SCHEDULE_RULES_CLIENT,
+  SCHEDULE_RULES_PARTNER,
+  SCHEDULE_SUMMARY_CLIENT,
+  SCHEDULE_SUMMARY_PARTNER,
+} from "@/lib/scheduling-rules-copy";
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 
@@ -240,6 +245,166 @@ function msUntilStart(iso: string) {
   const start = new Date(iso).getTime();
   if (!Number.isFinite(start)) return Number.NaN;
   return start - Date.now();
+}
+
+/**
+ * match ページ最上部に出す「あなたの今の状態」バナーの内容を決定する。
+ *
+ * - クライアント／パートナー目線で「今この瞬間あなたが何をすべきか」を 1 行で示す
+ * - 何もすることが無い時は null を返す（バナー非表示）
+ * - 確定済みで開始 24h 以内のときはリマインダ
+ * - 過去回で振り返り／レポート未提出のときは催促
+ *
+ * UI 側は returned object を見て severity に応じた配色で 1 枚だけ出す。
+ */
+type StatusBannerInfo = {
+  message: string;
+  severity: "info" | "todo" | "warn";
+  ctaLabel: string;
+  ctaTab: MatchTab;
+};
+function computeMatchBanner(args: {
+  meRole: Role;
+  negotiations: NegotiationRow[];
+  sessionRows: SessionPlanApiRow[];
+  totalSessions: number;
+  now: Date;
+}): StatusBannerInfo | null {
+  const { meRole, negotiations, sessionRows, totalSessions, now } = args;
+  if (meRole === "ADMIN" || meRole === "ADMIN_ASSISTANT") return null;
+  const isClientSide = meRole === "CLIENT" || meRole === "CLIENT_ADMIN" || meRole === "CLIENT_HR";
+  const isPartner = meRole === "PARTNER";
+
+  // 最新ラウンドを session ごとに 1 件にまとめる
+  const latestPerSession = new Map<number, NegotiationRow>();
+  for (const n of negotiations) {
+    const sn = Math.max(1, n.sessionNumber ?? 1);
+    const prev = latestPerSession.get(sn);
+    if (!prev || n.round > prev.round) latestPerSession.set(sn, n);
+  }
+  const active = Array.from(latestPerSession.values())
+    .filter((n) => n.status !== "CONFIRMED" && n.status !== "SUPERSEDED")
+    .sort((a, b) => (a.sessionNumber ?? 1) - (b.sessionNumber ?? 1))[0];
+
+  if (active) {
+    const sn = active.sessionNumber ?? 1;
+    if (active.status === "AWAITING_CLIENT_RESPONSE" && isClientSide) {
+      return {
+        message: `あなたの番です — 第 ${sn} 回の候補日に ◯× で回答してください。`,
+        severity: "todo",
+        ctaLabel: "回答する",
+        ctaTab: "schedule",
+      };
+    }
+    if (active.status === "AWAITING_CLIENT_RESPONSE" && isPartner) {
+      return {
+        message: `クライアントの回答待ち — 第 ${sn} 回の候補日への ◯× を待っています。`,
+        severity: "info",
+        ctaLabel: "状況を確認",
+        ctaTab: "schedule",
+      };
+    }
+    if (active.status === "NEEDS_NEW_PROPOSAL" && isPartner) {
+      return {
+        message: `あなたの番です — 第 ${sn} 回はすべて × でした。新しい候補日を送ってください。`,
+        severity: "warn",
+        ctaLabel: "候補日を送る",
+        ctaTab: "schedule",
+      };
+    }
+    if (active.status === "NEEDS_NEW_PROPOSAL" && isClientSide) {
+      return {
+        message: `パートナーが新しい候補日を準備中 — 第 ${sn} 回の候補日が再送されるのをお待ちください。`,
+        severity: "info",
+        ctaLabel: "状況を確認",
+        ctaTab: "schedule",
+      };
+    }
+    if (active.status === "AWAITING_PARTNER_CONFIRM" && isPartner) {
+      return {
+        message: `あなたの番です — 第 ${sn} 回の日程を ◯ から決定してください。`,
+        severity: "todo",
+        ctaLabel: "日程を決定する",
+        ctaTab: "schedule",
+      };
+    }
+    if (active.status === "AWAITING_PARTNER_CONFIRM" && isClientSide) {
+      return {
+        message: `パートナーが日程を決定中 — 第 ${sn} 回の確定をお待ちください。`,
+        severity: "info",
+        ctaLabel: "状況を確認",
+        ctaTab: "schedule",
+      };
+    }
+  }
+
+  // 振り返り / レポート 未提出
+  const unsubmitted = sessionRows.find(
+    (s) =>
+      s.confirmed &&
+      s.endAt &&
+      new Date(s.endAt) <= now &&
+      !(s.abandonment) &&
+      ((isClientSide && !s.hasClientFeedback) || (isPartner && !s.hasPartnerReport)),
+  );
+  if (unsubmitted) {
+    return {
+      message: isClientSide
+        ? `第 ${unsubmitted.sessionNumber} 回の振り返り（フィードバック）がまだ提出されていません。`
+        : `第 ${unsubmitted.sessionNumber} 回のパートナーレポートがまだ提出されていません。`,
+      severity: "todo",
+      ctaLabel: isClientSide ? "振り返りを書く" : "レポートを書く",
+      ctaTab: "sessions",
+    };
+  }
+
+  // 直近セッションのリマインダ (開始 24h 以内)
+  const upcoming = sessionRows
+    .filter((s) => s.confirmed && s.startAt && new Date(s.startAt) > now)
+    .sort((a, b) => new Date(a.startAt!).getTime() - new Date(b.startAt!).getTime())[0];
+  if (upcoming && upcoming.startAt) {
+    const hrs = (new Date(upcoming.startAt).getTime() - now.getTime()) / 3_600_000;
+    if (hrs <= 24) {
+      const dt = new Intl.DateTimeFormat("ja-JP", {
+        month: "numeric",
+        day: "numeric",
+        weekday: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(upcoming.startAt));
+      return {
+        message: `第 ${upcoming.sessionNumber} 回はまもなく開始です（${dt} 〜）。`,
+        severity: "info",
+        ctaLabel: "セッション詳細を開く",
+        ctaTab: "sessions",
+      };
+    }
+  }
+
+  // パートナーで、まだ候補が出ていない session があれば「候補を送る」
+  if (isPartner) {
+    const known = new Set(negotiations.map((n) => Math.max(1, n.sessionNumber ?? 1)));
+    let need: number | null = null;
+    for (let i = 1; i <= Math.max(totalSessions, 1); i++) {
+      if (!known.has(i)) {
+        need = i;
+        break;
+      }
+    }
+    if (need !== null) {
+      return {
+        message:
+          need === 1
+            ? `あなたの番です — 第 1 回（初回）の候補日を送ってください。`
+            : `あなたの番です — 第 ${need} 回の候補日を送ってください。`,
+        severity: need === 1 ? "warn" : "todo",
+        ctaLabel: "候補日を送る",
+        ctaTab: "schedule",
+      };
+    }
+  }
+
+  return null;
 }
 
 export function MatchWorkspace({ matchId }: { matchId: string }) {
@@ -858,6 +1023,59 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       {error ? <p className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p> : null}
       {notice ? <p className="rounded-xl bg-indigo-50 px-4 py-2 text-sm text-indigo-900">{notice}</p> : null}
 
+      {/*
+        「あなたの今の状態」バナー（クライアント / パートナーのみ）。
+        - チャット・日程・1on1 タブを行き来しなくても、画面上部 1 行で
+          「次にやる用事 / 待ち状態 / 直近セッションのリマインダ」が分かる。
+        - severity に応じて色を変える (info: 青 / todo: 紫 / warn: 琥珀)。
+        - 押下で該当タブにジャンプ。
+      */}
+      {(() => {
+        const banner = computeMatchBanner({
+          meRole: me.role,
+          negotiations,
+          sessionRows,
+          totalSessions: scheduleSettings.totalSessions,
+          now: new Date(),
+        });
+        if (!banner) return null;
+        const palette =
+          banner.severity === "warn"
+            ? "border-amber-300 bg-amber-50 text-amber-950"
+            : banner.severity === "todo"
+              ? "border-indigo-300 bg-indigo-50 text-indigo-950"
+              : "border-sky-300 bg-sky-50 text-sky-950";
+        const buttonClass =
+          banner.severity === "warn"
+            ? "bg-amber-700 hover:bg-amber-800"
+            : banner.severity === "todo"
+              ? "bg-indigo-700 hover:bg-indigo-800"
+              : "bg-sky-700 hover:bg-sky-800";
+        return (
+          <div
+            className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 shadow-sm ${palette}`}
+          >
+            <p className="min-w-0 break-words text-sm font-semibold sm:text-base">
+              {banner.message}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab(banner.ctaTab);
+                try {
+                  history.replaceState(null, "", `#${banner.ctaTab}`);
+                } catch {
+                  /* noop */
+                }
+              }}
+              className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-semibold !text-white no-underline ${buttonClass}`}
+            >
+              {banner.ctaLabel}
+            </button>
+          </div>
+        );
+      })()}
+
       {availability ? (
         <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 px-5 py-4 shadow-sm">
           <h2 className="text-lg font-semibold text-emerald-900">お互いの対応可能時間</h2>
@@ -1019,30 +1237,36 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           <h2 className="text-2xl font-semibold">チャット</h2>
         </div>
         {me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (
-          <details
-            open
-            className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md"
-          >
-            <summary className="cursor-pointer text-base font-semibold text-indigo-950">
-              パートナー向け：日程調整機能の使い方（最初にお読みください）
-            </summary>
-            <pre className="mt-3 max-h-[min(60vh,24rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
-              {SCHEDULE_RULES_PARTNER}
-            </pre>
-          </details>
+          // チャット上部の説明は「3 行サマリ常時表示 + 詳細は折りたたみ」に。
+          // 以前は <details open> で毎回長文が展開され、操作の妨げになっていた。
+          <div className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm">
+            <p className="text-sm font-medium text-indigo-950">
+              {SCHEDULE_SUMMARY_PARTNER}
+            </p>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs font-semibold text-indigo-700 hover:underline">
+                日程調整の詳しいご案内を開く
+              </summary>
+              <pre className="mt-3 max-h-[min(60vh,24rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
+                {SCHEDULE_RULES_PARTNER}
+              </pre>
+            </details>
+          </div>
         ) : null}
         {me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" ? (
-          <details
-            open
-            className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md"
-          >
-            <summary className="cursor-pointer text-base font-semibold text-indigo-950">
-              日程調整機能の使い方（最初にお読みください）
-            </summary>
-            <pre className="mt-3 max-h-[min(60vh,24rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
-              {SCHEDULE_RULES_CLIENT}
-            </pre>
-          </details>
+          <div className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm">
+            <p className="text-sm font-medium text-indigo-950">
+              {SCHEDULE_SUMMARY_CLIENT}
+            </p>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs font-semibold text-indigo-700 hover:underline">
+                日程調整の詳しいご案内を開く
+              </summary>
+              <pre className="mt-3 max-h-[min(60vh,24rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
+                {SCHEDULE_RULES_CLIENT}
+              </pre>
+            </details>
+          </div>
         ) : null}
         <div className="max-h-[420px] space-y-3 overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs">
           {messages.map((msg) => {
@@ -1305,7 +1529,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               </div>
             ) : null}
             <div>
-              <h3 className="text-xl font-semibold">候補を提示（開始時刻のみ・3〜5件）</h3>
+              <h3 className="text-xl font-semibold">候補日を送る（開始時刻のみ・3〜5 件）</h3>
               <p className="mt-1 text-xs text-zinc-600">
                 選択可能な時間帯：{String(scheduleSettings.slotEarliestHour).padStart(2, "0")}:00〜{String(scheduleSettings.slotLatestHour).padStart(2, "0")}:00
                 {scheduleSettings.allowWeekends ? "（土日も可）" : "（土日不可）"}
@@ -1390,13 +1614,19 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 </div>
               </fieldset>
             </div>
-            <button
-              type="submit"
-              disabled={proposeSubmitting}
-              className="rounded-lg bg-indigo-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-800 active:translate-y-[1px] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {proposeSubmitting ? "送信中…" : "送信（3〜5件）"}
-            </button>
+            <div className="space-y-2">
+              <button
+                type="submit"
+                disabled={proposeSubmitting}
+                className="rounded-lg bg-indigo-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-800 active:translate-y-[1px] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {proposeSubmitting ? "送信中…" : "候補日を送る（3〜5 件）"}
+              </button>
+              {/* このボタンを押したあとに何が起こるかを明示。実行前に挙動が見える方が安心。 */}
+              <p className="text-xs text-zinc-500">
+                → クライアントにメールとアプリ通知が届き、◯× の回答待ちになります。
+              </p>
+            </div>
           </form>
         ) : null}
 
@@ -1427,12 +1657,17 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 </div>
               ))}
             </div>
-            <button
-              type="submit"
-              className="rounded-lg bg-violet-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-violet-800 active:translate-y-[1px] active:scale-[0.98]"
-            >
-              送信
-            </button>
+            <div className="space-y-2">
+              <button
+                type="submit"
+                className="rounded-lg bg-violet-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-violet-800 active:translate-y-[1px] active:scale-[0.98]"
+              >
+                回答を送信する
+              </button>
+              <p className="text-xs text-zinc-500">
+                → パートナーに回答内容が通知されます。すべて × の場合は新しい候補が届きます。
+              </p>
+            </div>
           </form>
         ) : null}
 
@@ -1442,9 +1677,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             onSubmit={onConfirm}
             className="space-y-3 rounded-2xl border border-amber-200 bg-white px-5 py-4"
           >
-            <h3 className="text-xl font-semibold text-amber-900">パートナー確定操作</h3>
+            <h3 className="text-xl font-semibold text-amber-900">日程を決定する</h3>
             <p className="text-base text-amber-800">
-              「○」が複数ある場合のみ、ご希望時間をひとつ選んで確定してください。
+              「○」が複数ある場合は、ご希望時間をひとつ選んで決定してください。
             </p>
             <select
               name="slotId"
@@ -1463,12 +1698,17 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                   </option>
                 ))}
             </select>
-            <button
-              type="submit"
-              className="rounded-lg bg-amber-600 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-amber-700 active:translate-y-[1px] active:scale-[0.98]"
-            >
-              選択した候補を確定する
-            </button>
+            <div className="space-y-2">
+              <button
+                type="submit"
+                className="rounded-lg bg-amber-600 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-amber-700 active:translate-y-[1px] active:scale-[0.98]"
+              >
+                この日に決定する
+              </button>
+              <p className="text-xs text-amber-900/80">
+                → 双方に Zoom 入りの確定メールが届きます。確定後の変更は「日程変更依頼」から。
+              </p>
+            </div>
           </form>
         ) : null}
 
