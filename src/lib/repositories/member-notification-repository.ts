@@ -269,6 +269,49 @@ export async function markAllMemberNotificationsRead(recipientUserId: string) {
   }
 }
 
+/**
+ * 指定された match の `type === "CHAT"` 通知のうち、未読のものをまとめて既読化する。
+ *
+ * 用途: match ページのチャットタブを開いたタイミングで呼ぶことで、
+ *      ユーザーが「通知一覧」を経由せずチャットを読んだ場合でも、
+ *      「次のアクション」リストの未読カウントが正しく 0 に戻るようにする。
+ */
+export async function markChatNotificationsReadForMatch(
+  recipientUserId: string,
+  matchId: string,
+): Promise<void> {
+  if (!recipientUserId || !matchId) return;
+  const now = new Date().toISOString();
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return;
+    const snap = await db
+      .collection("memberNotifications")
+      .where("recipientUserId", "==", recipientUserId)
+      .where("matchId", "==", matchId)
+      .where("type", "==", "CHAT")
+      .where("readAt", "==", null)
+      .get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    for (const d of snap.docs) batch.set(d.ref, { readAt: now }, { merge: true });
+    await batch.commit();
+    return;
+  }
+  const delegate = (
+    prisma as unknown as { memberNotification?: { updateMany?: Function } }
+  ).memberNotification;
+  if (!delegate?.updateMany) return;
+  try {
+    await delegate.updateMany({
+      where: { recipientUserId, matchId, type: "CHAT", readAt: null },
+      data: { readAt: new Date(now) },
+    });
+  } catch {
+    /* noop */
+  }
+}
+
 export async function countUnreadMemberNotifications(recipientUserId: string): Promise<number> {
   if (!recipientUserId) return 0;
   if (isFirebaseDataBackend()) {

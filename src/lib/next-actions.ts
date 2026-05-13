@@ -19,6 +19,7 @@ export type ActionKind =
   | "WRITE_PARTNER_REPORT" // パートナー: 実施済みセッションのレポート
   | "WRITE_CLIENT_FEEDBACK" // クライアント: 実施済みセッションの振り返り
   | "UNREAD_CHAT" // 双方: 未読チャット
+  | "SESSION_UPCOMING" // 双方: 直近セッション開始リマインダ
   | "FILL_FTA" // クライアント: 自分FTA が空 (vision 未入力)
   | "SUBMIT_INVOICE" // パートナー: 当月請求書未提出
   | "SAY_HELLO"; // 初挨拶 (チャットがまだ無い)
@@ -254,21 +255,19 @@ export function computeMatchActions(
     }
     // 提示済みのものがすべて CONFIRMED である場合、次回提示が必要
     if (needPropose !== null) {
-      // ただし「直前の回」がまだ実施前ならアラート性は弱め、過去回が終わっていれば強め
-      const previousDone =
-        needPropose === 1
-          ? true
-          : sessionPlan.find((s) => s.sessionNumber === needPropose! - 1)?.confirmed === true;
+      // 「初回 (need===1)」だけは初回ラベルを付け、severity も warn にして強調する。
+      // 2 回目以降は淡々と todo として並べる。
+      const isFirst = needPropose === 1;
       items.push({
         kind: "PROPOSE_SLOTS",
-        message: previousDone
-          ? `${clientLabel(match)} に第 ${needPropose} 回の候補日を送ってください。`
-          : `${clientLabel(match)} に第 ${needPropose} 回（初回）の候補日を送りましょう。`,
+        message: isFirst
+          ? `${clientLabel(match)} に第 1 回（初回）の候補日を送ってください。`
+          : `${clientLabel(match)} に第 ${needPropose} 回の候補日を送ってください。`,
         href: `/match/${match.matchId}#schedule`,
         ctaLabel: "候補日を送る",
-        severity: needPropose === 1 ? "warn" : "todo",
+        severity: isFirst ? "warn" : "todo",
         matchId: match.matchId,
-        weight: needPropose === 1 ? 100 : 70,
+        weight: isFirst ? 100 : 70,
       });
     }
   }
@@ -320,7 +319,7 @@ export function computeMatchActions(
         minute: "2-digit",
       }).format(new Date(upcoming.startAt));
       items.push({
-        kind: "UNREAD_CHAT",
+        kind: "SESSION_UPCOMING",
         message: `第 ${upcoming.sessionNumber} 回はまもなく開始です（${dt} 〜）。`,
         href: `/match/${match.matchId}#sessions`,
         ctaLabel: "セッション詳細を開く",

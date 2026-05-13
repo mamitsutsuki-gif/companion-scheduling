@@ -654,6 +654,33 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     }
   }, [activeTab, messages, chatLastReadAt, matchId]);
 
+  // チャットタブを開いた時、サーバー側にも「このマッチの CHAT 通知を既読にした」と
+  // 伝える（ダッシュボードの「次のアクション」未読カウントを下げるため）。
+  // chatLastReadAt の更新条件と同様に「タブ=chat & messages がロード済み」で発火。
+  // fire-and-forget。fetch エラーは UX に影響しないので catch して握り潰す。
+  useEffect(() => {
+    if (activeTab !== "chat") return;
+    if (!me) return;
+    if (me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") return;
+    if (messages.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        await fetch(`/api/matches/${matchId}/chat-read`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+      } catch {
+        /* ignore */
+      }
+      if (cancelled) return;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, me, messages.length, matchId]);
+
   const unreadChatCount = useMemo(() => {
     if (!me) return 0;
     return messages.filter((m) => {
