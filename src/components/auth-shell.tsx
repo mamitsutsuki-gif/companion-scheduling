@@ -3,7 +3,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 /**
- * Shared layout so labels and links stay readable (no teal-on-teal surprises).
+ * 未ログイン画面（ログイン / 登録 / パスワード再設定）共通のシェル。
+ * Variant A の方向性に合わせて、白カード + flat indigo ロゴ + 控えめなシャドウで統一する。
  */
 export function AuthShell({
   title,
@@ -15,25 +16,25 @@ export function AuthShell({
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-full bg-slate-100 py-12 px-4">
-      <div className="mx-auto w-full max-w-md rounded-2xl border border-slate-200/90 bg-white px-8 py-10 shadow-md shadow-slate-200/60">
-        <div className="mb-10 flex justify-center border-b border-slate-100 pb-8">
+    <div className="min-h-full bg-slate-50 px-4 py-12">
+      <div className="mx-auto w-full max-w-md rounded-2xl border border-slate-200 bg-white px-8 py-10 shadow-sm">
+        <div className="mb-9 flex justify-center border-b border-slate-100 pb-7">
           <Link
             href="/"
             className="flex items-center gap-2 font-semibold tracking-tight text-slate-900 no-underline"
           >
             <span
               aria-hidden
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-900 text-base font-bold text-white shadow-md ring-1 ring-indigo-500/30"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-700 text-base font-bold text-white"
             >
               M
             </span>
             {APP_DISPLAY_NAME}
           </Link>
         </div>
-        <div className="mb-8">
+        <div className="mb-7">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{title}</h1>
-          {subtitle ? <p className="mt-3 text-sm leading-relaxed text-slate-600">{subtitle}</p> : null}
+          {subtitle ? <p className="mt-2.5 text-sm leading-relaxed text-slate-600">{subtitle}</p> : null}
         </div>
         {children}
       </div>
@@ -67,7 +68,7 @@ export function AuthPrimaryButton({
     <button
       type="submit"
       disabled={disabled}
-      className="w-full rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-55"
+      className="w-full rounded-lg bg-indigo-700 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-800 disabled:opacity-55"
     >
       {children}
     </button>

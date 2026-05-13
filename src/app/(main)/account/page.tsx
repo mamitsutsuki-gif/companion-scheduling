@@ -113,7 +113,7 @@ export default function AccountPage() {
         <button
           type="submit"
           disabled={saving}
-          className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60"
+          className="w-full rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-800 disabled:opacity-60"
         >
           {saving ? "保存中…" : "保存"}
         </button>

@@ -308,7 +308,7 @@ export function SessionWorkspace({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-3 py-5 sm:gap-8 sm:px-6 sm:py-8">
       <header className="space-y-2 border-b border-zinc-200 pb-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">1on1 Session</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">1on1 Session</p>
         <h1 className="text-2xl font-bold text-zinc-900 sm:text-3xl">
           {detail.sessionNumber} 回目のセッション
         </h1>
@@ -383,13 +383,13 @@ export function SessionWorkspace({
 
       {detail.guideline ? (
         role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
-          <section className="space-y-3 rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm sm:p-5">
-            <h2 className="text-lg font-semibold text-violet-950">
+          <section className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 shadow-sm sm:p-5">
+            <h2 className="text-lg font-semibold text-indigo-950">
               {detail.sessionNumber}回目 のガイドライン（管理者ビュー）
             </h2>
             {detail.guideline.client?.trim() ? (
               <div>
-                <h3 className="text-sm font-semibold text-violet-900">クライアント向け</h3>
+                <h3 className="text-sm font-semibold text-indigo-900">クライアント向け</h3>
                 <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-900">
                   {detail.guideline.client}
                 </p>
@@ -397,7 +397,7 @@ export function SessionWorkspace({
             ) : null}
             {detail.guideline.partner?.trim() ? (
               <div>
-                <h3 className="text-sm font-semibold text-violet-900">パートナー向け</h3>
+                <h3 className="text-sm font-semibold text-indigo-900">パートナー向け</h3>
                 <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-900">
                   {detail.guideline.partner}
                 </p>
@@ -405,8 +405,8 @@ export function SessionWorkspace({
             ) : null}
           </section>
         ) : guidelineText ? (
-          <section className="space-y-2 rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm sm:p-5">
-            <h2 className="text-lg font-semibold text-violet-950">
+          <section className="space-y-2 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 shadow-sm sm:p-5">
+            <h2 className="text-lg font-semibold text-indigo-950">
               {detail.sessionNumber}回目 のガイドライン
             </h2>
             <p className="whitespace-pre-wrap text-sm text-zinc-900">{guidelineText}</p>
@@ -415,9 +415,9 @@ export function SessionWorkspace({
       ) : null}
 
       {role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR" || role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
-        <section className="space-y-4 rounded-3xl border border-violet-100 bg-white p-4 shadow-sm sm:p-6">
+        <section className="space-y-4 rounded-3xl border border-indigo-100 bg-white p-4 shadow-sm sm:p-6">
           <header>
-            <h2 className="text-xl font-semibold text-violet-900">クライアント振り返り</h2>
+            <h2 className="text-xl font-semibold text-indigo-900">クライアント振り返り</h2>
             {role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
               <p className="text-sm text-zinc-600">管理者として閲覧しています（編集不可）。</p>
             ) : (
@@ -473,8 +473,8 @@ export function SessionWorkspace({
                   className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
                 />
               </label>
-              <fieldset className="space-y-3 rounded-2xl border border-violet-200 bg-violet-50/40 px-4 py-3">
-                <legend className="px-1 text-base font-semibold text-violet-950">
+              <fieldset className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3">
+                <legend className="px-1 text-base font-semibold text-indigo-950">
                   4. 今回の1on1に対する満足度（1〜10）
                 </legend>
                 <div className="flex flex-wrap gap-2">
@@ -483,7 +483,7 @@ export function SessionWorkspace({
                       key={n}
                       className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-semibold ${
                         satisfactionScore === n
-                          ? "border-violet-500 bg-violet-600 text-white"
+                          ? "border-indigo-500 bg-indigo-600 text-white"
                           : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
                       }`}
                     >
@@ -511,11 +511,11 @@ export function SessionWorkspace({
                 </label>
               </fieldset>
 
-              <fieldset className="space-y-2 rounded-2xl border border-violet-200 bg-violet-50/40 px-4 py-3">
-                <legend className="px-1 text-base font-semibold text-violet-950">
+              <fieldset className="space-y-2 rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3">
+                <legend className="px-1 text-base font-semibold text-indigo-950">
                   6. 今後の1on1について、対話パートナーを変更したいと思いますか？
                 </legend>
-                <p className="text-xs text-violet-900/85">
+                <p className="text-xs text-indigo-900/85">
                   ※ より有意義に1on1セッションを受けていただくための確認項目です。
                 </p>
                 <div className="space-y-2">
@@ -553,8 +553,8 @@ export function SessionWorkspace({
               </label>
 
               {detail.clientExtraQuestions.length > 0 ? (
-                <fieldset className="space-y-3 rounded-2xl border border-violet-200 bg-violet-50/40 px-4 py-3">
-                  <legend className="px-1 text-base font-semibold text-violet-900">
+                <fieldset className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3">
+                  <legend className="px-1 text-base font-semibold text-indigo-900">
                     {detail.sessionNumber} 回目の追加質問
                   </legend>
                   {detail.clientExtraQuestions.map((q, i) => (
@@ -578,7 +578,7 @@ export function SessionWorkspace({
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-lg bg-violet-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-violet-800 disabled:opacity-60"
+                  className="rounded-lg bg-indigo-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-800 disabled:opacity-60"
                 >
                   {submitting ? "送信中…" : detail.feedback ? "上書き保存" : "提出する"}
                 </button>

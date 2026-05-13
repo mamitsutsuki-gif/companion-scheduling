@@ -143,10 +143,14 @@ export function ApplicationChrome({
       href === "/dashboard"
         ? pathname === "/dashboard"
         : pathname === href || pathname.startsWith(`${href}/`);
+    /*
+     * Variant A 採用: アクティブなナビは indigo-50 / indigo-900 の二色のみ。
+     * 以前の ring-1 ring-indigo-200 はノイズだったので外す。文字は太く tight。
+     */
     return [
-      "whitespace-nowrap rounded-lg px-3 py-2 text-base font-medium no-underline transition",
+      "whitespace-nowrap rounded-lg px-3 py-2 text-[15px] font-medium no-underline transition",
       deep
-        ? "bg-indigo-50 text-indigo-950 ring-1 ring-indigo-200/70"
+        ? "bg-indigo-50 text-indigo-900"
         : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
     ].join(" ");
   }
@@ -165,20 +169,24 @@ export function ApplicationChrome({
               : "クライアント";
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-100/55 via-slate-50 to-slate-50">
-      <header className="sticky top-0 z-50 border-b border-slate-200/90 bg-white/85 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-white/75">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 sm:h-[3.65rem] sm:flex-nowrap sm:gap-8 sm:px-6 sm:py-0 lg:gap-12">
+    /*
+     * Variant A: 背景は flat slate-50。以前の radial-gradient + indigo-100 はリッチに見せようとして
+     * 逆にチープ感（壁紙感）が出ていたため撤廃し、サーフェスはカード側で表現する。
+     */
+    <div className="min-h-screen bg-slate-50">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/80">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 sm:h-14 sm:flex-nowrap sm:gap-8 sm:px-6 sm:py-0 lg:gap-12">
           <Link
             href="/dashboard"
             className="order-1 flex shrink-0 items-center gap-2 no-underline sm:order-none"
           >
             <span
               aria-hidden
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-900 text-[15px] font-bold text-white shadow-md ring-1 ring-indigo-500/35 sm:h-10 sm:w-10"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-700 text-[15px] font-bold text-white sm:h-9 sm:w-9"
             >
               M
             </span>
-            <span className="text-base leading-snug font-semibold tracking-tight text-slate-900 sm:text-base">
+            <span className="text-base leading-snug font-semibold tracking-tight text-slate-900">
               {APP_DISPLAY_NAME}
             </span>
           </Link>
@@ -191,7 +199,7 @@ export function ApplicationChrome({
               <Link key={item.href} href={item.href} className={itemClass(item.href)}>
                 {item.label}
                 {item.badge && item.badge > 0 ? (
-                  <span className="ml-1 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-bold text-white shadow-sm">
+                  <span className="ml-1.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-rose-600 px-1.5 text-[10px] font-bold text-white">
                     {item.badge}
                   </span>
                 ) : null}
@@ -199,22 +207,25 @@ export function ApplicationChrome({
             ))}
           </nav>
 
-          <div className="order-2 mr-0 ml-auto flex shrink-0 items-center gap-2 sm:order-none sm:gap-3 md:gap-5">
+          <div className="order-2 mr-0 ml-auto flex shrink-0 items-center gap-2 sm:order-none sm:gap-3 md:gap-4">
             <Link
               href="/account"
               className="rounded-lg px-2 py-1 text-xs font-semibold text-indigo-800 no-underline hover:bg-indigo-50 sm:hidden"
             >
               アカウント
             </Link>
+            {/* Variant A: ユーザーピルは右上に控えめな丸ボーダーで配置。文字下線は外して情報密度を下げる。 */}
             <Link
               href="/account"
-              className="hidden text-end no-underline transition hover:opacity-90 sm:block"
+              className="hidden rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-end no-underline transition hover:border-indigo-200 hover:bg-indigo-50/40 sm:flex sm:items-center sm:gap-2"
               title="マイアカウント"
             >
-              <div className="max-w-[12rem] truncate text-sm font-medium text-slate-900 underline decoration-slate-300 underline-offset-2 sm:text-base">
+              <span className="max-w-[10rem] truncate text-sm font-medium text-slate-900">
                 {withHonorificSan(profile.displayName)}
-              </div>
-              <div className="text-xs text-slate-500 sm:text-sm">{roleLabel}</div>
+              </span>
+              <span className="hidden text-[11px] font-medium text-slate-500 lg:inline">
+                {roleLabel}
+              </span>
             </Link>
             <SignOut variant="compact" />
           </div>

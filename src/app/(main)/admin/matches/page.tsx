@@ -467,7 +467,7 @@ export default function AdminMatchesPage() {
                 <button
                   type="button"
                   onClick={() => void saveDisplayName(u.id)}
-                  className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                  className="rounded-md bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-800"
                 >
                   保存
                 </button>
@@ -808,7 +808,7 @@ export default function AdminMatchesPage() {
             <div className="flex flex-wrap items-center gap-4">
               <button
                 type="submit"
-                className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-indigo-700"
+                className="rounded-lg bg-indigo-700 px-5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-indigo-800"
               >
                 この組み合わせでマッチを作成
               </button>
@@ -1028,7 +1028,7 @@ export default function AdminMatchesPage() {
                       <div className="flex flex-wrap gap-2">
                         <Link
                           href={`/match/${row.id}`}
-                          className="inline-flex rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white no-underline shadow-sm hover:bg-indigo-700"
+                          className="inline-flex rounded-lg bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white no-underline shadow-sm hover:bg-indigo-800"
                         >
                           ルームを開く
                         </Link>

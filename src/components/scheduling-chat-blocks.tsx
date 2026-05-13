@@ -71,7 +71,7 @@ export function SlotProposalCard({ payload, voteContext }: SlotProposalCardProps
         <span className="text-[11px] font-bold tracking-widest text-indigo-900 uppercase">
           Schedule
         </span>
-        <span className="rounded-full bg-indigo-600 px-2.5 py-0.5 text-[11px] font-semibold text-white">
+        <span className="rounded-full bg-indigo-700 px-2.5 py-0.5 text-[11px] font-semibold text-white">
           Round {p.data.round}
         </span>
       </div>
@@ -128,11 +128,11 @@ export function SlotProposalCard({ payload, voteContext }: SlotProposalCardProps
         })}
       </ol>
       {showVoteUI ? (
-        <p className="mt-3 rounded-lg bg-indigo-600/90 px-3 py-2 text-center text-[11px] font-medium text-white">
+        <p className="mt-3 rounded-lg bg-indigo-700/90 px-3 py-2 text-center text-[11px] font-medium text-white">
           すべての候補に○／×を入力すると、自動的に送信されます。
         </p>
       ) : (
-        <p className="mt-3 rounded-lg bg-indigo-600/90 px-3 py-2 text-center text-[11px] font-medium text-white">
+        <p className="mt-3 rounded-lg bg-indigo-700/90 px-3 py-2 text-center text-[11px] font-medium text-white">
           クライアントは○／× で回答してください。
         </p>
       )}
@@ -245,19 +245,19 @@ export function VoteSummaryCard({ payload, body, onJumpToConfirm }: VoteSummaryC
     <button
       type="button"
       onClick={onJumpToConfirm}
-      className="w-full rounded-2xl border border-violet-200 bg-violet-50/80 px-4 py-3 text-left text-sm text-violet-950 shadow-sm ring-1 ring-violet-100 hover:bg-violet-100 active:scale-[0.99]"
+      className="w-full rounded-2xl border border-indigo-200 bg-indigo-50/80 px-4 py-3 text-left text-sm text-indigo-950 shadow-sm ring-1 ring-indigo-100 hover:bg-indigo-100 active:scale-[0.99]"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[11px] font-bold tracking-wide uppercase text-violet-900">
+        <span className="text-[11px] font-bold tracking-wide uppercase text-indigo-900">
           日程回答
         </span>
-        <span className="rounded-full bg-violet-600 px-2 py-0.5 text-[11px] font-semibold text-white">
+        <span className="rounded-full bg-indigo-700 px-2 py-0.5 text-[11px] font-semibold text-white">
           ○ {yes} 件 / × {no} 件
         </span>
       </div>
       <p className="mt-2 leading-relaxed">{body}</p>
       {!allNo ? (
-        <p className="mt-2 text-xs font-medium text-violet-900/85">
+        <p className="mt-2 text-xs font-medium text-indigo-900/85">
           ▶ クリックで「日程調整」タブの最終確定画面へ移動します
         </p>
       ) : null}

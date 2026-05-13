@@ -37,7 +37,7 @@ const typeLabel: Record<NotificationRow["type"], string> = {
 const typeBadgeClass: Record<NotificationRow["type"], string> = {
   CHAT: "border-zinc-300 bg-zinc-100 text-zinc-800",
   SLOT_PROPOSED: "border-indigo-300 bg-indigo-50 text-indigo-900",
-  SLOT_VOTED: "border-violet-300 bg-violet-50 text-violet-900",
+  SLOT_VOTED: "border-indigo-300 bg-indigo-50 text-indigo-900",
   SLOT_CONFIRMED: "border-emerald-300 bg-emerald-50 text-emerald-900",
   RESCHEDULE: "border-amber-300 bg-amber-50 text-amber-900",
   INVOICE_CONFIRMED: "border-emerald-300 bg-emerald-50 text-emerald-900",

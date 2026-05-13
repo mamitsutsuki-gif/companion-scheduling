@@ -595,7 +595,7 @@ export default function AdminAppSettingsPage() {
 
           <button
             type="submit"
-            className="rounded-xl bg-indigo-600 px-5 py-2.5 text-base font-semibold text-white shadow-sm hover:bg-indigo-700"
+            className="rounded-xl bg-indigo-700 px-5 py-2.5 text-base font-semibold text-white shadow-sm hover:bg-indigo-800"
           >
             保存
           </button>

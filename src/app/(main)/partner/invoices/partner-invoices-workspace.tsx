@@ -62,7 +62,7 @@ const STATUS_LABEL: Record<InvoiceStatus, string> = {
 
 const STATUS_TONE: Record<InvoiceStatus, string> = {
   DRAFT: "border-zinc-300 bg-zinc-50 text-zinc-800",
-  SUBMITTED: "border-sky-300 bg-sky-50 text-sky-800",
+  SUBMITTED: "border-emerald-300 bg-emerald-50 text-emerald-800",
   RETURNED: "border-amber-300 bg-amber-50 text-amber-900",
   CONFIRMED: "border-emerald-300 bg-emerald-50 text-emerald-800",
 };
@@ -575,7 +575,7 @@ export function PartnerInvoicesWorkspace() {
                 </p>
               </>
             ) : isLocked && data?.invoice?.status === "SUBMITTED" ? (
-              <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+              <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
                 提出済みです。管理者の確認をお待ちください。差し戻しまたは確定の連絡があるまで編集できません。
               </p>
             ) : isLocked && data?.invoice?.status === "CONFIRMED" ? (

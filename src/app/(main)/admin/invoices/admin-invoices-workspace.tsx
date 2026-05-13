@@ -55,7 +55,7 @@ const STATUS_LABEL: Record<InvoiceStatus, string> = {
 };
 const STATUS_TONE: Record<InvoiceStatus, string> = {
   DRAFT: "border-zinc-300 bg-zinc-50 text-zinc-800",
-  SUBMITTED: "border-sky-300 bg-sky-50 text-sky-800",
+  SUBMITTED: "border-emerald-300 bg-emerald-50 text-emerald-800",
   RETURNED: "border-amber-300 bg-amber-50 text-amber-900",
   CONFIRMED: "border-emerald-300 bg-emerald-50 text-emerald-800",
 };

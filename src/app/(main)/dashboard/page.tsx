@@ -57,16 +57,23 @@ export default async function DashboardPage({
   const adminUnassignedPairCount = adminUnassignedPairs.length;
 
   return (
-    <div className="space-y-6 sm:space-y-10">
-      <header className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-6 md:p-8">
-        <p className="text-xs font-semibold tracking-widest text-indigo-700 uppercase">Overview</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+    <div className="space-y-6 sm:space-y-8">
+      {/*
+        Variant A: ヒーローカードは白 + slate-200 + shadow-sm の固定パターン。
+        左肩に Overview のスモールキャプス、その下にユーザー名（太く字間-tight）、
+        本文は max-w-2xl で読みやすく。
+      */}
+      <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+        <p className="text-[11px] font-semibold tracking-[0.18em] text-indigo-700 uppercase">
+          Overview
+        </p>
+        <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-900 sm:text-[28px]">
           {me.displayName} さん
         </h1>
-        <p className="mt-3 max-w-2xl text-base leading-relaxed text-slate-600">
+        <p className="mt-2.5 max-w-2xl text-[15px] leading-relaxed text-slate-600">
           {APP_DISPLAY_NAME} では、担当ペアごとにチャットと日程調整をまとめて行えます。外部にメールアドレスを出さずにやり取りできます。
         </p>
-        <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
+        <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[13px] font-medium text-slate-700">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
           ロール: {me.role === "ADMIN"
             ? "管理者"
@@ -169,14 +176,21 @@ export default async function DashboardPage({
       {(!isAdmin && allMatches.length === 0) ? null : (
       <section className="space-y-5">
         {(me.role === "CLIENT" || me.role === "PARTNER" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR") ? (
-          <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-4">
-            <h2 className="text-xl font-semibold text-indigo-900">自分FTA</h2>
-            <p className="mt-1 text-base text-indigo-800">
-              ホーム右上メニューの「自分FTA」から編集できます。ありたい姿(A)と要素(B)・アクション(C)を整理してください。
+          // Variant A: 説明用カードは、白 + slate-200 + 左肩 eyebrow（小さい indigo 文字）で、
+          // 周囲のヒーロー / 担当ペアカードと「色面積」が衝突しない控えめさにする。
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-[11px] font-semibold tracking-[0.18em] text-indigo-700 uppercase">
+              My FTA
+            </p>
+            <h2 className="mt-1.5 text-lg font-semibold tracking-tight text-slate-900">
+              自分FTA
+            </h2>
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+              ありたい姿(A)と要素(B)・アクション(C)を整理し、ペアでの対話に活かしましょう。
             </p>
             <Link
               href="/fta"
-              className="mt-3 inline-flex rounded-lg bg-indigo-700 px-4 py-2 text-base font-semibold !text-white no-underline hover:bg-indigo-800"
+              className="mt-4 inline-flex rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold !text-white no-underline shadow-sm hover:bg-indigo-800"
             >
               自分FTAを開く
             </Link>
@@ -204,7 +218,7 @@ export default async function DashboardPage({
 
         <ul className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
           {matches.length === 0 ? (
-            <li className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white/60 px-6 py-14 text-center text-base text-slate-600">
+            <li className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center text-base text-slate-600">
               {isAdmin && companyFilter
                 ? "この絞り込み条件に該当するペアはありません。"
                 : "まだ担当ペアがありません。管理者の方は「マッチ管理」から登録してください。"}
@@ -213,11 +227,13 @@ export default async function DashboardPage({
             matches.map((match) => (
               <li
                 key={match.id}
-                className="group flex flex-col justify-between gap-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm transition hover:border-indigo-200 hover:shadow-md"
+                className="group flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-indigo-200 hover:shadow-md"
               >
                 <div>
-                  <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Pair</p>
-                  <p className="mt-2 text-lg font-semibold text-slate-900">
+                  <p className="text-[11px] font-medium tracking-[0.18em] text-slate-500 uppercase">
+                    Pair
+                  </p>
+                  <p className="mt-1.5 text-[17px] font-semibold tracking-tight text-slate-900">
                     {withHonorificSan(match.client.displayName)}
                     <span className="mx-2 font-normal text-slate-400">↔</span>
                     {withHonorificSan(match.partner.displayName)}
@@ -232,11 +248,11 @@ export default async function DashboardPage({
                   className={`flex flex-wrap items-center gap-3 ${isAdmin ? "justify-between" : "justify-end"}`}
                 >
                   {isAdmin ? (
-                    <span className="font-mono text-xs text-slate-400">ID {match.id}</span>
+                    <span className="mono-tabular text-xs text-slate-400">ID {match.id}</span>
                   ) : null}
                   <Link
                     href={`/match/${match.id}`}
-                    className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-base font-semibold !text-white no-underline shadow-sm transition hover:bg-indigo-700"
+                    className="inline-flex items-center justify-center rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold !text-white no-underline shadow-sm transition hover:bg-indigo-800"
                   >
                     ルームを開く
                   </Link>

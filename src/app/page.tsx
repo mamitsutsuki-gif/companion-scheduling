@@ -28,7 +28,7 @@ export default function Home() {
           <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight text-slate-900 no-underline">
             <span
               aria-hidden
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-900 text-sm font-bold text-white shadow-md ring-1 ring-indigo-500/30"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-700 text-sm font-bold text-white"
             >
               伴
             </span>
@@ -43,7 +43,7 @@ export default function Home() {
             </Link>
             <Link
               href="/register"
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white no-underline shadow-sm ring-1 ring-indigo-500/30 hover:bg-indigo-700"
+              className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white no-underline shadow-sm hover:bg-indigo-800"
             >
               アカウント作成
             </Link>
@@ -66,7 +66,7 @@ export default function Home() {
               <div className="flex flex-wrap gap-3">
                 <Link
                   href="/register"
-                  className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white no-underline shadow-md hover:bg-indigo-700"
+                  className="inline-flex items-center justify-center rounded-xl bg-indigo-700 px-6 py-3 text-sm font-semibold text-white no-underline shadow-sm hover:bg-indigo-800"
                 >
                   利用を始める
                 </Link>
@@ -83,19 +83,19 @@ export default function Home() {
               <h2 className="text-sm font-semibold tracking-wide text-slate-500 uppercase">Flow</h2>
               <ol className="mt-5 space-y-4 text-sm text-slate-700">
                 <li className="flex gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-700 text-xs font-bold text-white">
                     1
                   </span>
                   <span>管理者がパートナーとクライアントのマッチを登録</span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-700 text-xs font-bold text-white">
                     2
                   </span>
                   <span>ルームでメッセージと日程候補のやり取り</span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-700 text-xs font-bold text-white">
                     3
                   </span>
                   <span>確定後、通知とカレンダー登録用データを配信</span>

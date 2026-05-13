@@ -1073,13 +1073,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             ? "border-amber-300 bg-amber-50 text-amber-950"
             : banner.severity === "todo"
               ? "border-indigo-300 bg-indigo-50 text-indigo-950"
-              : "border-sky-300 bg-sky-50 text-sky-950";
+              : "border-emerald-300 bg-emerald-50 text-emerald-950";
         const buttonClass =
           banner.severity === "warn"
             ? "bg-amber-700 hover:bg-amber-800"
             : banner.severity === "todo"
               ? "bg-indigo-700 hover:bg-indigo-800"
-              : "bg-sky-700 hover:bg-sky-800";
+              : "bg-emerald-700 hover:bg-emerald-800";
         return (
           <div
             className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 shadow-sm ${palette}`}
@@ -1154,14 +1154,14 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <button
           type="button"
           onClick={() => setActiveTab("overview")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "overview" ? "bg-indigo-700 text-white" : "border border-zinc-300 bg-white text-zinc-700"}`}
+          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "overview" ? "bg-indigo-700 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition"}`}
         >
           プロジェクト概要
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("chat")}
-          className={`relative rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "chat" ? "bg-indigo-700 text-white" : "border border-zinc-300 bg-white text-zinc-700"}`}
+          className={`relative rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "chat" ? "bg-indigo-700 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition"}`}
         >
           チャット
           {unreadChatCount > 0 ? (
@@ -1173,7 +1173,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <button
           type="button"
           onClick={() => setActiveTab("schedule")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "schedule" ? "bg-indigo-700 text-white" : "border border-zinc-300 bg-white text-zinc-700"}`}
+          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "schedule" ? "bg-indigo-700 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition"}`}
         >
           日程調整
         </button>
@@ -1181,7 +1181,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           <button
             type="button"
             onClick={() => setActiveTab("fta")}
-            className={`rounded-lg px-4 py-2 text-base font-semibold ${activeTab === "fta" ? "bg-indigo-700 text-white" : "border border-zinc-300 bg-white text-zinc-700"}`}
+            className={`rounded-lg px-4 py-2 text-base font-semibold ${activeTab === "fta" ? "bg-indigo-700 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition"}`}
           >
             クライアント自分FTA
           </button>
@@ -1189,7 +1189,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <button
           type="button"
           onClick={() => setActiveTab("sessions")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "sessions" ? "bg-indigo-700 text-white" : "border border-zinc-300 bg-white text-zinc-700"}`}
+          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "sessions" ? "bg-indigo-700 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition"}`}
         >
           1on1セッション
         </button>
@@ -1330,7 +1330,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 : msg.kind === "SCHEDULE_CONFIRMED"
                   ? "rounded-xl border border-emerald-100 bg-emerald-50/35 px-3 py-2 text-sm text-zinc-900"
                   : msg.kind === "VOTE_SUMMARY"
-                    ? "rounded-xl border border-violet-100 bg-violet-50/40 px-3 py-2 text-sm text-zinc-900"
+                    ? "rounded-xl border border-indigo-100 bg-indigo-50/40 px-3 py-2 text-sm text-zinc-900"
                     : "rounded-xl bg-zinc-50 px-3 py-2 text-sm text-zinc-900";
             return (
               <article
@@ -1358,7 +1358,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                     </span>
                   ) : null}
                   {msg.kind === "VOTE_SUMMARY" ? (
-                    <span className="ml-1 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] tracking-normal text-violet-900">
+                    <span className="ml-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] tracking-normal text-indigo-900">
                       回答
                     </span>
                   ) : null}
@@ -1666,13 +1666,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         ) : null}
 
         {activeNegotiation && activeNegotiation.status === "AWAITING_CLIENT_RESPONSE" && (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR") ? (
-          <form onSubmit={onVote} className="space-y-4 rounded-2xl border border-violet-200 bg-white px-5 py-4">
-            <h3 className="text-xl font-semibold text-violet-900">ご希望の時間をすべて回答</h3>
-            <p className="text-base text-violet-800">参加できる候補は「○」。どれにも入れられないときはすべて「×」を選んでください。</p>
+          <form onSubmit={onVote} className="space-y-4 rounded-2xl border border-indigo-200 bg-white px-5 py-4">
+            <h3 className="text-xl font-semibold text-indigo-900">ご希望の時間をすべて回答</h3>
+            <p className="text-base text-indigo-800">参加できる候補は「○」。どれにも入れられないときはすべて「×」を選んでください。</p>
             <div className="space-y-3">
               {activeNegotiation.slots.map((slot) => (
-                <div key={slot.id} className="rounded-xl border border-violet-100 bg-violet-50/70 px-3 py-2">
-                  <p className="text-sm font-medium text-violet-900">
+                <div key={slot.id} className="rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-2">
+                  <p className="text-sm font-medium text-indigo-900">
                     {formatJa(slot.startAt)}〜{formatJa(slot.endAt)}
                   </p>
                   <div className="mt-2 flex gap-4 text-sm">
@@ -1689,7 +1689,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             <div className="space-y-2">
               <button
                 type="submit"
-                className="rounded-lg bg-violet-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-violet-800 active:translate-y-[1px] active:scale-[0.98]"
+                className="rounded-lg bg-indigo-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-800 active:translate-y-[1px] active:scale-[0.98]"
               >
                 回答を送信する
               </button>
@@ -1785,16 +1785,16 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       ) : null}
 
       {activeTab === "fta" && (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
-        <section className="space-y-4 rounded-3xl border border-sky-100 bg-sky-50/35 px-3 py-5 sm:px-6 sm:py-8">
-          <h2 className="text-2xl font-semibold text-sky-900">クライアントの自分FTA</h2>
+        <section className="space-y-4 rounded-3xl border border-emerald-100 bg-emerald-50/35 px-3 py-5 sm:px-6 sm:py-8">
+          <h2 className="text-2xl font-semibold text-emerald-900">クライアントの自分FTA</h2>
           {clientFta?.targetRole === "CLIENT" && clientFta.chart ? (
-            <div className="space-y-3 rounded-2xl border border-sky-200 bg-white px-5 py-4">
-              <h3 className="text-xl font-semibold text-sky-900">{withHonorificSan(clientFta.targetName)}の自分FTA</h3>
-              <p className="text-base text-sky-800">鍵マークの項目は非公開です。</p>
+            <div className="space-y-3 rounded-2xl border border-emerald-200 bg-white px-5 py-4">
+              <h3 className="text-xl font-semibold text-emerald-900">{withHonorificSan(clientFta.targetName)}の自分FTA</h3>
+              <p className="text-base text-emerald-800">鍵マークの項目は非公開です。</p>
               <FtaViewer chart={clientFta.chart as FtaChart} />
             </div>
           ) : (
-            <p className="rounded-xl border border-dashed border-sky-200 bg-white px-4 py-6 text-base text-sky-800">
+            <p className="rounded-xl border border-dashed border-emerald-200 bg-white px-4 py-6 text-base text-emerald-800">
               まだ表示できる自分FTAがありません。
             </p>
           )}
@@ -1802,10 +1802,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       ) : null}
 
       {activeTab === "sessions" ? (
-        <section className="space-y-4 rounded-3xl border border-violet-100 bg-violet-50/30 px-3 py-5 sm:px-6 sm:py-8">
+        <section className="space-y-4 rounded-3xl border border-indigo-100 bg-indigo-50/30 px-3 py-5 sm:px-6 sm:py-8">
           <div className="space-y-1">
-            <h2 className="text-2xl font-semibold text-violet-900">1on1セッション</h2>
-            <p className="text-base text-violet-800">
+            <h2 className="text-2xl font-semibold text-indigo-900">1on1セッション</h2>
+            <p className="text-base text-indigo-800">
               セッション計画（全 {scheduleSettings.totalSessions} 回）。各回をタップすると、その回の{me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" ? "振り返りフォーム" : me.role === "PARTNER" ? "レポート" : "クライアント振り返り＆パートナーレポート"}を開けます。
               <br />
               <span className="text-sm">
@@ -1813,7 +1813,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               </span>
             </p>
           </div>
-          <ul className="space-y-2 rounded-2xl border border-violet-200 bg-white p-3 sm:p-4">
+          <ul className="space-y-2 rounded-2xl border border-indigo-200 bg-white p-3 sm:p-4">
             {(sessionRows.length > 0
               ? sessionRows
               : Array.from({ length: scheduleSettings.totalSessions }, (_, i) => ({
@@ -1853,13 +1853,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                   className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-2 ${
                     isAbandoned
                       ? "border-red-200 bg-red-50/60"
-                      : "border-violet-100 bg-violet-50/40"
+                      : "border-indigo-100 bg-indigo-50/40"
                   }`}
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="text-base font-semibold text-violet-950">
+                    <p className="text-base font-semibold text-indigo-950">
                       {row.sessionNumber}回目
-                      <span className="ml-2 text-sm font-normal text-violet-900/85">{dateLabel}</span>
+                      <span className="ml-2 text-sm font-normal text-indigo-900/85">{dateLabel}</span>
                       {isAbandoned ? (
                         <span className="ml-2 inline-flex items-center rounded-md border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800 align-middle">
                           未実施・消化
@@ -1870,13 +1870,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                       <p className="mt-1 text-xs text-red-800">理由：{abandonReasonLabel}</p>
                     ) : null}
                     {!isAbandoned && (row.zoomUrl || row.zoomMeetingId || row.zoomPass) ? (
-                      <p className="mt-1 text-xs text-violet-900/85">
+                      <p className="mt-1 text-xs text-indigo-900/85">
                         {row.zoomUrl ? (
                           <a
                             href={row.zoomUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-violet-800 underline underline-offset-2"
+                            className="text-indigo-800 underline underline-offset-2"
                           >
                             Zoom: {row.zoomUrl}
                           </a>
@@ -1900,7 +1900,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                     {row.openable ? (
                       <Link
                         href={`/match/${matchId}/sessions/${row.sessionNumber}`}
-                        className="rounded-md bg-violet-700 px-3 py-1.5 text-sm font-semibold !text-white no-underline shadow-sm transition hover:bg-violet-800"
+                        className="rounded-md bg-indigo-700 px-3 py-1.5 text-sm font-semibold !text-white no-underline shadow-sm transition hover:bg-indigo-800"
                       >
                         開く
                       </Link>

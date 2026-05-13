@@ -102,7 +102,7 @@ export default function PartnerZoomPage() {
         {message ? <p className="text-sm font-medium text-emerald-800">{message}</p> : null}
         <button
           type="submit"
-          className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+          className="rounded-xl bg-indigo-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-800"
         >
           保存する
         </button>

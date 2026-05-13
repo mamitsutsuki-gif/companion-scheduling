@@ -1,20 +1,55 @@
 @import "tailwindcss";
 
+/*
+ * Variant A の方向性で全画面を統一するためのデザイントークン。
+ * Tailwind v4 の `@theme` で CSS 変数として宣言し、必要なクラスを既定で生成。
+ * - --font-sans: 欧文 Inter + 和文 Noto Sans JP（layout.tsx で変数を注入）
+ * - --font-mono: JetBrains Mono（ID/数値用）
+ * - サーフェス / プライマリ / アクセントは indigo を主、emerald / amber を補助
+ */
+@theme {
+  --font-sans:
+    var(--font-inter), var(--font-noto-jp), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol", sans-serif;
+  --font-mono:
+    var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, "SF Mono", Consolas,
+    "Liberation Mono", Menlo, monospace;
+}
+
 :root {
-  font-size: 18px;
+  font-size: 17px;
+  /* SaaS ライクな端正さのため、ベースは slate-900 寄りで微温に。 */
+  color-scheme: light;
 }
 
 @media (max-width: 640px) {
   :root {
-    /* スマホでは少し下げて、フォーム要素の幅余裕を確保（読みやすさは維持） */
-    font-size: 17px;
+    /* スマホは 16px ベース。フォーム要素の見やすさ最適 */
+    font-size: 16px;
   }
 }
 
 body {
   @apply antialiased;
   font-size: 1rem;
-  line-height: 1.7;
+  /* 行間は和文込みで読みやすい 1.65 をデフォルトに（以前は 1.7 と詰めて感じが冗長だった） */
+  line-height: 1.65;
+  /* Inter 用のリッチな OpenType 機能（数字の幅、合字、文末リガチャ）を有効化 */
+  font-feature-settings: "cv11", "ss01", "ss03";
+  letter-spacing: -0.005em;
+}
+
+/*
+ * 見出しの基準。各画面で h1〜h3 がバラついていたので、ここでベースラインを揃える。
+ * 個別画面で必要があれば Tailwind の text-* / font-* で上書きする。
+ */
+h1 {
+  letter-spacing: -0.02em;
+}
+h2,
+h3 {
+  letter-spacing: -0.015em;
 }
 
 a {
@@ -30,6 +65,12 @@ button {
 
 label {
   @apply text-base;
+}
+
+/* 等幅専用クラス（ID / コード / 通貨表示用）。font-mono を上書きしないため独立。 */
+.mono-tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /*
