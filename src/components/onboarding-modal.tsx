@@ -19,20 +19,34 @@ type Role = "CLIENT" | "CLIENT_ADMIN" | "CLIENT_HR" | "PARTNER";
  *   表示判定そのものはサーバー側（dashboard ページ）で決める。
  */
 export function OnboardingModal({
+  userId,
   shouldShow,
   role,
   hasMatches,
 }: {
+  userId: string;
   shouldShow: boolean;
   role: Role;
   hasMatches: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
+  const storageKey = `companion:onboarding:v1:${userId}`;
 
   useEffect(() => {
-    if (shouldShow) setOpen(true);
-  }, [shouldShow]);
+    if (typeof window === "undefined") return;
+    try {
+      // Prisma 等、サーバーに onboardedAt が無いバックエンドでもモーダルが毎回出続けないよう
+      // ブラウザ側で完了フラグを保持する（Firestore 保存と併用）。
+      if (window.localStorage.getItem(storageKey) === "1") {
+        setOpen(false);
+        return;
+      }
+    } catch {
+      /* private mode 等 */
+    }
+    setOpen(Boolean(shouldShow));
+  }, [shouldShow, storageKey]);
 
   if (!open) return null;
 
@@ -118,6 +132,11 @@ export function OnboardingModal({
     if (closing) return;
     setClosing(true);
     try {
+      try {
+        window.localStorage.setItem(storageKey, "1");
+      } catch {
+        /* ignore */
+      }
       await fetch("/api/me/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

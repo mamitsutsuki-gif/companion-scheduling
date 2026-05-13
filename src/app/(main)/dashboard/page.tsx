@@ -93,6 +93,7 @@ export default async function DashboardPage({
       */}
       {!isAdmin ? (
         <OnboardingModal
+          userId={me.id}
           shouldShow={!((me as { onboardedAt?: string | null }).onboardedAt ?? null)}
           role={me.role as "CLIENT" | "CLIENT_ADMIN" | "CLIENT_HR" | "PARTNER"}
           hasMatches={allMatches.length > 0}

@@ -282,9 +282,10 @@ function computeMatchBanner(args: {
     const prev = latestPerSession.get(sn);
     if (!prev || n.round > prev.round) latestPerSession.set(sn, n);
   }
-  const active = Array.from(latestPerSession.values())
+  const activeNegotiations = Array.from(latestPerSession.values())
     .filter((n) => n.status !== "CONFIRMED" && n.status !== "SUPERSEDED")
-    .sort((a, b) => (a.sessionNumber ?? 1) - (b.sessionNumber ?? 1))[0];
+    .sort((a, b) => (a.sessionNumber ?? 1) - (b.sessionNumber ?? 1));
+  const active = activeNegotiations[0];
 
   if (active) {
     const sn = active.sessionNumber ?? 1;
@@ -382,7 +383,8 @@ function computeMatchBanner(args: {
   }
 
   // パートナーで、まだ候補が出ていない session があれば「候補を送る」
-  if (isPartner) {
+  // （進行中の調整があるときは誤誘導になるため出さない）
+  if (isPartner && activeNegotiations.length === 0) {
     const known = new Set(negotiations.map((n) => Math.max(1, n.sessionNumber ?? 1)));
     let need: number | null = null;
     for (let i = 1; i <= Math.max(totalSessions, 1); i++) {

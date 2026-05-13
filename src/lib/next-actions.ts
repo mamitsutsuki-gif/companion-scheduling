@@ -236,9 +236,11 @@ export function computeMatchActions(
   }
 
   // ----- 3. パートナー: 次回 (＝未提示の最も若い回) の候補提示 -----
-  if (isPartner) {
+  // 進行中のラウンドがあるときは「次の回の候補を送れ」と出さない（誤誘導防止）。
+  // 例: 第 1 回がクライアント回答待ちなのに、第 2 回の候補送信を促してしまうバグを防ぐ。
+  if (isPartner && active.length === 0) {
     // 候補がまだ「一度も提示されていない」最も小さい session を探す
-    const knownSessions = new Set(negs.map((n) => n.sessionNumber));
+    const knownSessions = new Set(negs.map((n) => Math.max(1, Number(n.sessionNumber) || 1)));
     const totalSessions = Math.max(
       // sessionPlan の長さがそのまま totalSessions
       sessionPlan.length,

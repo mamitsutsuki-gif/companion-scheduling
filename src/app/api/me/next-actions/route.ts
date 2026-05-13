@@ -11,6 +11,7 @@ import { listMessagesForMatch } from "@/lib/repositories/message-repository";
 import { listMemberNotifications } from "@/lib/repositories/member-notification-repository";
 import { getFtaByUserId } from "@/lib/repositories/fta-repository";
 import { getPartnerInvoice } from "@/lib/repositories/partner-invoice-repository";
+import { isFirebaseDataBackend } from "@/lib/firebase-admin";
 import {
   computeAllActions,
   type ComputeInput,
@@ -135,9 +136,10 @@ export async function GET() {
     };
   }
 
-  // パートナーの当月請求書ステータス
+  // パートナーの当月請求書（Firestore バックエンドのみ。Prisma では getPartnerInvoice が常に null のため
+  // 「未提出」と誤検知しないよう、請求書アクション自体を出さない）
   let myInvoice: ComputeInput["myInvoice"] | undefined;
-  if (me.role === "PARTNER") {
+  if (me.role === "PARTNER" && isFirebaseDataBackend()) {
     const now = new Date();
     const inv = await getPartnerInvoice(me.id, now.getFullYear(), now.getMonth() + 1);
     myInvoice = { status: inv ? inv.status : "MISSING" };

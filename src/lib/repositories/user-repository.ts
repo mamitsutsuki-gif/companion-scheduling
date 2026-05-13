@@ -751,7 +751,26 @@ export async function listStaleUsers(
     const ts = lastSeenAt ? new Date(lastSeenAt).getTime() : NaN;
     const days = Number.isFinite(ts) ? Math.floor((now - ts) / 86_400_000) : null;
     if (days === null) {
-      // 一度もログインしていないユーザーは常に対象に含める
+      // 一度も lastSeen が無い = まだアプリに触っていない可能性。
+      // 登録直後のユーザーを「塩漬け」に載せないよう、createdAt から threshold 日経過したものだけ対象にする。
+      const createdRaw = raw.createdAt;
+      let createdMs = NaN;
+      if (typeof createdRaw === "string") {
+        createdMs = new Date(createdRaw).getTime();
+      } else if (createdRaw && typeof createdRaw === "object" && "toDate" in createdRaw) {
+        try {
+          createdMs = (createdRaw as { toDate: () => Date }).toDate().getTime();
+        } catch {
+          createdMs = NaN;
+        }
+      }
+      if (Number.isFinite(createdMs)) {
+        const ageDays = Math.floor((now - createdMs) / 86_400_000);
+        if (ageDays < thresholdDays) continue;
+      } else {
+        // createdAt が取れないドキュメントは「塩漬け」と断定できないので除外
+        continue;
+      }
       rows.push({
         id: d.id,
         displayName: String(raw.displayName ?? "ユーザー"),
