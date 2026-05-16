@@ -173,8 +173,8 @@ export function ApplicationChrome({
      * Variant A: 背景は flat slate-50。以前の radial-gradient + indigo-100 はリッチに見せようとして
      * 逆にチープ感（壁紙感）が出ていたため撤廃し、サーフェスはカード側で表現する。
      */
-    <div className="min-h-screen bg-slate-50">
-      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/80">
+    <div className="min-h-screen">
+      <header className="app-shell-header sticky top-0 z-50 backdrop-blur-md supports-[backdrop-filter]:bg-white/78">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 sm:h-14 sm:flex-nowrap sm:gap-8 sm:px-6 sm:py-0 lg:gap-12">
           <Link
             href="/dashboard"
@@ -182,7 +182,7 @@ export function ApplicationChrome({
           >
             <span
               aria-hidden
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-700 text-[15px] font-bold text-white sm:h-9 sm:w-9"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-b from-indigo-500 to-indigo-700 text-[15px] font-bold text-white shadow-md shadow-indigo-900/25 ring-1 ring-indigo-600/35 sm:h-9 sm:w-9"
             >
               M
             </span>

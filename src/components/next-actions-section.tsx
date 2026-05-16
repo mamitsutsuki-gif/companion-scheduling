@@ -73,7 +73,7 @@ export function NextActionsSection() {
   // 全部完了している時は穏やかな「今は対応必要なし」を出す
   if (actions.length === 0) {
     return (
-      <section className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm sm:p-5">
+      <section className="app-surface-emerald rounded-2xl p-4 sm:p-5">
         <h2 className="text-base font-semibold text-emerald-900">あなたの次のアクション</h2>
         <p className="mt-1 text-sm text-emerald-900/80">
           いま対応が必要な用事はありません。担当パートナー／クライアントからの動きがあると、ここに表示されます。
@@ -83,7 +83,7 @@ export function NextActionsSection() {
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    <section className="app-surface-raised rounded-2xl p-4 sm:p-5">
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold text-slate-900">
           あなたの次のアクション{" "}
@@ -109,7 +109,7 @@ export function NextActionsSection() {
               </div>
               <Link
                 href={a.href}
-                className="shrink-0 rounded-md bg-indigo-700 px-3 py-1.5 text-sm font-semibold !text-white no-underline hover:bg-indigo-800"
+                className="app-btn-primary shrink-0 rounded-md px-3 py-1.5 text-sm no-underline"
               >
                 {a.ctaLabel}
               </Link>

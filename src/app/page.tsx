@@ -23,12 +23,12 @@ export default function Home() {
 
   return (
     <div className="min-h-full bg-white">
-      <header className="border-b border-slate-200/80 bg-white">
+      <header className="app-shell-header">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-4 py-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight text-slate-900 no-underline">
             <span
               aria-hidden
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-700 text-sm font-bold text-white"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-b from-indigo-500 to-indigo-700 text-sm font-bold text-white shadow-md shadow-indigo-900/25 ring-1 ring-indigo-600/40"
             >
               伴
             </span>
@@ -37,13 +37,13 @@ export default function Home() {
           <nav className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/login"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 no-underline hover:bg-slate-100 hover:text-slate-900"
+              className="app-tab-secondary rounded-lg px-3 py-2 text-sm font-medium no-underline"
             >
               ログイン
             </Link>
             <Link
               href="/register"
-              className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white no-underline shadow-sm hover:bg-indigo-800"
+              className="app-btn-primary rounded-lg px-4 py-2 text-sm no-underline"
             >
               アカウント作成
             </Link>
@@ -66,36 +66,36 @@ export default function Home() {
               <div className="flex flex-wrap gap-3">
                 <Link
                   href="/register"
-                  className="inline-flex items-center justify-center rounded-xl bg-indigo-700 px-6 py-3 text-sm font-semibold text-white no-underline shadow-sm hover:bg-indigo-800"
+                  className="app-btn-primary inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm no-underline"
                 >
                   利用を始める
                 </Link>
                 <Link
                   href="/login"
-                  className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-800 no-underline shadow-xs hover:bg-slate-50"
+                  className="app-btn-secondary inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm no-underline"
                 >
                   ログイン
                 </Link>
               </div>
             </div>
-            <div className="relative rounded-3xl border border-slate-200/90 bg-white/90 p-6 shadow-xl shadow-indigo-100/40 ring-1 ring-slate-200/60 backdrop-blur-sm sm:p-8">
+            <div className="app-surface-raised relative rounded-3xl p-6 backdrop-blur-sm sm:p-8">
               <div className="absolute -top-10 -right-8 h-40 w-40 rounded-full bg-indigo-200/50 blur-3xl" aria-hidden />
               <h2 className="text-sm font-semibold tracking-wide text-slate-500 uppercase">Flow</h2>
               <ol className="mt-5 space-y-4 text-sm text-slate-700">
                 <li className="flex gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-700 text-xs font-bold text-white">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-indigo-500 to-indigo-700 text-xs font-bold text-white shadow-md shadow-indigo-900/30 ring-1 ring-indigo-600/35">
                     1
                   </span>
                   <span>管理者がパートナーとクライアントのマッチを登録</span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-700 text-xs font-bold text-white">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-indigo-500 to-indigo-700 text-xs font-bold text-white shadow-md shadow-indigo-900/30 ring-1 ring-indigo-600/35">
                     2
                   </span>
                   <span>ルームでメッセージと日程候補のやり取り</span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-700 text-xs font-bold text-white">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-indigo-500 to-indigo-700 text-xs font-bold text-white shadow-md shadow-indigo-900/30 ring-1 ring-indigo-600/35">
                     3
                   </span>
                   <span>確定後、通知とカレンダー登録用データを配信</span>
@@ -115,7 +115,7 @@ export default function Home() {
               {features.map((f) => (
                 <li
                   key={f.title}
-                  className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm transition hover:border-indigo-200/80 hover:shadow-md"
+                  className="app-surface-raised app-surface-raised-interactive rounded-2xl p-5"
                 >
                   <h3 className="font-semibold text-slate-900">{f.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600">{f.body}</p>

@@ -46,7 +46,7 @@ export default function RootLayout({
       lang="ja"
       className={`${inter.variable} ${notoJp.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-slate-50 font-sans text-slate-900">{children}</body>
+      <body className="app-canvas flex min-h-full flex-col font-sans text-slate-900">{children}</body>
     </html>
   );
 }

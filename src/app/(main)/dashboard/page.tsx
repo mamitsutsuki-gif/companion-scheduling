@@ -59,11 +59,9 @@ export default async function DashboardPage({
   return (
     <div className="space-y-6 sm:space-y-8">
       {/*
-        Variant A: ヒーローカードは白 + slate-200 + shadow-sm の固定パターン。
-        左肩に Overview のスモールキャプス、その下にユーザー名（太く字間-tight）、
-        本文は max-w-2xl で読みやすく。
+        ヒーロー: 白の微グラデ + 多層シャドウでカードとして浮かせる。
       */}
-      <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+      <header className="app-surface-raised rounded-2xl p-5 sm:p-7">
         <p className="text-[11px] font-semibold tracking-[0.18em] text-indigo-700 uppercase">
           Overview
         </p>
@@ -136,7 +134,7 @@ export default async function DashboardPage({
       {isAdmin ? <AdminStaleUsersPanel /> : null}
 
       {isAdmin && adminUnassignedPairCount > 0 ? (
-        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm sm:p-5">
+        <div className="app-surface-amber-warn rounded-2xl p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
               <h2 className="text-base font-semibold text-amber-900">
@@ -151,7 +149,7 @@ export default async function DashboardPage({
             <div className="flex shrink-0 flex-col gap-2">
               <Link
                 href="/admin/matches?company=__none__"
-                className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold !text-white no-underline shadow-sm hover:bg-amber-800"
+                className="app-btn-amber rounded-lg px-4 py-2 text-sm no-underline"
               >
                 未割当のペアを開く →
               </Link>
@@ -178,7 +176,7 @@ export default async function DashboardPage({
         {(me.role === "CLIENT" || me.role === "PARTNER" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR") ? (
           // Variant A: 説明用カードは、白 + slate-200 + 左肩 eyebrow（小さい indigo 文字）で、
           // 周囲のヒーロー / 担当ペアカードと「色面積」が衝突しない控えめさにする。
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="app-surface-raised rounded-2xl p-5">
             <p className="text-[11px] font-semibold tracking-[0.18em] text-indigo-700 uppercase">
               My FTA
             </p>
@@ -190,7 +188,7 @@ export default async function DashboardPage({
             </p>
             <Link
               href="/fta"
-              className="mt-4 inline-flex rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold !text-white no-underline shadow-sm hover:bg-indigo-800"
+              className="app-btn-primary mt-4 inline-flex rounded-lg px-4 py-2 text-sm no-underline"
             >
               自分FTAを開く
             </Link>
@@ -227,7 +225,7 @@ export default async function DashboardPage({
             matches.map((match) => (
               <li
                 key={match.id}
-                className="group flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-indigo-200 hover:shadow-md"
+                className="group app-surface-raised app-surface-raised-interactive flex flex-col justify-between gap-4 rounded-2xl p-5"
               >
                 <div>
                   <p className="text-[11px] font-medium tracking-[0.18em] text-slate-500 uppercase">
@@ -252,7 +250,7 @@ export default async function DashboardPage({
                   ) : null}
                   <Link
                     href={`/match/${match.id}`}
-                    className="inline-flex items-center justify-center rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold !text-white no-underline shadow-sm transition hover:bg-indigo-800"
+                    className="app-btn-primary inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm no-underline"
                   >
                     ルームを開く
                   </Link>
