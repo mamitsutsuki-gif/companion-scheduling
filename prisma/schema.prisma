@@ -83,6 +83,23 @@ model User {
   partnerZoom           PartnerZoomProfile?
   availabilityTemplates AvailabilityTemplate[]
   fta                   UserFta?
+
+  /// 管理者が入力し、マッチ済みパートナーだけが参照できる属性（クライアント本人・他ユーザーへは公開しない）。
+  clientPartnerBriefing ClientPartnerBriefing?
+}
+
+/// クライアントユーザーに対し、対応パートナーがマッチルームだけで見る情報（管理者が入力）。
+model ClientPartnerBriefing {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// 役職（パートナー向けマッチタブのみ表示）
+  jobTitle String?
+  /// 年齢（同上）
+  age      Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model UserFta {

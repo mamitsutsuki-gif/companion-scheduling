@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminCompanyClientPartnerBriefingsSection } from "@/components/admin-company-client-partner-briefings-section";
 import Link from "next/link";
 import { use, useEffect, useMemo, useState } from "react";
 
@@ -810,6 +811,11 @@ export default function AdminCompanySettingsPage({
               </button>
             </div>
           </section>
+
+          <AdminCompanyClientPartnerBriefingsSection
+            companyId={companyId}
+            companyName={data.company?.name ?? companyId}
+          />
 
           {/* 自分FTA の社内共有設定 */}
           <section className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm sm:p-8">

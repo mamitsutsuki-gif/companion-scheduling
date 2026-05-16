@@ -22,8 +22,6 @@ import {
   useMemo,
   useState,
   type ChangeEvent,
-  type Dispatch,
-  type SetStateAction,
 } from "react";
 
 type Role =
@@ -104,7 +102,7 @@ type ScheduleSettingsPayload = {
   overriddenFields: string[];
 };
 
-type MatchTab = "chat" | "schedule" | "fta" | "sessions" | "overview";
+type MatchTab = "chat" | "schedule" | "fta" | "sessions" | "overview" | "clientInfo";
 
 type SessionAbandonmentApi = {
   reason: "no_show" | "late_cancel";
@@ -146,6 +144,13 @@ type ClientOverviewRow = {
   sessionFocus: string;
   expectations: string;
   other: string;
+};
+
+type ClientPartnerBriefingPayload = {
+  companyName: string;
+  clientDisplayName: string;
+  age: number | null;
+  jobTitle: string | null;
 };
 
 function fieldBlock(label: string, value: string) {
@@ -302,7 +307,7 @@ function ChatMsgRow({
   negotiations,
   onChatVote,
   voteSubmittingForSlot,
-  setActiveTab,
+  navigateToTab,
 }: {
   msg: MessageRow;
   me: Me;
@@ -310,7 +315,7 @@ function ChatMsgRow({
   negotiations: NegotiationRow[];
   onChatVote: (negotiationId: string, slotId: string, vote: "YES" | "NO") => void | Promise<void>;
   voteSubmittingForSlot: string | null;
-  setActiveTab: Dispatch<SetStateAction<MatchTab>>;
+  navigateToTab: (tab: MatchTab) => void;
 }) {
   const ts = new Date(msg.createdAt).valueOf() || 0;
   const isUnread =
@@ -390,7 +395,7 @@ function ChatMsgRow({
             payload={msg.payload}
             body={msg.body}
             onJumpToConfirm={() => {
-              setActiveTab("schedule");
+              navigateToTab("schedule");
               window.setTimeout(() => {
                 const el = document.getElementById("partner-confirm-section");
                 if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -414,7 +419,7 @@ function ChatMessageThread({
   negotiations,
   onChatVote,
   voteSubmittingForSlot,
-  setActiveTab,
+  navigateToTab,
   scrollClassName,
 }: {
   messages: MessageRow[];
@@ -423,7 +428,7 @@ function ChatMessageThread({
   negotiations: NegotiationRow[];
   onChatVote: (negotiationId: string, slotId: string, vote: "YES" | "NO") => void | Promise<void>;
   voteSubmittingForSlot: string | null;
-  setActiveTab: Dispatch<SetStateAction<MatchTab>>;
+  navigateToTab: (tab: MatchTab) => void;
   scrollClassName: string;
 }) {
   return (
@@ -440,7 +445,7 @@ function ChatMessageThread({
           negotiations={negotiations}
           onChatVote={onChatVote}
           voteSubmittingForSlot={voteSubmittingForSlot}
-          setActiveTab={setActiveTab}
+          navigateToTab={navigateToTab}
         />
       ))}
       {messages.length === 0 ? <p className="text-sm text-slate-500">まだメッセージがありません。</p> : null}
@@ -643,8 +648,14 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [activeTab, setActiveTab] = useState<MatchTab>(() => {
     if (typeof window === "undefined") return "chat";
     const h = (window.location.hash || "").replace(/^#/, "").toLowerCase();
-    if (h === "schedule" || h === "fta" || h === "sessions" || h === "overview") {
-      return h;
+    if (
+      h === "schedule" ||
+      h === "fta" ||
+      h === "sessions" ||
+      h === "overview" ||
+      h === "client-info"
+    ) {
+      return h === "client-info" ? "clientInfo" : h;
     }
     return "chat";
   });
@@ -652,8 +663,15 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   useEffect(() => {
     function onHashChange() {
       const h = (window.location.hash || "").replace(/^#/, "").toLowerCase();
-      if (h === "chat" || h === "schedule" || h === "fta" || h === "sessions" || h === "overview") {
-        setActiveTab(h as MatchTab);
+      if (
+        h === "chat" ||
+        h === "schedule" ||
+        h === "fta" ||
+        h === "sessions" ||
+        h === "overview" ||
+        h === "client-info"
+      ) {
+        setActiveTab(h === "client-info" ? "clientInfo" : (h as MatchTab));
       }
     }
     window.addEventListener("hashchange", onHashChange);
@@ -666,6 +684,27 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [voteSubmittingForSlot, setVoteSubmittingForSlot] = useState<string | null>(null);
   const [chatLastReadAt, setChatLastReadAt] = useState<number>(0);
   const [chatFullscreen, setChatFullscreen] = useState(false);
+  const [clientPartnerBriefing, setClientPartnerBriefing] = useState<ClientPartnerBriefingPayload | null>(
+    null,
+  );
+  const [clientBriefingLoading, setClientBriefingLoading] = useState(false);
+
+  const goTab = useCallback((tab: MatchTab) => {
+    setActiveTab(tab);
+    try {
+      const frag = tab === "clientInfo" ? "client-info" : tab;
+      history.replaceState(null, "", `#${frag}`);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!me) return;
+    if (me.role !== "PARTNER" && activeTab === "clientInfo") {
+      goTab("chat");
+    }
+  }, [me, activeTab, goTab]);
 
   useEffect(() => {
     if (activeTab !== "chat") setChatFullscreen(false);
@@ -836,6 +875,44 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     if (activeTab !== "overview") return;
     void loadProjectOverview();
   }, [activeTab, loadProjectOverview]);
+
+  const loadClientPartnerBriefing = useCallback(async () => {
+    setClientBriefingLoading(true);
+    try {
+      const res = await fetch(
+        `/api/matches/${encodeURIComponent(matchId)}/client-partner-briefing`,
+        { cache: "no-store" },
+      );
+      const json = (await res.json().catch(() => null)) as {
+        companyName?: string;
+        clientDisplayName?: string;
+        age?: number | null;
+        jobTitle?: string | null;
+      } | null;
+      if (
+        res.ok &&
+        json &&
+        typeof json.companyName === "string" &&
+        typeof json.clientDisplayName === "string"
+      ) {
+        setClientPartnerBriefing({
+          companyName: json.companyName,
+          clientDisplayName: json.clientDisplayName,
+          age: typeof json.age === "number" ? json.age : null,
+          jobTitle: typeof json.jobTitle === "string" ? json.jobTitle : null,
+        });
+      } else {
+        setClientPartnerBriefing(null);
+      }
+    } finally {
+      setClientBriefingLoading(false);
+    }
+  }, [matchId]);
+
+  useEffect(() => {
+    if (activeTab !== "clientInfo" || me?.role !== "PARTNER") return;
+    void loadClientPartnerBriefing();
+  }, [activeTab, me?.role, loadClientPartnerBriefing]);
 
   useEffect(() => {
     // 軽量ポーリング: チャット反映を高速化（1.2 秒）
@@ -1322,12 +1399,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             <button
               type="button"
               onClick={() => {
-                setActiveTab(banner.ctaTab);
-                try {
-                  history.replaceState(null, "", `#${banner.ctaTab}`);
-                } catch {
-                  /* noop */
-                }
+                goTab(banner.ctaTab);
               }}
               className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-semibold no-underline ${buttonClass}`}
             >
@@ -1393,7 +1465,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               type="button"
               role="tab"
               aria-selected={activeTab === "overview"}
-              onClick={() => setActiveTab("overview")}
+              onClick={() => goTab("overview")}
               className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
                 activeTab === "overview"
                   ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
@@ -1402,11 +1474,26 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             >
               プロジェクト概要
             </button>
+            {me.role === "PARTNER" ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "clientInfo"}
+                onClick={() => goTab("clientInfo")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "clientInfo"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                クライアント情報
+              </button>
+            ) : null}
             <button
               type="button"
               role="tab"
               aria-selected={activeTab === "chat"}
-              onClick={() => setActiveTab("chat")}
+              onClick={() => goTab("chat")}
               className={`relative shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
                 activeTab === "chat"
                   ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
@@ -1424,7 +1511,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               type="button"
               role="tab"
               aria-selected={activeTab === "schedule"}
-              onClick={() => setActiveTab("schedule")}
+              onClick={() => goTab("schedule")}
               className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
                 activeTab === "schedule"
                   ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
@@ -1438,7 +1525,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 type="button"
                 role="tab"
                 aria-selected={activeTab === "fta"}
-                onClick={() => setActiveTab("fta")}
+                onClick={() => goTab("fta")}
                 className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
                   activeTab === "fta"
                     ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
@@ -1452,7 +1539,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               type="button"
               role="tab"
               aria-selected={activeTab === "sessions"}
-              onClick={() => setActiveTab("sessions")}
+              onClick={() => goTab("sessions")}
               className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
                 activeTab === "sessions"
                   ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
@@ -1530,6 +1617,37 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         </section>
       ) : null}
 
+      {activeTab === "clientInfo" && me.role === "PARTNER" ? (
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold text-slate-900">クライアント情報</h2>
+          <p className="text-sm text-slate-600">
+            担当クライアントの属性です。運用管理者が企業ごとの設定で入力した<strong>機密項目</strong>を含みます。このタブ・このマッチにおけるあなた（パートナー）のみが参照できます。
+          </p>
+          {clientBriefingLoading ? (
+            <p className="text-sm text-slate-500">読込中…</p>
+          ) : clientPartnerBriefing ? (
+            <div className="grid gap-3 sm:max-w-xl">
+              {fieldBlock("所属企業", clientPartnerBriefing.companyName)}
+              {fieldBlock("名前", withHonorificSan(clientPartnerBriefing.clientDisplayName))}
+              {fieldBlock(
+                "役職",
+                clientPartnerBriefing.jobTitle && clientPartnerBriefing.jobTitle.trim() !== ""
+                  ? clientPartnerBriefing.jobTitle
+                  : "",
+              )}
+              {fieldBlock(
+                "年齢",
+                clientPartnerBriefing.age !== null ? `${clientPartnerBriefing.age}歳` : "",
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">
+              現在この情報は表示できません。管理者が「企業」→「設定」の「パートナー共有用クライアント属性（機密）」で年齢・役職を登録すると、ここに表示されます。
+            </p>
+          )}
+        </section>
+      ) : null}
+
       {activeTab === "chat" && !chatFullscreen ? (
         <section className="space-y-5">
           <div className="flex flex-wrap items-end justify-between gap-4">
@@ -1557,7 +1675,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             negotiations={negotiations}
             onChatVote={onChatVote}
             voteSubmittingForSlot={voteSubmittingForSlot}
-            setActiveTab={setActiveTab}
+            navigateToTab={goTab}
             scrollClassName="max-h-[min(44rem,calc(100vh-14rem))]"
           />
           <form onSubmit={onSendChat} className="app-surface-raised flex flex-col gap-3 rounded-2xl p-4">
@@ -2108,7 +2226,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           negotiations={negotiations}
           onChatVote={onChatVote}
           voteSubmittingForSlot={voteSubmittingForSlot}
-          setActiveTab={setActiveTab}
+          navigateToTab={goTab}
           scrollClassName="min-h-0 flex-1 basis-0"
         />
         <form onSubmit={onSendChat} className="app-surface-raised flex shrink-0 flex-col gap-3 rounded-2xl p-4">
