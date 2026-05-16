@@ -135,7 +135,7 @@ export function SlotProposalCard({ payload, voteContext, onJumpToScheduleVote }:
         </p>
       ) : onJumpToScheduleVote ? (
         <p className="mt-3 rounded-lg bg-indigo-700/90 px-3 py-2 text-center text-[11px] font-medium text-white">
-          下のボタンから、日程調整画面で○／×の回答ができます。
+          下のボタンから日程調整タブへ移動し、○／×で回答してください。
         </p>
       ) : (
         <p className="mt-3 rounded-lg bg-indigo-700/90 px-3 py-2 text-center text-[11px] font-medium text-white">

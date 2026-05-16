@@ -314,7 +314,7 @@ function ChatScheduleHints({ role }: { role: Role }) {
         <div className="app-surface-indigo rounded-2xl px-4 py-3">
           <p className="text-sm font-medium text-indigo-950">{SCHEDULE_SUMMARY_CLIENT}</p>
           <p className="mt-2 text-xs text-indigo-900/85">
-            日程候補のメッセージでは、各枠の「○ 参加できる」「× 参加できない」からその場で回答できます。画面が狭い場合は「ここから回答（日程調整タブへ）」でも同じ操作ができます。
+            日程候補がチャットに届いたら「ここから回答（日程調整タブへ）」から、日程調整画面で ◯・× を入力してください。
           </p>
           <details className="mt-2">
             <summary className="cursor-pointer text-xs font-semibold text-indigo-700 hover:underline">
@@ -365,17 +365,10 @@ function ChatMsgRow({
     navigateToTab("schedule");
     scrollToClientScheduleVote();
   };
-  const chatVoteCtx = voteNegotiation
-    ? {
-        canVote: true as const,
-        voteForSlot: (slotId: string) =>
-          voteNegotiation.slots.find((s) => s.id === slotId)?.clientVote ?? null,
-        onVote: onChatVote,
-        pendingSlotId: voteSubmittingForSlot,
-      }
-    : undefined;
   const showScheduleVoteLink =
-    msg.kind === "SLOT_PROPOSAL" && isClientRole(me.role) && (Boolean(voteNegotiation) || awaitingClientVote);
+    msg.kind === "SLOT_PROPOSAL" &&
+    isClientRole(me.role) &&
+    (Boolean(voteNegotiation) || awaitingClientVote);
   const baseClass =
     msg.kind === "SLOT_PROPOSAL"
       ? "rounded-xl border border-indigo-100 bg-indigo-50/35 px-3 py-2 text-sm text-slate-900"
@@ -419,7 +412,6 @@ function ChatMsgRow({
         <div className="mt-2 space-y-2">
           <SlotProposalCard
             payload={msg.payload}
-            voteContext={chatVoteCtx}
             onJumpToScheduleVote={showScheduleVoteLink ? jumpToScheduleVote : undefined}
           />
           <p className="text-xs text-indigo-900/75">{msg.body}</p>
@@ -515,8 +507,10 @@ function msUntilStart(iso: string) {
 type StatusBannerInfo = {
   message: string;
   severity: "info" | "todo" | "warn";
-  ctaLabel: string;
-  ctaTab: MatchTab;
+  ctaLabel?: string;
+  ctaTab?: MatchTab;
+  /** タブ切替後にスクロールする要素 id */
+  scrollToId?: string;
 };
 function computeMatchBanner(args: {
   meRole: Role;
@@ -582,14 +576,13 @@ function computeMatchBanner(args: {
         severity: "todo",
         ctaLabel: "日程を決定する",
         ctaTab: "schedule",
+        scrollToId: "partner-confirm-section",
       };
     }
     if (active.status === "AWAITING_PARTNER_CONFIRM" && isClientSide) {
       return {
         message: `パートナーが日程を決定中 — 第 ${sn} 回の確定をお待ちください。`,
         severity: "info",
-        ctaLabel: "状況を確認",
-        ctaTab: "schedule",
       };
     }
   }
@@ -1445,15 +1438,24 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             <p className="min-w-0 break-words text-sm font-semibold sm:text-base">
               {banner.message}
             </p>
-            <button
-              type="button"
-              onClick={() => {
-                goTab(banner.ctaTab);
-              }}
-              className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-semibold no-underline ${buttonClass}`}
-            >
-              {banner.ctaLabel}
-            </button>
+            {banner.ctaLabel && banner.ctaTab ? (
+              <button
+                type="button"
+                onClick={() => {
+                  goTab(banner.ctaTab!);
+                  if (banner.scrollToId) {
+                    window.setTimeout(() => {
+                      document
+                        .getElementById(banner.scrollToId!)
+                        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }, 80);
+                  }
+                }}
+                className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-semibold no-underline ${buttonClass}`}
+              >
+                {banner.ctaLabel}
+              </button>
+            ) : null}
           </div>
         );
       })()}
@@ -2169,11 +2171,16 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 ? `${formatJa(row.startAt)} 〜 ${formatJa(row.endAt)}`
                 : "未確定";
               const isAbandoned = !!row.abandonment;
-              const abandonReasonLabel = row.abandonment
-                ? row.abandonment.reason === "no_show"
-                  ? "クライアントが連絡なく参加しなかった"
-                  : "クライアントが24時間前を過ぎてキャンセルした"
-                : null;
+              const isRescheduling = isReschedulingSession(row.sessionNumber);
+              const showAbandonReasonToClient =
+                isAbandoned &&
+                (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT");
+              const abandonReasonLabel =
+                showAbandonReasonToClient && row.abandonment
+                  ? row.abandonment.reason === "no_show"
+                    ? "クライアントが連絡なく参加しなかった"
+                    : "クライアントが24時間前を過ぎてキャンセルした"
+                  : null;
               const filledBadges: string[] = [];
               if (!isAbandoned) {
                 if (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") {
@@ -2199,6 +2206,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                       {isAbandoned ? (
                         <span className="ml-2 inline-flex items-center rounded-md border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800 align-middle">
                           未実施・消化
+                        </span>
+                      ) : isRescheduling ? (
+                        <span className="ml-2 inline-flex items-center rounded-md border border-amber-300 bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 align-middle">
+                          再調整中
                         </span>
                       ) : null}
                     </p>

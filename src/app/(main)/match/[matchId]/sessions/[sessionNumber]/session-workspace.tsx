@@ -149,6 +149,45 @@ export function SessionWorkspace({
     setSubmitting(true);
     setNotice(null);
     setError(null);
+
+    if (!insight.trim()) {
+      setError("「1. 気づき」を入力してください。");
+      setSubmitting(false);
+      return;
+    }
+    if (!feeling.trim()) {
+      setError("「2. 終わっての気持ち」を入力してください。");
+      setSubmitting(false);
+      return;
+    }
+    if (!nextActions.trim()) {
+      setError("「3. 次回まで取り組みたいこと」を入力してください。");
+      setSubmitting(false);
+      return;
+    }
+    if (satisfactionScore === "") {
+      setError("「4. 満足度」を選択してください。");
+      setSubmitting(false);
+      return;
+    }
+    if (!satisfactionReason.trim()) {
+      setError("「5. その理由」を入力してください。");
+      setSubmitting(false);
+      return;
+    }
+    if (partnerChange === "") {
+      setError("「6. パートナー変更希望」を選択してください。");
+      setSubmitting(false);
+      return;
+    }
+    for (let i = 0; i < detail.clientExtraQuestions.length; i++) {
+      if (!(clientExtraAnswers[i] ?? "").trim()) {
+        setError(`追加質問「${detail.clientExtraQuestions[i]}」に回答してください。`);
+        setSubmitting(false);
+        return;
+      }
+    }
+
     const extraOut: Record<string, string> = {};
     for (const [k, v] of Object.entries(clientExtraAnswers)) {
       extraOut[String(k)] = v.trim();
@@ -162,8 +201,8 @@ export function SessionWorkspace({
         other: other.trim(),
       },
       extraAnswers: extraOut,
-      satisfactionScore: satisfactionScore === "" ? null : Number(satisfactionScore),
-      partnerChange: partnerChange === "" ? null : partnerChange,
+      satisfactionScore: Number(satisfactionScore),
+      partnerChange,
     };
     const res = await fetch(
       `/api/matches/${matchId}/sessions/${sessionNumber}/feedback`,
@@ -235,6 +274,20 @@ export function SessionWorkspace({
     setSubmitting(true);
     setNotice(null);
     setError(null);
+
+    if (!reflection.trim()) {
+      setError("クライアントに対する所感を入力してください。");
+      setSubmitting(false);
+      return;
+    }
+    for (let i = 0; i < detail.partnerExtraQuestions.length; i++) {
+      if (!(extraAnswers[i] ?? "").trim()) {
+        setError(`追加質問「${detail.partnerExtraQuestions[i]}」に回答してください。`);
+        setSubmitting(false);
+        return;
+      }
+    }
+
     const extra: Record<string, string> = {};
     for (const [k, v] of Object.entries(extraAnswers)) {
       extra[String(k)] = v.trim();
@@ -292,11 +345,15 @@ export function SessionWorkspace({
       : isPast
         ? { label: "実施済", tone: "border-emerald-300 bg-emerald-50 text-emerald-800" }
         : { label: "予定", tone: "border-indigo-300 bg-indigo-50 text-indigo-800" };
-  const abandonReasonLabel = detail.abandonment
-    ? detail.abandonment.reason === "no_show"
-      ? "クライアントが連絡なく参加しなかった"
-      : "クライアントが24時間前を過ぎてキャンセルした"
-    : null;
+  const showAbandonReasonToClient =
+    isAbandoned &&
+    (role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT");
+  const abandonReasonLabel =
+    showAbandonReasonToClient && detail.abandonment
+      ? detail.abandonment.reason === "no_show"
+        ? "クライアントが連絡なく参加しなかった"
+        : "クライアントが24時間前を過ぎてキャンセルした"
+      : null;
   const guidelineText =
     role === "PARTNER"
       ? detail.guideline?.partner?.trim() ?? ""
@@ -444,38 +501,41 @@ export function SessionWorkspace({
           {!isAbandoned && (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR") ? (
             <form onSubmit={onSubmitFeedback} className="space-y-5">
               <label className="block space-y-1 text-base font-medium text-zinc-900">
-                1. 今回の1on1でどのような気づきがありましたか？
+                1. 今回の1on1でどのような気づきがありましたか？ <span className="text-red-600">*</span>
                 <textarea
                   value={insight}
                   onChange={(e) => setInsight(e.target.value)}
                   rows={4}
                   maxLength={4000}
+                  required
                   className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
                 />
               </label>
               <label className="block space-y-1 text-base font-medium text-zinc-900">
-                2. 1on1が終わってどのような気持ちになりましたか？
+                2. 1on1が終わってどのような気持ちになりましたか？ <span className="text-red-600">*</span>
                 <textarea
                   value={feeling}
                   onChange={(e) => setFeeling(e.target.value)}
                   rows={4}
                   maxLength={4000}
+                  required
                   className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
                 />
               </label>
               <label className="block space-y-1 text-base font-medium text-zinc-900">
-                3. 次回の1on1までに、取り組みたいことはありますか？
+                3. 次回の1on1までに、取り組みたいことはありますか？ <span className="text-red-600">*</span>
                 <textarea
                   value={nextActions}
                   onChange={(e) => setNextActions(e.target.value)}
                   rows={4}
                   maxLength={4000}
+                  required
                   className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
                 />
               </label>
               <fieldset className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3">
                 <legend className="px-1 text-base font-semibold text-indigo-950">
-                  4. 今回の1on1に対する満足度（1〜10）
+                  4. 今回の1on1に対する満足度（1〜10） <span className="text-red-600">*</span>
                 </legend>
                 <div className="flex flex-wrap gap-2">
                   {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
@@ -500,12 +560,13 @@ export function SessionWorkspace({
                   ))}
                 </div>
                 <label className="block text-base font-medium text-zinc-900">
-                  5. そう答えられた理由を教えてください。
+                  5. そう答えられた理由を教えてください。 <span className="text-red-600">*</span>
                   <textarea
                     value={satisfactionReason}
                     onChange={(e) => setSatisfactionReason(e.target.value)}
                     rows={3}
                     maxLength={4000}
+                    required
                     className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
                   />
                 </label>
@@ -513,7 +574,8 @@ export function SessionWorkspace({
 
               <fieldset className="space-y-2 rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3">
                 <legend className="px-1 text-base font-semibold text-indigo-950">
-                  6. 今後の1on1について、対話パートナーを変更したいと思いますか？
+                  6. 今後の1on1について、対話パートナーを変更したいと思いますか？{" "}
+                  <span className="text-red-600">*</span>
                 </legend>
                 <p className="text-xs text-indigo-900/85">
                   ※ より有意義に1on1セッションを受けていただくための確認項目です。
@@ -559,7 +621,7 @@ export function SessionWorkspace({
                   </legend>
                   {detail.clientExtraQuestions.map((q, i) => (
                     <label key={i} className="block space-y-1 text-sm font-medium text-zinc-900">
-                      {q}
+                      {q} <span className="text-red-600">*</span>
                       <textarea
                         value={clientExtraAnswers[i] ?? ""}
                         onChange={(e) =>
@@ -567,6 +629,7 @@ export function SessionWorkspace({
                         }
                         rows={3}
                         maxLength={4000}
+                        required
                         className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
                       />
                     </label>
@@ -657,12 +720,13 @@ export function SessionWorkspace({
           {role === "PARTNER" ? (
             <form onSubmit={onSubmitReport} className="space-y-5">
               <label className="block space-y-1 text-base font-medium text-zinc-900">
-                クライアントに対する所感（200字程度）
+                クライアントに対する所感（200字程度） <span className="text-red-600">*</span>
                 <textarea
                   value={reflection}
                   onChange={(e) => setReflection(e.target.value)}
                   rows={6}
                   maxLength={4000}
+                  required
                   className={`mt-1 w-full rounded-lg border bg-white px-3 py-2 text-base ${
                     reflectionTooLong ? "border-red-400" : "border-zinc-300"
                   }`}
@@ -679,7 +743,7 @@ export function SessionWorkspace({
                   </legend>
                   {detail.partnerExtraQuestions.map((q, i) => (
                     <label key={i} className="block space-y-1 text-sm font-medium text-zinc-900">
-                      {q}
+                      {q} <span className="text-red-600">*</span>
                       <textarea
                         value={extraAnswers[i] ?? ""}
                         onChange={(e) =>
@@ -687,6 +751,7 @@ export function SessionWorkspace({
                         }
                         rows={4}
                         maxLength={4000}
+                        required
                         className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
                       />
                     </label>

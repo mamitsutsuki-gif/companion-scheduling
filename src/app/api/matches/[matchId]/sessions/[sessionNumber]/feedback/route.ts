@@ -7,26 +7,24 @@ import { upsertSessionFeedback } from "@/lib/repositories/session-feedback-repos
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
 
+const requiredAnswer = z.string().trim().min(1, "必須項目です。").max(4000);
+
 const bodySchema = z.object({
-  answers: z
-    .object({
-      insight: z.string().max(4000).optional(),
-      feeling: z.string().max(4000).optional(),
-      nextActions: z.string().max(4000).optional(),
-      satisfactionReason: z.string().max(4000).optional(),
-      other: z.string().max(4000).optional(),
-    })
-    .default({}),
+  answers: z.object({
+    insight: requiredAnswer,
+    feeling: requiredAnswer,
+    nextActions: requiredAnswer,
+    satisfactionReason: requiredAnswer,
+    other: z.string().max(4000).optional(),
+  }),
   /**
    * 管理者が「企業ごとの設定 → クライアント振り返りの追加質問」で
    * 当該回（sessionNumber）に設定した自由設問の回答。
    * key は設問のインデックス（"0","1",…）。値は string のみ。
    */
   extraAnswers: z.record(z.string(), z.string().max(4000)).optional(),
-  satisfactionScore: z.union([z.number().int().min(1).max(10), z.null()]).optional(),
-  partnerChange: z
-    .union([z.literal("continue"), z.literal("undecided"), z.literal("want_change"), z.null()])
-    .optional(),
+  satisfactionScore: z.number().int().min(1).max(10),
+  partnerChange: z.enum(["continue", "undecided", "want_change"]),
 });
 
 type RouteContext = { params: Promise<{ matchId: string; sessionNumber: string }> };
@@ -57,16 +55,19 @@ export async function PUT(request: Request, context: RouteContext) {
   if (!target) return jsonError("回が見つかりません。", 404);
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return jsonError("入力内容が不正です。");
+  if (!parsed.success) {
+    const first = parsed.error.issues[0]?.message;
+    return jsonError(first ?? "入力内容が不正です。必須項目をご記入ください。");
+  }
 
   const saved = await upsertSessionFeedback({
     matchId,
     sessionNumber: n,
     clientId: session.sub,
-    answers: parsed.data.answers ?? {},
+    answers: parsed.data.answers,
     extraAnswers: parsed.data.extraAnswers ?? {},
-    satisfactionScore: parsed.data.satisfactionScore ?? null,
-    partnerChange: parsed.data.partnerChange ?? null,
+    satisfactionScore: parsed.data.satisfactionScore,
+    partnerChange: parsed.data.partnerChange,
   });
 
   const usersMap = await getUserMapByIds([session.sub]);

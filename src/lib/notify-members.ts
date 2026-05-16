@@ -1,4 +1,4 @@
-import { sendMail, sendMailToMany, type MailInput } from "@/lib/mail";
+import { sendMail, type MailInput } from "@/lib/mail";
 import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
 import { listAdminEmails, resolveUserEmailForNotifications } from "@/lib/repositories/user-repository";
@@ -68,19 +68,35 @@ export async function notifyMatchStakeholders(
     return;
   }
 
+  const m = await getMatchById(matchId);
+
   // 本番では APP_ORIGIN（公開URL）を優先。request.url の origin は内部ホストになることがある。
   const appBase = (process.env.APP_ORIGIN || input.appOrigin || "").replace(/\/$/, "");
   const linkLine = appBase ? `\n\nルームを開く: ${appBase}/match/${matchId}` : "";
 
-  const bodyIntro = `[${pairLabel}]\n\n`;
-  await sendMailToMany(uniq, {
-    subject: input.subject,
-    text: bodyIntro + input.text + linkLine,
-    html: input.html
-      ? `<p><strong>${escapeHtml(pairLabel)}</strong></p>${input.html}`
-      : undefined,
-    attachments: input.attachments,
-  });
+  const partnerAddr = partnerEmail.trim().toLowerCase();
+  const clientAddr = clientEmail.trim().toLowerCase();
+
+  for (const to of uniq) {
+    const lower = to.toLowerCase();
+    let bodyIntro: string;
+    if (m && lower === partnerAddr) {
+      bodyIntro = `${m.partner.displayName}さん\n\n`;
+    } else if (m && lower === clientAddr) {
+      bodyIntro = `${m.client.displayName}さん\n\n`;
+    } else {
+      bodyIntro = `[${pairLabel}]\n\n`;
+    }
+    await sendMail({
+      to,
+      subject: input.subject,
+      text: bodyIntro + input.text + linkLine,
+      html: input.html
+        ? `<p><strong>${escapeHtml(bodyIntro.trim())}</strong></p>${input.html}`
+        : undefined,
+      attachments: input.attachments,
+    });
+  }
 }
 
 function escapeHtml(s: string) {

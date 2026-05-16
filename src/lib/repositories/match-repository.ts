@@ -6,6 +6,12 @@ import { companyLabelFromRegistry } from "@/lib/company-display";
 
 type MatchUser = { id: string; displayName: string; email?: string; companyId?: string | null };
 
+function normalizeCompanyId(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export type MatchClientWithCompany = MatchUser & { companyName?: string | null };
 
 async function getUserMap(ids: string[]) {
@@ -17,12 +23,11 @@ async function getUserMap(ids: string[]) {
   for (const snap of snaps) {
     if (!snap.exists) continue;
     const data = snap.data() as Record<string, unknown>;
-    const cid = data.companyId;
     map.set(snap.id, {
       id: snap.id,
       displayName: String(data.displayName ?? "ユーザー"),
       email: typeof data.email === "string" ? data.email : undefined,
-      companyId: typeof cid === "string" ? cid : cid === null ? null : undefined,
+      companyId: normalizeCompanyId(data.companyId),
     });
   }
   return map;

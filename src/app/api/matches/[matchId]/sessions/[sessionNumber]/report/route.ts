@@ -8,7 +8,7 @@ import { appendAdminNotification } from "@/lib/repositories/admin-notification-r
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
 
 const bodySchema = z.object({
-  reflection: z.string().max(4000).default(""),
+  reflection: z.string().trim().min(1, "レポート本文を入力してください。").max(4000),
   extraAnswers: z.record(z.string(), z.string().max(4000)).optional(),
 });
 
@@ -34,13 +34,16 @@ export async function PUT(request: Request, context: RouteContext) {
   if (!target) return jsonError("回が見つかりません。", 404);
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return jsonError("入力内容が不正です。");
+  if (!parsed.success) {
+    const first = parsed.error.issues[0]?.message;
+    return jsonError(first ?? "入力内容が不正です。");
+  }
 
   const saved = await upsertSessionReport({
     matchId,
     sessionNumber: n,
     partnerId: session.sub,
-    reflection: parsed.data.reflection ?? "",
+    reflection: parsed.data.reflection,
     extraAnswers: parsed.data.extraAnswers ?? {},
   });
 

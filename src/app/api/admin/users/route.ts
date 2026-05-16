@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
@@ -131,6 +132,9 @@ export async function PATCH(request: Request) {
     const updated = await setUserCompany(parsed.data.userId, trimmed || null).catch(() => null);
     if (!updated) return jsonError("企業ID の更新に失敗しました。", 400);
     resultUser = updated;
+    revalidatePath("/dashboard");
+    revalidatePath("/admin/matches");
+    revalidatePath("/admin/companies");
   }
 
   return jsonOk({ ok: true, user: resultUser });

@@ -87,7 +87,6 @@ export async function POST(request: Request, context: RouteContext) {
     }).format(d);
 
   const textBody =
-    `${matchFull.partner.displayName}さん・${matchFull.client.displayName}さん\n\n` +
     `次の日程が確定しました。\n` +
     `開始: ${jpFmt(new Date(chosen.startAt))}\n` +
     `終了: ${jpFmt(new Date(chosen.endAt))}\n` +

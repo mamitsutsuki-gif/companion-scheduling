@@ -167,7 +167,8 @@ export function computeMatchActions(
   const items: ActionItem[] = [];
 
   // ----- 0. 挨拶（メッセージ 0 件のとき） -----
-  if (msgCount === 0 && (isClientSide || isPartner)) {
+  // 初回の挨拶はパートナーから送る想定のため、クライアント側には促さない。
+  if (msgCount === 0 && isPartner) {
     items.push({
       kind: "SAY_HELLO",
       message: `${otherLabel} とまだメッセージを交換していません。最初の挨拶を送りましょう。`,

@@ -35,6 +35,12 @@ function asStringArray(input: unknown): string[] {
   return input.filter((v): v is string => typeof v === "string");
 }
 
+function normalizeCompanyId(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function userFromDoc(id: string, data: Record<string, unknown>): UserView {
   return {
     id,
@@ -44,7 +50,7 @@ function userFromDoc(id: string, data: Record<string, unknown>): UserView {
     googleSub: typeof data.googleSub === "string" ? data.googleSub : null,
     email: String(data.email ?? "").toLowerCase(),
     deletedAt: typeof data.deletedAt === "string" ? data.deletedAt : null,
-    companyId: typeof data.companyId === "string" ? data.companyId : null,
+    companyId: normalizeCompanyId(data.companyId),
     createdAt: typeof data.createdAt === "string" ? data.createdAt : new Date(),
     availabilitySlotIds: asStringArray(data.availabilitySlotIds),
   };

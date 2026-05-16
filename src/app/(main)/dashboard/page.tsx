@@ -16,6 +16,8 @@ function withHonorificSan(name: string) {
 
 type DashboardSearchParams = { [key: string]: string | string[] | undefined };
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -44,9 +46,10 @@ export default async function DashboardPage({
 
   // 企業ID未割当のクライアント数（管理者用警告）
   const adminUnassignedPairs = isAdmin
-    ? allMatches.filter(
-        (m) => !(((m as { client: MatchClient }).client.companyId) ?? "").trim(),
-      )
+    ? allMatches.filter((m) => {
+        const cid = (m as { client: MatchClient }).client.companyId;
+        return cid == null || String(cid).trim() === "";
+      })
     : [];
   const adminUnassignedClientIds = new Set(
     adminUnassignedPairs.map(
