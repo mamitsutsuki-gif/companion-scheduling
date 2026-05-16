@@ -1,4 +1,5 @@
-import { sendMailToMany, type MailInput } from "@/lib/mail";
+import { sendMail, sendMailToMany, type MailInput } from "@/lib/mail";
+import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
 import { listAdminEmails, resolveUserEmailForNotifications } from "@/lib/repositories/user-repository";
 
@@ -94,4 +95,60 @@ export async function summarizeChatLine(body: string, max = 480) {
   const one = body.replace(/\s+/g, " ").trim();
   if (one.length <= max) return one;
   return `${one.slice(0, max)}…`;
+}
+
+/**
+ * 管理者がペアマッチングを作成した直後に、パートナー・クライアント双方へ
+ * アプリ通知＋個別文言のメールを送る（失敗してもログのみで握りつぶす）。
+ */
+export async function notifyNewMatchAssignment(matchId: string) {
+  try {
+    const m = await getMatchById(matchId);
+    if (!m?.partner?.id || !m.client?.id) return;
+    const partnerId = m.partner.id;
+    const clientId = m.client.id;
+    const roomPath = `/match/${encodeURIComponent(matchId)}`;
+    const appBase = (process.env.APP_ORIGIN || "").replace(/\/$/, "");
+    const absLink = appBase ? `${appBase}${roomPath}` : roomPath;
+
+    await appendMemberNotification({
+      recipientUserId: partnerId,
+      type: "MATCH_ASSIGNED",
+      matchId,
+      summary: "担当のクライアントが決まりました。アプリ上から確認してください。",
+      link: roomPath,
+    });
+    await appendMemberNotification({
+      recipientUserId: clientId,
+      type: "MATCH_ASSIGNED",
+      matchId,
+      summary: "専属の対話パートナーが決まりました。アプリ上から確認してください。",
+      link: roomPath,
+    });
+
+    const [partnerEmail, clientEmail] = await Promise.all([
+      resolveUserEmailForNotifications(partnerId),
+      resolveUserEmailForNotifications(clientId),
+    ]);
+
+    const partnerText = `担当のクライアントが決まりました。アプリ上から確認してください。\n\n${absLink}`;
+    const clientText = `専属の対話パートナーが決まりました。アプリ上から確認してください。\n\n${absLink}`;
+
+    if (partnerEmail?.trim()) {
+      await sendMail({
+        to: partnerEmail.trim(),
+        subject: "担当のクライアントが決まりました",
+        text: partnerText,
+      });
+    }
+    if (clientEmail?.trim()) {
+      await sendMail({
+        to: clientEmail.trim(),
+        subject: "専属の対話パートナーが決まりました",
+        text: clientText,
+      });
+    }
+  } catch (e) {
+    console.error("[notify] notifyNewMatchAssignment failed", matchId, e);
+  }
 }

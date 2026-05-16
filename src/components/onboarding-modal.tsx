@@ -9,14 +9,10 @@ type Role = "CLIENT" | "CLIENT_ADMIN" | "CLIENT_HR" | "PARTNER";
  * 初回ログイン時に 1 回だけ出す「ようこそ」モーダル。
  *
  * - 既に `onboardedAt` がセットされているユーザーには出さない
- * - マッチがまだ無い場合は、3 ステップを「アサイン待ち」前提に変える
- *   （いきなり「日程候補を送る」が出ても何も押せないので）
- * - 「閉じる」を押した時点で `POST /api/me/onboarding` を叩いて
- *   `onboardedAt` を保存する（2 回目以降は出ない）
+ * - マッチなし／ありで文言を切り替え（運用側のご案内に合わせる）
+ * - 「閉じる」を押した時点で `POST /api/me/onboarding` で `onboardedAt` を保存
  *
- * 表示判定:
- *   parent から `shouldShow` と `role` / `hasMatches` を受け取って描画する。
- *   表示判定そのものはサーバー側（dashboard ページ）で決める。
+ * 表示判定は親（dashboard）の `shouldShow` を信頼する。
  */
 export function OnboardingModal({
   userId,
@@ -36,8 +32,6 @@ export function OnboardingModal({
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      // Prisma 等、サーバーに onboardedAt が無いバックエンドでもモーダルが毎回出続けないよう
-      // ブラウザ側で完了フラグを保持する（Firestore 保存と併用）。
       if (window.localStorage.getItem(storageKey) === "1") {
         setOpen(false);
         return;
@@ -51,80 +45,59 @@ export function OnboardingModal({
   if (!open) return null;
 
   const isClient = role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR";
-  const headline = "ようこそ";
-  const subline =
-    "最初に簡単な使い方をご案内します（1 分で読めます）。あとから困ったら、ホーム上部のメニューから各画面を開いてください。";
+  const headline = "登録ありがとうございます";
+  const subline = hasMatches
+    ? "マッチングが成立しました。次のステップに沿ってアプリをご利用ください。"
+    : "管理者によるアサインまで、次の内容をご確認ください。";
 
-  // マッチ未割当のときは「アサインを待つ」をステップ 1 に置き、操作系は薄める
-  const steps: { title: string; desc: string }[] = hasMatches
+  const steps: { title: string; desc: string }[] = !hasMatches
     ? isClient
       ? [
           {
-            title: "① 自分FTA を書く（5〜10 分）",
+            title: "① 自分FTA を入力しましょう",
             desc:
-              "ありたい姿（中央）と、そのための要素・行動（B/C）を書きます。最初は中央 1 行だけでもOK。書きながら整理していきましょう。",
+              "ホームのメニューから「自分FTA」に入力できます。入力は担当パートナーとの対話の土台になります。",
           },
           {
-            title: "② 担当パートナーに「はじめまして」を送る",
-            desc:
-              "ホームから担当ペアを開き、チャット欄で挨拶を送ってください。メールは公開されないので安心です。",
-          },
-          {
-            title: "③ パートナーから日程候補が届いたら、◯×で回答",
-            desc:
-              "候補日が届いたら、各候補に◯（参加できる）／×（参加できない）を入力してください。すべて× の場合は新しい候補が届きます。",
+            title: "② あなた専属の対話パートナーをアサインするまでお待ちください",
+            desc: "アサインが決まりましたら、このアプリからメールでもお知らせします。",
           },
         ]
       : [
           {
-            title: "① 担当クライアントに「はじめまして」を送る",
+            title: "① 皆さんも自分FTA に入力してみましょう",
             desc:
-              "ホームから担当ペアを開き、チャットで挨拶を送ってください。メールアドレスは公開されないので安心です。",
+              "クライアントやほかの方に公開されることはありません。ご自身での整理にもお使いください。",
           },
           {
-            title: "② 第1回の候補日を送る",
-            desc:
-              "日程調整タブから候補日を 2〜3 個提示します。クライアントが ◯× で回答してくれます。",
-          },
-          {
-            title: "③ クライアントの自分FTA を確認",
-            desc:
-              "ペア画面の「クライアント自分FTA」タブから、相手のありたい姿と行動を確認できます。1on1 の話題作りにご活用ください。",
+            title: "② アサインが決まるまでお待ちください",
+            desc: "担当クライアントが決まりましたら、このアプリからメールでもお知らせします。",
           },
         ]
     : isClient
       ? [
           {
-            title: "① まずは「アサインをお待ちください」",
-            desc:
-              "管理者があなたに担当パートナーを割り当てるまで、ペアは表示されません。通常は数営業日以内にアサインされます。",
+            title: "① 自分FTA を入力しましょう",
+            desc: "ありたい姿や行動を整理しておくと、対話がスムーズです。",
           },
           {
-            title: "② 待っている間に「自分FTA」を書いておく",
-            desc:
-              "ホーム右上メニューから「自分FTA」を開き、中央のありたい姿だけでも先に書いておくと、対話開始がスムーズです。",
+            title: "② 対話パートナーと挨拶しましょう",
+            desc: "担当ペアのルームを開き、チャットでまずはご挨拶を送ってください。",
           },
           {
-            title: "③ アサインされたら、自動でホームに「担当ペア」が出ます",
-            desc:
-              "ペアを開くとチャット・日程調整ができるようになります。それまで特に操作は必要ありません。",
+            title: "③ 日程調整の候補日は対話パートナーから届きます",
+            desc: "候補日はパートナーから送られます。届くまでお待ちください。",
           },
         ]
       : [
           {
-            title: "① まずは「アサインをお待ちください」",
-            desc:
-              "管理者があなたに担当クライアントを割り当てるまで、ペアは表示されません。通常は数営業日以内にアサインされます。",
+            title: "① クライアントに挨拶しましょう",
+            desc: "担当ペアのルームを開き、チャットではじめの一言を送ってください。",
           },
           {
-            title: "② 会議リンクの設定だけ済ませておく",
+            title: "② 日程調整を進めましょう",
             desc:
-              "ホーム上部「会議リンク設定」から、ご自身の Zoom 等の URL を登録しておきましょう。日程確定時にクライアントへ自動共有されます。",
-          },
-          {
-            title: "③ アサインされたら、自動でホームに「担当ペア」が出ます",
-            desc:
-              "ペアを開くと、チャット・日程調整・パートナーレポート・請求書まで一通りこちらで対応できます。",
+              "候補日はパートナーからしか送れません。「日程調整」タブから第1回などの候補日を送ってください。",
           },
         ];
 
@@ -143,7 +116,7 @@ export function OnboardingModal({
         body: JSON.stringify({}),
       });
     } catch {
-      /* ignore: 失敗しても UI 側では閉じる */
+      /* ignore */
     }
     setOpen(false);
     setClosing(false);
@@ -157,38 +130,35 @@ export function OnboardingModal({
     >
       <div className="max-h-[88vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl sm:p-8">
         <p className="text-xs font-semibold tracking-widest text-indigo-700 uppercase">Welcome</p>
-        <h2 className="mt-1 text-2xl font-semibold text-slate-900">{headline}</h2>
-        <p className="mt-3 text-sm leading-relaxed text-slate-700">{subline}</p>
+        <h2 className="mt-2 text-[1.6rem] font-semibold leading-snug tracking-tight text-slate-900 sm:text-3xl">
+          {headline}
+        </h2>
+        <p className="mt-4 text-base leading-relaxed text-slate-700">{subline}</p>
 
-        <ol className="mt-5 space-y-3">
+        <ol className="mt-6 space-y-4">
           {steps.map((s, i) => (
-            <li
-              key={i}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-xs"
-            >
-              <p className="text-sm font-semibold text-slate-900">{s.title}</p>
-              <p className="mt-1 text-sm leading-relaxed text-slate-700">{s.desc}</p>
+            <li key={i} className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 shadow-xs">
+              <p className="text-base font-semibold text-slate-900">{s.title}</p>
+              <p className="mt-2 text-base leading-relaxed text-slate-700">{s.desc}</p>
             </li>
           ))}
         </ol>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-slate-500">このご案内は最初の 1 回だけ表示されます。</p>
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-slate-500">このご案内は最初の 1 回だけ表示されます。</p>
           <div className="flex flex-wrap items-center gap-2">
-            {isClient && hasMatches ? (
-              <Link
-                href="/fta"
-                onClick={() => void dismiss()}
-                className="rounded-md border border-indigo-300 bg-white px-4 py-2 text-sm font-semibold text-indigo-900 no-underline hover:bg-indigo-50"
-              >
-                自分FTAから始める
-              </Link>
-            ) : null}
+            <Link
+              href="/fta"
+              onClick={() => void dismiss()}
+              className="rounded-lg border border-indigo-300 bg-white px-4 py-2.5 text-base font-semibold text-indigo-900 no-underline hover:bg-indigo-50"
+            >
+              自分FTAへ
+            </Link>
             <button
               type="button"
               onClick={() => void dismiss()}
               disabled={closing}
-              className="rounded-md bg-indigo-700 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-800 disabled:opacity-60"
+              className="app-btn-primary rounded-lg px-5 py-2.5 text-base disabled:opacity-60"
             >
               はじめる
             </button>

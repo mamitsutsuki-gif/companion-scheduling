@@ -18,23 +18,22 @@
 }
 
 :root {
-  font-size: 17px;
+  font-size: 18px;
   /* SaaS ライクな端正さのため、ベースは slate-900 寄りで微温に。 */
   color-scheme: light;
 }
 
 @media (max-width: 640px) {
   :root {
-    /* スマホは 16px ベース。フォーム要素の見やすさ最適 */
-    font-size: 16px;
+    font-size: 17px;
   }
 }
 
 body {
   @apply antialiased;
-  font-size: 1rem;
-  /* 行間は和文込みで読みやすい 1.65 をデフォルトに（以前は 1.7 と詰めて感じが冗長だった） */
-  line-height: 1.65;
+  font-size: 1.05rem;
+  /* 行間は和文込みで読みやすく */
+  line-height: 1.68;
   /* Inter 用のリッチな OpenType 機能（数字の幅、合字、文末リガチャ）を有効化 */
   font-feature-settings: "cv11", "ss01", "ss03";
   letter-spacing: -0.005em;

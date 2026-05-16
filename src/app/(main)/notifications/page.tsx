@@ -13,7 +13,8 @@ type NotificationRow = {
     | "SLOT_CONFIRMED"
     | "RESCHEDULE"
     | "INVOICE_CONFIRMED"
-    | "INVOICE_RETURNED";
+    | "INVOICE_RETURNED"
+    | "MATCH_ASSIGNED";
   matchId: string | null;
   sessionNumber: number | null;
   actorRole: string | null;
@@ -32,6 +33,7 @@ const typeLabel: Record<NotificationRow["type"], string> = {
   RESCHEDULE: "🔁 変更希望",
   INVOICE_CONFIRMED: "🧾 請求書 確定",
   INVOICE_RETURNED: "🧾 請求書 差し戻し",
+  MATCH_ASSIGNED: "👥 マッチング成立",
 };
 
 const typeBadgeClass: Record<NotificationRow["type"], string> = {
@@ -42,6 +44,7 @@ const typeBadgeClass: Record<NotificationRow["type"], string> = {
   RESCHEDULE: "border-amber-300 bg-amber-50 text-amber-900",
   INVOICE_CONFIRMED: "border-emerald-300 bg-emerald-50 text-emerald-900",
   INVOICE_RETURNED: "border-rose-300 bg-rose-50 text-rose-900",
+  MATCH_ASSIGNED: "border-indigo-300 bg-indigo-50 text-indigo-950",
 };
 
 function formatJa(iso: string) {

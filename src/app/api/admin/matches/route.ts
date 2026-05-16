@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
+import { notifyNewMatchAssignment } from "@/lib/notify-members";
 import { clearMatchAsAdmin, createMatchAsAdmin } from "@/lib/repositories/match-repository";
 
 const postSchema = z.object({
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
 
   const result = await createMatchAsAdmin(parsed.data.partnerId, parsed.data.clientId);
   if (!result.ok) return jsonError(result.error, result.status ?? 400);
+  await notifyNewMatchAssignment(result.matchId);
   return jsonOk({ ok: true, matchId: result.matchId });
 }
 

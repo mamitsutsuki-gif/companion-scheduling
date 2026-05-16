@@ -654,9 +654,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [proposeJustSent, setProposeJustSent] = useState(false);
   const [voteSubmittingForSlot, setVoteSubmittingForSlot] = useState<string | null>(null);
   const [chatLastReadAt, setChatLastReadAt] = useState<number>(0);
-  /** チャットタブ時にメイン枠を max-w-7xl まで広げる（他タブは従来どおり max-w-4xl）。 */
-  const [chatWideLayout, setChatWideLayout] = useState(true);
-  /** チャットのみ全画面オーバーレイ。他タブへ切り替えで自動終了。 */
   const [chatFullscreen, setChatFullscreen] = useState(false);
 
   useEffect(() => {
@@ -1197,11 +1194,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
   return (
     <>
-    <div
-      className={`mx-auto flex w-full flex-1 flex-col gap-8 px-1 py-4 sm:gap-12 sm:px-6 sm:py-10 ${
-        activeTab === "chat" && chatWideLayout ? "max-w-7xl" : "max-w-4xl"
-      }`}
-    >
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 px-1 py-4 sm:gap-12 sm:px-6 sm:py-10">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4 sm:gap-4 sm:pb-6">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Match Detail</p>
@@ -1378,51 +1371,89 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         </section>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab("overview")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "overview" ? "app-tab-primary" : "app-tab-secondary"}`}
+      <div className="flex flex-col gap-0">
+        <nav
+          className="sticky top-0 z-20 -mx-1 border-b border-slate-200 bg-slate-50/95 px-1 pt-1 backdrop-blur-sm sm:static sm:mx-0 sm:border sm:border-b-0 sm:border-slate-200 sm:bg-slate-100 sm:px-2 sm:pt-2 sm:backdrop-blur-none rounded-t-xl"
+          aria-label="ルームメニュー"
+          role="tablist"
         >
-          プロジェクト概要
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("chat")}
-          className={`relative rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "chat" ? "app-tab-primary" : "app-tab-secondary"}`}
-        >
-          チャット
-          {unreadChatCount > 0 ? (
-            <span className="ml-1.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1.5 text-xs font-bold text-white">
-              {unreadChatCount > 99 ? "99+" : unreadChatCount}
-            </span>
-          ) : null}
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("schedule")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "schedule" ? "app-tab-primary" : "app-tab-secondary"}`}
-        >
-          日程調整
-        </button>
-        {me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (
-          <button
-            type="button"
-            onClick={() => setActiveTab("fta")}
-            className={`rounded-lg px-4 py-2 text-base font-semibold ${activeTab === "fta" ? "app-tab-primary" : "app-tab-secondary"}`}
-          >
-            クライアント自分FTA
-          </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => setActiveTab("sessions")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "sessions" ? "app-tab-primary" : "app-tab-secondary"}`}
-        >
-          1on1セッション
-        </button>
-      </div>
+          <div className="flex flex-nowrap items-end gap-1 overflow-x-auto pb-0 sm:gap-1.5">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "overview"}
+              onClick={() => setActiveTab("overview")}
+              className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                activeTab === "overview"
+                  ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                  : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+              }`}
+            >
+              プロジェクト概要
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "chat"}
+              onClick={() => setActiveTab("chat")}
+              className={`relative shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                activeTab === "chat"
+                  ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                  : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+              }`}
+            >
+              チャット
+              {unreadChatCount > 0 ? (
+                <span className="ml-1.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1.5 align-middle text-xs font-bold text-white">
+                  {unreadChatCount > 99 ? "99+" : unreadChatCount}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "schedule"}
+              onClick={() => setActiveTab("schedule")}
+              className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                activeTab === "schedule"
+                  ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                  : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+              }`}
+            >
+              日程調整
+            </button>
+            {me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "fta"}
+                onClick={() => setActiveTab("fta")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "fta"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                クライアント自分FTA
+              </button>
+            ) : null}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "sessions"}
+              onClick={() => setActiveTab("sessions")}
+              className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                activeTab === "sessions"
+                  ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                  : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+              }`}
+            >
+              1on1セッション
+            </button>
+          </div>
+        </nav>
 
+        <div className="-mx-1 rounded-b-xl border border-slate-200 border-t-0 bg-white px-4 py-6 shadow-sm sm:mx-0 sm:rounded-b-xl sm:rounded-tr-xl sm:px-8 sm:py-8 min-h-[min(50vh,28rem)]">
       {activeTab === "overview" ? (
         <section className="space-y-4">
           <h2 className="text-2xl font-semibold text-slate-900">プロジェクト概要</h2>
@@ -1493,23 +1524,15 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <h2 className="text-2xl font-semibold text-slate-900">チャット</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                一覧を広げる・全画面は右のボタンから（全画面終了は Esc でも可）。
+              <p className="mt-1 text-sm text-slate-500">
+                全画面で読みやすくする場合は「全画面表示」から。終了は Esc または「閉じる」です。
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => setChatWideLayout((w) => !w)}
-                className={`app-tab-secondary rounded-lg px-3 py-2 text-xs font-semibold sm:text-sm ${chatWideLayout ? "ring-2 ring-indigo-400/40" : ""}`}
-                aria-pressed={chatWideLayout}
-              >
-                {chatWideLayout ? "幅を通常に戻す" : "横に広げる"}
-              </button>
-              <button
-                type="button"
                 onClick={() => setChatFullscreen(true)}
-                className="app-btn-primary rounded-lg px-3 py-2 text-xs font-semibold sm:text-sm"
+                className="app-btn-primary rounded-lg px-3 py-2 text-sm font-semibold sm:text-base"
               >
                 全画面表示
               </button>
@@ -1524,11 +1547,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             onChatVote={onChatVote}
             voteSubmittingForSlot={voteSubmittingForSlot}
             setActiveTab={setActiveTab}
-            scrollClassName={
-              chatWideLayout
-                ? "max-h-[min(40rem,calc(100vh-13rem))]"
-                : "max-h-[min(32rem,calc(100vh-15rem))]"
-            }
+            scrollClassName="max-h-[min(44rem,calc(100vh-14rem))]"
           />
           <form onSubmit={onSendChat} className="app-surface-raised flex flex-col gap-3 rounded-2xl p-4">
             <label className="text-base font-medium">
@@ -2042,6 +2061,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           </ul>
         </section>
       ) : null}
+        </div>
+      </div>
 
     </div>
 
