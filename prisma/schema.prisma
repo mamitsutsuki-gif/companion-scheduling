@@ -97,6 +97,8 @@ model ClientPartnerBriefing {
   jobTitle String?
   /// 年齢（同上）
   age      Int?
+  /// 管理職に該当するか（null = 未設定）
+  isManagement Boolean?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

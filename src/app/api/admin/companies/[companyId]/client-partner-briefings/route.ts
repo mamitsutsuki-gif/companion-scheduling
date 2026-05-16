@@ -35,6 +35,8 @@ const patchSchema = z.object({
         age: z.union([z.number().int().min(0).max(120), z.null()]),
         /** 役職。null または空相当で削除 */
         jobTitle: z.union([z.string().max(200), z.null()]),
+        /** 管理職に該当するか。null = 未設定 */
+        isManagement: z.union([z.boolean(), z.null()]),
       }),
     )
     .max(500),
@@ -58,6 +60,7 @@ export async function PATCH(request: Request, ctx: RouteContext) {
       clientUserId: row.clientUserId,
       age: row.age,
       jobTitle: row.jobTitle,
+      isManagement: row.isManagement,
     });
     if (!res.ok) {
       return jsonError(

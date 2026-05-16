@@ -39,7 +39,11 @@ export default async function AdminUserDetailPage(ctx: RouteContext) {
     getAppSettingsRow(),
     viewer.role === "ADMIN" && isInspectClientRole
       ? getStoredClientPartnerBriefingForUser(userId)
-      : Promise.resolve<{ age: number | null; jobTitle: string | null } | null>(null),
+      : Promise.resolve<{
+          age: number | null;
+          jobTitle: string | null;
+          isManagement: boolean | null;
+        } | null>(null),
   ]);
 
   const roleLabel: Record<string, string> = {
@@ -122,7 +126,7 @@ export default async function AdminUserDetailPage(ctx: RouteContext) {
         <section className="rounded-2xl border border-slate-300 bg-slate-50 p-5 shadow-sm sm:p-8">
           <h2 className="text-lg font-semibold text-slate-900">パートナー共有用クライアント属性（機密）</h2>
           <p className="mt-2 text-sm text-slate-700">
-            このユーザーへの年齢・役職の登録状態です。<strong className="text-slate-900">運用 ADMIN のみ</strong>
+            このユーザーへの年齢・役職・管理職の登録状態です。<strong className="text-slate-900">運用 ADMIN のみ</strong>
             が閲覧・編集できます。編集は企業単位画面から行ってください。
           </p>
           <dl className="mt-4 grid gap-2 text-sm text-slate-800 sm:grid-cols-2">
@@ -135,6 +139,16 @@ export default async function AdminUserDetailPage(ctx: RouteContext) {
             <div className="flex flex-wrap gap-2 rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
               <dt className="text-slate-500">役職</dt>
               <dd className="font-medium">{briefing.jobTitle?.trim() ? briefing.jobTitle : "未入力"}</dd>
+            </div>
+            <div className="flex flex-wrap gap-2 rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
+              <dt className="text-slate-500">管理職</dt>
+              <dd className="font-medium">
+                {briefing.isManagement === true
+                  ? "該当する"
+                  : briefing.isManagement === false
+                    ? "該当しない"
+                    : "未入力"}
+              </dd>
             </div>
           </dl>
           {companyId ? (

@@ -151,7 +151,14 @@ type ClientPartnerBriefingPayload = {
   clientDisplayName: string;
   age: number | null;
   jobTitle: string | null;
+  isManagement: boolean | null;
 };
+
+function formatManagementForDisplay(isManagement: boolean | null): string {
+  if (isManagement === true) return "該当する";
+  if (isManagement === false) return "該当しない";
+  return "";
+}
 
 function fieldBlock(label: string, value: string) {
   const v = value.trim();
@@ -701,7 +708,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
   useEffect(() => {
     if (!me) return;
-    if (me.role !== "PARTNER" && activeTab === "clientInfo") {
+    if (me.role !== "PARTNER" && me.role !== "ADMIN" && activeTab === "clientInfo") {
       goTab("chat");
     }
   }, [me, activeTab, goTab]);
@@ -890,6 +897,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         clientDisplayName?: string;
         age?: number | null;
         jobTitle?: string | null;
+        isManagement?: boolean | null;
       } | null;
       if (
         res.ok &&
@@ -902,6 +910,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           clientDisplayName: json.clientDisplayName,
           age: typeof json.age === "number" ? json.age : null,
           jobTitle: typeof json.jobTitle === "string" ? json.jobTitle : null,
+          isManagement:
+            typeof json.isManagement === "boolean" ? json.isManagement : null,
         });
       } else {
         setClientPartnerBriefing(null);
@@ -912,7 +922,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   }, [matchId]);
 
   useEffect(() => {
-    if (activeTab !== "clientInfo" || me?.role !== "PARTNER") return;
+    if (activeTab !== "clientInfo") return;
+    if (me?.role !== "PARTNER" && me?.role !== "ADMIN") return;
     void loadClientPartnerBriefing();
   }, [activeTab, me?.role, loadClientPartnerBriefing]);
 
@@ -1476,7 +1487,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             >
               プロジェクト概要
             </button>
-            {me.role === "PARTNER" ? (
+            {me.role === "PARTNER" || me.role === "ADMIN" ? (
               <button
                 type="button"
                 role="tab"
@@ -1619,11 +1630,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         </section>
       ) : null}
 
-      {activeTab === "clientInfo" && me.role === "PARTNER" ? (
+      {activeTab === "clientInfo" && (me.role === "PARTNER" || me.role === "ADMIN") ? (
         <section className="space-y-4">
           <h2 className="text-2xl font-semibold text-slate-900">クライアント情報</h2>
           <p className="text-sm text-slate-600">
-            担当クライアントの属性です。このタブの内容は、当該マッチにおけるあなた（パートナー）のみがご覧いただけます。
+            {me.role === "ADMIN"
+              ? "パートナーがマッチルームで参照する内容と同じです（閲覧のみ）。"
+              : "担当クライアントの属性です。このタブの内容は、当該マッチにおけるあなた（パートナー）のみがご覧いただけます。"}
           </p>
           {clientBriefingLoading ? (
             <p className="text-sm text-slate-500">読込中…</p>
@@ -1640,6 +1653,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               {fieldBlock(
                 "年齢",
                 clientPartnerBriefing.age !== null ? `${clientPartnerBriefing.age}歳` : "",
+              )}
+              {fieldBlock(
+                "管理職",
+                formatManagementForDisplay(clientPartnerBriefing.isManagement),
               )}
             </div>
           ) : (

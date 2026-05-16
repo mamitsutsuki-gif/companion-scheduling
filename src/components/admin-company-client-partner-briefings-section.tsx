@@ -9,7 +9,32 @@ type Row = {
   role: string;
   age: number | null;
   jobTitle: string | null;
+  isManagement: boolean | null;
 };
+
+type DraftCell = {
+  age: string;
+  jobTitle: string;
+  isManagement: "" | "yes" | "no";
+};
+
+function managementFromRow(v: boolean | null): DraftCell["isManagement"] {
+  if (v === true) return "yes";
+  if (v === false) return "no";
+  return "";
+}
+
+function managementToApi(v: DraftCell["isManagement"]): boolean | null {
+  if (v === "yes") return true;
+  if (v === "no") return false;
+  return null;
+}
+
+function managementDisplay(v: DraftCell["isManagement"]): string {
+  if (v === "yes") return "該当する";
+  if (v === "no") return "該当しない";
+  return "—";
+}
 
 const roleLabel: Record<string, string> = {
   CLIENT: "クライアント",
@@ -54,7 +79,7 @@ export function AdminCompanyClientPartnerBriefingsSection({
   const [meResolved, setMeResolved] = useState(false);
   const [meRole, setMeRole] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
-  const [draft, setDraft] = useState<Record<string, { age: string; jobTitle: string }>>({});
+  const [draft, setDraft] = useState<Record<string, DraftCell>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,11 +90,12 @@ export function AdminCompanyClientPartnerBriefingsSection({
 
   const applyRows = useCallback((list: Row[]) => {
     setRows(list);
-    const d: Record<string, { age: string; jobTitle: string }> = {};
+    const d: Record<string, DraftCell> = {};
     for (const x of list) {
       d[x.userId] = {
         age: x.age === null ? "" : String(x.age),
         jobTitle: x.jobTitle ?? "",
+        isManagement: managementFromRow(x.isManagement),
       };
     }
     setDraft(d);
@@ -126,7 +152,12 @@ export function AdminCompanyClientPartnerBriefingsSection({
     setSaving(true);
     setError(null);
     setMessage(null);
-    const updates: { clientUserId: string; age: number | null; jobTitle: string | null }[] = [];
+    const updates: {
+      clientUserId: string;
+      age: number | null;
+      jobTitle: string | null;
+      isManagement: boolean | null;
+    }[] = [];
     for (const r of rows) {
       const cell = draft[r.userId];
       if (!cell) continue;
@@ -141,6 +172,7 @@ export function AdminCompanyClientPartnerBriefingsSection({
         clientUserId: r.userId,
         age: parsed.value,
         jobTitle,
+        isManagement: managementToApi(cell.isManagement),
       });
     }
     try {
@@ -186,7 +218,7 @@ export function AdminCompanyClientPartnerBriefingsSection({
       <p className="mt-2 text-sm text-slate-700">
         この企業（<strong>{companyName}</strong>
         ）に所属する<strong>クライアント側ユーザー</strong>（CLIENT / CLIENT_ADMIN /
-        CLIENT_HR）です。年齢・役職は<strong>運用 ADMIN のみ</strong>が登録できます。クライアント本人・他ユーザー・管理者アシスタントには表示されません。マッチ先の<strong>パートナー本人</strong>のみ、ルーム「クライアント情報」で参照されます。
+        CLIENT_HR）です。年齢・役職・管理職の該当は<strong>運用 ADMIN のみ</strong>が登録できます。クライアント本人・他ユーザー・管理者アシスタントには表示されません。マッチ先の<strong>パートナー本人</strong>と<strong>運用 ADMIN</strong>が、ルーム「クライアント情報」で参照できます。
       </p>
       {variant === "readonly" ? (
         <p className="mt-2 text-sm text-slate-600">
@@ -222,11 +254,12 @@ export function AdminCompanyClientPartnerBriefingsSection({
                   <th className="px-3 py-3">ロール</th>
                   <th className="px-3 py-3">年齢</th>
                   <th className="px-3 py-3">役職</th>
+                  <th className="px-3 py-3">管理職</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => {
-                  const cell = draft[r.userId] ?? { age: "", jobTitle: "" };
+                  const cell = draft[r.userId] ?? { age: "", jobTitle: "", isManagement: "" };
                   return (
                     <tr key={r.userId} className="border-b border-slate-100 last:border-b-0">
                       <td className="px-3 py-2 font-medium text-slate-900">{r.displayName}</td>
@@ -287,6 +320,36 @@ export function AdminCompanyClientPartnerBriefingsSection({
                           <span className="text-slate-800">{cell.jobTitle.trim() !== "" ? cell.jobTitle : "—"}</span>
                         )}
                       </td>
+                      <td className="px-3 py-2 align-top">
+                        {canEdit ? (
+                          <>
+                            <label className="sr-only" htmlFor={`mgmt-${r.userId}`}>
+                              {r.displayName} の管理職
+                            </label>
+                            <select
+                              id={`mgmt-${r.userId}`}
+                              disabled={saving}
+                              value={cell.isManagement}
+                              onChange={(e) =>
+                                setDraft((p) => ({
+                                  ...p,
+                                  [r.userId]: {
+                                    ...cell,
+                                    isManagement: e.target.value as DraftCell["isManagement"],
+                                  },
+                                }))
+                              }
+                              className="w-full min-w-[8rem] rounded-md border border-slate-300 bg-white px-2 py-1.5 disabled:bg-slate-100"
+                            >
+                              <option value="">未設定</option>
+                              <option value="yes">該当する</option>
+                              <option value="no">該当しない</option>
+                            </select>
+                          </>
+                        ) : (
+                          <span className="text-slate-800">{managementDisplay(cell.isManagement)}</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -314,7 +377,7 @@ export function AdminCompanyClientPartnerBriefingsSection({
                 </button>
               </div>
               <p className="mt-4 text-xs text-slate-500">
-                年齢・役職とも空にして保存すると、その人の記録は削除されます（パートナー画面では「未入力」になります）。
+                年齢・役職・管理職がすべて未設定の状態で保存すると、その人の記録は削除されます（パートナー画面では「未入力」になります）。
               </p>
             </>
           ) : null}

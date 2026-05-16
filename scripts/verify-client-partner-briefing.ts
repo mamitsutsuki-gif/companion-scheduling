@@ -12,6 +12,7 @@ import {
   upsertAppSettingsRow,
 } from "../src/lib/repositories/app-settings-repository";
 import {
+  getMatchClientBriefingForViewer,
   getPartnerVisibleClientBriefingForMatch,
   listClientsWithBriefingForCompany,
   upsertBriefingForCompanyClient,
@@ -38,6 +39,7 @@ async function main() {
 
   const partnerUser = await prisma.user.findUnique({ where: { email: "partner@example.com" } });
   const clientUser = await prisma.user.findUnique({ where: { email: "client@example.com" } });
+  const adminUser = await prisma.user.findUnique({ where: { email: "admin@example.com" } });
   ok("seed partner exists", Boolean(partnerUser));
   ok("seed client exists", Boolean(clientUser));
 
@@ -75,6 +77,7 @@ async function main() {
     clientUserId: clientUser!.id,
     age: null,
     jobTitle: null,
+    isManagement: null,
   });
   ok("clear briefing", rClear.ok === true);
 
@@ -83,6 +86,7 @@ async function main() {
     clientUserId: clientUser!.id,
     age: 41,
     jobTitle: "部長（検証）",
+    isManagement: true,
   });
   ok("upsert briefing", rUpsert.ok === true);
 
@@ -91,6 +95,7 @@ async function main() {
     clientUserId: partnerUser!.id,
     age: 30,
     jobTitle: "x",
+    isManagement: null,
   });
   ok("reject wrong user for company", bad.ok === false && bad.error === "INVALID_USER");
 
@@ -105,7 +110,24 @@ async function main() {
         pv.clientDisplayName === clientUser!.displayName &&
         pv.age === 41 &&
         pv.jobTitle === "部長（検証）" &&
+        pv.isManagement === true &&
         (pv.companyName.includes("検証デモ") || pv.companyName.includes(DEMO_COMPANY_ID)),
+    ),
+  );
+
+  ok("seed admin exists", Boolean(adminUser));
+  const adminView = await getMatchClientBriefingForViewer({
+    matchId: match!.id,
+    viewerUserId: adminUser!.id,
+    viewerRole: "ADMIN",
+  });
+  ok(
+    "admin sees same briefing as partner",
+    Boolean(
+      adminView.ok &&
+        adminView.age === 41 &&
+        adminView.isManagement === true &&
+        adminView.clientDisplayName === clientUser!.displayName,
     ),
   );
 
