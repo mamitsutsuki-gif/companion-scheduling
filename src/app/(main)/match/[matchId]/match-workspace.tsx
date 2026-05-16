@@ -262,6 +262,28 @@ function withHonorificSan(name: string) {
   return `${name}さん`;
 }
 
+function isClientRole(role: Role) {
+  return role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR";
+}
+
+function scrollToClientScheduleVote() {
+  window.setTimeout(() => {
+    document.getElementById("client-schedule-vote")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 80);
+}
+
+/** チャット上の日程候補カードと紐づく、回答待ちラウンド（negotiationId 一致時のみ） */
+function resolveVoteNegotiationForMessage(
+  msg: MessageRow,
+  negotiations: NegotiationRow[],
+): NegotiationRow | null {
+  if (msg.kind !== "SLOT_PROPOSAL") return null;
+  const negId = (msg.payload as { negotiationId?: string } | null)?.negotiationId;
+  if (!negId) return null;
+  const neg = negotiations.find((n) => n.id === negId);
+  return neg?.status === "AWAITING_CLIENT_RESPONSE" ? neg : null;
+}
+
 function schedulingGuideAudience(role: Role): SchedulingGuideAudience | null {
   if (role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT") return "partner";
   if (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR") return "client";
@@ -291,6 +313,9 @@ function ChatScheduleHints({ role }: { role: Role }) {
       {audience === "client" ? (
         <div className="app-surface-indigo rounded-2xl px-4 py-3">
           <p className="text-sm font-medium text-indigo-950">{SCHEDULE_SUMMARY_CLIENT}</p>
+          <p className="mt-2 text-xs text-indigo-900/85">
+            日程候補のメッセージでは、各枠の「○ 参加できる」「× 参加できない」からその場で回答できます。画面が狭い場合は「ここから回答（日程調整タブへ）」でも同じ操作ができます。
+          </p>
           <details className="mt-2">
             <summary className="cursor-pointer text-xs font-semibold text-indigo-700 hover:underline">
               日程調整の詳しいご案内を開く
@@ -312,6 +337,7 @@ function ChatMsgRow({
   me,
   chatLastReadAt,
   negotiations,
+  activeNegotiation,
   onChatVote,
   voteSubmittingForSlot,
   navigateToTab,
@@ -320,6 +346,7 @@ function ChatMsgRow({
   me: Me;
   chatLastReadAt: number;
   negotiations: NegotiationRow[];
+  activeNegotiation: NegotiationRow | null;
   onChatVote: (negotiationId: string, slotId: string, vote: "YES" | "NO") => void | Promise<void>;
   voteSubmittingForSlot: string | null;
   navigateToTab: (tab: MatchTab) => void;
@@ -330,23 +357,25 @@ function ChatMsgRow({
     msg.sender.role !== "ADMIN" &&
     msg.sender.role !== "ADMIN_ASSISTANT" &&
     me.role !== msg.sender.role;
-  const proposalNegId =
-    msg.kind === "SLOT_PROPOSAL"
-      ? ((msg.payload as { negotiationId?: string })?.negotiationId ?? null)
-      : null;
-  const proposalNeg = proposalNegId ? negotiations.find((n) => n.id === proposalNegId) : null;
-  const chatVoteCtx =
-    msg.kind === "SLOT_PROPOSAL" &&
-    (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR") &&
-    proposalNeg?.status === "AWAITING_CLIENT_RESPONSE"
-      ? {
-          canVote: true as const,
-          voteForSlot: (slotId: string) =>
-            proposalNeg.slots.find((s) => s.id === slotId)?.clientVote ?? null,
-          onVote: onChatVote,
-          pendingSlotId: voteSubmittingForSlot,
-        }
-      : undefined;
+  const voteNegotiation =
+    isClientRole(me.role) ? resolveVoteNegotiationForMessage(msg, negotiations) : null;
+  const awaitingClientVote =
+    isClientRole(me.role) && activeNegotiation?.status === "AWAITING_CLIENT_RESPONSE";
+  const jumpToScheduleVote = () => {
+    navigateToTab("schedule");
+    scrollToClientScheduleVote();
+  };
+  const chatVoteCtx = voteNegotiation
+    ? {
+        canVote: true as const,
+        voteForSlot: (slotId: string) =>
+          voteNegotiation.slots.find((s) => s.id === slotId)?.clientVote ?? null,
+        onVote: onChatVote,
+        pendingSlotId: voteSubmittingForSlot,
+      }
+    : undefined;
+  const showScheduleVoteLink =
+    msg.kind === "SLOT_PROPOSAL" && isClientRole(me.role) && (Boolean(voteNegotiation) || awaitingClientVote);
   const baseClass =
     msg.kind === "SLOT_PROPOSAL"
       ? "rounded-xl border border-indigo-100 bg-indigo-50/35 px-3 py-2 text-sm text-slate-900"
@@ -388,7 +417,11 @@ function ChatMsgRow({
 
       {msg.kind === "SLOT_PROPOSAL" ? (
         <div className="mt-2 space-y-2">
-          <SlotProposalCard payload={msg.payload} voteContext={chatVoteCtx} />
+          <SlotProposalCard
+            payload={msg.payload}
+            voteContext={chatVoteCtx}
+            onJumpToScheduleVote={showScheduleVoteLink ? jumpToScheduleVote : undefined}
+          />
           <p className="text-xs text-indigo-900/75">{msg.body}</p>
         </div>
       ) : msg.kind === "SCHEDULE_CONFIRMED" ? (
@@ -424,6 +457,7 @@ function ChatMessageThread({
   me,
   chatLastReadAt,
   negotiations,
+  activeNegotiation,
   onChatVote,
   voteSubmittingForSlot,
   navigateToTab,
@@ -433,6 +467,7 @@ function ChatMessageThread({
   me: Me;
   chatLastReadAt: number;
   negotiations: NegotiationRow[];
+  activeNegotiation: NegotiationRow | null;
   onChatVote: (negotiationId: string, slotId: string, vote: "YES" | "NO") => void | Promise<void>;
   voteSubmittingForSlot: string | null;
   navigateToTab: (tab: MatchTab) => void;
@@ -450,6 +485,7 @@ function ChatMessageThread({
           me={me}
           chatLastReadAt={chatLastReadAt}
           negotiations={negotiations}
+          activeNegotiation={activeNegotiation}
           onChatVote={onChatVote}
           voteSubmittingForSlot={voteSubmittingForSlot}
           navigateToTab={navigateToTab}
@@ -1690,6 +1726,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             me={me}
             chatLastReadAt={chatLastReadAt}
             negotiations={negotiations}
+            activeNegotiation={activeNegotiation}
             onChatVote={onChatVote}
             voteSubmittingForSlot={voteSubmittingForSlot}
             navigateToTab={goTab}
@@ -1960,8 +1997,12 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           </div>
         ) : null}
 
-        {activeNegotiation && activeNegotiation.status === "AWAITING_CLIENT_RESPONSE" && (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR") ? (
-          <form onSubmit={onVote} className="app-surface-indigo space-y-4 rounded-2xl px-5 py-4">
+        {activeNegotiation && activeNegotiation.status === "AWAITING_CLIENT_RESPONSE" && isClientRole(me.role) ? (
+          <form
+            id="client-schedule-vote"
+            onSubmit={onVote}
+            className="app-surface-indigo scroll-mt-24 space-y-4 rounded-2xl px-5 py-4"
+          >
             <h3 className="text-xl font-semibold text-indigo-900">ご希望の時間をすべて回答</h3>
             <p className="text-base text-indigo-800">参加できる候補は「○」。どれにも入れられないときはすべて「×」を選んでください。</p>
             <div className="space-y-3">
@@ -2241,6 +2282,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           me={me}
           chatLastReadAt={chatLastReadAt}
           negotiations={negotiations}
+          activeNegotiation={activeNegotiation}
           onChatVote={onChatVote}
           voteSubmittingForSlot={voteSubmittingForSlot}
           navigateToTab={goTab}
