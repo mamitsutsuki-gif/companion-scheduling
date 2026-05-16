@@ -15,7 +15,16 @@ import {
   SCHEDULE_SUMMARY_PARTNER,
 } from "@/lib/scheduling-rules-copy";
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 
 type Role =
   | "ADMIN"
@@ -241,6 +250,193 @@ function withHonorificSan(name: string) {
   return `${name}さん`;
 }
 
+/** チャットタブ上部の日程ガイド（ロールごと）。 */
+function ChatScheduleHints({ role }: { role: Role }) {
+  return (
+    <>
+      {role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
+        <div className="app-surface-indigo rounded-2xl px-4 py-3">
+          <p className="text-sm font-medium text-indigo-950">{SCHEDULE_SUMMARY_PARTNER}</p>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-xs font-semibold text-indigo-700 hover:underline">
+              日程調整の詳しいご案内を開く
+            </summary>
+            <pre className="mt-3 max-h-[min(60vh,24rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
+              {SCHEDULE_RULES_PARTNER}
+            </pre>
+          </details>
+        </div>
+      ) : null}
+      {role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR" ? (
+        <div className="app-surface-indigo rounded-2xl px-4 py-3">
+          <p className="text-sm font-medium text-indigo-950">{SCHEDULE_SUMMARY_CLIENT}</p>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-xs font-semibold text-indigo-700 hover:underline">
+              日程調整の詳しいご案内を開く
+            </summary>
+            <pre className="mt-3 max-h-[min(60vh,24rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
+              {SCHEDULE_RULES_CLIENT}
+            </pre>
+          </details>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function ChatMsgRow({
+  msg,
+  me,
+  chatLastReadAt,
+  negotiations,
+  onChatVote,
+  voteSubmittingForSlot,
+  setActiveTab,
+}: {
+  msg: MessageRow;
+  me: Me;
+  chatLastReadAt: number;
+  negotiations: NegotiationRow[];
+  onChatVote: (negotiationId: string, slotId: string, vote: "YES" | "NO") => void | Promise<void>;
+  voteSubmittingForSlot: string | null;
+  setActiveTab: Dispatch<SetStateAction<MatchTab>>;
+}) {
+  const ts = new Date(msg.createdAt).valueOf() || 0;
+  const isUnread =
+    ts > chatLastReadAt &&
+    msg.sender.role !== "ADMIN" &&
+    msg.sender.role !== "ADMIN_ASSISTANT" &&
+    me.role !== msg.sender.role;
+  const proposalNegId =
+    msg.kind === "SLOT_PROPOSAL"
+      ? ((msg.payload as { negotiationId?: string })?.negotiationId ?? null)
+      : null;
+  const proposalNeg = proposalNegId ? negotiations.find((n) => n.id === proposalNegId) : null;
+  const chatVoteCtx =
+    msg.kind === "SLOT_PROPOSAL" &&
+    (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR") &&
+    proposalNeg?.status === "AWAITING_CLIENT_RESPONSE"
+      ? {
+          canVote: true as const,
+          voteForSlot: (slotId: string) =>
+            proposalNeg.slots.find((s) => s.id === slotId)?.clientVote ?? null,
+          onVote: onChatVote,
+          pendingSlotId: voteSubmittingForSlot,
+        }
+      : undefined;
+  const baseClass =
+    msg.kind === "SLOT_PROPOSAL"
+      ? "rounded-xl border border-indigo-100 bg-indigo-50/35 px-3 py-2 text-sm text-slate-900"
+      : msg.kind === "SCHEDULE_CONFIRMED"
+        ? "rounded-xl border border-emerald-100 bg-emerald-50/35 px-3 py-2 text-sm text-slate-900"
+        : msg.kind === "VOTE_SUMMARY"
+          ? "rounded-xl border border-indigo-100 bg-indigo-50/40 px-3 py-2 text-sm text-slate-900"
+          : "rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-900";
+  return (
+    <article
+      className={`${baseClass} ${isUnread ? "ring-2 ring-amber-300 shadow-md shadow-amber-100" : ""}`}
+    >
+      <div className="text-xs uppercase tracking-wide text-slate-500">
+        {withHonorificSan(msg.sender.displayName)}{" "}
+        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] tracking-normal text-indigo-800">
+          {roleBadge[msg.sender.role as Role] ?? msg.sender.role}
+        </span>
+        {isUnread ? (
+          <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] tracking-normal text-amber-900">
+            未読
+          </span>
+        ) : null}
+        {msg.kind === "SLOT_PROPOSAL" ? (
+          <span className="ml-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] tracking-normal text-indigo-900">
+            日程候補
+          </span>
+        ) : null}
+        {msg.kind === "SCHEDULE_CONFIRMED" ? (
+          <span className="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] tracking-normal text-emerald-900">
+            確定
+          </span>
+        ) : null}
+        {msg.kind === "VOTE_SUMMARY" ? (
+          <span className="ml-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] tracking-normal text-indigo-900">
+            回答
+          </span>
+        ) : null}
+      </div>
+
+      {msg.kind === "SLOT_PROPOSAL" ? (
+        <div className="mt-2 space-y-2">
+          <SlotProposalCard payload={msg.payload} voteContext={chatVoteCtx} />
+          <p className="text-xs text-indigo-900/75">{msg.body}</p>
+        </div>
+      ) : msg.kind === "SCHEDULE_CONFIRMED" ? (
+        <div className="mt-2 space-y-2">
+          <ScheduleConfirmedCard payload={msg.payload} />
+          <pre className="whitespace-pre-wrap font-sans text-xs text-emerald-900/80">{msg.body}</pre>
+        </div>
+      ) : msg.kind === "VOTE_SUMMARY" ? (
+        <div className="mt-2">
+          <VoteSummaryCard
+            payload={msg.payload}
+            body={msg.body}
+            onJumpToConfirm={() => {
+              setActiveTab("schedule");
+              window.setTimeout(() => {
+                const el = document.getElementById("partner-confirm-section");
+                if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+              }, 80);
+            }}
+          />
+        </div>
+      ) : (
+        <pre className="mt-2 whitespace-pre-wrap font-sans text-sm">{msg.body}</pre>
+      )}
+
+      <div className="mt-2 text-[11px] text-slate-400">{formatJa(msg.createdAt)}</div>
+    </article>
+  );
+}
+
+function ChatMessageThread({
+  messages,
+  me,
+  chatLastReadAt,
+  negotiations,
+  onChatVote,
+  voteSubmittingForSlot,
+  setActiveTab,
+  scrollClassName,
+}: {
+  messages: MessageRow[];
+  me: Me;
+  chatLastReadAt: number;
+  negotiations: NegotiationRow[];
+  onChatVote: (negotiationId: string, slotId: string, vote: "YES" | "NO") => void | Promise<void>;
+  voteSubmittingForSlot: string | null;
+  setActiveTab: Dispatch<SetStateAction<MatchTab>>;
+  scrollClassName: string;
+}) {
+  return (
+    <div
+      className={`app-surface-raised space-y-3 overflow-y-auto rounded-2xl p-4 ${scrollClassName}`}
+      data-chat-thread
+    >
+      {messages.map((msg) => (
+        <ChatMsgRow
+          key={msg.id}
+          msg={msg}
+          me={me}
+          chatLastReadAt={chatLastReadAt}
+          negotiations={negotiations}
+          onChatVote={onChatVote}
+          voteSubmittingForSlot={voteSubmittingForSlot}
+          setActiveTab={setActiveTab}
+        />
+      ))}
+      {messages.length === 0 ? <p className="text-sm text-slate-500">まだメッセージがありません。</p> : null}
+    </div>
+  );
+}
+
 function msUntilStart(iso: string) {
   const start = new Date(iso).getTime();
   if (!Number.isFinite(start)) return Number.NaN;
@@ -458,6 +654,33 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [proposeJustSent, setProposeJustSent] = useState(false);
   const [voteSubmittingForSlot, setVoteSubmittingForSlot] = useState<string | null>(null);
   const [chatLastReadAt, setChatLastReadAt] = useState<number>(0);
+  /** チャットタブ時にメイン枠を max-w-7xl まで広げる（他タブは従来どおり max-w-4xl）。 */
+  const [chatWideLayout, setChatWideLayout] = useState(true);
+  /** チャットのみ全画面オーバーレイ。他タブへ切り替えで自動終了。 */
+  const [chatFullscreen, setChatFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== "chat") setChatFullscreen(false);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!chatFullscreen) return;
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") setChatFullscreen(false);
+    }
+    document.addEventListener("keydown", onEsc);
+    return () => document.removeEventListener("keydown", onEsc);
+  }, [chatFullscreen]);
+
+  useEffect(() => {
+    if (!chatFullscreen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [chatFullscreen]);
+
   const timeOptions = useMemo(() => {
     const interval = Math.max(1, scheduleSettings.slotDurationMinutes);
     const earliest = scheduleSettings.slotEarliestHour * 60;
@@ -966,19 +1189,24 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
   if (!me) {
     return (
-      <div className="px-6 py-10 text-sm text-zinc-600">
+      <div className="px-6 py-10 text-sm text-slate-600">
         読込中…
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-1 py-4 sm:gap-12 sm:px-6 sm:py-10">
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-200 pb-4 sm:gap-4 sm:pb-6">
+    <>
+    <div
+      className={`mx-auto flex w-full flex-1 flex-col gap-8 px-1 py-4 sm:gap-12 sm:px-6 sm:py-10 ${
+        activeTab === "chat" && chatWideLayout ? "max-w-7xl" : "max-w-4xl"
+      }`}
+    >
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4 sm:gap-4 sm:pb-6">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Match Detail</p>
-          <p className="text-sm text-zinc-600 sm:text-base">{withHonorificSan(me.displayName)} として表示中（メールなどは公開されません）</p>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-500">
+          <p className="text-sm text-slate-600 sm:text-base">{withHonorificSan(me.displayName)} として表示中（メールなどは公開されません）</p>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
             {me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (
               <>
                 <span className="rounded-full bg-indigo-50 px-2 py-1 text-indigo-800">MATCH #{matchId}</span>
@@ -1036,7 +1264,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           <button
             type="button"
             onClick={() => void load()}
-            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50"
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 hover:bg-slate-50"
           >
             再読込
           </button>
@@ -1076,10 +1304,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               : "border-emerald-300 bg-emerald-50 text-emerald-950";
         const buttonClass =
           banner.severity === "warn"
-            ? "bg-amber-700 hover:bg-amber-800"
+            ? "app-btn-amber"
             : banner.severity === "todo"
-              ? "bg-indigo-700 hover:bg-indigo-800"
-              : "bg-emerald-700 hover:bg-emerald-800";
+              ? "app-btn-primary"
+              : "app-btn-emerald";
         return (
           <div
             className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 shadow-sm ${palette}`}
@@ -1097,7 +1325,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                   /* noop */
                 }
               }}
-              className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-semibold !text-white no-underline ${buttonClass}`}
+              className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-semibold no-underline ${buttonClass}`}
             >
               {banner.ctaLabel}
             </button>
@@ -1106,16 +1334,16 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       })()}
 
       {availability ? (
-        <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 px-5 py-4 shadow-sm">
+        <section className="app-surface-emerald rounded-2xl px-5 py-4">
           <h2 className="text-lg font-semibold text-emerald-900">お互いの対応可能時間</h2>
           <p className="mt-1 text-sm text-emerald-900/80">
             アサイン用に登録された参考情報です。実際の日程はチャット下の「日程調整」で個別調整してください。
           </p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <div className="rounded-xl border border-emerald-200 bg-white px-4 py-3">
+            <div className="app-surface-inset-emerald px-4 py-3">
               <p className="text-sm font-semibold text-emerald-900">クライアント：{withHonorificSan(availability.client.displayName)}</p>
               {availability.client.labels.length === 0 ? (
-                <p className="mt-1.5 text-sm text-zinc-500">未設定</p>
+                <p className="mt-1.5 text-sm text-slate-500">未設定</p>
               ) : (
                 <ul className="mt-2 flex flex-wrap gap-1.5">
                   {availability.client.labels.map((label, i) => (
@@ -1129,10 +1357,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 </ul>
               )}
             </div>
-            <div className="rounded-xl border border-emerald-200 bg-white px-4 py-3">
+            <div className="app-surface-inset-emerald px-4 py-3">
               <p className="text-sm font-semibold text-emerald-900">パートナー：{withHonorificSan(availability.partner.displayName)}</p>
               {availability.partner.labels.length === 0 ? (
-                <p className="mt-1.5 text-sm text-zinc-500">未設定</p>
+                <p className="mt-1.5 text-sm text-slate-500">未設定</p>
               ) : (
                 <ul className="mt-2 flex flex-wrap gap-1.5">
                   {availability.partner.labels.map((label, i) => (
@@ -1154,14 +1382,14 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <button
           type="button"
           onClick={() => setActiveTab("overview")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "overview" ? "bg-indigo-700 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition"}`}
+          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "overview" ? "app-tab-primary" : "app-tab-secondary"}`}
         >
           プロジェクト概要
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("chat")}
-          className={`relative rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "chat" ? "bg-indigo-700 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition"}`}
+          className={`relative rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "chat" ? "app-tab-primary" : "app-tab-secondary"}`}
         >
           チャット
           {unreadChatCount > 0 ? (
@@ -1173,7 +1401,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <button
           type="button"
           onClick={() => setActiveTab("schedule")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "schedule" ? "bg-indigo-700 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition"}`}
+          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "schedule" ? "app-tab-primary" : "app-tab-secondary"}`}
         >
           日程調整
         </button>
@@ -1181,7 +1409,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           <button
             type="button"
             onClick={() => setActiveTab("fta")}
-            className={`rounded-lg px-4 py-2 text-base font-semibold ${activeTab === "fta" ? "bg-indigo-700 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition"}`}
+            className={`rounded-lg px-4 py-2 text-base font-semibold ${activeTab === "fta" ? "app-tab-primary" : "app-tab-secondary"}`}
           >
             クライアント自分FTA
           </button>
@@ -1189,7 +1417,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <button
           type="button"
           onClick={() => setActiveTab("sessions")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "sessions" ? "bg-indigo-700 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition"}`}
+          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${activeTab === "sessions" ? "app-tab-primary" : "app-tab-secondary"}`}
         >
           1on1セッション
         </button>
@@ -1204,13 +1432,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             </p>
           ) : null}
           {overviewLoading ? (
-            <p className="text-sm text-zinc-500">読込中…</p>
+            <p className="text-sm text-slate-500">読込中…</p>
           ) : (
             (() => {
               const j = projectOverviewJson as Record<string, unknown> | null;
               if (!j || typeof j !== "object") {
                 return (
-                  <p className="text-sm text-zinc-500">
+                  <p className="text-sm text-slate-500">
                     {me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT"
                       ? "表示する情報がありません。"
                       : "管理者側で未設定"}
@@ -1260,176 +1488,74 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         </section>
       ) : null}
 
-      {activeTab === "chat" ? (
-      <section className="space-y-5">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-2xl font-semibold">チャット</h2>
-        </div>
-        {me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (
-          // チャット上部の説明は「3 行サマリ常時表示 + 詳細は折りたたみ」に。
-          // 以前は <details open> で毎回長文が展開され、操作の妨げになっていた。
-          <div className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm">
-            <p className="text-sm font-medium text-indigo-950">
-              {SCHEDULE_SUMMARY_PARTNER}
-            </p>
-            <details className="mt-2">
-              <summary className="cursor-pointer text-xs font-semibold text-indigo-700 hover:underline">
-                日程調整の詳しいご案内を開く
-              </summary>
-              <pre className="mt-3 max-h-[min(60vh,24rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
-                {SCHEDULE_RULES_PARTNER}
-              </pre>
-            </details>
-          </div>
-        ) : null}
-        {me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" ? (
-          <div className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm">
-            <p className="text-sm font-medium text-indigo-950">
-              {SCHEDULE_SUMMARY_CLIENT}
-            </p>
-            <details className="mt-2">
-              <summary className="cursor-pointer text-xs font-semibold text-indigo-700 hover:underline">
-                日程調整の詳しいご案内を開く
-              </summary>
-              <pre className="mt-3 max-h-[min(60vh,24rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
-                {SCHEDULE_RULES_CLIENT}
-              </pre>
-            </details>
-          </div>
-        ) : null}
-        <div className="max-h-[420px] space-y-3 overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs">
-          {messages.map((msg) => {
-            const ts = new Date(msg.createdAt).valueOf() || 0;
-            const isUnread =
-              ts > chatLastReadAt &&
-              msg.sender.role !== "ADMIN" &&
-              msg.sender.role !== "ADMIN_ASSISTANT" &&
-              me?.role !== msg.sender.role;
-            const proposalNegId =
-              msg.kind === "SLOT_PROPOSAL"
-                ? ((msg.payload as { negotiationId?: string })?.negotiationId ?? null)
-                : null;
-            const proposalNeg = proposalNegId
-              ? negotiations.find((n) => n.id === proposalNegId)
-              : null;
-            const chatVoteCtx =
-              msg.kind === "SLOT_PROPOSAL" &&
-              (me?.role === "CLIENT" || me?.role === "CLIENT_ADMIN" || me?.role === "CLIENT_HR") &&
-              proposalNeg?.status === "AWAITING_CLIENT_RESPONSE"
-                ? {
-                    canVote: true as const,
-                    voteForSlot: (slotId: string) =>
-                      proposalNeg.slots.find((s) => s.id === slotId)?.clientVote ?? null,
-                    onVote: onChatVote,
-                    pendingSlotId: voteSubmittingForSlot,
-                  }
-                : undefined;
-            const baseClass =
-              msg.kind === "SLOT_PROPOSAL"
-                ? "rounded-xl border border-indigo-100 bg-indigo-50/35 px-3 py-2 text-sm text-zinc-900"
-                : msg.kind === "SCHEDULE_CONFIRMED"
-                  ? "rounded-xl border border-emerald-100 bg-emerald-50/35 px-3 py-2 text-sm text-zinc-900"
-                  : msg.kind === "VOTE_SUMMARY"
-                    ? "rounded-xl border border-indigo-100 bg-indigo-50/40 px-3 py-2 text-sm text-zinc-900"
-                    : "rounded-xl bg-zinc-50 px-3 py-2 text-sm text-zinc-900";
-            return (
-              <article
-                key={msg.id}
-                className={`${baseClass} ${isUnread ? "ring-2 ring-amber-300 shadow-md shadow-amber-100" : ""}`}
+      {activeTab === "chat" && !chatFullscreen ? (
+        <section className="space-y-5">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-900">チャット</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                一覧を広げる・全画面は右のボタンから（全画面終了は Esc でも可）。
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setChatWideLayout((w) => !w)}
+                className={`app-tab-secondary rounded-lg px-3 py-2 text-xs font-semibold sm:text-sm ${chatWideLayout ? "ring-2 ring-indigo-400/40" : ""}`}
+                aria-pressed={chatWideLayout}
               >
-                <div className="text-xs uppercase tracking-wide text-zinc-500">
-                  {withHonorificSan(msg.sender.displayName)}{" "}
-                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] tracking-normal text-indigo-800">
-                    {roleBadge[msg.sender.role as Role] ?? msg.sender.role}
-                  </span>
-                  {isUnread ? (
-                    <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] tracking-normal text-amber-900">
-                      未読
-                    </span>
-                  ) : null}
-                  {msg.kind === "SLOT_PROPOSAL" ? (
-                    <span className="ml-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] tracking-normal text-indigo-900">
-                      日程候補
-                    </span>
-                  ) : null}
-                  {msg.kind === "SCHEDULE_CONFIRMED" ? (
-                    <span className="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] tracking-normal text-emerald-900">
-                      確定
-                    </span>
-                  ) : null}
-                  {msg.kind === "VOTE_SUMMARY" ? (
-                    <span className="ml-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] tracking-normal text-indigo-900">
-                      回答
-                    </span>
-                  ) : null}
-                </div>
-
-                {msg.kind === "SLOT_PROPOSAL" ? (
-                  <div className="mt-2 space-y-2">
-                    <SlotProposalCard
-                      payload={msg.payload}
-                      voteContext={chatVoteCtx}
-                    />
-                    <p className="text-xs text-indigo-900/75">{msg.body}</p>
-                  </div>
-                ) : msg.kind === "SCHEDULE_CONFIRMED" ? (
-                  <div className="mt-2 space-y-2">
-                    <ScheduleConfirmedCard payload={msg.payload} />
-                    <pre className="whitespace-pre-wrap font-sans text-xs text-emerald-900/80">{msg.body}</pre>
-                  </div>
-                ) : msg.kind === "VOTE_SUMMARY" ? (
-                  <div className="mt-2">
-                    <VoteSummaryCard
-                      payload={msg.payload}
-                      body={msg.body}
-                      onJumpToConfirm={() => {
-                        setActiveTab("schedule");
-                        // 少し遅らせて該当セクションへスクロール
-                        window.setTimeout(() => {
-                          const el = document.getElementById("partner-confirm-section");
-                          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-                        }, 80);
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <pre className="mt-2 whitespace-pre-wrap font-sans text-sm">{msg.body}</pre>
-                )}
-
-                <div className="mt-2 text-[11px] text-zinc-400">{formatJa(msg.createdAt)}</div>
-              </article>
-            );
-          })}
-          {messages.length === 0 ? (
-            <p className="text-sm text-zinc-500">まだメッセージがありません。</p>
-          ) : null}
-        </div>
-        <form onSubmit={onSendChat} className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4">
-          <label className="text-base font-medium">
-            メッセージ送信
-            <textarea
-              name="body"
-              rows={3}
-              placeholder="運用ごとのメモ、候補補足など"
-              className="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-base"
-            />
-          </label>
-          <button
-            type="submit"
-            className="self-start rounded-lg bg-indigo-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-800 active:translate-y-[1px] active:scale-[0.98]"
-          >
-            送信
-          </button>
-        </form>
-        {me.role === "PARTNER" ? <PartnerChatTemplates /> : null}
-      </section>
+                {chatWideLayout ? "幅を通常に戻す" : "横に広げる"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setChatFullscreen(true)}
+                className="app-btn-primary rounded-lg px-3 py-2 text-xs font-semibold sm:text-sm"
+              >
+                全画面表示
+              </button>
+            </div>
+          </div>
+          <ChatScheduleHints role={me.role} />
+          <ChatMessageThread
+            messages={messages}
+            me={me}
+            chatLastReadAt={chatLastReadAt}
+            negotiations={negotiations}
+            onChatVote={onChatVote}
+            voteSubmittingForSlot={voteSubmittingForSlot}
+            setActiveTab={setActiveTab}
+            scrollClassName={
+              chatWideLayout
+                ? "max-h-[min(40rem,calc(100vh-13rem))]"
+                : "max-h-[min(32rem,calc(100vh-15rem))]"
+            }
+          />
+          <form onSubmit={onSendChat} className="app-surface-raised flex flex-col gap-3 rounded-2xl p-4">
+            <label className="text-base font-medium">
+              メッセージ送信
+              <textarea
+                name="body"
+                rows={3}
+                placeholder="運用ごとのメモ、候補補足など"
+                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base"
+              />
+            </label>
+            <button
+              type="submit"
+              className="app-btn-primary self-start rounded-lg px-4 py-2.5 text-base"
+            >
+              送信
+            </button>
+          </form>
+          {me.role === "PARTNER" ? <PartnerChatTemplates /> : null}
+        </section>
       ) : null}
 
       {activeTab === "schedule" ? (
       <section id="schedule" className="space-y-6 rounded-3xl border border-indigo-100 bg-indigo-50/40 px-3 py-5 shadow-inner shadow-indigo-100 sm:px-6 sm:py-8">
         <div className="space-y-3">
           {(me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
-            <details className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md">
+            <details className="app-surface-indigo rounded-2xl px-4 py-3 transition open:shadow-md">
               <summary className="cursor-pointer text-base font-semibold text-indigo-950">
                 パートナー向け：日程調整機能の使い方（最初にお読みください）
               </summary>
@@ -1439,7 +1565,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             </details>
           ) : null}
           {(me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
-            <details className="rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-sm open:shadow-md">
+            <details className="app-surface-indigo rounded-2xl px-4 py-3 transition open:shadow-md">
               <summary className="cursor-pointer text-base font-semibold text-indigo-950">
                 クライアント向け：日程調整機能の使い方（最初にお読みください）
               </summary>
@@ -1455,7 +1581,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             ○／×モデルでの候補提示 → 回答 → （必要なら再提案） → 確定。この画面で状態を確認します。
           </p>
         </div>
-        <div className="space-y-3 rounded-2xl border border-indigo-200 bg-white px-5 py-4">
+        <div className="app-surface-indigo space-y-3 rounded-2xl px-5 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-lg font-semibold text-indigo-900">セッション計画（全 {scheduleSettings.totalSessions} 回）</h3>
           </div>
@@ -1474,12 +1600,12 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               const statusBadge: { label: string; className: string } | null = abandonment
                 ? { label: "未実施・消化", className: "border-red-300 bg-red-50 text-red-800" }
                 : !row.slot
-                  ? { label: "未確定", className: "border-zinc-300 bg-white text-zinc-700" }
+                  ? { label: "未確定", className: "border-slate-300 bg-white text-slate-700" }
                   : isPast
                     ? { label: "実施済", className: "border-emerald-300 bg-emerald-50 text-emerald-800" }
                     : { label: "予定", className: "border-indigo-300 bg-indigo-50 text-indigo-800" };
               return (
-                <li key={row.index} className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
+                <li key={row.index} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
                       {statusBadge ? (
@@ -1522,7 +1648,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                     </div>
                   </div>
                   {(zoomUrl || zoomMeetingId || zoomPass) ? (
-                    <p className="mt-1 text-xs text-zinc-700">
+                    <p className="mt-1 text-xs text-slate-700">
                       {zoomUrl ? (
                         <a
                           href={zoomUrl}
@@ -1546,12 +1672,12 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               );
             })}
           </ul>
-          <p className="text-sm text-zinc-600">日程変更は開始24時間前まで可能です。変更希望を送ると、相手へ通知され、パートナーが再提案できます。</p>
+          <p className="text-sm text-slate-600">日程変更は開始24時間前まで可能です。変更希望を送ると、相手へ通知され、パートナーが再提案できます。</p>
           <p className="text-sm font-medium text-amber-800">開始24時間前を過ぎての変更はできません。体調不良などの場合は、サポートデスクに連絡ください。</p>
         </div>
 
         {me.role === "PARTNER" ? (
-          <form onSubmit={onPropose} className="space-y-5 rounded-2xl border border-zinc-200 bg-white px-5 py-4">
+          <form onSubmit={onPropose} className="space-y-5 rounded-2xl border border-slate-200 bg-white px-5 py-4">
             {proposeJustSent ? (
               <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">
                 ✓ 送信完了：候補をクライアントに通知しました。フォームはクリアされています。
@@ -1559,16 +1685,16 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             ) : null}
             <div>
               <h3 className="text-xl font-semibold">候補日を送る（開始時刻のみ・3〜5 件）</h3>
-              <p className="mt-1 text-xs text-zinc-600">
+              <p className="mt-1 text-xs text-slate-600">
                 選択可能な時間帯：{String(scheduleSettings.slotEarliestHour).padStart(2, "0")}:00〜{String(scheduleSettings.slotLatestHour).padStart(2, "0")}:00
                 {scheduleSettings.allowWeekends ? "（土日も可）" : "（土日不可）"}
               </p>
-              <label className="mt-3 block max-w-xs text-base font-medium text-zinc-800">
+              <label className="mt-3 block max-w-xs text-base font-medium text-slate-800">
                 何回目の日程調整か
                 <select
                   name="sessionNumber"
                   defaultValue={1}
-                  className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-base"
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-base"
                 >
                   {Array.from({ length: Math.max(1, scheduleSettings.totalSessions) }, (_, i) => i + 1).map((n) => (
                     <option key={n} value={n}>
@@ -1577,33 +1703,33 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                   ))}
                 </select>
               </label>
-              <p className="mt-1 text-base text-zinc-600">
+              <p className="mt-1 text-base text-slate-600">
                 終了時刻は管理者が設定した枠（現在{" "}
                 <strong className="text-indigo-800">{scheduleSettings.slotDurationMinutes} 分</strong>、TZ{" "}
                 {scheduleSettings.timezone}）から自動で付きます。
               </p>
-              <p className="mt-1 text-sm text-zinc-500">開始時刻は{scheduleSettings.slotDurationMinutes}分単位で選んでください。</p>
+              <p className="mt-1 text-sm text-slate-500">開始時刻は{scheduleSettings.slotDurationMinutes}分単位で選んでください。</p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               {[1, 2, 3].map((index) => (
-                <fieldset key={index} className="space-y-2 rounded-xl border border-dashed border-zinc-300 p-4">
+                <fieldset key={index} className="space-y-2 rounded-xl border border-dashed border-slate-300 p-4">
                   <legend className="text-sm font-medium">候補 {index}</legend>
-                  <label className="block text-xs uppercase text-zinc-500">
+                  <label className="block text-xs uppercase text-slate-500">
                     日付
                     <input
                       name={`startDate${index}`}
                       type="date"
                       required
                       onChange={onProposeDateInputChange}
-                      className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1"
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1"
                     />
                   </label>
-                  <label className="block text-xs uppercase text-zinc-500">
+                  <label className="block text-xs uppercase text-slate-500">
                     時刻（{scheduleSettings.slotDurationMinutes}分刻み）
                     <select
                       name={`startTime${index}`}
                       required
-                      className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1"
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1"
                     >
                       <option value="">選択してください</option>
                       {timeOptions.map((opt) => (
@@ -1615,21 +1741,21 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                   </label>
                 </fieldset>
               ))}
-              <fieldset className="space-y-2 rounded-xl border border-dashed border-zinc-200 p-4 text-sm text-zinc-500 md:col-span-2">
-                <legend className="text-sm font-medium text-zinc-700">4〜5件目は任意（未入力でも可）</legend>
+              <fieldset className="space-y-2 rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 md:col-span-2">
+                <legend className="text-sm font-medium text-slate-700">4〜5件目は任意（未入力でも可）</legend>
                 <div className="grid gap-3 md:grid-cols-2">
                   {[4, 5].map((index) => (
-                    <div key={index} className="space-y-2 rounded-lg border border-zinc-100 p-3">
-                      <p className="text-xs font-semibold uppercase text-zinc-500">任意 {index}</p>
+                    <div key={index} className="space-y-2 rounded-lg border border-slate-100 p-3">
+                      <p className="text-xs font-semibold uppercase text-slate-500">任意 {index}</p>
                       <input
                         name={`startDate${index}`}
                         type="date"
                         onChange={onProposeDateInputChange}
-                        className="w-full rounded-md border border-zinc-300 px-2 py-1"
+                        className="w-full rounded-md border border-slate-300 px-2 py-1"
                       />
                       <select
                         name={`startTime${index}`}
-                        className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1"
+                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1"
                       >
                         <option value="">時刻を選択</option>
                         {timeOptions.map((opt) => (
@@ -1647,12 +1773,12 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               <button
                 type="submit"
                 disabled={proposeSubmitting}
-                className="rounded-lg bg-indigo-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-800 active:translate-y-[1px] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                className="app-btn-primary rounded-lg px-4 py-2.5 text-base disabled:cursor-not-allowed"
               >
                 {proposeSubmitting ? "送信中…" : "候補日を送る（3〜5 件）"}
               </button>
               {/* このボタンを押したあとに何が起こるかを明示。実行前に挙動が見える方が安心。 */}
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-slate-500">
                 → クライアントにメールとアプリ通知が届き、◯× の回答待ちになります。
               </p>
             </div>
@@ -1666,7 +1792,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         ) : null}
 
         {activeNegotiation && activeNegotiation.status === "AWAITING_CLIENT_RESPONSE" && (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR") ? (
-          <form onSubmit={onVote} className="space-y-4 rounded-2xl border border-indigo-200 bg-white px-5 py-4">
+          <form onSubmit={onVote} className="app-surface-indigo space-y-4 rounded-2xl px-5 py-4">
             <h3 className="text-xl font-semibold text-indigo-900">ご希望の時間をすべて回答</h3>
             <p className="text-base text-indigo-800">参加できる候補は「○」。どれにも入れられないときはすべて「×」を選んでください。</p>
             <div className="space-y-3">
@@ -1689,11 +1815,11 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             <div className="space-y-2">
               <button
                 type="submit"
-                className="rounded-lg bg-indigo-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-800 active:translate-y-[1px] active:scale-[0.98]"
+                className="app-btn-primary rounded-lg px-4 py-2.5 text-base"
               >
                 回答を送信する
               </button>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-slate-500">
                 → パートナーに回答内容が通知されます。すべて × の場合は新しい候補が届きます。
               </p>
             </div>
@@ -1730,7 +1856,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             <div className="space-y-2">
               <button
                 type="submit"
-                className="rounded-lg bg-amber-600 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-amber-700 active:translate-y-[1px] active:scale-[0.98]"
+                className="app-btn-amber rounded-lg px-4 py-2.5 text-base"
               >
                 この日に決定する
               </button>
@@ -1742,17 +1868,17 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         ) : null}
 
         <div className="space-y-3">
-          <h3 className="text-lg font-semibold text-zinc-900">すべての調整ログ</h3>
+          <h3 className="text-lg font-semibold text-slate-900">すべての調整ログ</h3>
           <ul className="space-y-4">
             {negotiations.map((neg) => (
-              <li key={neg.id} className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 pb-2">
-                  <p className="text-sm font-semibold text-zinc-900">
+              <li key={neg.id} className="app-surface-raised rounded-2xl p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                  <p className="text-sm font-semibold text-slate-900">
                     {Math.max(1, neg.sessionNumber ?? 1)}回目 / Round #{neg.round} — {statusLabel[neg.status]}
                   </p>
-                  <span className="text-xs uppercase tracking-wide text-zinc-400">ID {neg.id}</span>
+                  <span className="text-xs uppercase tracking-wide text-slate-400">ID {neg.id}</span>
                 </div>
-                <table className="mt-4 w-full text-left text-xs text-zinc-600">
+                <table className="mt-4 w-full text-left text-xs text-slate-600">
                   <thead>
                     <tr className="text-[11px] uppercase tracking-wide">
                       <th className="py-2 pr-2 font-medium">開始</th>
@@ -1763,7 +1889,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                   </thead>
                   <tbody>
                     {neg.slots.map((slot) => (
-                      <tr key={slot.id} className="border-t border-zinc-50">
+                      <tr key={slot.id} className="border-t border-slate-50">
                         <td className="py-2 pr-2">{formatJa(slot.startAt)}</td>
                         <td className="py-2 pr-2">{formatJa(slot.endAt)}</td>
                         <td className="py-2 pr-2">
@@ -1778,7 +1904,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             ))}
           </ul>
           {negotiations.length === 0 ? (
-            <p className="text-sm text-zinc-600">調整ログはありません。</p>
+            <p className="text-sm text-slate-600">調整ログはありません。</p>
           ) : null}
         </div>
       </section>
@@ -1889,7 +2015,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                       {filledBadges.map((b, i) => (
                         <span
                           key={i}
-                          className={`rounded-full border px-2 py-0.5 ${b.endsWith("済") ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-zinc-200 bg-white text-zinc-600"}`}
+                          className={`rounded-full border px-2 py-0.5 ${b.endsWith("済") ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-slate-200 bg-white text-slate-600"}`}
                         >
                           {b}
                         </span>
@@ -1900,12 +2026,12 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                     {row.openable ? (
                       <Link
                         href={`/match/${matchId}/sessions/${row.sessionNumber}`}
-                        className="rounded-md bg-indigo-700 px-3 py-1.5 text-sm font-semibold !text-white no-underline shadow-sm transition hover:bg-indigo-800"
+                        className="app-btn-primary rounded-md px-3 py-1.5 text-sm no-underline"
                       >
                         開く
                       </Link>
                     ) : (
-                      <span className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-500">
+                      <span className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-500">
                         まだ開けません
                       </span>
                     )}
@@ -1918,5 +2044,59 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       ) : null}
 
     </div>
+
+    {chatFullscreen && activeTab === "chat" ? (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="chat-fullscreen-heading"
+        className="fixed inset-0 z-[200] flex flex-col gap-3 overflow-hidden bg-slate-100/96 p-3 backdrop-blur-sm sm:p-5"
+      >
+        <header className="app-surface-raised flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
+          <h2 id="chat-fullscreen-heading" className="text-lg font-semibold text-slate-900">
+            チャット（全画面）
+          </h2>
+          <button
+            type="button"
+            className="app-btn-secondary rounded-lg px-4 py-2 text-sm font-semibold"
+            onClick={() => setChatFullscreen(false)}
+          >
+            閉じる（Esc）
+          </button>
+        </header>
+        <ChatScheduleHints role={me.role} />
+        <ChatMessageThread
+          messages={messages}
+          me={me}
+          chatLastReadAt={chatLastReadAt}
+          negotiations={negotiations}
+          onChatVote={onChatVote}
+          voteSubmittingForSlot={voteSubmittingForSlot}
+          setActiveTab={setActiveTab}
+          scrollClassName="min-h-0 flex-1 basis-0"
+        />
+        <form onSubmit={onSendChat} className="app-surface-raised flex shrink-0 flex-col gap-3 rounded-2xl p-4">
+          <label className="text-base font-medium">
+            メッセージ送信
+            <textarea
+              name="body"
+              rows={3}
+              placeholder="運用ごとのメモ、候補補足など"
+              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base"
+            />
+          </label>
+          <button
+            type="submit"
+            className="app-btn-primary self-start rounded-lg px-4 py-2.5 text-base"
+          >
+            送信
+          </button>
+        </form>
+        <div className="min-h-0 shrink overflow-y-auto">
+          {me.role === "PARTNER" ? <PartnerChatTemplates /> : null}
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }
