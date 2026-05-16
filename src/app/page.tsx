@@ -86,7 +86,7 @@ export default function Home() {
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-indigo-500 to-indigo-700 text-xs font-bold text-white shadow-md shadow-indigo-900/30 ring-1 ring-indigo-600/35">
                     1
                   </span>
-                  <span>管理者がパートナーとクライアントのマッチを登録</span>
+                  <span>ご契約・ご案内に沿ってペアが設定されます</span>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-indigo-500 to-indigo-700 text-xs font-bold text-white shadow-md shadow-indigo-900/30 ring-1 ring-indigo-600/35">

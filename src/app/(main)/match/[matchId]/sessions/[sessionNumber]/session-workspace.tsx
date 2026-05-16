@@ -594,7 +594,7 @@ export function SessionWorkspace({
                 プライバシー上の不安を取り除く文言にする。
               */}
               <p className="text-xs text-zinc-500">
-                → 内容は管理者と担当パートナーに共有されます。提出後も「上書き保存」で内容を更新できます。
+                → ご記入内容は担当パートナーも確認できます。提出後も「上書き保存」で内容を更新できます。
               </p>
             </form>
           ) : !isAbandoned ? (
@@ -714,7 +714,7 @@ export function SessionWorkspace({
                 安心して書いてもらう上で重要なため、UI 側でも繰り返し伝える。
               */}
               <p className="text-xs text-zinc-500">
-                → 提出内容は管理者のみが閲覧します（クライアントには表示されません）。
+                → 提出内容はクライアント（ご本人様）には表示されません。
               </p>
             </form>
           ) : (

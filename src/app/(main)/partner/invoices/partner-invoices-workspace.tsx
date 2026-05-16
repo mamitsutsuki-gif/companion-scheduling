@@ -55,7 +55,7 @@ type LoadResp = {
 
 const STATUS_LABEL: Record<InvoiceStatus, string> = {
   DRAFT: "下書き",
-  SUBMITTED: "提出済（管理者の確認待ち）",
+  SUBMITTED: "提出済（確認待ち）",
   RETURNED: "差し戻し（再編集してください）",
   CONFIRMED: "確定済み（お振込をお待ちください）",
 };
@@ -243,7 +243,7 @@ export function PartnerInvoicesWorkspace() {
       setError(json?.error ?? "提出に失敗しました。");
       return;
     }
-    setNotice("請求書を提出しました。管理者の確認をお待ちください。");
+    setNotice("請求書を提出しました。確認が完了するまでお待ちください。");
     void load();
     void fetch(`/api/partner/billing-profile`, {
       method: "PUT",
@@ -354,7 +354,7 @@ export function PartnerInvoicesWorkspace() {
               {data.invoice?.status === "CONFIRMED"
                 ? "確定済みです。下の「PDFダウンロード」ボタンから保存できます（ブラウザの印刷画面で「PDFとして保存」を選択）。"
                 : data.invoice?.status === "SUBMITTED"
-                  ? "提出済みです。管理者の確認をお待ちください。提出済みの内容もPDFで保存できます。"
+                  ? "提出済みです。確認が完了するまでお待ちください。提出済みの内容もPDFで保存できます。"
                   : "「PDFダウンロード」で印刷画面が開きます。「PDFとして保存」を選択すると PDF として保存できます。"}
             </p>
             <button
@@ -571,12 +571,12 @@ export function PartnerInvoicesWorkspace() {
                   </button>
                 </div>
                 <p className="w-full text-xs text-slate-500">
-                  → 「確定・提出」を押すと管理者に通知され、編集はロックされます。管理者からの差し戻しまたは確定までお待ちください。
+                  → 「確定・提出」後はロックされ、差戻しまたは確定のご連絡があるまで編集できません。
                 </p>
               </>
             ) : isLocked && data?.invoice?.status === "SUBMITTED" ? (
               <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-                提出済みです。管理者の確認をお待ちください。差し戻しまたは確定の連絡があるまで編集できません。
+                提出済みです。確認が完了するまでお待ちください。差戻しまたは確定の連絡があるまで編集できません。
               </p>
             ) : isLocked && data?.invoice?.status === "CONFIRMED" ? (
               <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
@@ -584,7 +584,7 @@ export function PartnerInvoicesWorkspace() {
               </p>
             ) : !isMonthEditable ? (
               <p className="rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-800">
-                編集できる期間（当月・前月）を過ぎているため、過去分は閲覧のみとなります。例外的に編集が必要な場合は管理者にアンロックを依頼してください。
+                編集できる期間（当月・前月）を過ぎているため、過去分は閲覧のみとなります。例外的に編集が必要な場合はサポート窓口へご連絡ください。
               </p>
             ) : null}
           </div>

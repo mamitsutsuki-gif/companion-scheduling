@@ -1,11 +1,9 @@
 import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
-import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import {
   listClientsWithBriefingForCompany,
   upsertBriefingForCompanyClient,
 } from "@/lib/repositories/client-partner-briefing-repository";
-import { isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -14,21 +12,17 @@ type RouteContext = { params: Promise<{ companyId: string }> };
 
 export async function GET(_req: Request, ctx: RouteContext) {
   const session = await readSession();
-  if (!session || (session.role !== "ADMIN" && session.role !== "ADMIN_ASSISTANT")) {
+  /** 機密項目: 運用 ADMIN のみ一覧取得可（ADMIN_ASSISTANT / クライアント系からは見えない） */
+  if (!session || session.role !== "ADMIN") {
     return jsonError("権限がありません。", 403);
   }
   const { companyId } = await ctx.params;
   if (!companyId) return jsonError("企業IDが指定されていません。", 400);
 
-  const settings = await getAppSettingsRow();
-  if (!settings.companies.some((c) => c.id === companyId)) {
-    return jsonError("登録されていない企業IDです。", 400);
-  }
-
+  /** テナント未登録の companyId で所属ユーザーがいる場合も一覧できるようにする */
   const clients = await listClientsWithBriefingForCompany(companyId);
   return jsonOk({
     clients,
-    dataBackendFirebase: isFirebaseDataBackend(),
   });
 }
 
@@ -55,11 +49,6 @@ export async function PATCH(request: Request, ctx: RouteContext) {
   const { companyId } = await ctx.params;
   if (!companyId) return jsonError("企業IDが指定されていません。", 400);
 
-  const settings = await getAppSettingsRow();
-  if (!settings.companies.some((c) => c.id === companyId)) {
-    return jsonError("登録されていない企業IDです。", 400);
-  }
-
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
 
@@ -71,11 +60,10 @@ export async function PATCH(request: Request, ctx: RouteContext) {
       jobTitle: row.jobTitle,
     });
     if (!res.ok) {
-      const msg =
-        res.error === "NOT_SUPPORTED"
-          ? "このデータストア構成では保存できません。"
-          : "一部のユーザーIDが、この企業のクライアントとして確認できません。";
-      return jsonError(msg, 400);
+      return jsonError(
+        "一部のユーザーIDが、この企業のクライアントとして確認できません。",
+        400,
+      );
     }
   }
 

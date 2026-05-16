@@ -19,7 +19,7 @@ export async function POST(request: Request, context: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
   if (session.role !== "PARTNER" && session.role !== "ADMIN") {
-    return jsonError("この操作はパートナー（または管理者）のみ可能です。", 403);
+    return jsonError("この操作には権限がありません。", 403);
   }
 
   const { matchId, sessionNumber } = await context.params;
@@ -65,7 +65,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
   if (session.role !== "PARTNER" && session.role !== "ADMIN") {
-    return jsonError("この操作はパートナー（または管理者）のみ可能です。", 403);
+    return jsonError("この操作には権限がありません。", 403);
   }
 
   const { matchId, sessionNumber } = await context.params;

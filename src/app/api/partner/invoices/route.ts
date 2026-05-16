@@ -124,7 +124,7 @@ export async function PUT(request: Request) {
   );
   if (!isMonthWithinDefaultEditWindow(parsed.data.year, parsed.data.month) && !unlocked) {
     return jsonError(
-      "編集できる期間（当月・前月）を過ぎています。過去分を編集したい場合は管理者にアンロックを依頼してください。",
+      "編集できる期間（当月・前月）を過ぎています。過去分の編集が必要な場合はサポート窓口へご連絡ください。",
       403,
     );
   }

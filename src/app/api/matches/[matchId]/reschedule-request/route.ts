@@ -25,7 +25,7 @@ function roleLabel(
   if (role === "PARTNER") return "パートナー";
   if (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR")
     return "クライアント";
-  return "管理者";
+  return "参加者";
 }
 
 export async function POST(request: Request, context: RouteContext) {

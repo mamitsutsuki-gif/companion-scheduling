@@ -5,12 +5,37 @@ import { useEffect, useState } from "react";
 
 type Row = { id: string; name: string; pairCount: number; overriddenCount: number };
 
+function roleFromMeJson(j: unknown): string | null {
+  if (!j || typeof j !== "object") return null;
+  const o = j as Record<string, unknown>;
+  const u = o.user;
+  if (u && typeof u === "object") {
+    const r = (u as Record<string, unknown>).role;
+    if (typeof r === "string") return r;
+  }
+  if (typeof o.role === "string") return o.role;
+  return null;
+}
+
 export default function AdminCompaniesPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [orphan, setOrphan] = useState<Array<{ id: string; pairCount: number }>>([]);
   const [pairsWithoutCompany, setPairsWithoutCompany] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewerIsAdmin, setViewerIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/me", { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((j) => {
+        if (!cancelled) setViewerIsAdmin(roleFromMeJson(j) === "ADMIN");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,6 +159,15 @@ export default function AdminCompaniesPage() {
                         >
                           1on1日程
                         </Link>
+                        {viewerIsAdmin ? (
+                          <Link
+                            href={`/admin/companies/${encodeURIComponent(c.id)}/settings#client-partner-briefings`}
+                            className="text-sm font-medium text-slate-700 no-underline hover:underline"
+                            title="パートナー共有用クライアント属性（機密）は運用ADMINのみ編集可能"
+                          >
+                            パートナー共有属性 →
+                          </Link>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

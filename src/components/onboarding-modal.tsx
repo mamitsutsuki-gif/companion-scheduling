@@ -48,7 +48,7 @@ export function OnboardingModal({
   const headline = "登録ありがとうございます";
   const subline = hasMatches
     ? "マッチングが成立しました。次のステップに沿ってアプリをご利用ください。"
-    : "管理者によるアサインまで、次の内容をご確認ください。";
+    : "アサインが完了するまで、次の内容をご確認ください。";
 
   const steps: { title: string; desc: string }[] = !hasMatches
     ? isClient

@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminCompanyClientPartnerBriefingsSection } from "@/components/admin-company-client-partner-briefings-section";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 
@@ -253,6 +254,12 @@ export default function AdminCompanyDetailPage({
               </div>
             )}
           </section>
+
+          <AdminCompanyClientPartnerBriefingsSection
+            companyId={companyId}
+            companyName={data.company?.name ?? companyId}
+            variant="readonly"
+          />
 
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
             <div className="flex flex-wrap items-baseline justify-between gap-2">

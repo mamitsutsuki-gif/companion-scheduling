@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   if (!user) return jsonError("メールまたはパスワードが一致しません。", 401);
   if (user.deletedAt) {
     return jsonError(
-      "このアカウントは管理者により削除されているため、ログインできません。",
+      "このアカウントではログインいただけません。お手数ですがサポート窓口へお問い合わせください。",
       403,
     );
   }

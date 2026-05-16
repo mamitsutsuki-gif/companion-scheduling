@@ -48,7 +48,7 @@ export async function POST(request: Request) {
 
   if (isDeletedUser(user)) {
     return jsonError(
-      "このアカウントは管理者により削除されているため、ログインできません。",
+      "このアカウントではログインいただけません。お手数ですがサポート窓口へお問い合わせください。",
       403,
     );
   }

@@ -219,7 +219,9 @@ export default async function DashboardPage({
             <li className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center text-base text-slate-600">
               {isAdmin && companyFilter
                 ? "この絞り込み条件に該当するペアはありません。"
-                : "まだ担当ペアがありません。管理者の方は「マッチ管理」から登録してください。"}
+                : isAdmin
+                  ? "まだ担当ペアがありません。「マッチ管理」から登録してください。"
+                  : "まだ担当ペアがありません。準備が整い次第、こちらに表示されます。"}
             </li>
           ) : (
             matches.map((match) => (

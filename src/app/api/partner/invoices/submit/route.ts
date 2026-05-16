@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   );
   if (!isMonthWithinDefaultEditWindow(parsed.data.year, parsed.data.month) && !unlocked) {
     return jsonError(
-      "提出できる期間（当月・前月）を過ぎています。過去分を提出したい場合は管理者にアンロックを依頼してください。",
+      "提出できる期間（当月・前月）を過ぎています。過去分の提出が必要な場合はサポート窓口へご連絡ください。",
       403,
     );
   }

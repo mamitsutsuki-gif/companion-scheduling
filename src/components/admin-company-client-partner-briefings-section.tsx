@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 type Row = {
@@ -16,6 +17,18 @@ const roleLabel: Record<string, string> = {
   CLIENT_HR: "クライアント人事",
 };
 
+function extractRole(j: unknown): string | null {
+  if (!j || typeof j !== "object") return null;
+  const o = j as Record<string, unknown>;
+  const u = o.user;
+  if (u && typeof u === "object") {
+    const r = (u as Record<string, unknown>).role;
+    if (typeof r === "string") return r;
+  }
+  if (typeof o.role === "string") return o.role;
+  return null;
+}
+
 function parseAgeInput(raw: string): { ok: true; value: number | null } | { ok: false } {
   const t = raw.trim();
   if (!t) return { ok: true, value: null };
@@ -24,23 +37,31 @@ function parseAgeInput(raw: string): { ok: true; value: number | null } | { ok: 
   return { ok: true, value: n };
 }
 
+/**
+ * 運用 ADMIN のみ表示・API にアクセス。ADMIN_ASSISTANT / それ以外には何もレンダリングしない。
+ * - editable: 「企業ごとの設定」内の入力フォーム
+ * - readonly: 企業詳細などでの一覧のみ（入力は設定ページへ誘導）
+ */
 export function AdminCompanyClientPartnerBriefingsSection({
   companyId,
   companyName,
+  variant = "editable",
 }: {
   companyId: string;
   companyName: string;
+  variant?: "editable" | "readonly";
 }) {
+  const [meResolved, setMeResolved] = useState(false);
   const [meRole, setMeRole] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [draft, setDraft] = useState<Record<string, { age: string; jobTitle: string }>>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [dataBackendFirebase, setDataBackendFirebase] = useState(false);
 
-  const canEdit = meRole === "ADMIN";
+  const isAdmin = meRole === "ADMIN";
+  const canEdit = variant === "editable" && isAdmin;
 
   const applyRows = useCallback((list: Row[]) => {
     setRows(list);
@@ -64,7 +85,6 @@ export function AdminCompanyClientPartnerBriefingsSection({
       );
       const json = (await res.json().catch(() => null)) as {
         clients?: Row[];
-        dataBackendFirebase?: boolean;
         error?: string;
       } | null;
       if (!res.ok) {
@@ -73,7 +93,6 @@ export function AdminCompanyClientPartnerBriefingsSection({
         return;
       }
       applyRows(Array.isArray(json?.clients) ? json!.clients! : []);
-      setDataBackendFirebase(json?.dataBackendFirebase === true);
     } catch {
       setError("ネットワークエラーが発生しました。");
       setRows([]);
@@ -83,20 +102,24 @@ export function AdminCompanyClientPartnerBriefingsSection({
   }, [applyRows, companyId]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
     let cancelled = false;
     void fetch("/api/me", { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
       .then((j) => {
-        if (!cancelled) setMeRole(typeof j?.role === "string" ? j.role : null);
+        if (!cancelled) {
+          setMeRole(extractRole(j));
+          setMeResolved(true);
+        }
       });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!meResolved || meRole !== "ADMIN") return;
+    void load();
+  }, [meResolved, meRole, load]);
 
   async function onSave() {
     if (!canEdit) return;
@@ -146,25 +169,37 @@ export function AdminCompanyClientPartnerBriefingsSection({
     }
   }
 
+  if (!meResolved) {
+    return null;
+  }
+
+  if (!isAdmin) {
+    return null;
+  }
+
   return (
-    <section className="rounded-2xl border border-slate-300 bg-slate-50/90 p-5 shadow-sm sm:p-8">
+    <section
+      id="client-partner-briefings"
+      className="rounded-2xl border border-slate-300 bg-slate-50/90 p-5 shadow-sm sm:p-8"
+    >
       <h2 className="text-lg font-semibold text-slate-900">パートナー共有用クライアント属性（機密）</h2>
       <p className="mt-2 text-sm text-slate-700">
         この企業（<strong>{companyName}</strong>
-        ）に所属する<strong>クライアント側ユーザーの一覧</strong>です。各行の
-        <strong>年齢・役職</strong>
-        は、運用管理者が入力します。この情報は<strong>当該クライアントとマッチしたパートナー本人</strong>のマッチルーム「クライアント情報」タブだけに表示され、クライアント画面や他のユーザーには公開されません。
+        ）に所属する<strong>クライアント側ユーザー</strong>（CLIENT / CLIENT_ADMIN /
+        CLIENT_HR）です。年齢・役職は<strong>運用 ADMIN のみ</strong>が登録できます。クライアント本人・他ユーザー・管理者アシスタントには表示されません。マッチ先の<strong>パートナー本人</strong>のみ、ルーム「クライアント情報」で参照されます。
       </p>
-      {canEdit ? null : (
-        <p className="mt-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-600 ring-1 ring-slate-200">
-          閲覧のみです。編集できるのは運用<strong>ADMIN</strong>のみです。
-        </p>
-      )}
-      {dataBackendFirebase ? (
-        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Firebase データバックエンド構成では、この機能の保存・参照はできません。
+      {variant === "readonly" ? (
+        <p className="mt-2 text-sm text-slate-600">
+          <Link
+            href={`/admin/companies/${encodeURIComponent(companyId)}/settings#client-partner-briefings`}
+            className="font-semibold text-indigo-800 underline-offset-4 hover:underline"
+          >
+            企業ごとの設定
+          </Link>
+          で編集してください。
         </p>
       ) : null}
+
       {error ? (
         <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-800">{error}</p>
       ) : null}
@@ -175,7 +210,7 @@ export function AdminCompanyClientPartnerBriefingsSection({
         <p className="mt-4 text-sm text-slate-600">読込中…</p>
       ) : rows.length === 0 ? (
         <p className="mt-4 text-sm text-slate-600">
-          この企業に紐付いたクライアント（CLIENT / CLIENT_ADMIN / CLIENT_HR）のユーザーがいません。
+          この companyId が付いたクライアント（CLIENT / CLIENT_ADMIN / CLIENT_HR）のユーザーがいません。マッチ管理でユーザーに所属企業を設定しているか確認してください。
         </p>
       ) : (
         <>
@@ -197,46 +232,60 @@ export function AdminCompanyClientPartnerBriefingsSection({
                       <td className="px-3 py-2 font-medium text-slate-900">{r.displayName}</td>
                       <td className="px-3 py-2 text-xs text-slate-600">{roleLabel[r.role] ?? r.role}</td>
                       <td className="px-3 py-2 align-top">
-                        <label className="sr-only" htmlFor={`age-${r.userId}`}>
-                          {r.displayName} の年齢
-                        </label>
-                        <input
-                          id={`age-${r.userId}`}
-                          type="number"
-                          min={0}
-                          max={120}
-                          inputMode="numeric"
-                          disabled={!canEdit || saving || dataBackendFirebase}
-                          value={cell.age}
-                          onChange={(e) =>
-                            setDraft((p) => ({
-                              ...p,
-                              [r.userId]: { ...cell, age: e.target.value },
-                            }))
-                          }
-                          placeholder="—"
-                          className="w-24 rounded-md border border-slate-300 px-2 py-1.5 tabular-nums disabled:bg-slate-100"
-                        />
+                        {canEdit ? (
+                          <>
+                            <label className="sr-only" htmlFor={`age-${r.userId}`}>
+                              {r.displayName} の年齢
+                            </label>
+                            <input
+                              id={`age-${r.userId}`}
+                              type="number"
+                              min={0}
+                              max={120}
+                              inputMode="numeric"
+                              disabled={saving}
+                              value={cell.age}
+                              onChange={(e) =>
+                                setDraft((p) => ({
+                                  ...p,
+                                  [r.userId]: { ...cell, age: e.target.value },
+                                }))
+                              }
+                              placeholder="—"
+                              className="w-24 rounded-md border border-slate-300 px-2 py-1.5 tabular-nums disabled:bg-slate-100"
+                            />
+                          </>
+                        ) : (
+                          <span className="tabular-nums text-slate-800">
+                            {cell.age.trim() !== "" ? cell.age : "—"}
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-2 align-top">
-                        <label className="sr-only" htmlFor={`job-${r.userId}`}>
-                          {r.displayName} の役職
-                        </label>
-                        <input
-                          id={`job-${r.userId}`}
-                          type="text"
-                          maxLength={200}
-                          disabled={!canEdit || saving || dataBackendFirebase}
-                          value={cell.jobTitle}
-                          onChange={(e) =>
-                            setDraft((p) => ({
-                              ...p,
-                              [r.userId]: { ...cell, jobTitle: e.target.value },
-                            }))
-                          }
-                          placeholder="例: マネジャー"
-                          className="w-full min-w-[12rem] max-w-md rounded-md border border-slate-300 px-2 py-1.5 disabled:bg-slate-100"
-                        />
+                        {canEdit ? (
+                          <>
+                            <label className="sr-only" htmlFor={`job-${r.userId}`}>
+                              {r.displayName} の役職
+                            </label>
+                            <input
+                              id={`job-${r.userId}`}
+                              type="text"
+                              maxLength={200}
+                              disabled={saving}
+                              value={cell.jobTitle}
+                              onChange={(e) =>
+                                setDraft((p) => ({
+                                  ...p,
+                                  [r.userId]: { ...cell, jobTitle: e.target.value },
+                                }))
+                              }
+                              placeholder="例: マネジャー"
+                              className="w-full min-w-[12rem] max-w-md rounded-md border border-slate-300 px-2 py-1.5 disabled:bg-slate-100"
+                            />
+                          </>
+                        ) : (
+                          <span className="text-slate-800">{cell.jobTitle.trim() !== "" ? cell.jobTitle : "—"}</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -244,27 +293,31 @@ export function AdminCompanyClientPartnerBriefingsSection({
               </tbody>
             </table>
           </div>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => void onSave()}
-              disabled={!canEdit || saving || dataBackendFirebase || rows.length === 0}
-              className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-900 disabled:opacity-50"
-            >
-              {saving ? "保存中…" : "クライアント属性を保存"}
-            </button>
-            <button
-              type="button"
-              onClick={() => void load()}
-              disabled={loading || saving}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-            >
-              再読込
-            </button>
-          </div>
-          <p className="mt-4 text-xs text-slate-500">
-            年齢・役職とも空にして保存すると、その人の記録は削除されます（パートナー画面では「未入力」になります）。
-          </p>
+          {canEdit ? (
+            <>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void onSave()}
+                  disabled={saving || rows.length === 0}
+                  className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-900 disabled:opacity-50"
+                >
+                  {saving ? "保存中…" : "クライアント属性を保存"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void load()}
+                  disabled={loading || saving}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  再読込
+                </button>
+              </div>
+              <p className="mt-4 text-xs text-slate-500">
+                年齢・役職とも空にして保存すると、その人の記録は削除されます（パートナー画面では「未入力」になります）。
+              </p>
+            </>
+          ) : null}
         </>
       )}
     </section>

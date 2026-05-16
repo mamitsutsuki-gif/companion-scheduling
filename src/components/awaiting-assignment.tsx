@@ -36,7 +36,7 @@ export function AwaitingAssignment({ role }: { role: Role }) {
         </div>
         <p className="text-base text-indigo-900/85">{sub}</p>
         <p className="text-sm text-indigo-800/90">
-          お時間が経っても進展しない場合は、運用管理者にお問い合わせください。
+          お時間が経っても進展しない場合は、お手数ですがサポート窓口へお問い合わせください。
         </p>
       </div>
     </section>

@@ -43,7 +43,7 @@ export async function GET() {
         sessions: [],
         companyId: null,
         message:
-          "あなたのアカウントには所属企業 ID が設定されていません。管理者に「クライアント管理者 / クライアント人事として、所属企業」を割り当ててもらってください。",
+          "ご利用アカウントに所属企業が設定されていないため、この一覧は表示できません。サポート窓口またはご担当者までお問い合わせください。",
       });
     }
     const sessions = await listConfirmedSessionsForCompany(companyId);
@@ -58,7 +58,7 @@ export async function GET() {
       sessions: [],
       companyId: null,
       message:
-        "あなたのアカウントには所属企業 ID が設定されていません。管理者向けの 1on1 日程一覧は『1on1日程一覧（管理者）』からご利用ください。",
+        "このアカウントには所属企業が設定されていないため、この画面では一覧を試せません。全体の一覧はメニュー「1on1日程一覧」をご利用ください。",
     });
   }
   const sessions = await listConfirmedSessionsForCompany(companyId);

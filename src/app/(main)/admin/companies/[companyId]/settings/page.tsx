@@ -815,6 +815,7 @@ export default function AdminCompanySettingsPage({
           <AdminCompanyClientPartnerBriefingsSection
             companyId={companyId}
             companyName={data.company?.name ?? companyId}
+            variant="editable"
           />
 
           {/* 自分FTA の社内共有設定 */}

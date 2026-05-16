@@ -132,7 +132,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (!settings.allowWeekends) {
       const weekday = String(partsStart.weekday).slice(0, 3);
       if (weekday === "Sat" || weekday === "Sun") {
-        return "土日は候補日として指定できません。（管理者の設定で許可可能）";
+        return "土曜・日曜は、このサービスの設定では候補として指定できません。";
       }
     }
     return null;

@@ -174,10 +174,10 @@ function renderPartnerOverview(
     // 管理者・管理者アシスタントには注釈付きの案内を出す。
     return options?.showAdminHint ? (
       <p className="text-sm text-slate-600">
-        管理者側で未設定（「企業ごとの設定 → プロジェクト概要 → パートナー向け」で入力してください）
+        入力なし（管理画面から「プロジェクト概要（パートナー向け）」を入力できます）
       </p>
     ) : (
-      <p className="text-sm text-slate-500">管理者側で未設定</p>
+      <p className="text-sm text-slate-500">ただいま表示できる概要がありません。</p>
     );
   }
   return (
@@ -200,10 +200,10 @@ function renderClientOverview(
   if (!o) {
     return options?.showAdminHint ? (
       <p className="text-sm text-slate-600">
-        管理者側で未設定（「企業ごとの設定 → プロジェクト概要 → クライアント向け」で入力してください）
+        入力なし（管理画面から「プロジェクト概要（クライアント向け）」を入力できます）
       </p>
     ) : (
-      <p className="text-sm text-slate-500">管理者側で未設定</p>
+      <p className="text-sm text-slate-500">ただいま表示できる概要がありません。</p>
     );
   }
   return (
@@ -762,7 +762,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     if (scheduleSettings.allowWeekends || !v) return;
     if (isWeekendDateString(v)) {
       e.target.value = "";
-      setError("土日は候補日として選べません。カレンダーから平日を選んでください（管理者が土日を許可するまで選択できません）。");
+      setError(
+        "土曜・日曜はこのサービスでは候補として選べません。平日をご選択ください。",
+      );
     }
   }
 
@@ -1129,7 +1131,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       const merged = raw || (date && time ? `${date}T${time}` : "");
       if (!merged) continue;
       if (date && !scheduleSettings.allowWeekends && isWeekendDateString(date)) {
-        setError(`${i} 件目: 土日は候補日として指定できません（管理者設定で許可可能）。`);
+        setError(`${i} 件目: 土曜・日曜はこのサービスでは候補として指定できません。`);
         return;
       }
       const d = new Date(merged);
@@ -1557,7 +1559,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           <h2 className="text-2xl font-semibold text-slate-900">プロジェクト概要</h2>
           {me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (
             <p className="text-sm text-slate-600">
-              管理者が「企業」→ 各企業の「設定」で入力した内容が表示されます。クライアント・パートナーには、未入力時は「管理者側で未設定」とだけ表示されます。
+              設定されたプロジェクト概要を、閲覧者の区分に応じて表示します（未入力時はメンバー向けには控えめな案内のみ表示されます）。
             </p>
           ) : null}
           {overviewLoading ? (
@@ -1570,7 +1572,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                   <p className="text-sm text-slate-500">
                     {me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT"
                       ? "表示する情報がありません。"
-                      : "管理者側で未設定"}
+                      : "ただいま表示できる概要がありません。"}
                   </p>
                 );
               }
@@ -1621,7 +1623,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <section className="space-y-4">
           <h2 className="text-2xl font-semibold text-slate-900">クライアント情報</h2>
           <p className="text-sm text-slate-600">
-            担当クライアントの属性です。運用管理者が企業ごとの設定で入力した<strong>機密項目</strong>を含みます。このタブ・このマッチにおけるあなた（パートナー）のみが参照できます。
+            担当クライアントの属性です。このタブの内容は、当該マッチにおけるあなた（パートナー）のみがご覧いただけます。
           </p>
           {clientBriefingLoading ? (
             <p className="text-sm text-slate-500">読込中…</p>
@@ -1641,9 +1643,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               )}
             </div>
           ) : (
-            <p className="text-sm text-slate-500">
-              現在この情報は表示できません。管理者が「企業」→「設定」の「パートナー共有用クライアント属性（機密）」で年齢・役職を登録すると、ここに表示されます。
-            </p>
+            <p className="text-sm text-slate-500">現在この情報は表示できません。</p>
           )}
         </section>
       ) : null}
@@ -1684,7 +1684,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               <textarea
                 name="body"
                 rows={3}
-                placeholder="運用ごとのメモ、候補補足など"
+                placeholder="補足・メモなど（任意）"
                 className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base"
               />
             </label>
@@ -1856,9 +1856,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 </select>
               </label>
               <p className="mt-1 text-base text-slate-600">
-                終了時刻は管理者が設定した枠（現在{" "}
-                <strong className="text-indigo-800">{scheduleSettings.slotDurationMinutes} 分</strong>、TZ{" "}
-                {scheduleSettings.timezone}）から自動で付きます。
+                終了時刻は、ご利用いただける1回あたりの枠の長さ（現在{" "}
+                <strong className="text-indigo-800">{scheduleSettings.slotDurationMinutes} 分</strong>
+                、タイムゾーン {scheduleSettings.timezone}）に応じて自動で付きます。
               </p>
               <p className="mt-1 text-sm text-slate-500">開始時刻は{scheduleSettings.slotDurationMinutes}分単位で選んでください。</p>
             </div>
@@ -2235,7 +2235,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             <textarea
               name="body"
               rows={3}
-              placeholder="運用ごとのメモ、候補補足など"
+              placeholder="補足・メモなど（任意）"
               className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base"
             />
           </label>
