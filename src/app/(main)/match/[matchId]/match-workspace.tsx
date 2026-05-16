@@ -8,11 +8,11 @@ import {
 import { PartnerChatTemplates } from "@/components/partner-chat-templates";
 import { FtaViewer } from "@/components/fta-chart";
 import type { FtaChart } from "@/lib/fta";
+import { ScheduleRulesDetail } from "@/components/schedule-rules-detail";
 import {
-  SCHEDULE_RULES_CLIENT,
-  SCHEDULE_RULES_PARTNER,
   SCHEDULE_SUMMARY_CLIENT,
   SCHEDULE_SUMMARY_PARTNER,
+  type SchedulingGuideAudience,
 } from "@/lib/scheduling-rules-copy";
 import Link from "next/link";
 import {
@@ -250,33 +250,44 @@ function withHonorificSan(name: string) {
   return `${name}さん`;
 }
 
+function schedulingGuideAudience(role: Role): SchedulingGuideAudience | null {
+  if (role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT") return "partner";
+  if (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR") return "client";
+  return null;
+}
+
 /** チャットタブ上部の日程ガイド（ロールごと）。 */
 function ChatScheduleHints({ role }: { role: Role }) {
+  const audience = schedulingGuideAudience(role);
   return (
     <>
-      {role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
+      {audience === "partner" ? (
         <div className="app-surface-indigo rounded-2xl px-4 py-3">
           <p className="text-sm font-medium text-indigo-950">{SCHEDULE_SUMMARY_PARTNER}</p>
           <details className="mt-2">
             <summary className="cursor-pointer text-xs font-semibold text-indigo-700 hover:underline">
               日程調整の詳しいご案内を開く
             </summary>
-            <pre className="mt-3 max-h-[min(60vh,24rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
-              {SCHEDULE_RULES_PARTNER}
-            </pre>
+            <ScheduleRulesDetail
+              audience="partner"
+              className="mt-3 pr-1"
+              scrollClassName="max-h-[min(60vh,24rem)] overflow-y-auto overflow-x-hidden"
+            />
           </details>
         </div>
       ) : null}
-      {role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR" ? (
+      {audience === "client" ? (
         <div className="app-surface-indigo rounded-2xl px-4 py-3">
           <p className="text-sm font-medium text-indigo-950">{SCHEDULE_SUMMARY_CLIENT}</p>
           <details className="mt-2">
             <summary className="cursor-pointer text-xs font-semibold text-indigo-700 hover:underline">
               日程調整の詳しいご案内を開く
             </summary>
-            <pre className="mt-3 max-h-[min(60vh,24rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
-              {SCHEDULE_RULES_CLIENT}
-            </pre>
+            <ScheduleRulesDetail
+              audience="client"
+              className="mt-3 pr-1"
+              scrollClassName="max-h-[min(60vh,24rem)] overflow-y-auto overflow-x-hidden"
+            />
           </details>
         </div>
       ) : null}
@@ -1194,7 +1205,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
   return (
     <>
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 px-1 py-4 sm:gap-12 sm:px-6 sm:py-10">
+    <div className="mx-auto flex w-full max-w-none flex-1 flex-col gap-8 px-1 py-4 sm:gap-12 sm:px-6 sm:py-10">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4 sm:gap-4 sm:pb-6">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Match Detail</p>
@@ -1578,9 +1589,11 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               <summary className="cursor-pointer text-base font-semibold text-indigo-950">
                 パートナー向け：日程調整機能の使い方（最初にお読みください）
               </summary>
-              <pre className="mt-3 max-h-[min(70vh,28rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
-                {SCHEDULE_RULES_PARTNER}
-              </pre>
+              <ScheduleRulesDetail
+                audience="partner"
+                className="mt-3 pr-1"
+                scrollClassName="max-h-[min(70vh,28rem)] overflow-y-auto overflow-x-hidden"
+              />
             </details>
           ) : null}
           {(me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
@@ -1588,9 +1601,11 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               <summary className="cursor-pointer text-base font-semibold text-indigo-950">
                 クライアント向け：日程調整機能の使い方（最初にお読みください）
               </summary>
-              <pre className="mt-3 max-h-[min(70vh,28rem)] overflow-y-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-indigo-950">
-                {SCHEDULE_RULES_CLIENT}
-              </pre>
+              <ScheduleRulesDetail
+                audience="client"
+                className="mt-3 pr-1"
+                scrollClassName="max-h-[min(70vh,28rem)] overflow-y-auto overflow-x-hidden"
+              />
             </details>
           ) : null}
         </div>

@@ -175,7 +175,7 @@ export function ApplicationChrome({
      */
     <div className="min-h-screen">
       <header className="app-shell-header sticky top-0 z-50 backdrop-blur-md supports-[backdrop-filter]:bg-white/78">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 sm:h-14 sm:flex-nowrap sm:gap-8 sm:px-6 sm:py-0 lg:gap-12">
+        <div className="mx-auto flex max-w-[min(90rem,calc(100vw-1.5rem))] flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 sm:h-14 sm:flex-nowrap sm:gap-8 sm:px-6 sm:py-0 lg:gap-12">
           <Link
             href="/dashboard"
             className="order-1 flex shrink-0 items-center gap-2 no-underline sm:order-none"
@@ -232,7 +232,9 @@ export function ApplicationChrome({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-6 sm:py-10">{children}</main>
+      <main className="mx-auto w-full max-w-[min(90rem,calc(100vw-1.5rem))] px-3 py-6 sm:px-6 sm:py-10">
+        {children}
+      </main>
     </div>
   );
 }
