@@ -44,3 +44,6 @@ jobs:
 
       - name: Verify multi-tenant effective settings
         run: npx tsx scripts/verify-multi-tenant.ts
+
+      - name: Verify schedule datetime formatting (UTC host → Asia/Tokyo)
+        run: TZ=UTC npx tsx scripts/verify-format-datetime.ts
