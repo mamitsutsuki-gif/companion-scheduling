@@ -16,6 +16,8 @@ import { getPartnerZoomProfile } from "@/lib/repositories/zoom-repository";
 import { enqueueSessionFeedbackEmailJob } from "@/lib/repositories/session-feedback-job-repository";
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
 import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
+import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
+import { formatJaDateTime } from "@/lib/format-datetime";
 
 const schema = z.object({
   slotId: z.string().min(1),
@@ -76,20 +78,13 @@ export async function POST(request: Request, context: RouteContext) {
     location: zoom?.zoomUrl,
   });
 
-  const jpFmt = (d: Date) =>
-    new Intl.DateTimeFormat("ja-JP", {
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(d);
+  const settings = await getEffectiveAppSettingsForMatch(matchId);
+  const displayTz = settings.timezone || "Asia/Tokyo";
 
   const textBody =
     `次の日程が確定しました。\n` +
-    `開始: ${jpFmt(new Date(chosen.startAt))}\n` +
-    `終了: ${jpFmt(new Date(chosen.endAt))}\n` +
+    `開始: ${formatJaDateTime(chosen.startAt, displayTz)}\n` +
+    `終了: ${formatJaDateTime(chosen.endAt, displayTz)}\n` +
     (zoomLine ? `${zoomLine}\n` : "") +
     `\n連絡先はプラットフォーム内チャットのみをご利用ください。\nカレンダー用 .ics を添付しています。`;
 
@@ -124,7 +119,7 @@ export async function POST(request: Request, context: RouteContext) {
   await createMessage({
     matchId,
     senderId: session.sub,
-    body: `日程確定: ${jpFmt(new Date(chosen.startAt))} 〜 ${jpFmt(new Date(chosen.endAt))}${zoom ? ` / ${zoom.zoomUrl}` : ""}`,
+    body: `日程確定: ${formatJaDateTime(chosen.startAt, displayTz)} 〜 ${formatJaDateTime(chosen.endAt, displayTz)}${zoom ? ` / ${zoom.zoomUrl}` : ""}`,
     kind: "SCHEDULE_CONFIRMED",
     payload: {
       negotiationId,
@@ -154,7 +149,7 @@ export async function POST(request: Request, context: RouteContext) {
     sessionNumber: negotiation.sessionNumber ?? null,
     actorUserId: session.sub,
     actorRole: session.role,
-    summary: `${matchFull.partner.displayName}さんが ${negotiation.sessionNumber ?? "?"} 回目の日程を確定しました（${jpFmt(new Date(chosen.startAt))}〜）。`,
+    summary: `${matchFull.partner.displayName}さんが ${negotiation.sessionNumber ?? "?"} 回目の日程を確定しました（${formatJaDateTime(chosen.startAt, displayTz)}〜）。`,
     // 日程確定は match ページの日程調整タブに直接飛ばす。
     link: `/match/${matchId}#schedule`,
   });
@@ -167,7 +162,7 @@ export async function POST(request: Request, context: RouteContext) {
     sessionNumber: negotiation.sessionNumber ?? null,
     actorUserId: session.sub,
     actorRole: session.role,
-    summary: `${matchFull.partner.displayName}さんが ${negotiation.sessionNumber ?? "?"} 回目の日程を確定しました（${jpFmt(new Date(chosen.startAt))}〜）。`,
+    summary: `${matchFull.partner.displayName}さんが ${negotiation.sessionNumber ?? "?"} 回目の日程を確定しました（${formatJaDateTime(chosen.startAt, displayTz)}〜）。`,
     link: `/match/${matchId}#schedule`,
   });
 

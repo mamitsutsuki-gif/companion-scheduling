@@ -242,9 +242,10 @@ const roleBadge: Record<Role, string> = {
   CLIENT_HR: "クライアント人事",
 };
 
-function formatJa(iso: string) {
+function formatJa(iso: string, timeZone = "Asia/Tokyo") {
   const d = new Date(iso);
   return new Intl.DateTimeFormat("ja-JP", {
+    timeZone,
     weekday: "short",
     year: "numeric",
     month: "numeric",
@@ -1825,7 +1826,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                       ) : null}
                       <span>
                         {row.index}回目の日程：
-                        {row.slot ? `${formatJa(row.slot.startAt)} 〜 ${formatJa(row.slot.endAt)}` : "未確定"}
+                        {row.slot
+                          ? `${formatJa(row.slot.startAt, scheduleSettings.timezone)} 〜 ${formatJa(row.slot.endAt, scheduleSettings.timezone)}`
+                          : "未確定"}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -2011,7 +2014,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               {activeNegotiation.slots.map((slot) => (
                 <div key={slot.id} className="rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-2">
                   <p className="text-sm font-medium text-indigo-900">
-                    {formatJa(slot.startAt)}〜{formatJa(slot.endAt)}
+                    {formatJa(slot.startAt, scheduleSettings.timezone)}〜
+                    {formatJa(slot.endAt, scheduleSettings.timezone)}
                   </p>
                   <div className="mt-2 flex gap-4 text-sm">
                     <label className="flex items-center gap-1">
@@ -2061,7 +2065,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 .filter((s) => s.clientVote === "YES")
                 .map((slot) => (
                   <option key={slot.id} value={slot.id}>
-                    {formatJa(slot.startAt)} 〜 {formatJa(slot.endAt)}
+                    {formatJa(slot.startAt, scheduleSettings.timezone)} 〜{" "}
+                    {formatJa(slot.endAt, scheduleSettings.timezone)}
                   </option>
                 ))}
             </select>
@@ -2102,8 +2107,12 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                   <tbody>
                     {neg.slots.map((slot) => (
                       <tr key={slot.id} className="border-t border-slate-50">
-                        <td className="py-2 pr-2">{formatJa(slot.startAt)}</td>
-                        <td className="py-2 pr-2">{formatJa(slot.endAt)}</td>
+                        <td className="py-2 pr-2">
+                          {formatJa(slot.startAt, scheduleSettings.timezone)}
+                        </td>
+                        <td className="py-2 pr-2">
+                          {formatJa(slot.endAt, scheduleSettings.timezone)}
+                        </td>
                         <td className="py-2 pr-2">
                           {!slot.clientVote ? "—" : slot.clientVote === "YES" ? "○ YES" : "× NO"}
                         </td>
@@ -2168,7 +2177,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 } as SessionPlanApiRow))
             ).map((row) => {
               const dateLabel = row.startAt && row.endAt
-                ? `${formatJa(row.startAt)} 〜 ${formatJa(row.endAt)}`
+                ? `${formatJa(row.startAt, scheduleSettings.timezone)} 〜 ${formatJa(row.endAt, scheduleSettings.timezone)}`
                 : "未確定";
               const isAbandoned = !!row.abandonment;
               const isRescheduling = isReschedulingSession(row.sessionNumber);

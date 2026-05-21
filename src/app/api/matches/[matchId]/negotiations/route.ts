@@ -16,6 +16,7 @@ import { appendAdminNotification } from "@/lib/repositories/admin-notification-r
 import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
+import { formatJaDateTimeRange } from "@/lib/format-datetime";
 
 const startsPayload = z.object({
   starts: z.array(z.string()).min(3).max(5),
@@ -34,18 +35,6 @@ const legacySlotsPayload = z.object({
     .min(3)
     .max(5),
 });
-
-function formatJpRange(start: Date, end: Date) {
-  const fmt = (d: Date) =>
-    new Intl.DateTimeFormat("ja-JP", {
-      month: "numeric",
-      day: "numeric",
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(d);
-  return `${fmt(start)}〜${fmt(end)}`;
-}
 
 type RouteContext = { params: Promise<{ matchId: string }> };
 
@@ -192,10 +181,11 @@ export async function POST(request: Request, context: RouteContext) {
     payload,
   });
 
+  const displayTz = settings.timezone || "Asia/Tokyo";
   const lines = negotiation.slots
     .map(
       (slot: { startAt: string; endAt: string }, i: number) =>
-        `${i + 1}. ${formatJpRange(new Date(slot.startAt), new Date(slot.endAt))}`,
+        `${i + 1}. ${formatJaDateTimeRange(slot.startAt, slot.endAt, displayTz)}`,
     )
     .join("\n");
 

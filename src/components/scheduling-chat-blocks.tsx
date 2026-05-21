@@ -36,9 +36,11 @@ export type ChatVoteHandler = (
   vote: "YES" | "NO",
 ) => void | Promise<void>;
 
-function fmt(iso: string) {
+function fmt(iso: string, timeZone?: string) {
   try {
+    const tz = (timeZone ?? "").trim() || "Asia/Tokyo";
     return new Intl.DateTimeFormat("ja-JP", {
+      timeZone: tz,
       month: "numeric",
       day: "numeric",
       weekday: "short",
@@ -94,7 +96,7 @@ export function SlotProposalCard({ payload, voteContext, onJumpToScheduleVote }:
               </span>
               <div className="min-w-[10rem] flex-1">
                 <p className="font-semibold tracking-tight text-slate-900">
-                  {fmt(s.start)} 〜 {fmt(s.end)}
+                  {fmt(s.start, p.data.timezone)} 〜 {fmt(s.end, p.data.timezone)}
                 </p>
               </div>
               {showVoteUI && voteContext ? (

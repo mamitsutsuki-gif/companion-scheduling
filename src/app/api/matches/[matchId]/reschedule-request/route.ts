@@ -13,6 +13,8 @@ import { appendAdminNotification } from "@/lib/repositories/admin-notification-r
 import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
+import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
+import { formatJaDateTime } from "@/lib/format-datetime";
 
 type RouteContext = { params: Promise<{ matchId: string }> };
 const payloadSchema = z.object({
@@ -82,14 +84,8 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("日程変更は開始24時間前まで可能です。", 400);
   }
 
-  const pretty = new Intl.DateTimeFormat("ja-JP", {
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(nextConfirmed.start);
+  const settings = await getEffectiveAppSettingsForMatch(matchId);
+  const pretty = formatJaDateTime(nextConfirmed.start, settings.timezone || "Asia/Tokyo");
 
   const messageBody =
     `第${nextConfirmed.sessionNumber}回の予定を再調整させてください。\n` +
