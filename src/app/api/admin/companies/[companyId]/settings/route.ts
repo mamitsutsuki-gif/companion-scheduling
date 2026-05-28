@@ -14,13 +14,6 @@ export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ companyId: string }> };
 
-const availabilityOptionSchema = z.object({
-  id: z.string().min(1).max(80),
-  label: z.string().min(1).max(120),
-  startMin: z.number().int().min(0).max(60 * 24),
-  endMin: z.number().int().min(0).max(60 * 24),
-});
-
 const extraQuestionsSchema = z.record(z.string(), z.array(z.string().max(500)).max(8));
 
 const guidelineEntrySchema = z.object({
@@ -54,7 +47,6 @@ const OVERRIDABLE_KEYS = [
   "slotDurationMinutes",
   "totalSessions",
   "timezone",
-  "availabilitySlotOptions",
   "partnerExtraQuestionsByRound",
   "clientExtraQuestionsByRound",
   "sessionGuidelinesByRound",
@@ -67,7 +59,6 @@ const patchSchema = z.object({
   slotDurationMinutes: z.number().int().min(5).max(240).optional(),
   totalSessions: z.number().int().min(1).max(60).optional(),
   timezone: z.string().min(1).max(64).optional(),
-  availabilitySlotOptions: z.array(availabilityOptionSchema).max(32).optional(),
   partnerExtraQuestionsByRound: extraQuestionsSchema.optional(),
   clientExtraQuestionsByRound: extraQuestionsSchema.optional(),
   sessionGuidelinesByRound: sessionGuidelinesSchema.optional(),

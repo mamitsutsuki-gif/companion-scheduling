@@ -4,13 +4,6 @@ import { AdminCompanyClientPartnerBriefingsSection } from "@/components/admin-co
 import Link from "next/link";
 import { use, useEffect, useMemo, useState } from "react";
 
-type AvailabilityOption = {
-  id: string;
-  label: string;
-  startMin: number;
-  endMin: number;
-};
-
 type PartnerProjectOverviewForm = {
   companyName: string;
   sessionPeriod: string;
@@ -34,7 +27,12 @@ type SettingsSnapshot = {
   slotDurationMinutes: number;
   totalSessions: number;
   timezone: string;
-  availabilitySlotOptions: AvailabilityOption[];
+  availabilitySlotOptions: Array<{
+    id: string;
+    label: string;
+    startMin: number;
+    endMin: number;
+  }>;
   partnerExtraQuestionsByRound: Record<string, string[]>;
   clientExtraQuestionsByRound: Record<string, string[]>;
   sessionGuidelinesByRound: Record<string, { client: string; partner: string }>;
@@ -56,7 +54,6 @@ type OverridableKey = keyof Pick<
   | "slotDurationMinutes"
   | "totalSessions"
   | "timezone"
-  | "availabilitySlotOptions"
   | "partnerExtraQuestionsByRound"
   | "clientExtraQuestionsByRound"
   | "sessionGuidelinesByRound"
@@ -80,7 +77,6 @@ const OVERRIDABLE_KEYS: readonly OverridableKey[] = [
   "slotEarliestHour",
   "slotLatestHour",
   "allowWeekends",
-  "availabilitySlotOptions",
   "partnerExtraQuestionsByRound",
   "clientExtraQuestionsByRound",
   "sessionGuidelinesByRound",
@@ -106,7 +102,6 @@ export default function AdminCompanySettingsPage({
     slotEarliestHour: false,
     slotLatestHour: false,
     allowWeekends: false,
-    availabilitySlotOptions: false,
     partnerExtraQuestionsByRound: false,
     clientExtraQuestionsByRound: false,
     sessionGuidelinesByRound: false,
@@ -119,7 +114,6 @@ export default function AdminCompanySettingsPage({
   const [vSlotEarliestHour, setSlotEarliestHour] = useState(8);
   const [vSlotLatestHour, setSlotLatestHour] = useState(20);
   const [vAllowWeekends, setAllowWeekends] = useState(false);
-  const [vAvailability, setAvailability] = useState<AvailabilityOption[]>([]);
   const [vPartnerQs, setPartnerQs] = useState<Record<string, string[]>>({});
   const [vClientQs, setClientQs] = useState<Record<string, string[]>>({});
   const [vGuidelines, setGuidelines] = useState<Record<string, { client: string; partner: string }>>({});
@@ -185,7 +179,6 @@ export default function AdminCompanySettingsPage({
           slotEarliestHour: ov.slotEarliestHour !== undefined,
           slotLatestHour: ov.slotLatestHour !== undefined,
           allowWeekends: ov.allowWeekends !== undefined,
-          availabilitySlotOptions: ov.availabilitySlotOptions !== undefined,
           partnerExtraQuestionsByRound: ov.partnerExtraQuestionsByRound !== undefined,
           clientExtraQuestionsByRound: ov.clientExtraQuestionsByRound !== undefined,
           sessionGuidelinesByRound: ov.sessionGuidelinesByRound !== undefined,
@@ -198,7 +191,6 @@ export default function AdminCompanySettingsPage({
         setSlotEarliestHour(eff.slotEarliestHour);
         setSlotLatestHour(eff.slotLatestHour);
         setAllowWeekends(eff.allowWeekends);
-        setAvailability(eff.availabilitySlotOptions);
         setPartnerQs(eff.partnerExtraQuestionsByRound);
         setClientQs(eff.clientExtraQuestionsByRound ?? {});
         setGuidelines(eff.sessionGuidelinesByRound);
@@ -270,9 +262,6 @@ export default function AdminCompanySettingsPage({
           break;
         case "allowWeekends":
           setAllowWeekends(g.allowWeekends);
-          break;
-        case "availabilitySlotOptions":
-          setAvailability(g.availabilitySlotOptions);
           break;
         case "partnerExtraQuestionsByRound":
           setPartnerQs(g.partnerExtraQuestionsByRound);
@@ -350,19 +339,6 @@ export default function AdminCompanySettingsPage({
     });
   }
 
-  function addAvailability() {
-    setAvailability((arr) => [
-      ...arr,
-      { id: `slot-${arr.length + 1}`, label: "9:00〜12:00", startMin: 9 * 60, endMin: 12 * 60 },
-    ]);
-  }
-  function updateAvailability(i: number, patch: Partial<AvailabilityOption>) {
-    setAvailability((arr) => arr.map((o, idx) => (idx === i ? { ...o, ...patch } : o)));
-  }
-  function removeAvailability(i: number) {
-    setAvailability((arr) => arr.filter((_, idx) => idx !== i));
-  }
-
   async function onSave() {
     if (!data) return;
     setSaving(true);
@@ -404,16 +380,6 @@ export default function AdminCompanySettingsPage({
           break;
         case "allowWeekends":
           body.allowWeekends = vAllowWeekends;
-          break;
-        case "availabilitySlotOptions":
-          body.availabilitySlotOptions = vAvailability
-            .map((o) => ({
-              id: (o.id ?? "").trim(),
-              label: (o.label ?? "").trim(),
-              startMin: Number(o.startMin) || 0,
-              endMin: Number(o.endMin) || 0,
-            }))
-            .filter((o) => o.id && o.label && o.endMin > o.startMin);
           break;
         case "partnerExtraQuestionsByRound": {
           const cleaned: Record<string, string[]> = {};
@@ -509,7 +475,6 @@ export default function AdminCompanySettingsPage({
             slotEarliestHour: false,
             slotLatestHour: false,
             allowWeekends: false,
-            availabilitySlotOptions: false,
             partnerExtraQuestionsByRound: false,
             clientExtraQuestionsByRound: false,
             sessionGuidelinesByRound: false,
@@ -520,7 +485,6 @@ export default function AdminCompanySettingsPage({
           setSlotEarliestHour(next.global.slotEarliestHour);
           setSlotLatestHour(next.global.slotLatestHour);
           setAllowWeekends(next.global.allowWeekends);
-          setAvailability(next.global.availabilitySlotOptions);
           setPartnerQs(next.global.partnerExtraQuestionsByRound);
           setClientQs(next.global.clientExtraQuestionsByRound ?? {});
           setGuidelines(next.global.sessionGuidelinesByRound);
@@ -682,6 +646,10 @@ export default function AdminCompanySettingsPage({
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600 sm:text-base">
           各項目で「<span className="font-semibold">全体設定を使う</span>
           」を外すと、この企業だけ別の値で動作します。チェックを入れたままなら全体設定をそのまま使います。
+        </p>
+        <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          補足: 「対応可能時間の選択肢」は、企業ごと上書きを一時停止中です（リリースまで無効化）。
+          現在は常に全体設定の選択肢が使われます。「候補日時の制約」は通常どおり企業ごと設定が有効です。
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
@@ -963,83 +931,6 @@ export default function AdminCompanySettingsPage({
               />
               土日も候補日として選択可能にする
             </label>
-          </SectionCard>
-
-          {/* 対応可能時間 */}
-          <SectionCard
-            title="対応可能時間の選択肢"
-            keys={["availabilitySlotOptions"]}
-            overrideFlags={overrideFlags}
-            toggleOverride={toggleOverride}
-            global={data.global}
-          >
-            <fieldset disabled={!overrideFlags.availabilitySlotOptions} className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-sm text-slate-700">{vAvailability.length} 件</span>
-                <button
-                  type="button"
-                  onClick={addAvailability}
-                  disabled={!overrideFlags.availabilitySlotOptions || vAvailability.length >= 32}
-                  className="rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-900 hover:bg-emerald-50 disabled:opacity-50"
-                >
-                  選択肢を追加
-                </button>
-              </div>
-              <ul className="space-y-2">
-                {vAvailability.map((opt, i) => (
-                  <li
-                    key={i}
-                    className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2"
-                  >
-                    <input
-                      value={opt.label}
-                      onChange={(e) => updateAvailability(i, { label: e.target.value })}
-                      placeholder="ラベル"
-                      className="min-w-[12rem] flex-1 rounded-md border border-slate-300 px-3 py-2 text-base text-slate-900 disabled:bg-slate-100"
-                    />
-                    <input
-                      value={opt.id}
-                      onChange={(e) =>
-                        updateAvailability(i, {
-                          id: e.target.value
-                            .normalize("NFKC")
-                            .replace(/[^a-zA-Z0-9_-]/g, "")
-                            .slice(0, 60),
-                        })
-                      }
-                      placeholder="ID"
-                      className="w-44 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-700 disabled:bg-slate-100"
-                    />
-                    <input
-                      type="number"
-                      min={0}
-                      max={24 * 60}
-                      value={opt.startMin}
-                      onChange={(e) => updateAvailability(i, { startMin: Number(e.target.value) })}
-                      className="w-24 rounded-md border border-slate-200 px-2 py-2 text-sm"
-                      title="開始（分）"
-                    />
-                    <input
-                      type="number"
-                      min={0}
-                      max={24 * 60}
-                      value={opt.endMin}
-                      onChange={(e) => updateAvailability(i, { endMin: Number(e.target.value) })}
-                      className="w-24 rounded-md border border-slate-200 px-2 py-2 text-sm"
-                      title="終了（分）"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeAvailability(i)}
-                      disabled={!overrideFlags.availabilitySlotOptions}
-                      className="rounded-md border border-red-300 bg-red-50 px-2 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-100"
-                    >
-                      削除
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </fieldset>
           </SectionCard>
 
           {/* パートナー追加質問 */}

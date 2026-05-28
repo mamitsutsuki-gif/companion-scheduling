@@ -63,7 +63,7 @@ const FIELD_LABEL: Record<keyof SettingsSnapshot, string> = {
   slotDurationMinutes: "枠（1回の長さ・分）",
   totalSessions: "回数（総セッション数）",
   timezone: "タイムゾーン",
-  availabilitySlotOptions: "対応可能時間の選択肢",
+  availabilitySlotOptions: "対応可能時間の選択肢（全体設定のみ）",
   partnerExtraQuestionsByRound: "パートナー追加質問",
   sessionGuidelinesByRound: "セッションガイドライン",
   slotEarliestHour: "候補の最早時刻",
@@ -276,6 +276,10 @@ export default function AdminCompanyDetailPage({
               <span className="font-semibold text-slate-700">全体設定</span>
               」をそのまま使います。
             </p>
+            <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              注記: 「対応可能時間の選択肢」は企業ごと上書きを一時停止中（リリースまで無効化）です。
+              この項目は常に全体設定が適用されます。
+            </p>
 
             <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
               <table className="min-w-full text-left text-sm text-slate-800">
@@ -322,12 +326,6 @@ export default function AdminCompanyDetailPage({
                     overridden={data.effective.overriddenFields.includes("allowWeekends")}
                     value={data.effective.allowWeekends ? "許可" : "不可"}
                     globalValue={data.global.allowWeekends ? "許可" : "不可"}
-                  />
-                  <SimpleRow
-                    label={FIELD_LABEL.availabilitySlotOptions}
-                    overridden={data.effective.overriddenFields.includes("availabilitySlotOptions")}
-                    value={`${data.effective.availabilitySlotOptions.length} 件の選択肢`}
-                    globalValue={`${data.global.availabilitySlotOptions.length} 件の選択肢`}
                   />
                   <SimpleRow
                     label={FIELD_LABEL.partnerExtraQuestionsByRound}

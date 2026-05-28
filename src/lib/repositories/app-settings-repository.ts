@@ -863,7 +863,6 @@ export async function getEffectiveAppSettings(opts: {
     "slotDurationMinutes",
     "totalSessions",
     "timezone",
-    "availabilitySlotOptions",
     "partnerExtraQuestionsByRound",
     "clientExtraQuestionsByRound",
     "sessionGuidelinesByRound",
