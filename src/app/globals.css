@@ -441,4 +441,11 @@ label {
     padding: 0 !important;
     margin: 0 !important;
   }
+
+  .summary-report-print .no-print {
+    display: none !important;
+  }
+  .summary-report-print .print-only {
+    display: block !important;
+  }
 }

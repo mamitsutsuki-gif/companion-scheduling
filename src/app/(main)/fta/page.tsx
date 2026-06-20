@@ -14,6 +14,7 @@ export default function FtaPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [others, setOthers] = useState<ViewerRow[]>([]);
   const [scopeMessage, setScopeMessage] = useState<string | null>(null);
+  const [focusSkillOptions, setFocusSkillOptions] = useState<Array<{ id: string; name: string }>>([]);
 
   const loadMine = useCallback(async () => {
     const res = await fetch("/api/fta/me", { cache: "no-store" });
@@ -36,6 +37,11 @@ export default function FtaPage() {
   useEffect(() => {
     void loadMine();
     void loadOthers();
+    void fetch("/api/skill-check/me", { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((j) => {
+        if (Array.isArray(j?.focusSkillOptions)) setFocusSkillOptions(j.focusSkillOptions);
+      });
   }, [loadMine, loadOthers]);
 
   useEffect(() => {
@@ -107,7 +113,7 @@ export default function FtaPage() {
       <FtaExampleToggle />
 
       <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-6">
-        <FtaEditor chart={chart} onChange={onEdit} />
+        <FtaEditor chart={chart} onChange={onEdit} focusSkillOptions={focusSkillOptions} />
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"

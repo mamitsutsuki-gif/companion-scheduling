@@ -84,6 +84,10 @@ model User {
   availabilityTemplates AvailabilityTemplate[]
   fta                   UserFta?
   skillCheckProfile     UserSkillCheckProfile?
+  companionPdca         UserCompanionPdca?
+  companionReflection   UserCompanionReflection?
+  companionLifeline     UserCompanionLifeline?
+  companionSummary      UserCompanionSummaryReport?
 
   /// 管理者が入力し、マッチ済みパートナーだけが参照できる属性（クライアント本人・他ユーザーへは公開しない）。
   clientPartnerBriefing ClientPartnerBriefing?
@@ -115,6 +119,46 @@ model UserFta {
 }
 
 model UserSkillCheckProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String
+  data      Json
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model UserCompanionPdca {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String
+  data      Json
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model UserCompanionReflection {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String
+  data      Json
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model UserCompanionLifeline {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String
+  data      Json
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model UserCompanionSummaryReport {
   id        String   @id @default(cuid())
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

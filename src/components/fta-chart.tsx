@@ -15,9 +15,11 @@ function lockButtonClass(locked: boolean) {
 export function FtaEditor({
   chart,
   onChange,
+  focusSkillOptions = [],
 }: {
   chart: FtaChart;
   onChange: (next: FtaChart) => void;
+  focusSkillOptions?: Array<{ id: string; name: string }>;
 }) {
   const safe = chart ?? defaultFtaChart();
   const canAddElement = safe.elements.length < 8;
@@ -80,6 +82,15 @@ export function FtaEditor({
           {safe.vision.locked ? "この枠は他ユーザーに非公開です。" : "この枠は閲覧可能です。"}
         </p>
       </section>
+
+      {focusSkillOptions.length > 0 ? (
+        <section className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
+          <h3 className="text-sm font-semibold text-indigo-950">重点育成スキル（スキルチェック連携）</h3>
+          <p className="mt-1 text-xs text-indigo-900">
+            各アクション(C)に重点スキルを紐づけられます: {focusSkillOptions.map((s) => s.name).join("、")}
+          </p>
+        </section>
+      ) : null}
 
       <div className="flex items-center justify-between">
         <p className="text-base font-semibold text-zinc-900">要素(B)は最大8枠まで追加できます</p>
@@ -190,8 +201,9 @@ export function FtaEditor({
                     elements[bi] = { ...b, actions: reorder(b.actions, from, ci) };
                     onChange({ ...safe, elements });
                   }}
-                  className="flex items-start gap-2"
+                  className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-start"
                 >
+                  <div className="min-w-0 flex-1 space-y-1">
                   <textarea
                     value={c.text}
                     onChange={(e) => {
@@ -205,6 +217,25 @@ export function FtaEditor({
                     className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm leading-relaxed"
                     placeholder={`アクション ${ci + 1}`}
                   />
+                  {focusSkillOptions.length > 0 ? (
+                    <select
+                      value={c.focusSkillId ?? ""}
+                      onChange={(e) => {
+                        const elements = safe.elements.slice();
+                        const actions = b.actions.slice();
+                        actions[ci] = { ...c, focusSkillId: e.target.value || null };
+                        elements[bi] = { ...b, actions };
+                        onChange({ ...safe, elements });
+                      }}
+                      className="w-full rounded-md border border-indigo-200 bg-indigo-50/40 px-2 py-1 text-xs"
+                    >
+                      <option value="">重点スキル（未選択）</option>
+                      {focusSkillOptions.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  ) : null}
+                  </div>
                   <button
                     type="button"
                     className={lockButtonClass(c.locked)}

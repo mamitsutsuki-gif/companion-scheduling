@@ -2,6 +2,8 @@ export type FtaAction = {
   id: string;
   text: string;
   locked: boolean;
+  /** 個別伴走プラン: スキルチェックで選んだ重点スキルとの紐づけ */
+  focusSkillId?: string | null;
 };
 
 export type FtaElement = {
@@ -53,6 +55,10 @@ export function normalizeFtaChart(input: unknown): FtaChart {
           id: typeof ar.id === "string" ? ar.id : `${safeId("b", i)}-c-${j + 1}`,
           text: typeof ar.text === "string" ? ar.text.slice(0, 300) : "",
           locked: Boolean(ar.locked),
+          focusSkillId:
+            typeof ar.focusSkillId === "string" && ar.focusSkillId.trim()
+              ? ar.focusSkillId.trim().slice(0, 80)
+              : null,
         };
       }),
     };

@@ -8,7 +8,10 @@ import {
 import { PartnerChatTemplates } from "@/components/partner-chat-templates";
 import { FtaViewer } from "@/components/fta-chart";
 import { SkillCheckPanel } from "@/components/skill-check-panel";
-import { CompanionSheetPlaceholder } from "@/components/companion-sheet-placeholder";
+import { PdcaPanel } from "@/components/pdca-panel";
+import { ReflectionPanel } from "@/components/reflection-panel";
+import { LifelinePanel } from "@/components/lifeline-panel";
+import { SummaryReportPanel } from "@/components/summary-report-panel";
 import type { FtaChart } from "@/lib/fta";
 import {
   DEFAULT_COMPANY_PLAN,
@@ -2410,31 +2413,19 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       ) : null}
 
       {activeTab === "pdca" && scheduleSettings.planFeatures.pdca ? (
-        <CompanionSheetPlaceholder
-          title="PDCAシート"
-          description="重点テーマごとに Plan / Do / Check / Act をセッション単位で記録し、行動の蓄積を可視化します。"
-        />
+        <PdcaPanel matchId={matchId} />
       ) : null}
 
       {activeTab === "reflection" && scheduleSettings.planFeatures.reflection ? (
-        <CompanionSheetPlaceholder
-          title="振り返りシート"
-          description="最終月に本人の変化を言語化し、スキルチェックの開始時・終了時比較と連動します。"
-        />
+        <ReflectionPanel matchId={matchId} />
       ) : null}
 
       {activeTab === "lifelineChart" && scheduleSettings.planFeatures.lifelineChart ? (
-        <CompanionSheetPlaceholder
-          title="ライフラインチャート"
-          description="人生の出来事と感情スコアを記録し、価値観・強み・課題を整理します。"
-        />
+        <LifelinePanel matchId={matchId} />
       ) : null}
 
       {activeTab === "summaryReport" && scheduleSettings.planFeatures.summaryReport ? (
-        <CompanionSheetPlaceholder
-          title="総括レポート"
-          description="ライフライン・スキルチェック・自分FTA・PDCA・振り返りを統合した最終レポート（PDF出力予定）です。"
-        />
+        <SummaryReportPanel matchId={matchId} />
       ) : null}
         </div>
       </div>
