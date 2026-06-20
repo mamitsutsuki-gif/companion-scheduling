@@ -1,4 +1,5 @@
 import { APP_DISPLAY_NAME, APP_SHORT_DESCRIPTION } from "@/lib/brand";
+import { MotiveIjiLogo } from "@/components/motive-iji-logo";
 import Link from "next/link";
 
 export default function Home() {
@@ -25,14 +26,9 @@ export default function Home() {
     <div className="min-h-full bg-white">
       <header className="app-shell-header">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-4 py-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight text-slate-900 no-underline">
-            <span
-              aria-hidden
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-b from-indigo-500 to-indigo-700 text-sm font-bold text-white shadow-md shadow-indigo-900/25 ring-1 ring-indigo-600/40"
-            >
-              伴
-            </span>
-            <span>{APP_DISPLAY_NAME}</span>
+          <Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight text-slate-900 no-underline">
+            <MotiveIjiLogo variant="icon" />
+            <span className="text-base">{APP_DISPLAY_NAME}</span>
           </Link>
           <nav className="flex items-center gap-2 sm:gap-3">
             <Link

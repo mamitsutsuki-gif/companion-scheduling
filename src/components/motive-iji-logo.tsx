@@ -8,9 +8,9 @@ const LOGOS: Record<
 > = {
   icon: {
     src: "/brand/motiv-iji-logo-icon.png",
-    width: 244,
+    width: 290,
     height: 244,
-    className: "block h-9 w-9 shrink-0 object-contain",
+    className: "block h-9 w-10 shrink-0 object-contain object-left",
   },
   horizontal: {
     src: "/brand/motiv-iji-logo-horizontal.png",
