@@ -84,6 +84,12 @@ export default function AdminCompaniesPage() {
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
+            href="/admin/demo"
+            className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-900 no-underline hover:bg-indigo-100"
+          >
+            クライアント向けデモ
+          </Link>
+          <Link
             href="/admin/settings"
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 no-underline hover:bg-slate-50"
           >

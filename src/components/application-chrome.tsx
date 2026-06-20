@@ -123,6 +123,7 @@ export function ApplicationChrome({
     nav.push({ href: "/admin/sessions", label: "1on1日程一覧" });
     nav.push({ href: "/admin/reports", label: "レポート作成" });
     nav.push({ href: "/admin/invoices", label: "請求書" });
+    nav.push({ href: "/admin/demo", label: "デモ" });
     nav.push({ href: "/admin/settings", label: "アプリ設定" });
   }
   if (profile.role === "CLIENT_ADMIN" || profile.role === "CLIENT_HR") {
