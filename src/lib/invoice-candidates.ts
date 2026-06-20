@@ -2,6 +2,9 @@ import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebas
 import { listSessionPlanForMatch } from "@/lib/repositories/match-sessions-repository";
 import { listAllSessionAbandonments } from "@/lib/repositories/session-abandonment-repository";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
+import { getRoleplayStore } from "@/lib/repositories/coaching-repository";
+import { roleplaySideComplete } from "@/lib/coaching-roleplay";
 import { companyLabelFromRegistry } from "@/lib/company-display";
 import type { PartnerInvoiceItem } from "@/lib/repositories/partner-invoice-repository";
 
@@ -100,6 +103,25 @@ async function getClientCompanyLabels(clientIds: string[]): Promise<Map<string, 
   return out;
 }
 
+function reportKey(matchId: string, sessionNumber: number) {
+  return `${matchId}#${sessionNumber}`;
+}
+
+function partnerSessionHasBillableContent(input: {
+  matchId: string;
+  sessionNumber: number;
+  isCoachingPlan: boolean;
+  report: RawReportDoc | null;
+  roleplayStore: Awaited<ReturnType<typeof getRoleplayStore>> | null;
+}): boolean {
+  const { sessionNumber, isCoachingPlan, report, roleplayStore } = input;
+  if (isCoachingPlan && sessionNumber >= 1 && sessionNumber <= 3) {
+    const session = roleplayStore?.sessions[sessionNumber - 1];
+    return session ? roleplaySideComplete(session, "partner") : false;
+  }
+  return report?.hasContent ?? false;
+}
+
 /**
  * 保存済み明細などで clientCompanyName が空の行に、マッチから所属企業を補完する。
  */
@@ -154,7 +176,10 @@ export async function enrichInvoiceItemsClientCompanyNames(
  *
  * 「実施」の判定:
  *   - 対象月内に確定済セッション開始日があること
- *   - パートナー側レポートが存在し、かつ **本文または追加質問に 1 文字以上の記載**があること
+ *   - パートナー側の記録があること
+ *     - 通常プラン（個別伴走・職場活性）: セッションレポートに 1 文字以上
+ *     - コーチング研修 1〜3 回目: ロールプレイのパートナー評価が入力済み
+ *     - コーチング研修 4 回目以降: セッションレポートに 1 文字以上
  *   - 当該セッションが **未実施・消化（no_show / late_cancel）ではない**こと
  *
  * unitPriceExclTax はパートナー入力のため 0 で初期化。
@@ -165,53 +190,65 @@ export async function buildInvoiceCandidatesForPartner(
   month: number,
 ): Promise<PartnerInvoiceItem[]> {
   const matches = await listMatchesForPartner(partnerId);
-  const matchById = new Map(matches.map((m) => [m.id, m]));
-  const reports = await listReportsByPartner(partnerId);
-  if (reports.length === 0) return [];
+  if (matches.length === 0) return [];
 
-  // 並列で各マッチの session plan を取得
-  const planByMatch = new Map<string, Awaited<ReturnType<typeof listSessionPlanForMatch>>>();
-  await Promise.all(
-    [...new Set(reports.map((r) => r.matchId))].map(async (mid) => {
-      planByMatch.set(mid, await listSessionPlanForMatch(mid));
-    }),
+  const reports = await listReportsByPartner(partnerId);
+  const reportByKey = new Map(
+    reports.map((r) => [reportKey(r.matchId, r.sessionNumber), r]),
   );
 
-  // パートナーに属する全マッチの abandonment を一度に取得（Firestore の where in は
-  // 制約があるので、全件取得して対象 matchId/sessionNumber で絞る）
   const abandonmentKey = (m: string, n: number) => `${m}#${n}`;
   const abandonedSet = new Set<string>();
   try {
     const all = await listAllSessionAbandonments();
     for (const a of all) abandonedSet.add(abandonmentKey(a.matchId, a.sessionNumber));
   } catch {
-    /* best-effort: 未実施・消化情報が取れない場合は集計を止めず通常通り扱う */
+    /* best-effort */
   }
 
   const clientNames = await getUserDisplayNames(matches.map((m) => m.clientId));
   const clientCompanies = await getClientCompanyLabels(matches.map((m) => m.clientId));
 
   const items: PartnerInvoiceItem[] = [];
-  for (const r of reports) {
-    const match = matchById.get(r.matchId);
-    if (!match) continue;
-    if (!r.hasContent) continue; // レポート本文/追加質問が空 → 未実施扱い
-    if (abandonedSet.has(abandonmentKey(r.matchId, r.sessionNumber))) continue; // no_show / late_cancel
-    const plan = planByMatch.get(r.matchId) ?? [];
-    const session = plan.find((p) => p.sessionNumber === r.sessionNumber);
-    if (!session?.confirmed || !session.startAt) continue;
-    const d = new Date(session.startAt);
-    if (d.getFullYear() !== year || d.getMonth() + 1 !== month) continue;
-    items.push({
-      matchId: r.matchId,
-      sessionNumber: r.sessionNumber,
-      sessionDate: session.startAt,
-      clientName: clientNames.get(match.clientId) ?? "クライアント",
-      clientCompanyName: clientCompanies.get(match.clientId) ?? "",
-      unitPriceExclTax: 0,
-    });
-  }
-  // 実施日昇順でソート
+
+  await Promise.all(
+    matches.map(async (match) => {
+      const effective = await getEffectiveAppSettingsForMatch(match.id);
+      const isCoachingPlan = effective.companyPlan === "coaching_management_training";
+      const roleplayStore = isCoachingPlan ? await getRoleplayStore(match.id) : null;
+      const plan = await listSessionPlanForMatch(match.id);
+
+      for (const session of plan) {
+        if (!session.confirmed || !session.startAt) continue;
+        const d = new Date(session.startAt);
+        if (d.getFullYear() !== year || d.getMonth() + 1 !== month) continue;
+        if (abandonedSet.has(abandonmentKey(match.id, session.sessionNumber))) continue;
+
+        const report = reportByKey.get(reportKey(match.id, session.sessionNumber)) ?? null;
+        if (
+          !partnerSessionHasBillableContent({
+            matchId: match.id,
+            sessionNumber: session.sessionNumber,
+            isCoachingPlan,
+            report,
+            roleplayStore,
+          })
+        ) {
+          continue;
+        }
+
+        items.push({
+          matchId: match.id,
+          sessionNumber: session.sessionNumber,
+          sessionDate: session.startAt,
+          clientName: clientNames.get(match.clientId) ?? "クライアント",
+          clientCompanyName: clientCompanies.get(match.clientId) ?? "",
+          unitPriceExclTax: 0,
+        });
+      }
+    }),
+  );
+
   items.sort((a, b) => a.sessionDate.localeCompare(b.sessionDate));
   return items;
 }
@@ -232,8 +269,19 @@ export async function listPartnersWithReportsForMonth(
   if (!isFirebaseDataBackend()) return [];
   const db = getFirebaseFirestoreClient();
   if (!db) return [];
-  const snap = await db.collection("sessionReports").get();
-  const reports = snap.docs.map((d) => {
+
+  const matchSnap = await db.collection("matches").get();
+  const matches = matchSnap.docs.map((d) => {
+    const raw = d.data() as Record<string, unknown>;
+    return {
+      id: d.id,
+      partnerId: String(raw.partnerId ?? ""),
+      clientId: String(raw.clientId ?? ""),
+    };
+  });
+  if (matches.length === 0) return [];
+
+  const reports = (await db.collection("sessionReports").get()).docs.map((d) => {
     const raw = d.data() as Record<string, unknown>;
     return {
       partnerId: String(raw.partnerId ?? ""),
@@ -242,18 +290,10 @@ export async function listPartnersWithReportsForMonth(
       hasContent: reportHasContent(raw),
     };
   });
-  if (reports.length === 0) return [];
-
-  // 各 (matchId, sessionNumber) について確定済セッションの開始日が対象月かを確認する。
-  const planByMatch = new Map<string, Awaited<ReturnType<typeof listSessionPlanForMatch>>>();
-  const matchIds = [...new Set(reports.map((r) => r.matchId).filter(Boolean))];
-  await Promise.all(
-    matchIds.map(async (mid) => {
-      planByMatch.set(mid, await listSessionPlanForMatch(mid));
-    }),
+  const reportByKey = new Map(
+    reports.map((r) => [reportKey(r.matchId, r.sessionNumber), r]),
   );
 
-  // 未実施・消化セッションを除外するためのセットを構築
   const abandonmentKey = (m: string, n: number) => `${m}#${n}`;
   const abandonedSet = new Set<string>();
   try {
@@ -264,17 +304,36 @@ export async function listPartnersWithReportsForMonth(
   }
 
   const partnerIds = new Set<string>();
-  for (const r of reports) {
-    if (!r.partnerId) continue;
-    if (!r.hasContent) continue;
-    if (abandonedSet.has(abandonmentKey(r.matchId, r.sessionNumber))) continue;
-    const plan = planByMatch.get(r.matchId) ?? [];
-    const session = plan.find((p) => p.sessionNumber === r.sessionNumber);
-    if (!session?.confirmed || !session.startAt) continue;
-    const d = new Date(session.startAt);
-    if (d.getFullYear() === year && d.getMonth() + 1 === month) {
-      partnerIds.add(r.partnerId);
-    }
-  }
+
+  await Promise.all(
+    matches.map(async (match) => {
+      if (!match.partnerId) return;
+      const effective = await getEffectiveAppSettingsForMatch(match.id);
+      const isCoachingPlan = effective.companyPlan === "coaching_management_training";
+      const roleplayStore = isCoachingPlan ? await getRoleplayStore(match.id) : null;
+      const plan = await listSessionPlanForMatch(match.id);
+
+      for (const session of plan) {
+        if (!session.confirmed || !session.startAt) continue;
+        const d = new Date(session.startAt);
+        if (d.getFullYear() !== year || d.getMonth() + 1 !== month) continue;
+        if (abandonedSet.has(abandonmentKey(match.id, session.sessionNumber))) continue;
+        const report = reportByKey.get(reportKey(match.id, session.sessionNumber)) ?? null;
+        if (
+          !partnerSessionHasBillableContent({
+            matchId: match.id,
+            sessionNumber: session.sessionNumber,
+            isCoachingPlan,
+            report,
+            roleplayStore,
+          })
+        ) {
+          continue;
+        }
+        partnerIds.add(match.partnerId);
+      }
+    }),
+  );
+
   return [...partnerIds];
 }

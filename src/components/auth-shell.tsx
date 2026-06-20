@@ -61,7 +61,7 @@ export function AuthPrimaryButton({
     <button
       type="submit"
       disabled={disabled}
-      className="app-btn-primary w-full rounded-lg px-3 py-2.5 text-sm disabled:opacity-55"
+      className="app-btn-primary w-full rounded-lg px-4 py-3 text-base font-semibold disabled:opacity-55"
     >
       {children}
     </button>
@@ -70,3 +70,7 @@ export function AuthPrimaryButton({
 
 export const authFieldClass =
   "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-950 caret-slate-950 shadow-xs placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400/30";
+
+/** 登録フローなど、読みやすさ優先の大きめ入力欄 */
+export const authFieldClassLarge =
+  "w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-lg text-slate-950 caret-slate-950 shadow-xs placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400/30";

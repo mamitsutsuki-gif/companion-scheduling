@@ -1,6 +1,6 @@
 "use client";
 
-import { AuthPrimaryButton, AuthShell, authFieldClass } from "@/components/auth-shell";
+import { AuthPrimaryButton, AuthShell, authFieldClassLarge } from "@/components/auth-shell";
 import {
   AVAILABILITY_NOTICE,
   DEFAULT_AVAILABILITY_OPTIONS,
@@ -102,7 +102,7 @@ export default function CompleteRegistrationProfilePage() {
   if (loading) {
     return (
       <AuthShell title="登録を完了する" subtitle="">
-        <p className="text-sm text-slate-600">読み込み中…</p>
+        <p className="text-base text-slate-600">読み込み中…</p>
       </AuthShell>
     );
   }
@@ -119,19 +119,19 @@ export default function CompleteRegistrationProfilePage() {
       <form onSubmit={onSubmit} className="space-y-5">
         {role === "CLIENT" ? (
           <fieldset className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-4">
-            <legend className="px-1 text-base font-semibold text-emerald-900">対応可能時間（複数選択）</legend>
-            <p className="text-sm leading-relaxed text-emerald-900/85">{AVAILABILITY_NOTICE}</p>
+            <legend className="px-1 text-lg font-semibold text-emerald-900">対応可能時間（複数選択）</legend>
+            <p className="text-base leading-relaxed text-emerald-900/85">{AVAILABILITY_NOTICE}</p>
             <div className="space-y-2">
               {availabilityOptions.map((opt) => (
                 <label
                   key={opt.id}
-                  className="flex cursor-pointer items-center gap-3 rounded-md bg-white/70 px-3 py-2 text-base text-emerald-950"
+                  className="flex cursor-pointer items-center gap-3 rounded-md bg-white/70 px-3 py-2.5 text-lg text-emerald-950"
                 >
                   <input
                     type="checkbox"
                     checked={selectedSlotIds.includes(opt.id)}
                     onChange={() => toggleSlot(opt.id)}
-                    className="h-4 w-4 accent-emerald-700"
+                    className="h-5 w-5 accent-emerald-700"
                   />
                   <span>{opt.label}</span>
                 </label>
@@ -149,12 +149,12 @@ export default function CompleteRegistrationProfilePage() {
             onZoomMeetingId={setZoomMeetingId}
             onZoomPass={setZoomPass}
             onGoogleMeetUrl={setGoogleMeetUrl}
-            fieldClass={authFieldClass}
+            fieldClass={authFieldClassLarge}
           />
         ) : null}
-        {error ? <p className="text-sm font-medium text-red-700">{error}</p> : null}
+        {error ? <p className="text-base font-medium text-red-700">{error}</p> : null}
         <AuthPrimaryButton disabled={saving}>{saving ? "保存中…" : "登録を完了する"}</AuthPrimaryButton>
-        <p className="text-xs text-slate-500">
+        <p className="text-sm text-slate-500">
           入力後、ホーム画面に進めます。後から設定画面でも変更できます。
         </p>
       </form>

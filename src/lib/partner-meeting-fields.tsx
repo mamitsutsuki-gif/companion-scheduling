@@ -30,7 +30,7 @@ export function PartnerMeetingFields({
 }: PartnerMeetingFieldsProps) {
   return (
     <div className="space-y-5">
-      <p className="text-sm leading-relaxed text-slate-600">
+      <p className="text-base leading-relaxed text-slate-600">
         Zoom と Google Meet の両方を登録してください。実際に使うのは、クライアント所属企業の設定で選ばれた方だけです。
         {" "}
         <Link href={MEETING_LINKS_HELP_HREF} className="font-semibold text-indigo-800 underline" target="_blank" rel="noopener noreferrer">
@@ -38,8 +38,8 @@ export function PartnerMeetingFields({
         </Link>
       </p>
       <fieldset className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/70 px-4 py-4">
-        <legend className="px-1 text-base font-semibold text-indigo-950">Zoom（必須）</legend>
-        <label className="block space-y-1 text-sm font-medium text-indigo-950">
+        <legend className="px-1 text-lg font-semibold text-indigo-950">Zoom（必須）</legend>
+        <label className="block space-y-1.5 text-base font-medium text-indigo-950">
           会議URL
           <input
             value={zoomUrl}
@@ -50,7 +50,7 @@ export function PartnerMeetingFields({
             className={fieldClass}
           />
         </label>
-        <label className="block space-y-1 text-sm font-medium text-indigo-950">
+        <label className="block space-y-1.5 text-base font-medium text-indigo-950">
           ミーティング ID
           <input
             value={zoomMeetingId}
@@ -62,7 +62,7 @@ export function PartnerMeetingFields({
             className={fieldClass}
           />
         </label>
-        <label className="block space-y-1 text-sm font-medium text-indigo-950">
+        <label className="block space-y-1.5 text-base font-medium text-indigo-950">
           パスコード
           <input
             value={zoomPass}
@@ -76,8 +76,8 @@ export function PartnerMeetingFields({
         </label>
       </fieldset>
       <fieldset className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-4">
-        <legend className="px-1 text-base font-semibold text-emerald-950">Google Meet（必須）</legend>
-        <label className="block space-y-1 text-sm font-medium text-emerald-950">
+        <legend className="px-1 text-lg font-semibold text-emerald-950">Google Meet（必須）</legend>
+        <label className="block space-y-1.5 text-base font-medium text-emerald-950">
           会議URL
           <input
             value={googleMeetUrl}
