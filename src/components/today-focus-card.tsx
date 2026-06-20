@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { ActionItem } from "@/lib/next-actions";
 import type { TodayFocus } from "@/lib/today-focus";
 import { formatDaysUntil } from "@/lib/today-focus";
@@ -26,31 +26,35 @@ function formatSessionWhen(iso: string) {
   }
 }
 
-function Row({
+function FocusRow({
   label,
-  value,
+  children,
   href,
   cta,
-  muted = false,
+  highlight = false,
 }: {
   label: string;
-  value: string;
+  children: ReactNode;
   href?: string;
   cta?: string;
-  muted?: boolean;
+  highlight?: boolean;
 }) {
   return (
     <div
-      className={`flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3.5 ${
-        muted ? "bg-slate-50" : "bg-white"
-      }`}
+      className={[
+        "flex flex-wrap items-center justify-between gap-4 rounded-2xl px-5 py-4",
+        highlight ? "border border-indigo-200/90 bg-indigo-50/40" : "border border-slate-200/80 bg-white",
+      ].join(" ")}
     >
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-slate-500">{label}</p>
-        <p className="mt-0.5 text-base font-semibold leading-snug text-slate-900">{value}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-[15px] font-medium text-slate-600">{label}</p>
+        <div className="mt-1">{children}</div>
       </div>
       {href && cta ? (
-        <Link href={href} className="app-btn-primary shrink-0 rounded-lg px-3.5 py-2 text-sm no-underline">
+        <Link
+          href={href}
+          className="app-btn-primary shrink-0 rounded-xl px-4 py-2.5 text-[15px] font-semibold no-underline"
+        >
           {cta}
         </Link>
       ) : null}
@@ -59,8 +63,7 @@ function Row({
 }
 
 /**
- * ホーム最上部の「今日のフォーカス」1枚カード。
- * 次の1on1・未回答候補・未入力ロールプレイをまとめて表示する。
+ * ホーム最上部 — 今日やること1枚（Apple-like: 大きい文字・余白・indigo/slate のみ）。
  */
 export function TodayFocusCard() {
   const [focus, setFocus] = useState<TodayFocus | null>(null);
@@ -92,100 +95,107 @@ export function TodayFocusCard() {
 
   if (!loaded || !hasMatches || !focus) return null;
 
-  const { nextSession, pendingVotes, pendingRoleplay, topAction, allActions } = focus;
-  const hasTodos = pendingVotes.length > 0 || pendingRoleplay.length > 0 || Boolean(topAction);
-  const extraActions = allActions.slice(topAction ? 1 : 0);
+  const { nextSession, pendingVotes, pendingRoleplay, topAction, allActions, hasCoachingMatches } =
+    focus;
+  const extraActions = allActions.filter(
+    (a) =>
+      a.kind !== "VOTE_SLOTS" &&
+      a.kind !== "SESSION_UPCOMING" &&
+      a !== topAction,
+  );
 
   return (
-    <section className="app-surface-raised overflow-hidden rounded-2xl border border-slate-200/90 shadow-sm">
-      <div className="border-b border-slate-100 bg-gradient-to-b from-slate-50/90 to-white px-5 py-4 sm:px-6">
-        <p className="text-[11px] font-semibold tracking-[0.16em] text-indigo-700 uppercase">Today</p>
-        <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900 sm:text-[1.35rem]">
+    <section className="app-surface-raised overflow-hidden rounded-3xl border border-slate-200/90">
+      <div className="border-b border-slate-100 px-6 py-5 sm:px-7">
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-[1.65rem]">
           今日のフォーカス
         </h2>
+        <p className="mt-1.5 text-base text-slate-600">いま確認すべきことを1枚にまとめています。</p>
       </div>
 
-      <div className="space-y-2 p-4 sm:p-5">
-        {nextSession ? (
-          <div className="rounded-xl border border-indigo-200/80 bg-indigo-50/50 px-4 py-4">
-            <p className="text-sm font-medium text-indigo-800/80">次の1on1</p>
-            <p className="mt-1 text-2xl font-semibold tracking-tight text-indigo-950">
-              {formatDaysUntil(nextSession.daysUntil)}
-            </p>
-            <p className="mt-2 text-base leading-relaxed text-slate-800">
-              第 {nextSession.sessionNumber} 回 · {nextSession.label}
-              <span className="mt-1 block text-sm text-slate-600">
-                {formatSessionWhen(nextSession.startAt)}
-              </span>
-            </p>
-            <Link
-              href={`/match/${nextSession.matchId}#sessions`}
-              className="mt-3 inline-flex text-sm font-semibold text-indigo-800 no-underline hover:text-indigo-950"
-            >
-              セッション詳細を開く →
-            </Link>
-          </div>
-        ) : (
-          <Row label="次の1on1" value="確定済みの予定はまだありません" muted />
-        )}
+      <div className="space-y-3 p-4 sm:p-5">
+        <FocusRow
+          label="次の1on1"
+          highlight={Boolean(nextSession && nextSession.daysUntil <= 1)}
+          href={nextSession ? `/match/${nextSession.matchId}#sessions` : undefined}
+          cta={nextSession ? "詳細" : undefined}
+        >
+          {nextSession ? (
+            <>
+              <p className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-[2rem]">
+                {formatDaysUntil(nextSession.daysUntil)}
+              </p>
+              <p className="mt-2 text-[17px] font-medium leading-snug text-slate-800">
+                第 {nextSession.sessionNumber} 回 · {nextSession.label}
+              </p>
+              <p className="mt-1 text-base text-slate-600">{formatSessionWhen(nextSession.startAt)}</p>
+            </>
+          ) : (
+            <p className="text-[17px] font-medium text-slate-700">確定済みの予定はまだありません</p>
+          )}
+        </FocusRow>
 
-        {pendingVotes.length > 0 ? (
-          <Row
-            label="未回答の候補日"
-            value={
-              pendingVotes.length === 1
+        <FocusRow
+          label="未回答の候補日"
+          href={pendingVotes[0]?.href}
+          cta={pendingVotes.length > 0 ? "回答する" : undefined}
+        >
+          <p className="text-[17px] font-medium leading-snug text-slate-800">
+            {pendingVotes.length === 0
+              ? "対応不要です"
+              : pendingVotes.length === 1
                 ? `${pendingVotes[0]!.label} · 第 ${pendingVotes[0]!.sessionNumber} 回`
-                : `${pendingVotes.length} 件（候補日への ○× 回答が必要です）`
-            }
-            href={pendingVotes[0]!.href}
-            cta="回答する"
-          />
-        ) : (
-          <Row label="未回答の候補日" value="対応不要です" muted />
-        )}
+                : `${pendingVotes.length} 件 — ○× の回答が必要です`}
+          </p>
+        </FocusRow>
 
-        {pendingRoleplay.length > 0 ? (
-          <Row
+        {hasCoachingMatches ? (
+          <FocusRow
             label="未入力のロールプレイ"
-            value={
-              pendingRoleplay.length === 1
-                ? `${pendingRoleplay[0]!.label} · 第 ${pendingRoleplay[0]!.sessionNumber} 回`
-                : `${pendingRoleplay.length} 件（評価の入力が必要です）`
-            }
-            href={pendingRoleplay[0]!.href}
-            cta="入力する"
-          />
+            href={pendingRoleplay[0]?.href}
+            cta={pendingRoleplay.length > 0 ? "入力する" : undefined}
+          >
+            <p className="text-[17px] font-medium leading-snug text-slate-800">
+              {pendingRoleplay.length === 0
+                ? "対応不要です"
+                : pendingRoleplay.length === 1
+                  ? `${pendingRoleplay[0]!.label} · 第 ${pendingRoleplay[0]!.sessionNumber} 回`
+                  : `${pendingRoleplay.length} 件 — 評価の入力が必要です`}
+            </p>
+          </FocusRow>
         ) : null}
 
         {topAction && topAction.kind !== "VOTE_SLOTS" ? (
-          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3.5">
-            <p className="text-sm font-medium text-slate-500">いちばん優先</p>
-            <p className="mt-1 text-base font-semibold leading-snug text-slate-900">{topAction.message}</p>
+          <details className="rounded-2xl border border-slate-200 bg-slate-50/70 px-5 py-4">
+            <summary className="cursor-pointer text-[15px] font-semibold text-slate-800">
+              その他の優先タスク
+            </summary>
+            <p className="mt-3 text-base leading-relaxed text-slate-800">{topAction.message}</p>
             <Link
               href={topAction.href}
-              className="app-btn-primary mt-3 inline-flex rounded-lg px-3.5 py-2 text-sm no-underline"
+              className="app-btn-primary mt-4 inline-flex rounded-xl px-4 py-2.5 text-[15px] no-underline"
             >
               {topAction.ctaLabel}
             </Link>
-          </div>
-        ) : null}
-
-        {!hasTodos && !nextSession ? (
-          <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-            いま対応が必要な用事はありません。
-          </p>
+          </details>
         ) : null}
 
         {extraActions.length > 0 ? (
-          <details className="rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3">
-            <summary className="cursor-pointer text-sm font-semibold text-slate-700">
-              その他のやること（{extraActions.length} 件）
+          <details className="rounded-2xl border border-slate-200 bg-slate-50/70 px-5 py-4">
+            <summary className="cursor-pointer text-[15px] font-semibold text-slate-800">
+              ほかのやること（{extraActions.length} 件）
             </summary>
-            <ul className="mt-3 space-y-2">
+            <ul className="mt-3 space-y-3">
               {extraActions.map((a: ActionItem, i) => (
-                <li key={`${a.kind}-${a.matchId ?? "g"}-${i}`} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <span className="min-w-0 text-slate-800">{a.message}</span>
-                  <Link href={a.href} className="shrink-0 font-semibold text-indigo-800 no-underline hover:underline">
+                <li
+                  key={`${a.kind}-${a.matchId ?? "g"}-${i}`}
+                  className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/80 pt-3 first:border-0 first:pt-0"
+                >
+                  <span className="min-w-0 text-base text-slate-800">{a.message}</span>
+                  <Link
+                    href={a.href}
+                    className="shrink-0 text-[15px] font-semibold text-indigo-800 no-underline hover:underline"
+                  >
                     {a.ctaLabel}
                   </Link>
                 </li>

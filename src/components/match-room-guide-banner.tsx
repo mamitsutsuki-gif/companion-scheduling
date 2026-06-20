@@ -48,7 +48,7 @@ function buildSteps(
 }
 
 /**
- * マッチルーム初回のみ表示する「ここから始めてください」ガイド。
+ * マッチルーム初回のみ — 短いステップガイド（説明はここだけ、以降は各タブに集約）。
  */
 export function MatchRoomGuideBanner({
   userId,
@@ -90,32 +90,33 @@ export function MatchRoomGuideBanner({
   }
 
   return (
-    <section className="rounded-2xl border border-indigo-200/90 bg-gradient-to-b from-indigo-50/80 to-white px-4 py-4 shadow-sm sm:px-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold tracking-[0.14em] text-indigo-700 uppercase">Guide</p>
-          <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">ここから始めてください</h2>
-          <p className="mt-1 text-sm leading-relaxed text-slate-600">
-            タブが増えていますが、最初はこの順番で進めるとスムーズです。
+    <section className="app-surface-raised rounded-3xl border border-slate-200/90 px-5 py-5 sm:px-6 sm:py-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
+            ここから始めてください
+          </h2>
+          <p className="mt-2 text-base leading-relaxed text-slate-600">
+            タブは増えていますが、最初はこの順番で進めれば大丈夫です。
           </p>
         </div>
         <button
           type="button"
           onClick={dismiss}
-          className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+          className="rounded-xl px-3 py-2 text-[15px] font-medium text-slate-600 hover:bg-slate-100"
         >
           閉じる
         </button>
       </div>
-      <ol className="mt-4 space-y-2">
+      <ol className="mt-5 space-y-3">
         {steps.map((step, i) => (
           <li
             key={step.tab}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/90 bg-white px-4 py-3"
+            className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4"
           >
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-indigo-700">STEP {i + 1}</p>
-              <p className="mt-0.5 text-base font-medium text-slate-900">{step.title}</p>
+              <p className="text-sm font-semibold text-indigo-700">STEP {i + 1}</p>
+              <p className="mt-1 text-[17px] font-medium leading-snug text-slate-900">{step.title}</p>
             </div>
             <button
               type="button"
@@ -123,14 +124,14 @@ export function MatchRoomGuideBanner({
                 onGoTab(step.tab);
                 dismiss();
               }}
-              className="shrink-0 rounded-lg border border-indigo-300 bg-white px-3 py-1.5 text-sm font-semibold text-indigo-900 hover:bg-indigo-50"
+              className="app-btn-secondary shrink-0 rounded-xl px-4 py-2.5 text-[15px] font-semibold"
             >
               {step.tabLabel}へ
             </button>
           </li>
         ))}
       </ol>
-      <p className="mt-3 text-xs text-slate-500">このガイドは最初の 1 回だけ表示されます。</p>
+      <p className="mt-4 text-sm text-slate-500">初回のみ表示されます。</p>
     </section>
   );
 }

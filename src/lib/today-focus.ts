@@ -32,6 +32,8 @@ export type TodayFocus = {
   topAction: ActionItem | null;
   /** 詳細リスト用（既存の next-actions 互換） */
   allActions: ActionItem[];
+  /** コーチングプランのペアがある（ロールプレイ行を常時表示） */
+  hasCoachingMatches: boolean;
 };
 
 export type TodayFocusMatchMeta = {
@@ -165,6 +167,9 @@ export function computeTodayFocus(
     ),
     topAction: allActions[0] ?? null,
     allActions,
+    hasCoachingMatches: Object.values(metaByMatch).some(
+      (m) => m.companyPlan === "coaching_management_training",
+    ),
   };
 }
 

@@ -65,9 +65,10 @@ export default async function DashboardPage({
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      {/*
-        ヒーロー: 白の微グラデ + 多層シャドウでカードとして浮かせる。
-      */}
+      {me.role === "PARTNER" ? <PartnerInvoiceAlert /> : null}
+
+      {!isAdmin && allMatches.length > 0 ? <TodayFocusCard /> : null}
+
       <header className="app-surface-raised rounded-2xl p-5 sm:p-7">
         <p className="text-[11px] font-semibold tracking-[0.18em] text-indigo-700 uppercase">
           Overview
@@ -75,9 +76,13 @@ export default async function DashboardPage({
         <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-900 sm:text-[28px]">
           {me.displayName} さん
         </h1>
-        <p className="mt-2.5 max-w-2xl text-[15px] leading-relaxed text-slate-600">
-          {APP_DISPLAY_NAME} では、担当ペアごとにチャットと日程調整をまとめて行えます。外部にメールアドレスを出さずにやり取りできます。
-        </p>
+        {!isAdmin && allMatches.length > 0 ? (
+          <p className="mt-2 text-base text-slate-600">担当ペアのルームは下の一覧から開けます。</p>
+        ) : (
+          <p className="mt-2.5 max-w-2xl text-base leading-relaxed text-slate-600">
+            {APP_DISPLAY_NAME} では、担当ペアごとにチャットと日程調整をまとめて行えます。
+          </p>
+        )}
         <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[13px] font-medium text-slate-700">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
           ロール: {me.role === "ADMIN"
@@ -127,18 +132,6 @@ export default async function DashboardPage({
         />
       ) : null}
 
-      {/*
-        「あなたが次にやること」リスト。
-        - 管理者には何も表示しない（API が空配列を返す）
-        - マッチ未割当のときは API 側で抑制される
-      */}
-      {!isAdmin && allMatches.length > 0 ? <TodayFocusCard /> : null}
-
-      {/*
-        管理者ホーム下部に「最近アクセスのないユーザー」を出す。
-        - `lastSeenAt` (requireUser から書き込み) が 14 日以上前 もしくは無い ユーザーが対象。
-        - 0 件のときは描画しない（API 側で 0 件を返したらコンポーネント側で抑制）。
-      */}
       {isAdmin ? <AdminStaleUsersPanel /> : null}
 
       {isAdmin && adminUnassignedPairCount > 0 ? (
