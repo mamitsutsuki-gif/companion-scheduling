@@ -3,6 +3,12 @@ import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
 import { getAppSettingsRow, upsertAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 
+const companyPlanSchema = z.enum([
+  "workplace_activation",
+  "individual_companion",
+  "coaching_management_training",
+]);
+
 const availabilityOptionSchema = z.object({
   id: z
     .string()
@@ -19,6 +25,7 @@ const companySchema = z.object({
     .max(60)
     .regex(/^[a-zA-Z0-9_-]+$/, "企業IDは半角英数・ハイフン・アンダースコアのみ"),
   name: z.string().min(1).max(80),
+  plan: companyPlanSchema.optional(),
 });
 
 const patchSchema = z

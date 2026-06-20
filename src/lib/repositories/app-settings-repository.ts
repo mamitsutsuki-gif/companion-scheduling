@@ -5,6 +5,13 @@ import {
   normalizeAvailabilityOptions,
   type AvailabilitySlotOption,
 } from "@/lib/availability";
+import {
+  DEFAULT_COMPANY_PLAN,
+  normalizeCompanyPlan,
+  resolveCompanyPlan,
+  type CompanyPlan,
+} from "@/lib/company-plan";
+import { normalizeCompanySkillDefinitions, type SkillDefinition } from "@/lib/skill-check";
 
 /** { [sessionNumber: number]: string[] } 各回のレポートに表示する追加設問 */
 export type PartnerExtraQuestionsByRound = Record<string, string[]>;
@@ -25,7 +32,7 @@ export type ClientExtraQuestionsByRound = Record<string, string[]>;
  * 互いに見えるようにスコープされる。`id` を間違って変えるとアクセスが途切れるので、
  * 編集 UI は select+登録制にしている。
  */
-export type CompanyOption = { id: string; name: string };
+export type CompanyOption = { id: string; name: string; plan?: CompanyPlan };
 
 export type AppSettingsRow = {
   id: string;
@@ -151,6 +158,8 @@ export type CompanyAppSettingsOverride = Partial<AppSettingsOverridableFields> &
    * false に明示的に設定された場合のみ、各自は自分の FTA だけを見ることになる。
    */
   shareFtaWithinCompany?: boolean;
+  /** 個別伴走プラン向け：企業独自スキル項目 */
+  skillCheckCompanySkills?: SkillDefinition[];
 };
 
 export function normalizeCompanies(input: unknown): CompanyOption[] {
@@ -170,7 +179,7 @@ export function normalizeCompanies(input: unknown): CompanyOption[] {
     if (!id || !name) continue;
     if (seen.has(id)) continue;
     seen.add(id);
-    out.push({ id, name });
+    out.push({ id, name, plan: normalizeCompanyPlan(obj.plan) });
     if (out.length >= 64) break;
   }
   return out;
@@ -306,6 +315,10 @@ export function normalizeCompanyAppSettingsOverride(
   }
   if (typeof raw.shareFtaWithinCompany === "boolean") {
     out.shareFtaWithinCompany = raw.shareFtaWithinCompany;
+  }
+  if (raw.skillCheckCompanySkills !== undefined && raw.skillCheckCompanySkills !== null) {
+    const skills = normalizeCompanySkillDefinitions(raw.skillCheckCompanySkills);
+    if (skills.length > 0) out.skillCheckCompanySkills = skills;
   }
   return out;
 }
@@ -825,6 +838,8 @@ export type EffectiveAppSettings = AppSettingsRow & {
    * 企業設定で明示的に false が設定された場合のみ false。それ以外（未設定 / true）は true。
    */
   shareFtaWithinCompany: boolean;
+  /** 当該企業に設定された導入プラン。未設定企業は職場活性プラン。 */
+  companyPlan: CompanyPlan;
 };
 
 export async function getEffectiveAppSettings(opts: {
@@ -843,6 +858,7 @@ export async function getEffectiveAppSettings(opts: {
       clientProjectOverview: null,
       // 企業未設定（=未割当 / 不正 ID）でもデフォルトは「共有する」。
       shareFtaWithinCompany: true,
+      companyPlan: DEFAULT_COMPANY_PLAN,
     };
   }
   const override =
@@ -855,6 +871,7 @@ export async function getEffectiveAppSettings(opts: {
       partnerProjectOverview: null,
       clientProjectOverview: null,
       shareFtaWithinCompany: true,
+      companyPlan: resolveCompanyPlan(cid, global.companies),
     };
   }
   const overridden: Array<keyof AppSettingsOverridableFields> = [];
@@ -893,5 +910,6 @@ export async function getEffectiveAppSettings(opts: {
     clientProjectOverview: clientPO,
     // 明示的に false が保存されている時のみ false（未設定 / true は true）。
     shareFtaWithinCompany: override.shareFtaWithinCompany === false ? false : true,
+    companyPlan: resolveCompanyPlan(cid, global.companies),
   };
 }

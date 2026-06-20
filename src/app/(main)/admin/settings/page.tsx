@@ -6,6 +6,7 @@ import {
   DEFAULT_AVAILABILITY_OPTIONS,
   type AvailabilitySlotOption,
 } from "@/lib/availability";
+import { COMPANY_PLAN_OPTIONS, DEFAULT_COMPANY_PLAN, type CompanyPlan } from "@/lib/company-plan";
 
 type UserRow = {
   id: string;
@@ -48,7 +49,7 @@ export default function AdminAppSettingsPage() {
   const [slotEarliestHour, setSlotEarliestHour] = useState(8);
   const [slotLatestHour, setSlotLatestHour] = useState(20);
   const [allowWeekends, setAllowWeekends] = useState(false);
-  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
+  const [companies, setCompanies] = useState<Array<{ id: string; name: string; plan: CompanyPlan }>>([]);
   /**
    * 企業（テナント）登録ロード時点のスナップショット。
    * 「使用中の企業ID を削除しようとしている」検出に使う。
@@ -198,10 +199,17 @@ export default function AdminAppSettingsPage() {
               const o = v as Record<string, unknown>;
               const id = typeof o.id === "string" ? o.id : "";
               const name = typeof o.name === "string" ? o.name : "";
+              const planRaw = typeof o.plan === "string" ? o.plan : DEFAULT_COMPANY_PLAN;
+              const plan =
+                planRaw === "individual_companion" ||
+                planRaw === "coaching_management_training" ||
+                planRaw === "workplace_activation"
+                  ? planRaw
+                  : DEFAULT_COMPANY_PLAN;
               if (!id || !name) return null;
-              return { id, name };
+              return { id, name, plan };
             })
-            .filter((x): x is { id: string; name: string } => x !== null);
+            .filter((x): x is { id: string; name: string; plan: CompanyPlan } => x !== null);
           setCompanies(list);
           setInitialCompanyIds(list.map((c) => c.id));
         }
@@ -242,11 +250,21 @@ export default function AdminAppSettingsPage() {
       .slice(0, 60);
   }
 
-  function setCompanyField(index: number, field: "id" | "name", value: string) {
+  function setCompanyField(index: number, field: "id" | "name" | "plan", value: string) {
     setCompanies((prev) => {
       const next = prev.slice();
       const cur = next[index];
       if (!cur) return prev;
+      if (field === "plan") {
+        const plan =
+          value === "individual_companion" ||
+          value === "coaching_management_training" ||
+          value === "workplace_activation"
+            ? value
+            : DEFAULT_COMPANY_PLAN;
+        next[index] = { ...cur, plan };
+        return next;
+      }
       const v = field === "id" ? slugifyCompanyId(value) : value;
       next[index] = { ...cur, [field]: v };
       return next;
@@ -257,7 +275,7 @@ export default function AdminAppSettingsPage() {
     setCompanies((prev) => {
       if (prev.length >= 64) return prev;
       const id = `company-${Date.now().toString(36)}`;
-      return [...prev, { id, name: "" }];
+      return [...prev, { id, name: "", plan: DEFAULT_COMPANY_PLAN }];
     });
   }
 
@@ -310,7 +328,7 @@ export default function AdminAppSettingsPage() {
       guidelines[k] = { client, partner };
     }
     const cleanedCompanies = companies
-      .map((c) => ({ id: c.id.trim(), name: c.name.trim() }))
+      .map((c) => ({ id: c.id.trim(), name: c.name.trim(), plan: c.plan }))
       .filter((c) => c.id && c.name);
     {
       const cIds = cleanedCompanies.map((c) => c.id);
@@ -534,6 +552,8 @@ export default function AdminAppSettingsPage() {
               </div>
               <p className="text-sm text-rose-900/80">
                 クライアント／クライアント管理者の「所属企業ID」はここに登録された企業からのみ選べます。<br />
+                各企業には<strong>導入プラン</strong>を設定します。プランによってマッチルームに表示される機能が変わります。
+                <br />
                 <strong>同じ企業のクライアント同士だけ</strong>が「自分FTA」をお互いに閲覧でき、
                 <strong>同じ企業のクライアントの日程一覧</strong>のみクライアント管理者が見られます。
                 別企業間のデータは絶対に交わりません。
@@ -561,6 +581,18 @@ export default function AdminAppSettingsPage() {
                           maxLength={80}
                           className="flex-1 min-w-[14rem] rounded-md border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-950"
                         />
+                        <select
+                          value={c.plan}
+                          onChange={(e) => setCompanyField(i, "plan", e.target.value)}
+                          className="min-w-[12rem] rounded-md border border-indigo-200 bg-indigo-50/50 px-3 py-2 text-sm font-semibold text-indigo-950"
+                          aria-label={`${c.name || "企業"}の導入プラン`}
+                        >
+                          {COMPANY_PLAN_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
                         <input
                           value={c.id}
                           onChange={(e) => setCompanyField(i, "id", e.target.value)}

@@ -7,7 +7,16 @@ import {
 } from "@/components/scheduling-chat-blocks";
 import { PartnerChatTemplates } from "@/components/partner-chat-templates";
 import { FtaViewer } from "@/components/fta-chart";
+import { SkillCheckPanel } from "@/components/skill-check-panel";
+import { CompanionSheetPlaceholder } from "@/components/companion-sheet-placeholder";
 import type { FtaChart } from "@/lib/fta";
+import {
+  DEFAULT_COMPANY_PLAN,
+  companyPlanLabel,
+  getPlanFeatures,
+  type CompanyPlan,
+  type PlanFeatures,
+} from "@/lib/company-plan";
 import { ScheduleRulesDetail } from "@/components/schedule-rules-detail";
 import {
   SCHEDULE_SUMMARY_CLIENT,
@@ -100,9 +109,51 @@ type ScheduleSettingsPayload = {
   effectiveCompanyId: string | null;
   effectiveCompanyName: string | null;
   overriddenFields: string[];
+  companyPlan: CompanyPlan;
+  planFeatures: PlanFeatures;
 };
 
-type MatchTab = "chat" | "schedule" | "fta" | "sessions" | "overview" | "clientInfo";
+const DEFAULT_PLAN_FEATURES = getPlanFeatures(DEFAULT_COMPANY_PLAN);
+
+type MatchTab =
+  | "chat"
+  | "schedule"
+  | "fta"
+  | "sessions"
+  | "overview"
+  | "clientInfo"
+  | "skillCheck"
+  | "pdca"
+  | "reflection"
+  | "summaryReport"
+  | "lifelineChart";
+
+const TAB_HASH_MAP: Record<string, MatchTab> = {
+  chat: "chat",
+  schedule: "schedule",
+  fta: "fta",
+  sessions: "sessions",
+  overview: "overview",
+  "client-info": "clientInfo",
+  "skill-check": "skillCheck",
+  pdca: "pdca",
+  reflection: "reflection",
+  "summary-report": "summaryReport",
+  "lifeline-chart": "lifelineChart",
+};
+
+function tabFromHash(hash: string): MatchTab | null {
+  const h = hash.replace(/^#/, "").toLowerCase();
+  return TAB_HASH_MAP[h] ?? null;
+}
+
+function hashFromTab(tab: MatchTab): string {
+  if (tab === "clientInfo") return "client-info";
+  if (tab === "skillCheck") return "skill-check";
+  if (tab === "summaryReport") return "summary-report";
+  if (tab === "lifelineChart") return "lifeline-chart";
+  return tab;
+}
 
 type SessionAbandonmentApi = {
   reason: "no_show" | "late_cancel";
@@ -672,6 +723,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     effectiveCompanyId: null,
     effectiveCompanyName: null,
     overriddenFields: [],
+    companyPlan: DEFAULT_COMPANY_PLAN,
+    planFeatures: DEFAULT_PLAN_FEATURES,
   });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -684,32 +737,14 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   // 「日程調整」タブを自動で開く（以前はハッシュ無視で常に "chat" タブが開いていた）。
   const [activeTab, setActiveTab] = useState<MatchTab>(() => {
     if (typeof window === "undefined") return "chat";
-    const h = (window.location.hash || "").replace(/^#/, "").toLowerCase();
-    if (
-      h === "schedule" ||
-      h === "fta" ||
-      h === "sessions" ||
-      h === "overview" ||
-      h === "client-info"
-    ) {
-      return h === "client-info" ? "clientInfo" : h;
-    }
-    return "chat";
+    const tab = tabFromHash(window.location.hash || "");
+    return tab ?? "chat";
   });
   // クライアント側マウント後にハッシュが変わったときも追随する（戻る/進む対応）。
   useEffect(() => {
     function onHashChange() {
-      const h = (window.location.hash || "").replace(/^#/, "").toLowerCase();
-      if (
-        h === "chat" ||
-        h === "schedule" ||
-        h === "fta" ||
-        h === "sessions" ||
-        h === "overview" ||
-        h === "client-info"
-      ) {
-        setActiveTab(h === "client-info" ? "clientInfo" : (h as MatchTab));
-      }
+      const tab = tabFromHash(window.location.hash || "");
+      if (tab) setActiveTab(tab);
     }
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
@@ -729,8 +764,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const goTab = useCallback((tab: MatchTab) => {
     setActiveTab(tab);
     try {
-      const frag = tab === "clientInfo" ? "client-info" : tab;
-      history.replaceState(null, "", `#${frag}`);
+      history.replaceState(null, "", `#${hashFromTab(tab)}`);
     } catch {
       /* ignore */
     }
@@ -839,6 +873,16 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         overriddenFields: Array.isArray(sJson.overriddenFields)
           ? (sJson.overriddenFields as unknown[]).map((x) => String(x))
           : [],
+        companyPlan:
+          sJson.companyPlan === "individual_companion" ||
+          sJson.companyPlan === "coaching_management_training" ||
+          sJson.companyPlan === "workplace_activation"
+            ? sJson.companyPlan
+            : DEFAULT_COMPANY_PLAN,
+        planFeatures:
+          sJson.planFeatures && typeof sJson.planFeatures === "object"
+            ? (sJson.planFeatures as PlanFeatures)
+            : DEFAULT_PLAN_FEATURES,
       });
     }
 
@@ -1526,7 +1570,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             >
               プロジェクト概要
             </button>
-            {me.role === "PARTNER" || me.role === "ADMIN" ? (
+            {scheduleSettings.planFeatures.clientInfo && (me.role === "PARTNER" || me.role === "ADMIN") ? (
               <button
                 type="button"
                 role="tab"
@@ -1541,6 +1585,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 クライアント情報
               </button>
             ) : null}
+            {scheduleSettings.planFeatures.chat ? (
             <button
               type="button"
               role="tab"
@@ -1559,6 +1604,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 </span>
               ) : null}
             </button>
+            ) : null}
+            {scheduleSettings.planFeatures.schedule ? (
             <button
               type="button"
               role="tab"
@@ -1572,7 +1619,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             >
               日程調整
             </button>
-            {me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (
+            ) : null}
+            {scheduleSettings.planFeatures.fta &&
+            (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
               <button
                 type="button"
                 role="tab"
@@ -1587,6 +1636,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 クライアント自分FTA
               </button>
             ) : null}
+            {scheduleSettings.planFeatures.sessions ? (
             <button
               type="button"
               role="tab"
@@ -1600,6 +1650,83 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             >
               1on1セッション
             </button>
+            ) : null}
+            {scheduleSettings.planFeatures.skillCheck ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "skillCheck"}
+                onClick={() => goTab("skillCheck")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "skillCheck"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                スキルチェック
+              </button>
+            ) : null}
+            {scheduleSettings.planFeatures.pdca ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "pdca"}
+                onClick={() => goTab("pdca")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "pdca"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                PDCA
+              </button>
+            ) : null}
+            {scheduleSettings.planFeatures.reflection ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "reflection"}
+                onClick={() => goTab("reflection")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "reflection"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                振り返り
+              </button>
+            ) : null}
+            {scheduleSettings.planFeatures.lifelineChart ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "lifelineChart"}
+                onClick={() => goTab("lifelineChart")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "lifelineChart"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                ライフライン
+              </button>
+            ) : null}
+            {scheduleSettings.planFeatures.summaryReport &&
+            (me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" || me.role === "PARTNER") ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "summaryReport"}
+                onClick={() => goTab("summaryReport")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "summaryReport"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                総括レポート
+              </button>
+            ) : null}
           </div>
         </nav>
 
@@ -1607,7 +1734,12 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       {activeTab === "overview" ? (
         <section className="space-y-4">
           <h2 className="text-2xl font-semibold text-slate-900">プロジェクト概要</h2>
-          {me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (
+          {scheduleSettings.planFeatures.planComingSoon ? (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              この企業は「{companyPlanLabel(scheduleSettings.companyPlan)}」です。機能詳細は準備中のため、現時点では概要とチャットのみご利用いただけます。
+            </p>
+          ) : null}
+          {(me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") && !scheduleSettings.planFeatures.planComingSoon ? (
             <p className="text-sm text-slate-600">
               設定されたプロジェクト概要を、閲覧者の区分に応じて表示します（未入力時はメンバー向けには控えめな案内のみ表示されます）。
             </p>
@@ -2271,6 +2403,38 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             })}
           </ul>
         </section>
+      ) : null}
+
+      {activeTab === "skillCheck" && scheduleSettings.planFeatures.skillCheck ? (
+        <SkillCheckPanel matchId={matchId} />
+      ) : null}
+
+      {activeTab === "pdca" && scheduleSettings.planFeatures.pdca ? (
+        <CompanionSheetPlaceholder
+          title="PDCAシート"
+          description="重点テーマごとに Plan / Do / Check / Act をセッション単位で記録し、行動の蓄積を可視化します。"
+        />
+      ) : null}
+
+      {activeTab === "reflection" && scheduleSettings.planFeatures.reflection ? (
+        <CompanionSheetPlaceholder
+          title="振り返りシート"
+          description="最終月に本人の変化を言語化し、スキルチェックの開始時・終了時比較と連動します。"
+        />
+      ) : null}
+
+      {activeTab === "lifelineChart" && scheduleSettings.planFeatures.lifelineChart ? (
+        <CompanionSheetPlaceholder
+          title="ライフラインチャート"
+          description="人生の出来事と感情スコアを記録し、価値観・強み・課題を整理します。"
+        />
+      ) : null}
+
+      {activeTab === "summaryReport" && scheduleSettings.planFeatures.summaryReport ? (
+        <CompanionSheetPlaceholder
+          title="総括レポート"
+          description="ライフライン・スキルチェック・自分FTA・PDCA・振り返りを統合した最終レポート（PDF出力予定）です。"
+        />
       ) : null}
         </div>
       </div>

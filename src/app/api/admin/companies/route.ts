@@ -5,6 +5,7 @@ import {
   getAppSettingsRow,
   getCompanyAppSettingsOverride,
 } from "@/lib/repositories/app-settings-repository";
+import { companyPlanLabel, normalizeCompanyPlan } from "@/lib/company-plan";
 import { listMatchesForRole } from "@/lib/repositories/match-repository";
 
 export const dynamic = "force-dynamic";
@@ -65,6 +66,8 @@ export async function GET() {
   const companies = settings.companies.map((c) => ({
     id: c.id,
     name: c.name,
+    plan: normalizeCompanyPlan(c.plan),
+    planLabel: companyPlanLabel(normalizeCompanyPlan(c.plan)),
     pairCount: pairCountByCompany.get(c.id) ?? 0,
     overriddenCount: overridesByCompany.get(c.id) ?? 0,
   }));

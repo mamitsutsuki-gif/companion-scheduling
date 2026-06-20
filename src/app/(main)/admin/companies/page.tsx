@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-type Row = { id: string; name: string; pairCount: number; overriddenCount: number };
+type Row = { id: string; name: string; planLabel?: string; pairCount: number; overriddenCount: number };
 
 function roleFromMeJson(j: unknown): string | null {
   if (!j || typeof j !== "object") return null;
@@ -107,6 +107,7 @@ export default function AdminCompaniesPage() {
               <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600">
                 <tr>
                   <th className="px-4 py-3">企業名</th>
+                  <th className="px-4 py-3">導入プラン</th>
                   <th className="px-4 py-3">企業ID</th>
                   <th className="px-4 py-3 text-right">ペア数</th>
                   <th className="px-4 py-3">設定</th>
@@ -117,6 +118,7 @@ export default function AdminCompaniesPage() {
                 {rows.map((c) => (
                   <tr key={c.id} className="border-b border-slate-100">
                     <td className="px-4 py-2 font-medium text-slate-900">{c.name}</td>
+                    <td className="px-4 py-2 text-sm text-indigo-900">{c.planLabel ?? "職場活性プラン"}</td>
                     <td className="px-4 py-2 font-mono text-xs text-slate-600">{c.id}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{c.pairCount}</td>
                     <td className="px-4 py-2">
