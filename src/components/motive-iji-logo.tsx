@@ -2,22 +2,21 @@ import Link from "next/link";
 
 type LogoVariant = "icon" | "horizontal";
 
-const HORIZONTAL = {
-  src: "/brand/motiv-iji-logo-horizontal.png",
-  width: 1024,
-  height: 244,
-};
-
-const ASSETS: Record<LogoVariant, { width: number; height: number; defaultClass: string }> = {
+const LOGOS: Record<
+  LogoVariant,
+  { src: string; width: number; height: number; className: string }
+> = {
   icon: {
+    src: "/brand/motiv-iji-logo-icon.png",
     width: 244,
     height: 244,
-    defaultClass: "h-9 w-9 shrink-0 object-cover object-left",
+    className: "block h-9 w-9 shrink-0 object-contain",
   },
   horizontal: {
-    width: HORIZONTAL.width,
-    height: HORIZONTAL.height,
-    defaultClass: "h-7 w-auto max-w-[9.5rem] object-contain sm:h-8 sm:max-w-[10.5rem]",
+    src: "/brand/motiv-iji-logo-horizontal.png",
+    width: 1024,
+    height: 244,
+    className: "block h-10 w-auto max-w-[14rem] object-contain sm:h-11 sm:max-w-[15rem]",
   },
 };
 
@@ -36,17 +35,17 @@ export function MotiveIjiLogo({
   className?: string;
   priority?: boolean;
 }) {
-  const asset = ASSETS[variant];
-  const cls = [asset.defaultClass, className].filter(Boolean).join(" ");
+  const logo = LOGOS[variant];
+  const cls = [logo.className, className].filter(Boolean).join(" ");
 
   const img = (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={HORIZONTAL.src}
-      alt=""
-      aria-hidden
-      width={asset.width}
-      height={asset.height}
+      src={logo.src}
+      alt={variant === "horizontal" ? "Motiv-iji モチベイジ" : ""}
+      aria-hidden={variant === "icon" ? true : undefined}
+      width={logo.width}
+      height={logo.height}
       decoding="async"
       fetchPriority={priority ? "high" : undefined}
       className={cls}
