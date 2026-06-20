@@ -148,7 +148,7 @@ export function ApplicationChrome({
      * 以前の ring-1 ring-indigo-200 はノイズだったので外す。文字は太く tight。
      */
     return [
-      "whitespace-nowrap rounded-lg px-3 py-2 text-[15px] font-medium no-underline transition",
+      "whitespace-nowrap rounded-lg px-3 py-2 text-base font-medium no-underline transition",
       deep
         ? "bg-indigo-50 text-indigo-900"
         : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
@@ -194,7 +194,7 @@ export function ApplicationChrome({
               <Link key={item.href} href={item.href} className={itemClass(item.href)}>
                 {item.label}
                 {item.badge && item.badge > 0 ? (
-                  <span className="ml-1.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-rose-600 px-1.5 text-[10px] font-bold text-white">
+                  <span className="ml-1.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-rose-600 px-1.5 text-[11px] font-bold text-white">
                     {item.badge}
                   </span>
                 ) : null}

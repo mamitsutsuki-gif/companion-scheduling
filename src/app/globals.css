@@ -18,20 +18,20 @@
 }
 
 :root {
-  font-size: 18px;
+  font-size: 19px;
   /* SaaS ライクな端正さのため、ベースは slate-900 寄りで微温に。 */
   color-scheme: light;
 }
 
 @media (max-width: 640px) {
   :root {
-    font-size: 17px;
+    font-size: 18px;
   }
 }
 
 body {
   @apply antialiased;
-  font-size: 1.05rem;
+  font-size: 1.06rem;
   /* 行間は和文込みで読みやすく */
   line-height: 1.68;
   /* Inter 用のリッチな OpenType 機能（数字の幅、合字、文末リガチャ）を有効化 */
@@ -60,10 +60,12 @@ textarea,
 select,
 button {
   @apply text-base;
+  font-size: 1.06rem;
 }
 
 label {
   @apply text-base;
+  font-size: 1.04rem;
 }
 
 /* 等幅専用クラス（ID / コード / 通貨表示用）。font-mono を上書きしないため独立。 */
