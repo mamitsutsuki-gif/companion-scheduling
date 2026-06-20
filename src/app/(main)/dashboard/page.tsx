@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/require-user";
 import { APP_DISPLAY_NAME } from "@/lib/brand";
 import { listMatchesForRole } from "@/lib/repositories/match-repository";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { getEffectiveAppSettingsForUser } from "@/lib/effective-app-settings";
+import { shouldShowGlobalFta } from "@/lib/company-plan";
 import { PartnerInvoiceAlert } from "@/components/partner-invoice-alert";
 import { NextActionsSection } from "@/components/next-actions-section";
 import { AwaitingAssignment } from "@/components/awaiting-assignment";
@@ -28,10 +30,12 @@ export default async function DashboardPage({
   const rawCompany = sp.company;
   const companyFilter = typeof rawCompany === "string" ? rawCompany.trim() : "";
 
-  const [allMatches, settings] = await Promise.all([
+  const [allMatches, settings, effective] = await Promise.all([
     listMatchesForRole({ role: me.role, userId: me.id }),
     getAppSettingsRow(),
+    getEffectiveAppSettingsForUser(me.id),
   ]);
+  const showFta = shouldShowGlobalFta(me.role, effective.companyPlan);
 
   // 管理者・管理者アシスタントだけが企業フィルタを使える。それ以外は全件のままで挙動を変えない。
   const isAdmin = me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT";
@@ -105,6 +109,7 @@ export default async function DashboardPage({
           shouldShow={!((me as { onboardedAt?: string | null }).onboardedAt ?? null)}
           role={me.role as "CLIENT" | "CLIENT_ADMIN" | "CLIENT_HR" | "PARTNER"}
           hasMatches={allMatches.length > 0}
+          showFta={showFta}
         />
       ) : null}
 
@@ -176,7 +181,7 @@ export default async function DashboardPage({
       */}
       {(!isAdmin && allMatches.length === 0) ? null : (
       <section className="space-y-5">
-        {(me.role === "CLIENT" || me.role === "PARTNER" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR") ? (
+        {showFta ? (
           // Variant A: 説明用カードは、白 + slate-200 + 左肩 eyebrow（小さい indigo 文字）で、
           // 周囲のヒーロー / 担当ペアカードと「色面積」が衝突しない控えめさにする。
           <div className="app-surface-raised rounded-2xl p-5">

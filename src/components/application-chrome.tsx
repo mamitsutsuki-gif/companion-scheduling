@@ -18,9 +18,11 @@ function withHonorificSan(name: string) {
 
 export function ApplicationChrome({
   profile,
+  showFtaNav = false,
   children,
 }: {
   profile: Profile;
+  showFtaNav?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -130,12 +132,7 @@ export function ApplicationChrome({
     nav.push({ href: "/partner/invoices", label: "請求書", badge: invoiceBadge });
     nav.push({ href: "/partner/zoom", label: "会議リンク設定" });
   }
-  if (
-    profile.role === "PARTNER" ||
-    profile.role === "CLIENT" ||
-    profile.role === "CLIENT_ADMIN" ||
-    profile.role === "CLIENT_HR"
-  ) {
+  if (showFtaNav) {
     nav.push({ href: "/fta", label: "自分FTA" });
   }
 

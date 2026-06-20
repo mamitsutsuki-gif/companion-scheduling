@@ -133,3 +133,15 @@ export function resolveCompanyPlan(
   const company = companies.find((c) => c.id === id);
   return normalizeCompanyPlan(company?.plan);
 }
+
+/** グローバルナビ・ホーム等の「自分FTA」導線を出すか（パートナーは常に、企業メンバーはプラン依存）。 */
+export function shouldShowGlobalFta(
+  role: "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "CLIENT_HR" | string,
+  companyPlan: CompanyPlan,
+): boolean {
+  if (role === "PARTNER") return true;
+  if (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR") {
+    return getPlanFeatures(companyPlan).fta;
+  }
+  return false;
+}

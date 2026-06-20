@@ -12,6 +12,8 @@ import { listMemberNotifications } from "@/lib/repositories/member-notification-
 import { getFtaByUserId } from "@/lib/repositories/fta-repository";
 import { getPartnerInvoice } from "@/lib/repositories/partner-invoice-repository";
 import { isFirebaseDataBackend } from "@/lib/firebase-admin";
+import { getEffectiveAppSettingsForUser } from "@/lib/effective-app-settings";
+import { shouldShowGlobalFta } from "@/lib/company-plan";
 import {
   computeAllActions,
   type ComputeInput,
@@ -126,9 +128,14 @@ export async function GET() {
     messageCountByMatch[row.m.matchId] = row.messages.length;
   }
 
-  // FTA (CLIENT 系のみ意味があるが計算は一様にやる)
+  // FTA (CLIENT 系のみ意味があるが、プランで FTA が無効な企業メンバーには出さない)
   let myFta: ComputeInput["myFta"] | undefined;
-  if (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR") {
+  const effective = await getEffectiveAppSettingsForUser(me.id);
+  const showFta = shouldShowGlobalFta(me.role, effective.companyPlan);
+  if (
+    showFta &&
+    (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR")
+  ) {
     const chart = await getFtaByUserId(me.id);
     myFta = {
       visionText: chart.vision.text,

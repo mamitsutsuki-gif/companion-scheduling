@@ -19,11 +19,13 @@ export function OnboardingModal({
   shouldShow,
   role,
   hasMatches,
+  showFta = true,
 }: {
   userId: string;
   shouldShow: boolean;
   role: Role;
   hasMatches: boolean;
+  showFta?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -52,17 +54,24 @@ export function OnboardingModal({
 
   const steps: { title: string; desc: string }[] = !hasMatches
     ? isClient
-      ? [
-          {
-            title: "① 自分FTA を入力しましょう",
-            desc:
-              "ホームのメニューから「自分FTA」に入力できます。入力は担当パートナーとの対話の土台になります。",
-          },
-          {
-            title: "② あなた専属の対話パートナーをアサインするまでお待ちください",
-            desc: "アサインが決まりましたら、このアプリからメールでもお知らせします。",
-          },
-        ]
+      ? showFta
+        ? [
+            {
+              title: "① 自分FTA を入力しましょう",
+              desc:
+                "ホームのメニューから「自分FTA」に入力できます。入力は担当パートナーとの対話の土台になります。",
+            },
+            {
+              title: "② あなた専属の対話パートナーをアサインするまでお待ちください",
+              desc: "アサインが決まりましたら、このアプリからメールでもお知らせします。",
+            },
+          ]
+        : [
+            {
+              title: "① あなた専属の対話パートナーをアサインするまでお待ちください",
+              desc: "アサインが決まりましたら、このアプリからメールでもお知らせします。",
+            },
+          ]
       : [
           {
             title: "① 皆さんも自分FTA に入力してみましょう",
@@ -75,20 +84,31 @@ export function OnboardingModal({
           },
         ]
     : isClient
-      ? [
-          {
-            title: "① 自分FTA を入力しましょう",
-            desc: "ありたい姿や行動を整理しておくと、対話がスムーズです。",
-          },
-          {
-            title: "② 対話パートナーと挨拶しましょう",
-            desc: "担当ペアのルームを開き、チャットでまずはご挨拶を送ってください。",
-          },
-          {
-            title: "③ 日程調整の候補日は対話パートナーから届きます",
-            desc: "候補日はパートナーから送られます。届くまでお待ちください。",
-          },
-        ]
+      ? showFta
+        ? [
+            {
+              title: "① 自分FTA を入力しましょう",
+              desc: "ありたい姿や行動を整理しておくと、対話がスムーズです。",
+            },
+            {
+              title: "② 対話パートナーと挨拶しましょう",
+              desc: "担当ペアのルームを開き、チャットでまずはご挨拶を送ってください。",
+            },
+            {
+              title: "③ 日程調整の候補日は対話パートナーから届きます",
+              desc: "候補日はパートナーから送られます。届くまでお待ちください。",
+            },
+          ]
+        : [
+            {
+              title: "① 対話パートナーと挨拶しましょう",
+              desc: "担当ペアのルームを開き、チャットでまずはご挨拶を送ってください。",
+            },
+            {
+              title: "② 日程調整の候補日は対話パートナーから届きます",
+              desc: "候補日はパートナーから送られます。届くまでお待ちください。",
+            },
+          ]
       : [
           {
             title: "① クライアントに挨拶しましょう",
@@ -147,13 +167,15 @@ export function OnboardingModal({
         <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-slate-500">このご案内は最初の 1 回だけ表示されます。</p>
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/fta"
-              onClick={() => void dismiss()}
-              className="rounded-lg border border-indigo-300 bg-white px-4 py-2.5 text-base font-semibold text-indigo-900 no-underline hover:bg-indigo-50"
-            >
-              自分FTAへ
-            </Link>
+            {showFta ? (
+              <Link
+                href="/fta"
+                onClick={() => void dismiss()}
+                className="rounded-lg border border-indigo-300 bg-white px-4 py-2.5 text-base font-semibold text-indigo-900 no-underline hover:bg-indigo-50"
+              >
+                自分FTAへ
+              </Link>
+            ) : null}
             <button
               type="button"
               onClick={() => void dismiss()}
