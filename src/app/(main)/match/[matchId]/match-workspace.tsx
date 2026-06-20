@@ -6,13 +6,14 @@ import {
   VoteSummaryCard,
 } from "@/components/scheduling-chat-blocks";
 import { PartnerChatTemplates } from "@/components/partner-chat-templates";
-import { FtaViewer } from "@/components/fta-chart";
+import { FtaEditor, FtaViewer } from "@/components/fta-chart";
 import { SkillCheckPanel } from "@/components/skill-check-panel";
 import { PdcaPanel } from "@/components/pdca-panel";
 import { ReflectionPanel } from "@/components/reflection-panel";
 import { LifelinePanel } from "@/components/lifeline-panel";
 import { SummaryReportPanel } from "@/components/summary-report-panel";
 import type { FtaChart } from "@/lib/fta";
+import { defaultFtaChart } from "@/lib/fta";
 import {
   DEFAULT_COMPANY_PLAN,
   companyPlanLabel,
@@ -156,6 +157,18 @@ function hashFromTab(tab: MatchTab): string {
   if (tab === "summaryReport") return "summary-report";
   if (tab === "lifelineChart") return "lifeline-chart";
   return tab;
+}
+
+function canShowFtaTab(me: Me, settings: ScheduleSettingsPayload): boolean {
+  if (!settings.planFeatures.fta) return false;
+  if (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") return true;
+  return settings.companyPlan === "individual_companion" && me.role === "CLIENT";
+}
+
+function ftaTabLabel(me: Me, settings: ScheduleSettingsPayload): string {
+  return me.role === "CLIENT" && settings.companyPlan === "individual_companion"
+    ? "自分FTA"
+    : "クライアント自分FTA";
 }
 
 type SessionAbandonmentApi = {
@@ -733,6 +746,11 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [rescheduleSubmittingSession, setRescheduleSubmittingSession] = useState<number | null>(null);
   const [clientFta, setClientFta] = useState<MatchFtaPayload | null>(null);
+  const [myFtaChart, setMyFtaChart] = useState<FtaChart>(defaultFtaChart());
+  const [myFtaDirty, setMyFtaDirty] = useState(false);
+  const [myFtaSaving, setMyFtaSaving] = useState(false);
+  const [myFtaMsg, setMyFtaMsg] = useState<string | null>(null);
+  const [ftaFocusSkillOptions, setFtaFocusSkillOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [availability, setAvailability] = useState<AvailabilityPayload | null>(null);
   const [sessionRows, setSessionRows] = useState<SessionPlanApiRow[]>([]);
   // 初期タブは URL ハッシュから決定する。
@@ -914,6 +932,22 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     setClientFta(null);
   }, [matchId]);
 
+  const loadMyFta = useCallback(async () => {
+    const [ftaRes, skillRes] = await Promise.all([
+      fetch("/api/fta/me", { cache: "no-store" }),
+      fetch("/api/skill-check/me", { cache: "no-store" }),
+    ]);
+    const ftaJson = await ftaRes.json().catch(() => null);
+    const skillJson = await skillRes.json().catch(() => null);
+    if (ftaRes.ok && ftaJson?.chart) {
+      setMyFtaChart(ftaJson.chart as FtaChart);
+      setMyFtaDirty(false);
+    }
+    if (skillRes.ok && Array.isArray(skillJson?.focusSkillOptions)) {
+      setFtaFocusSkillOptions(skillJson.focusSkillOptions);
+    }
+  }, []);
+
   const loadSessions = useCallback(async () => {
     const res = await fetch(`/api/matches/${matchId}/sessions`, { cache: "no-store" });
     const json = await res.json().catch(() => null);
@@ -956,6 +990,39 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     void loadAvailability();
     void loadSessions();
   }, [load, loadClientFta, loadAvailability, loadSessions]);
+
+  useEffect(() => {
+    if (
+      me?.role === "CLIENT" &&
+      scheduleSettings.companyPlan === "individual_companion" &&
+      scheduleSettings.planFeatures.fta
+    ) {
+      void loadMyFta();
+    }
+  }, [me?.role, scheduleSettings.companyPlan, scheduleSettings.planFeatures.fta, loadMyFta]);
+
+  useEffect(() => {
+    if (!myFtaDirty || myFtaSaving) return;
+    const id = window.setTimeout(async () => {
+      setMyFtaSaving(true);
+      const res = await fetch("/api/fta/me", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chart: myFtaChart }),
+      });
+      const data = await res.json().catch(() => null);
+      setMyFtaSaving(false);
+      if (!res.ok) {
+        setMyFtaMsg(data?.error ?? "自動保存に失敗しました。");
+        return;
+      }
+      if (data?.chart) setMyFtaChart(data.chart as FtaChart);
+      setMyFtaDirty(false);
+      setMyFtaMsg("自動保存しました。");
+      void loadClientFta();
+    }, 2000);
+    return () => window.clearTimeout(id);
+  }, [myFtaChart, myFtaDirty, myFtaSaving, loadClientFta]);
 
   useEffect(() => {
     if (activeTab !== "overview") return;
@@ -1623,22 +1690,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               日程調整
             </button>
             ) : null}
-            {scheduleSettings.planFeatures.fta &&
-            (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === "fta"}
-                onClick={() => goTab("fta")}
-                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
-                  activeTab === "fta"
-                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
-                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
-                }`}
-              >
-                クライアント自分FTA
-              </button>
-            ) : null}
             {scheduleSettings.planFeatures.sessions ? (
             <button
               type="button"
@@ -1667,6 +1718,21 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 }`}
               >
                 スキルチェック
+              </button>
+            ) : null}
+            {me && canShowFtaTab(me, scheduleSettings) ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "fta"}
+                onClick={() => goTab("fta")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "fta"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                {ftaTabLabel(me, scheduleSettings)}
               </button>
             ) : null}
             {scheduleSettings.planFeatures.pdca ? (
@@ -2266,7 +2332,39 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       </section>
       ) : null}
 
-      {activeTab === "fta" && (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
+      {activeTab === "fta" && me && canShowFtaTab(me, scheduleSettings) ? (
+        me.role === "CLIENT" && scheduleSettings.companyPlan === "individual_companion" ? (
+          <section className="space-y-4 rounded-3xl border border-indigo-100 bg-indigo-50/30 px-3 py-5 sm:px-6 sm:py-8">
+            <div className="space-y-1">
+              <h2 className="text-2xl font-semibold text-indigo-900">自分FTA</h2>
+              <p className="text-base text-indigo-800">
+                中心のありたい姿(A)から要素(B)・アクション(C)を整理します。スキルチェックで選んだ重点スキルと紐づけできます。
+              </p>
+            </div>
+            <FtaEditor
+              chart={myFtaChart}
+              onChange={(next) => {
+                setMyFtaChart(next);
+                setMyFtaDirty(true);
+                setMyFtaMsg(null);
+              }}
+              focusSkillOptions={ftaFocusSkillOptions}
+            />
+            <div className="flex flex-wrap items-center gap-3">
+              {myFtaMsg ? <span className="text-sm text-slate-600">{myFtaMsg}</span> : null}
+              {myFtaDirty ? (
+                <span className="text-xs text-amber-700">未保存の変更があります（2秒後に自動保存）</span>
+              ) : null}
+              {myFtaSaving ? <span className="text-xs text-slate-500">保存中…</span> : null}
+            </div>
+            <div className="rounded-xl border border-indigo-200 bg-white p-4">
+              <h3 className="text-base font-semibold text-indigo-950">プレビュー</h3>
+              <div className="mt-3">
+                <FtaViewer chart={myFtaChart} />
+              </div>
+            </div>
+          </section>
+        ) : (
         <section className="space-y-4 rounded-3xl border border-emerald-100 bg-emerald-50/35 px-3 py-5 sm:px-6 sm:py-8">
           <h2 className="text-2xl font-semibold text-emerald-900">クライアントの自分FTA</h2>
           {clientFta?.targetRole === "CLIENT" && clientFta.chart ? (
@@ -2281,6 +2379,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             </p>
           )}
         </section>
+        )
       ) : null}
 
       {activeTab === "sessions" ? (
