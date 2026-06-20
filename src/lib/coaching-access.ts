@@ -2,7 +2,7 @@ import type { Role } from "@prisma/client";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { getMatchById } from "@/lib/repositories/match-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
-import { isAnyAdmin } from "@/lib/role-aliases";
+import { isClientAdminLike, isAnyAdmin } from "@/lib/role-aliases";
 
 export type CoachingAccess = {
   targetUserId: string;
@@ -86,6 +86,21 @@ export async function resolveCoachingAccessForMatch(
     isPartnerOnMatch: actor.role === "PARTNER" && match.partnerId === actor.id,
   });
   if (base) return base;
+
+  if (isClientAdminLike(actor.role)) {
+    const actorUser = await getUserById(actor.id);
+    const actorCompanyId = ((actorUser as { companyId?: string | null } | null)?.companyId ?? "").trim();
+    if (actorCompanyId && actorCompanyId === companyId) {
+      return {
+        targetUserId: match.clientId,
+        companyId,
+        matchId,
+        canView: true,
+        canEditClient: false,
+        canEditPartner: false,
+      };
+    }
+  }
 
   return { error: "forbidden" };
 }

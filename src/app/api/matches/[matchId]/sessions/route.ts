@@ -5,6 +5,9 @@ import { listSessionPlanForMatch } from "@/lib/repositories/match-sessions-repos
 import { listSessionFeedbacksForMatch } from "@/lib/repositories/session-feedback-repository";
 import { listSessionReportsForMatch } from "@/lib/repositories/session-report-repository";
 import { listSessionAbandonmentsForMatch } from "@/lib/repositories/session-abandonment-repository";
+import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
+import { getRoleplayStore } from "@/lib/repositories/coaching-repository";
+import { roleplaySideComplete } from "@/lib/coaching-roleplay";
 
 type RouteContext = { params: Promise<{ matchId: string }> };
 
@@ -23,6 +26,9 @@ export async function GET(_request: Request, context: RouteContext) {
   const feedbacks = await listSessionFeedbacksForMatch(matchId);
   const reports = await listSessionReportsForMatch(matchId);
   const abandonments = await listSessionAbandonmentsForMatch(matchId);
+  const effective = await getEffectiveAppSettingsForMatch(matchId);
+  const isCoachingPlan = effective.companyPlan === "coaching_management_training";
+  const roleplayStore = isCoachingPlan ? await getRoleplayStore(matchId) : null;
 
   const fbSet = new Set(feedbacks.map((f) => f.sessionNumber));
   const rpSet = new Set(reports.map((r) => r.sessionNumber));
@@ -32,11 +38,21 @@ export async function GET(_request: Request, context: RouteContext) {
   // フロントで「予定 / 実施済 / 未実施・消化」のバッジを表示する。
   const rows = plan.map((row) => {
     const ab = abMap.get(row.sessionNumber) ?? null;
+    const roleplaySession =
+      isCoachingPlan && row.sessionNumber >= 1 && row.sessionNumber <= 3
+        ? roleplayStore?.sessions[row.sessionNumber - 1] ?? null
+        : null;
+    const hasClientFeedback = isCoachingPlan && roleplaySession
+      ? roleplaySideComplete(roleplaySession, "client")
+      : fbSet.has(row.sessionNumber);
+    const hasPartnerReport = isCoachingPlan && roleplaySession
+      ? roleplaySideComplete(roleplaySession, "partner")
+      : rpSet.has(row.sessionNumber);
     return {
       ...row,
       openable: true,
-      hasClientFeedback: fbSet.has(row.sessionNumber),
-      hasPartnerReport: rpSet.has(row.sessionNumber),
+      hasClientFeedback,
+      hasPartnerReport,
       abandonment: ab
         ? { reason: ab.reason, markedAt: ab.markedAt, markedBy: ab.markedBy }
         : null,

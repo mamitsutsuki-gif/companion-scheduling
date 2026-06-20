@@ -12,7 +12,6 @@ import { PdcaPanel } from "@/components/pdca-panel";
 import { ReflectionPanel } from "@/components/reflection-panel";
 import { LifelinePanel } from "@/components/lifeline-panel";
 import { SummaryReportPanel } from "@/components/summary-report-panel";
-import { CoachingRoleplayPanel } from "@/components/coaching-roleplay-panel";
 import { CoachingQuestionsPanel } from "@/components/coaching-questions-panel";
 import { CoachingIcebreakerPanel } from "@/components/coaching-icebreaker-panel";
 import { CoachingOneOnOneFormatPanel } from "@/components/coaching-one-on-one-format-panel";
@@ -1740,6 +1739,21 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 スキルチェック
               </button>
             ) : null}
+            {scheduleSettings.planFeatures.lifelineChart ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "lifelineChart"}
+                onClick={() => goTab("lifelineChart")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "lifelineChart"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                ライフライン
+              </button>
+            ) : null}
             {me && canShowFtaTab(me, scheduleSettings) ? (
               <button
                 type="button"
@@ -1785,21 +1799,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 振り返り
               </button>
             ) : null}
-            {scheduleSettings.planFeatures.lifelineChart ? (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === "lifelineChart"}
-                onClick={() => goTab("lifelineChart")}
-                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
-                  activeTab === "lifelineChart"
-                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
-                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
-                }`}
-              >
-                ライフライン
-              </button>
-            ) : null}
             {scheduleSettings.planFeatures.summaryReport &&
             (me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" || me.role === "PARTNER") ? (
               <button
@@ -1814,21 +1813,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 }`}
               >
                 総括レポート
-              </button>
-            ) : null}
-            {scheduleSettings.planFeatures.coachingRoleplay ? (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === "coachingRoleplay"}
-                onClick={() => goTab("coachingRoleplay")}
-                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
-                  activeTab === "coachingRoleplay"
-                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
-                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
-                }`}
-              >
-                ロールプレイ
               </button>
             ) : null}
             {scheduleSettings.planFeatures.coachingQuestions ? (
@@ -2117,11 +2101,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                         href={`/match/${matchId}/sessions/${row.index}`}
                         className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-900 no-underline shadow-sm transition hover:bg-indigo-100"
                       >
-                        {me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR"
-                          ? "振り返りを開く"
-                          : me.role === "PARTNER"
-                            ? "レポートを開く"
-                            : "詳細を開く"}
+                        {scheduleSettings.companyPlan === "coaching_management_training"
+                          ? "ロールプレイ評価を開く"
+                          : me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR"
+                            ? "振り返りを開く"
+                            : me.role === "PARTNER"
+                              ? "レポートを開く"
+                              : "詳細を開く"}
                       </Link>
                       {isRescheduling ? (
                         <span className="rounded-md border border-amber-300 bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-900">
@@ -2467,7 +2453,15 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           <div className="space-y-1">
             <h2 className="text-2xl font-semibold text-indigo-900">1on1セッション</h2>
             <p className="text-base text-indigo-800">
-              セッション計画（全 {scheduleSettings.totalSessions} 回）。各回をタップすると、その回の{me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" ? "振り返りフォーム" : me.role === "PARTNER" ? "レポート" : "クライアント振り返り＆パートナーレポート"}を開けます。
+              セッション計画（全 {scheduleSettings.totalSessions} 回）。各回をタップすると、その回の
+              {scheduleSettings.companyPlan === "coaching_management_training"
+                ? "ロールプレイ評価"
+                : me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR"
+                  ? "振り返りフォーム"
+                  : me.role === "PARTNER"
+                    ? "レポート"
+                    : "クライアント振り返り＆パートナーレポート"}
+              を開けます。
               <br />
               <span className="text-sm">
                 未来の回は開けません。直近で実施予定の回だけ、セッション中に開くことができます。
@@ -2506,11 +2500,20 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                   : null;
               const filledBadges: string[] = [];
               if (!isAbandoned) {
+                const coachingPlan = scheduleSettings.companyPlan === "coaching_management_training";
                 if (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") {
-                  filledBadges.push(row.hasClientFeedback ? "クライアント振り返り済" : "クライアント未提出");
+                  filledBadges.push(
+                    row.hasClientFeedback
+                      ? coachingPlan ? "自己評価済" : "クライアント振り返り済"
+                      : coachingPlan ? "自己評価未入力" : "クライアント未提出",
+                  );
                 }
                 if (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") {
-                  filledBadges.push(row.hasPartnerReport ? "パートナーレポート済" : "パートナー未提出");
+                  filledBadges.push(
+                    row.hasPartnerReport
+                      ? coachingPlan ? "パートナー評価済" : "パートナーレポート済"
+                      : coachingPlan ? "パートナー評価未入力" : "パートナー未提出",
+                  );
                 }
               }
               return (
@@ -2605,10 +2608,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
       {activeTab === "summaryReport" && scheduleSettings.planFeatures.summaryReport ? (
         <SummaryReportPanel matchId={matchId} />
-      ) : null}
-
-      {activeTab === "coachingRoleplay" && scheduleSettings.planFeatures.coachingRoleplay ? (
-        <CoachingRoleplayPanel matchId={matchId} />
       ) : null}
 
       {activeTab === "coachingQuestions" && scheduleSettings.planFeatures.coachingQuestions ? (

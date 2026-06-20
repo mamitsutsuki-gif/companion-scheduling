@@ -69,6 +69,9 @@ export async function GET(_request: Request, context: RouteContext) {
   return jsonOk({
     matchId,
     sessionNumber: n,
+    companyPlan: settings.companyPlan,
+    isCoachingRoleplaySession:
+      settings.companyPlan === "coaching_management_training" && n >= 1 && n <= 3,
     plan: target,
     openable: true,
     viewerRole: session.role,

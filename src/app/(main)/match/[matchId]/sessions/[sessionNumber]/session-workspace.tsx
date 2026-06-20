@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { CoachingSessionRoleplayPanel } from "@/components/coaching-session-roleplay-panel";
 
 type Role =
   | "ADMIN"
@@ -25,6 +26,8 @@ type AbandonReason = "no_show" | "late_cancel";
 type SessionDetail = {
   matchId: string;
   sessionNumber: number;
+  companyPlan?: string;
+  isCoachingRoleplaySession?: boolean;
   plan: {
     sessionNumber: number;
     confirmed: boolean;
@@ -362,6 +365,10 @@ export function SessionWorkspace({
           ""
         : detail.guideline?.client?.trim() ?? "";
 
+  const isCoachingRoleplay = detail.isCoachingRoleplaySession === true;
+  const roleplayReadOnly =
+    role === "ADMIN_ASSISTANT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR";
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-3 py-5 sm:gap-8 sm:px-6 sm:py-8">
       <header className="space-y-2 border-b border-zinc-200 pb-4">
@@ -471,7 +478,17 @@ export function SessionWorkspace({
         ) : null
       ) : null}
 
-      {role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR" || role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
+      {isCoachingRoleplay && !isAbandoned ? (
+        <section className="space-y-4 rounded-3xl border border-indigo-100 bg-white p-4 shadow-sm sm:p-6">
+          <CoachingSessionRoleplayPanel
+            matchId={matchId}
+            sessionNumber={detail.sessionNumber}
+            readOnly={roleplayReadOnly}
+          />
+        </section>
+      ) : null}
+
+      {!isCoachingRoleplay && (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR" || role === "ADMIN" || role === "ADMIN_ASSISTANT") ? (
         <section className="space-y-4 rounded-3xl border border-indigo-100 bg-white p-4 shadow-sm sm:p-6">
           <header>
             <h2 className="text-xl font-semibold text-indigo-900">クライアント振り返り</h2>
@@ -698,7 +715,7 @@ export function SessionWorkspace({
         </section>
       ) : null}
 
-      {role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
+      {!isCoachingRoleplay && (role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT") ? (
         <section className="space-y-4 rounded-3xl border border-amber-100 bg-white p-4 shadow-sm sm:p-6">
           <header>
             <h2 className="text-xl font-semibold text-amber-900">1on1セッションレポート（パートナー）</h2>

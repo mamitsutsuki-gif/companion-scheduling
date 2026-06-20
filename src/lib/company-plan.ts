@@ -93,7 +93,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         reflection: false,
         lifelineChart: false,
         summaryReport: false,
-        coachingRoleplay: true,
+        coachingRoleplay: false,
         coachingQuestions: true,
         coachingIcebreaker: true,
         coachingOneOnOneFormat: true,
