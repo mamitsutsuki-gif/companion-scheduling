@@ -24,6 +24,7 @@ import {
   type CompanyPlan,
   type PlanFeatures,
 } from "@/lib/company-plan";
+import { MatchRoomGuideBanner } from "@/components/match-room-guide-banner";
 import { ScheduleRulesDetail } from "@/components/schedule-rules-detail";
 import {
   SCHEDULE_SUMMARY_CLIENT,
@@ -1534,6 +1535,19 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
       {error ? <p className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p> : null}
       {notice ? <p className="rounded-xl bg-indigo-50 px-4 py-2 text-sm text-indigo-900">{notice}</p> : null}
+
+      {me.role === "PARTNER" ||
+      me.role === "CLIENT" ||
+      me.role === "CLIENT_ADMIN" ||
+      me.role === "CLIENT_HR" ? (
+        <MatchRoomGuideBanner
+          userId={me.id}
+          role={me.role}
+          planFeatures={scheduleSettings.planFeatures}
+          isCoachingPlan={scheduleSettings.companyPlan === "coaching_management_training"}
+          onGoTab={(tab) => goTab(tab as MatchTab)}
+        />
+      ) : null}
 
       {/*
         「あなたの今の状態」バナー（クライアント / パートナーのみ）。

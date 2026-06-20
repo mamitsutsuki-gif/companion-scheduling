@@ -6,7 +6,7 @@ import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { getEffectiveAppSettingsForUser } from "@/lib/effective-app-settings";
 import { shouldShowGlobalFta } from "@/lib/company-plan";
 import { PartnerInvoiceAlert } from "@/components/partner-invoice-alert";
-import { NextActionsSection } from "@/components/next-actions-section";
+import { TodayFocusCard } from "@/components/today-focus-card";
 import { AwaitingAssignment } from "@/components/awaiting-assignment";
 import { OnboardingModal } from "@/components/onboarding-modal";
 import { AdminStaleUsersPanel } from "@/components/admin-stale-users-panel";
@@ -132,7 +132,7 @@ export default async function DashboardPage({
         - 管理者には何も表示しない（API が空配列を返す）
         - マッチ未割当のときは API 側で抑制される
       */}
-      {!isAdmin && allMatches.length > 0 ? <NextActionsSection /> : null}
+      {!isAdmin && allMatches.length > 0 ? <TodayFocusCard /> : null}
 
       {/*
         管理者ホーム下部に「最近アクセスのないユーザー」を出す。

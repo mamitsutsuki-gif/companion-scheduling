@@ -12,8 +12,9 @@ import { listMemberNotifications } from "@/lib/repositories/member-notification-
 import { getFtaByUserId } from "@/lib/repositories/fta-repository";
 import { getPartnerInvoice } from "@/lib/repositories/partner-invoice-repository";
 import { isFirebaseDataBackend } from "@/lib/firebase-admin";
-import { getEffectiveAppSettingsForUser } from "@/lib/effective-app-settings";
+import { getEffectiveAppSettingsForUser, getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { shouldShowGlobalFta } from "@/lib/company-plan";
+import { getRoleplayStore } from "@/lib/repositories/coaching-repository";
 import {
   computeAllActions,
   type ComputeInput,
@@ -22,6 +23,7 @@ import {
   type MatchSnapshot,
   type UnreadChatSnapshot,
 } from "@/lib/next-actions";
+import { computeTodayFocus, type TodayFocusMatchMeta } from "@/lib/today-focus";
 
 /**
  * 「あなたが次にやること」をユーザー横断で集計する API。
@@ -38,7 +40,7 @@ export async function GET() {
   if (!me) return jsonError("ユーザー情報が取得できません。", 401);
 
   if (me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") {
-    return jsonOk({ actions: [], matches: [] });
+    return jsonOk({ actions: [], matches: [], focus: null });
   }
 
   const matchRows = await listMatchesForRole({ role: me.role, userId: me.id });
@@ -55,23 +57,28 @@ export async function GET() {
     // FTA / 請求書はマッチ無しでも個別アクションになり得るが、
     // 「まず管理者にアサインされるまでは何もできない」というのが本要件なので、
     // マッチが無いときは個別アクションも空にする。
-    return jsonOk({ actions: [], matches: [] });
+    return jsonOk({ actions: [], matches: [], focus: null });
   }
 
   // 全マッチ分のデータを並列ロード
   const perMatch = await Promise.all(
     matches.map(async (m) => {
-      const [negs, sessionPlan, feedbacks, reports, abandonments, messages] = await Promise.all([
+      const [negs, sessionPlan, feedbacks, reports, abandonments, messages, effective] = await Promise.all([
         listNegotiationsForMatch(m.matchId),
         listSessionPlanForMatch(m.matchId),
         listSessionFeedbacksForMatch(m.matchId),
         listSessionReportsForMatch(m.matchId),
         listSessionAbandonmentsForMatch(m.matchId),
         listMessagesForMatch(m.matchId),
+        getEffectiveAppSettingsForMatch(m.matchId),
       ]);
-      return { m, negs, sessionPlan, feedbacks, reports, abandonments, messages };
+      const isCoaching = effective.companyPlan === "coaching_management_training";
+      const roleplayStore = isCoaching ? await getRoleplayStore(m.matchId) : null;
+      return { m, negs, sessionPlan, feedbacks, reports, abandonments, messages, effective, roleplayStore };
     }),
   );
+
+  const metaByMatch: Record<string, TodayFocusMatchMeta> = {};
 
   // 未読チャット件数: member notifications の CHAT (readAt なし) を matchId ごとに集計
   const myNotifs = await listMemberNotifications(me.id, { limit: 200 });
@@ -91,6 +98,11 @@ export async function GET() {
   const messageCountByMatch: Record<string, number> = {};
 
   for (const row of perMatch) {
+    metaByMatch[row.m.matchId] = {
+      matchId: row.m.matchId,
+      companyPlan: row.effective.companyPlan,
+      roleplayStore: row.roleplayStore,
+    };
     negotiationsByMatch[row.m.matchId] = row.negs.map((n) => ({
       matchId: n.matchId,
       sessionNumber: n.sessionNumber,
@@ -152,7 +164,7 @@ export async function GET() {
     myInvoice = { status: inv ? inv.status : "MISSING" };
   }
 
-  const actions = computeAllActions({
+  const computeInput: ComputeInput = {
     me: { id: me.id, role: me.role },
     matches,
     negotiationsByMatch,
@@ -165,7 +177,10 @@ export async function GET() {
     myFta,
     myInvoice,
     now: new Date(),
-  });
+  };
 
-  return jsonOk({ actions, matches });
+  const actions = computeAllActions(computeInput);
+  const focus = computeTodayFocus(computeInput, metaByMatch);
+
+  return jsonOk({ actions, matches, focus });
 }
