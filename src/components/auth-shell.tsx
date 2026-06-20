@@ -1,3 +1,4 @@
+import { APP_DISPLAY_NAME } from "@/lib/brand";
 import { MotiveIjiLogo } from "@/components/motive-iji-logo";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -18,9 +19,10 @@ export function AuthShell({
   return (
     <div className="min-h-full px-4 py-12">
       <div className="app-surface-raised mx-auto w-full max-w-md rounded-2xl px-8 py-10">
-        <div className="mb-9 flex justify-center border-b border-slate-100 pb-8">
-          <MotiveIjiLogo variant="vertical" href="/" priority />
-        </div>
+        <Link href="/" className="mb-8 flex flex-col items-center gap-3 border-b border-slate-100 pb-6 no-underline">
+          <MotiveIjiLogo variant="vertical" priority />
+          <p className="text-sm font-semibold tracking-tight text-slate-800">{APP_DISPLAY_NAME}</p>
+        </Link>
         <div className="mb-8">
           <h1 className="text-[1.75rem] font-semibold tracking-tight text-slate-950">{title}</h1>
           {subtitle ? <p className="mt-3 text-base leading-relaxed text-slate-600">{subtitle}</p> : null}

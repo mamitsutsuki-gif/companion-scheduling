@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_DISPLAY_NAME } from "@/lib/brand";
 import { MotiveIjiLogo } from "@/components/motive-iji-logo";
 import { SignOut } from "@/components/sign-out";
 import type { Role } from "@prisma/client";
@@ -174,7 +175,15 @@ export function ApplicationChrome({
     <div className="min-h-screen">
       <header className="app-shell-header sticky top-0 z-50 backdrop-blur-md supports-[backdrop-filter]:bg-white/78">
         <div className="mx-auto flex max-w-[min(90rem,calc(100vw-1.5rem))] flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 sm:h-14 sm:flex-nowrap sm:gap-8 sm:px-6 sm:py-0 lg:gap-12">
-          <MotiveIjiLogo variant="horizontal" href="/dashboard" className="order-1 sm:order-none" />
+          <Link
+            href="/dashboard"
+            className="order-1 flex shrink-0 items-center gap-2.5 no-underline sm:order-none"
+          >
+            <MotiveIjiLogo variant="icon" />
+            <span className="text-[15px] leading-snug font-semibold tracking-tight text-slate-900 sm:text-base">
+              {APP_DISPLAY_NAME}
+            </span>
+          </Link>
 
           <nav
             aria-label="メインメニュー"
