@@ -7,6 +7,7 @@ import {
   SCORE_LABELS,
   categoryAverages,
   normalizeRoleplaySession,
+  redactRoleplayStoreForViewer,
 } from "@/lib/coaching-roleplay";
 import { getRoleplayStore, saveRoleplayStore } from "@/lib/repositories/coaching-repository";
 
@@ -59,8 +60,9 @@ export async function GET(_req: Request, ctx: RouteContext) {
     selfCategoryAvg: categoryAverages(s.selfScores),
     partnerCategoryAvg: categoryAverages(s.partnerScores),
   }));
+  const viewerStore = redactRoleplayStoreForViewer(store, session.role);
   return jsonOk({
-    store,
+    store: viewerStore,
     categories: ROLEPLAY_CATEGORIES,
     scoreLabels: SCORE_LABELS,
     roundSummaries: rounds,
@@ -138,5 +140,5 @@ export async function PUT(request: Request, ctx: RouteContext) {
   const nextSessions = store.sessions.slice();
   nextSessions[idx] = merged;
   const saved = await saveRoleplayStore({ ...store, matchId, sessions: nextSessions });
-  return jsonOk({ store: saved });
+  return jsonOk({ store: redactRoleplayStoreForViewer(saved, session.role) });
 }

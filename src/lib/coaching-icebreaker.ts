@@ -7,18 +7,15 @@ function trim(v: unknown, max: number): string {
 
 export type IcebreakerEntry = {
   id: string;
-  title: string;
-  content: string;
-  useCase: string;
-  targetAudience: string;
-  memo: string;
-  registeredAt: string;
+  /** 1行の質問・ネタ文 */
+  question: string;
   updatedAt: string;
 };
 
 export type IcebreakerStore = {
   userId: string;
   companyId: string;
+  /** 先頭ほど優先度が高い */
   entries: IcebreakerEntry[];
   updatedAt: string;
 };
@@ -26,18 +23,12 @@ export type IcebreakerStore = {
 export function normalizeIcebreakerEntry(input: unknown, fallbackId: string): IcebreakerEntry | null {
   if (!input || typeof input !== "object") return null;
   const raw = input as Record<string, unknown>;
-  const title = trim(raw.title, 200);
-  if (!title) return null;
+  const question = trim(raw.question ?? raw.title ?? raw.content, 500);
+  if (!question) return null;
   const id = trim(raw.id, 80) || fallbackId;
   return {
     id,
-    title,
-    content: trim(raw.content, 4000),
-    useCase: trim(raw.useCase, 1000),
-    targetAudience: trim(raw.targetAudience, 500),
-    memo: trim(raw.memo, 2000),
-    registeredAt:
-      typeof raw.registeredAt === "string" ? raw.registeredAt.slice(0, 10) : new Date().toISOString().slice(0, 10),
+    question,
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
   };
 }
@@ -53,13 +44,29 @@ export function normalizeIcebreakerStore(userId: string, companyId: string, inpu
     seen.add(e.id);
     entries.push(e);
   }
-  entries.sort((a, b) => (b.registeredAt > a.registeredAt ? 1 : -1));
   return {
     userId,
     companyId,
     entries,
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
   };
+}
+
+export function reorderIcebreakerEntries(
+  entries: IcebreakerEntry[],
+  orderedIds: string[],
+): IcebreakerEntry[] {
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  const out: IcebreakerEntry[] = [];
+  for (const id of orderedIds) {
+    const hit = byId.get(id);
+    if (hit) {
+      out.push(hit);
+      byId.delete(id);
+    }
+  }
+  for (const rest of byId.values()) out.push(rest);
+  return out;
 }
 
 export function newIcebreakerId() {

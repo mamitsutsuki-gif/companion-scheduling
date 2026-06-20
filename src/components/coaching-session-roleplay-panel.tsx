@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { CoachingRadarChart } from "@/components/coaching-radar-chart";
 import {
   ROLEPLAY_CATEGORIES,
@@ -13,6 +13,26 @@ import {
 } from "@/lib/coaching-roleplay";
 
 type Permissions = { canEditClient: boolean; canEditPartner: boolean };
+
+type ViewerRole =
+  | "ADMIN"
+  | "ADMIN_ASSISTANT"
+  | "PARTNER"
+  | "CLIENT"
+  | "CLIENT_ADMIN"
+  | "CLIENT_HR";
+
+function VisibilityNote({ children, tone = "neutral" }: { children: ReactNode; tone?: "visible" | "hidden" | "neutral" }) {
+  const cls =
+    tone === "visible"
+      ? "text-amber-900 bg-amber-50 border-amber-200"
+      : tone === "hidden"
+        ? "text-slate-700 bg-slate-50 border-slate-200"
+        : "text-slate-600 bg-slate-50 border-slate-200";
+  return (
+    <p className={`rounded-lg border px-3 py-2 text-sm leading-relaxed ${cls}`}>{children}</p>
+  );
+}
 
 function ScoreSelect({
   label,
@@ -131,10 +151,12 @@ export function CoachingSessionRoleplayPanel({
   matchId,
   sessionNumber,
   readOnly = false,
+  viewerRole,
 }: {
   matchId: string;
   sessionNumber: number;
   readOnly?: boolean;
+  viewerRole: ViewerRole;
 }) {
   const round = sessionNumber as 1 | 2 | 3;
   const [loading, setLoading] = useState(true);
@@ -263,6 +285,13 @@ export function CoachingSessionRoleplayPanel({
   const canEditPartner = !readOnly && permissions.canEditPartner;
   const canSave = canEditClient || canEditPartner;
 
+  const isClientViewer =
+    viewerRole === "CLIENT" || viewerRole === "CLIENT_ADMIN" || viewerRole === "CLIENT_HR";
+  const isPartnerViewer = viewerRole === "PARTNER";
+  const isAdminViewer = viewerRole === "ADMIN" || viewerRole === "ADMIN_ASSISTANT";
+  const showClientFreeText = isClientViewer || isAdminViewer;
+  const showPartnerFreeText = isPartnerViewer || isAdminViewer;
+
   if (loading) return <p className="text-sm text-slate-500">読込中…</p>;
   if (error && !store) return <p className="text-sm text-rose-700">{error}</p>;
   if (!draft) return null;
@@ -318,6 +347,13 @@ export function CoachingSessionRoleplayPanel({
 
       <div className="space-y-3">
         <h3 className="text-lg font-semibold text-indigo-950">自己評価（クライアント）</h3>
+        {canEditClient ? (
+          <VisibilityNote tone="visible">
+            入力した点数はパートナーにも表示されます（ギャップ確認のため）。
+          </VisibilityNote>
+        ) : isPartnerViewer ? (
+          <VisibilityNote>クライアント本人の自己評価です。</VisibilityNote>
+        ) : null}
         {ROLEPLAY_CATEGORIES.map((cat) => (
           <CategoryScores
             key={`self-${cat.id}`}
@@ -332,6 +368,13 @@ export function CoachingSessionRoleplayPanel({
 
       <div className="space-y-3">
         <h3 className="text-lg font-semibold text-emerald-950">パートナー評価</h3>
+        {canEditPartner ? (
+          <VisibilityNote tone="visible">
+            入力した点数はクライアントに表示されます。
+          </VisibilityNote>
+        ) : isClientViewer ? (
+          <VisibilityNote>パートナーからの評価です。</VisibilityNote>
+        ) : null}
         {ROLEPLAY_CATEGORIES.map((cat) => (
           <CategoryScores
             key={`partner-${cat.id}`}
@@ -346,6 +389,15 @@ export function CoachingSessionRoleplayPanel({
 
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-slate-900">評価の可視化</h3>
+        {isClientViewer ? (
+          <VisibilityNote>
+            グラフには、あなたの自己評価とパートナー評価（点数）が表示されます。パートナーの自由記述は含まれません。
+          </VisibilityNote>
+        ) : isPartnerViewer ? (
+          <VisibilityNote>
+            グラフには、クライアントの自己評価とあなたのパートナー評価（点数）が表示されます。あなたの自由記述はクライアントには表示されません。
+          </VisibilityNote>
+        ) : null}
 
         <ComparisonBlock
           title="ギャップ（自己 vs パートナー）"
@@ -420,9 +472,19 @@ export function CoachingSessionRoleplayPanel({
         </ul>
       </details>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className={`grid gap-4 ${showClientFreeText && showPartnerFreeText ? "lg:grid-cols-2" : ""}`}>
+        {showClientFreeText ? (
         <div className="space-y-2 rounded-xl border border-indigo-100 bg-indigo-50/30 p-4">
           <h3 className="font-semibold text-indigo-950">自由記述（クライアント）</h3>
+          {canEditClient ? (
+            <VisibilityNote tone="hidden">
+              ここに書いた内容はパートナーには表示されません。
+            </VisibilityNote>
+          ) : isAdminViewer ? (
+            <VisibilityNote tone="hidden">
+              クライアント向けの自由記述です（パートナーには非表示）。
+            </VisibilityNote>
+          ) : null}
           <label className="block text-sm">
             <span className="font-medium">良かった点</span>
             <textarea
@@ -454,8 +516,19 @@ export function CoachingSessionRoleplayPanel({
             />
           </label>
         </div>
+        ) : null}
+        {showPartnerFreeText ? (
         <div className="space-y-2 rounded-xl border border-emerald-100 bg-emerald-50/30 p-4">
           <h3 className="font-semibold text-emerald-950">自由記述（パートナー）</h3>
+          {canEditPartner ? (
+            <VisibilityNote tone="hidden">
+              ここに書いた内容はクライアントには表示されません。
+            </VisibilityNote>
+          ) : isAdminViewer ? (
+            <VisibilityNote tone="hidden">
+              パートナー向けの自由記述です（クライアントには非表示）。
+            </VisibilityNote>
+          ) : null}
           <label className="block text-sm">
             <span className="font-medium">良かった点</span>
             <textarea
@@ -487,6 +560,7 @@ export function CoachingSessionRoleplayPanel({
             />
           </label>
         </div>
+        ) : null}
       </div>
 
       {canSave ? (
@@ -501,6 +575,15 @@ export function CoachingSessionRoleplayPanel({
           </button>
           {notice ? <span className="text-sm text-emerald-700">{notice}</span> : null}
           {error ? <span className="text-sm text-rose-700">{error}</span> : null}
+          {canEditPartner ? (
+            <span className="text-xs text-slate-500">
+              点数はクライアントに表示されます。自由記述はクライアントには表示されません。
+            </span>
+          ) : canEditClient ? (
+            <span className="text-xs text-slate-500">
+              点数はパートナーに表示されます。自由記述はパートナーには表示されません。
+            </span>
+          ) : null}
         </div>
       ) : readOnly ? (
         <p className="text-sm text-slate-500">閲覧のみ（編集不可）</p>

@@ -212,6 +212,30 @@ export function roleplaySideComplete(
   return ROLEPLAY_ITEM_IDS.some((id) => scores[id]?.score != null);
 }
 
+/** 閲覧ロールに応じて非公開の自由記述を伏せる。点数（評価）はクライアント・パートナー双方が閲覧可能。 */
+export function redactRoleplayStoreForViewer(
+  store: RoleplayStore,
+  role: string,
+): RoleplayStore {
+  if (role === "ADMIN" || role === "ADMIN_ASSISTANT") return store;
+  const hideClientReflection = role === "PARTNER";
+  const hidePartnerFeedback =
+    role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR";
+  if (!hideClientReflection && !hidePartnerFeedback) return store;
+  return {
+    ...store,
+    sessions: store.sessions.map((s) => ({
+      ...s,
+      clientReflection: hideClientReflection
+        ? { good: "", improve: "", nextFocus: "" }
+        : s.clientReflection,
+      partnerFeedback: hidePartnerFeedback
+        ? { good: "", improve: "", advice: "" }
+        : s.partnerFeedback,
+    })),
+  };
+}
+
 export const SCORE_LABELS: Record<number, string> = {
   1: "ほとんどできていない",
   2: "一部できているが、実践には大きな課題がある",

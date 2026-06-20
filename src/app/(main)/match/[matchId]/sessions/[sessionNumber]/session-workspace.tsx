@@ -484,6 +484,7 @@ export function SessionWorkspace({
             matchId={matchId}
             sessionNumber={detail.sessionNumber}
             readOnly={roleplayReadOnly}
+            viewerRole={role}
           />
         </section>
       ) : null}

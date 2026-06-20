@@ -134,7 +134,6 @@ type MatchTab =
   | "reflection"
   | "summaryReport"
   | "lifelineChart"
-  | "coachingRoleplay"
   | "coachingQuestions"
   | "coachingIcebreaker"
   | "coachingOneOnOneFormat";
@@ -151,8 +150,8 @@ const TAB_HASH_MAP: Record<string, MatchTab> = {
   reflection: "reflection",
   "summary-report": "summaryReport",
   "lifeline-chart": "lifelineChart",
-  roleplay: "coachingRoleplay",
-  "coaching-roleplay": "coachingRoleplay",
+  roleplay: "sessions",
+  "coaching-roleplay": "sessions",
   questions: "coachingQuestions",
   "coaching-questions": "coachingQuestions",
   icebreaker: "coachingIcebreaker",
@@ -171,7 +170,6 @@ function hashFromTab(tab: MatchTab): string {
   if (tab === "skillCheck") return "skill-check";
   if (tab === "summaryReport") return "summary-report";
   if (tab === "lifelineChart") return "lifeline-chart";
-  if (tab === "coachingRoleplay") return "roleplay";
   if (tab === "coachingQuestions") return "questions";
   if (tab === "coachingIcebreaker") return "icebreaker";
   if (tab === "coachingOneOnOneFormat") return "one-on-one-format";
