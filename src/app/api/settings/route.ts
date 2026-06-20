@@ -1,7 +1,7 @@
 import { getAppSettings } from "@/lib/app-settings";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { companyLabelFromRegistry } from "@/lib/company-display";
-import { getPlanFeatures } from "@/lib/company-plan";
+import { resolvePlanFeatures, type CompanyPlan } from "@/lib/company-plan";
 import { jsonOk } from "@/lib/json";
 
 /**
@@ -35,8 +35,13 @@ export async function GET(request: Request) {
     : null;
   const companyPlan =
     "companyPlan" in s ? (s as { companyPlan: string }).companyPlan : "workplace_activation";
-  const planFeatures = getPlanFeatures(
-    companyPlan as "workplace_activation" | "individual_companion" | "coaching_management_training",
+  const planFeatureOverrides =
+    "planFeatureOverrides" in s
+      ? (s as { planFeatureOverrides: Record<string, boolean> | null }).planFeatureOverrides
+      : null;
+  const planFeatures = resolvePlanFeatures(
+    companyPlan as CompanyPlan,
+    planFeatureOverrides,
   );
   return jsonOk({
     slotDurationMinutes: s.slotDurationMinutes,

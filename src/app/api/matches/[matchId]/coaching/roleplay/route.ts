@@ -42,6 +42,12 @@ const sessionSchema = z.object({
       advice: z.string().max(4000).optional(),
     })
     .optional(),
+  sessionFeedback: z
+    .object({
+      satisfactionScore: z.number().int().min(1).max(10).nullable().optional(),
+      satisfactionReason: z.string().max(4000).optional(),
+    })
+    .optional(),
 });
 
 export async function GET(_req: Request, ctx: RouteContext) {
@@ -117,6 +123,21 @@ export async function PUT(request: Request, ctx: RouteContext) {
             ? { ...prev.partnerFeedback, ...parsed.data.partnerFeedback }
             : prev.partnerFeedback
           : prev.partnerFeedback,
+      sessionFeedback:
+        parsed.data.sessionFeedback !== undefined
+          ? access.canEditClient
+            ? {
+                satisfactionScore:
+                  parsed.data.sessionFeedback.satisfactionScore !== undefined
+                    ? parsed.data.sessionFeedback.satisfactionScore
+                    : prev.sessionFeedback.satisfactionScore,
+                satisfactionReason:
+                  parsed.data.sessionFeedback.satisfactionReason !== undefined
+                    ? parsed.data.sessionFeedback.satisfactionReason
+                    : prev.sessionFeedback.satisfactionReason,
+              }
+            : prev.sessionFeedback
+          : prev.sessionFeedback,
       clientRole:
         parsed.data.clientRole !== undefined && access.canEditClient
           ? parsed.data.clientRole

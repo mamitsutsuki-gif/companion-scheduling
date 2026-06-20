@@ -9,6 +9,7 @@ import {
   getEffectiveAppSettings,
   upsertCompanyAppSettingsOverride,
 } from "@/lib/repositories/app-settings-repository";
+import { normalizePlanFeatureOverrides } from "@/lib/company-plan";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,17 @@ const patchSchema = z.object({
   clearClientProjectOverview: z.boolean().optional(),
   /** 同じ企業ID内でクライアント同士の自分FTA を相互閲覧可能にするか。 */
   shareFtaWithinCompany: z.boolean().optional(),
+  planFeatureOverrides: z
+    .object({
+      fta: z.boolean().optional(),
+      skillCheck: z.boolean().optional(),
+      pdca: z.boolean().optional(),
+      reflection: z.boolean().optional(),
+      lifelineChart: z.boolean().optional(),
+      summaryReport: z.boolean().optional(),
+    })
+    .optional(),
+  clearPlanFeatureOverrides: z.boolean().optional(),
 });
 
 /**
@@ -125,7 +137,7 @@ export async function PATCH(request: Request, ctx: RouteContext) {
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
 
-  const { clearFields, clearPartnerProjectOverview, clearClientProjectOverview, ...rest } =
+  const { clearFields, clearPartnerProjectOverview, clearClientProjectOverview, clearPlanFeatureOverrides, ...rest } =
     parsed.data;
   if (clearFields && clearFields.length > 0) {
     for (const k of clearFields) {
@@ -140,6 +152,9 @@ export async function PATCH(request: Request, ctx: RouteContext) {
   if (clearClientProjectOverview && rest.clientProjectOverview !== undefined) {
     return jsonError("clientProjectOverview を同時に clear と set することはできません。");
   }
+  if (clearPlanFeatureOverrides && rest.planFeatureOverrides !== undefined) {
+    return jsonError("planFeatureOverrides を同時に clear と set することはできません。");
+  }
   if (
     typeof rest.slotEarliestHour === "number" &&
     typeof rest.slotLatestHour === "number" &&
@@ -150,9 +165,13 @@ export async function PATCH(request: Request, ctx: RouteContext) {
 
   const next = await upsertCompanyAppSettingsOverride(companyId, {
     ...rest,
+    planFeatureOverrides: rest.planFeatureOverrides
+      ? normalizePlanFeatureOverrides(rest.planFeatureOverrides)
+      : undefined,
     clearFields,
     clearPartnerProjectOverview: clearPartnerProjectOverview === true,
     clearClientProjectOverview: clearClientProjectOverview === true,
+    clearPlanFeatureOverrides: clearPlanFeatureOverrides === true,
   });
 
   const substantiveKeys = next

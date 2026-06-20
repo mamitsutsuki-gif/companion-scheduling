@@ -496,7 +496,9 @@ export function SessionWorkspace({
             {role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
               <p className="text-sm text-zinc-600">管理者として閲覧しています（編集不可）。</p>
             ) : (
-              <p className="text-sm text-zinc-600">回答内容はパートナーには表示されません。サポートデスクが匿名で集計します。</p>
+              <p className="text-sm text-zinc-600">
+                回答内容は担当パートナーにも表示されます。提出後も「上書き保存」で内容を更新できます。
+              </p>
             )}
           </header>
 
@@ -675,7 +677,7 @@ export function SessionWorkspace({
                 プライバシー上の不安を取り除く文言にする。
               */}
               <p className="text-xs text-zinc-500">
-                → ご記入内容は担当パートナーも確認できます。提出後も「上書き保存」で内容を更新できます。
+                → ご記入内容は担当パートナーにも表示されます。提出後も「上書き保存」で内容を更新できます。
               </p>
             </form>
           ) : !isAbandoned ? (

@@ -330,6 +330,16 @@ export function CoachingSessionRoleplayPanel({
 
   async function save() {
     if (!draft) return;
+    if (canEditClient) {
+      if (draft.sessionFeedback.satisfactionScore == null) {
+        setError("セッション満足度（1〜10）を選択してください。");
+        return;
+      }
+      if (!draft.sessionFeedback.satisfactionReason.trim()) {
+        setError("満足度の理由を入力してください。");
+        return;
+      }
+    }
     setSaving(true);
     setNotice(null);
     setError(null);
@@ -361,8 +371,8 @@ export function CoachingSessionRoleplayPanel({
     viewerRole === "CLIENT" || viewerRole === "CLIENT_ADMIN" || viewerRole === "CLIENT_HR";
   const isPartnerViewer = viewerRole === "PARTNER";
   const isAdminViewer = viewerRole === "ADMIN" || viewerRole === "ADMIN_ASSISTANT";
-  const showClientFreeText = isClientViewer || isAdminViewer;
-  const showPartnerFreeText = isPartnerViewer || isAdminViewer;
+  const showClientFreeText = isClientViewer || isPartnerViewer || isAdminViewer;
+  const showPartnerFreeText = isClientViewer || isPartnerViewer || isAdminViewer;
 
   const fieldClass =
     "mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-slate-50 disabled:text-slate-500";
@@ -380,17 +390,7 @@ export function CoachingSessionRoleplayPanel({
         </p>
       </div>
 
-      <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-5 sm:grid-cols-2">
-        <label className="block text-base">
-          <span className="font-medium text-slate-800">実施日</span>
-          <input
-            type="date"
-            value={draft.conductedAt}
-            disabled={!canEditClient && !canEditPartner}
-            onChange={(e) => setDraft({ ...draft, conductedAt: e.target.value })}
-            className={fieldClass}
-          />
-        </label>
+      <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5">
         <label className="block text-base">
           <span className="font-medium text-slate-800">テーマ</span>
           <input
@@ -400,34 +400,18 @@ export function CoachingSessionRoleplayPanel({
             className={fieldClass}
           />
         </label>
-        <label className="block text-base">
-          <span className="font-medium text-slate-800">クライアント役</span>
-          <input
-            value={draft.clientRole}
-            disabled={!canEditClient}
-            onChange={(e) => setDraft({ ...draft, clientRole: e.target.value })}
-            className={fieldClass}
-          />
-        </label>
-        <label className="block text-base">
-          <span className="font-medium text-slate-800">パートナー役</span>
-          <input
-            value={draft.partnerRole}
-            disabled={!canEditPartner}
-            onChange={(e) => setDraft({ ...draft, partnerRole: e.target.value })}
-            className={fieldClass}
-          />
-        </label>
       </div>
 
       <div className="space-y-4">
         <h3 className="text-xl font-semibold tracking-tight text-slate-900">自己評価（クライアント）</h3>
         {canEditClient ? (
           <VisibilityNote tone="visible">
-            入力した点数はパートナーにも表示されます（ギャップ確認のため）。
+            入力した点数・自由記述はパートナーにも表示されます。
           </VisibilityNote>
         ) : isPartnerViewer ? (
-          <VisibilityNote>クライアント本人の自己評価です。</VisibilityNote>
+          <VisibilityNote>クライアント本人の自己評価です（点数・自由記述を共有しています）。</VisibilityNote>
+        ) : isClientViewer && viewerRole !== "CLIENT" ? (
+          <VisibilityNote>クライアントの自己評価です（点数・自由記述）。</VisibilityNote>
         ) : null}
         {ROLEPLAY_CATEGORIES.map((cat) => (
           <CategoryScores
@@ -444,10 +428,12 @@ export function CoachingSessionRoleplayPanel({
         <h3 className="text-xl font-semibold tracking-tight text-slate-900">パートナー評価</h3>
         {canEditPartner ? (
           <VisibilityNote tone="visible">
-            入力した点数はクライアントに表示されます。
+            入力した点数・自由記述はクライアントにも表示されます。
           </VisibilityNote>
         ) : isClientViewer ? (
-          <VisibilityNote>パートナーからの評価です。</VisibilityNote>
+          <VisibilityNote>パートナーからの評価です（点数・自由記述を共有しています）。</VisibilityNote>
+        ) : isPartnerViewer ? (
+          <VisibilityNote>あなたのパートナー評価です。</VisibilityNote>
         ) : null}
         {ROLEPLAY_CATEGORIES.map((cat) => (
           <CategoryScores
@@ -462,13 +448,9 @@ export function CoachingSessionRoleplayPanel({
 
       <div className="space-y-4">
         <h3 className="text-xl font-semibold tracking-tight text-slate-900">評価の可視化</h3>
-        {isClientViewer ? (
+        {isClientViewer || isPartnerViewer ? (
           <VisibilityNote>
-            グラフには、あなたの自己評価とパートナー評価（点数）が表示されます。パートナーの自由記述は含まれません。
-          </VisibilityNote>
-        ) : isPartnerViewer ? (
-          <VisibilityNote>
-            グラフには、クライアントの自己評価とあなたのパートナー評価（点数）が表示されます。あなたの自由記述はクライアントには表示されません。
+            グラフには、クライアントの自己評価とパートナー評価（点数）が表示されます。自由記述もお互いに共有されています。
           </VisibilityNote>
         ) : null}
 
@@ -539,13 +521,11 @@ export function CoachingSessionRoleplayPanel({
           <div className="space-y-3 rounded-2xl border border-indigo-100 bg-indigo-50/25 p-5">
             <h3 className="text-lg font-semibold text-indigo-950">自由記述（クライアント）</h3>
             {canEditClient ? (
-              <VisibilityNote tone="hidden">
-                ここに書いた内容はパートナーには表示されません。
+              <VisibilityNote tone="visible">
+                ここに書いた内容はパートナーにも表示されます。
               </VisibilityNote>
             ) : isAdminViewer ? (
-              <VisibilityNote tone="hidden">
-                クライアント向けの自由記述です（パートナーには非表示）。
-              </VisibilityNote>
+              <VisibilityNote>クライアント向けの自由記述です。</VisibilityNote>
             ) : null}
             <label className="block text-base">
               <span className="font-medium text-slate-800">良かった点</span>
@@ -583,13 +563,11 @@ export function CoachingSessionRoleplayPanel({
           <div className="space-y-3 rounded-2xl border border-emerald-100 bg-emerald-50/25 p-5">
             <h3 className="text-lg font-semibold text-emerald-950">自由記述（パートナー）</h3>
             {canEditPartner ? (
-              <VisibilityNote tone="hidden">
-                ここに書いた内容はクライアントには表示されません。
+              <VisibilityNote tone="visible">
+                ここに書いた内容はクライアントにも表示されます。
               </VisibilityNote>
             ) : isAdminViewer ? (
-              <VisibilityNote tone="hidden">
-                パートナー向けの自由記述です（クライアントには非表示）。
-              </VisibilityNote>
+              <VisibilityNote>パートナー向けの自由記述です。</VisibilityNote>
             ) : null}
             <label className="block text-base">
               <span className="font-medium text-slate-800">良かった点</span>
@@ -625,6 +603,68 @@ export function CoachingSessionRoleplayPanel({
         ) : null}
       </div>
 
+      <div className="space-y-4 rounded-2xl border border-violet-100 bg-violet-50/30 p-5">
+        <h3 className="text-xl font-semibold tracking-tight text-slate-900">セッション満足度（クライアント）</h3>
+        {canEditClient ? (
+          <VisibilityNote tone="visible">
+            満足度と理由はパートナーにも表示されます。
+          </VisibilityNote>
+        ) : isPartnerViewer || (isClientViewer && viewerRole !== "CLIENT") ? (
+          <VisibilityNote>クライアントが入力したセッション満足度です。</VisibilityNote>
+        ) : null}
+        <fieldset className="space-y-3" disabled={!canEditClient}>
+          <legend className="text-base font-medium text-slate-800">
+            今回のロールプレイセッションの満足度（1〜10） <span className="text-red-600">*</span>
+          </legend>
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+              <label
+                key={n}
+                className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-semibold ${
+                  draft.sessionFeedback.satisfactionScore === n
+                    ? "border-indigo-500 bg-indigo-600 text-white"
+                    : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                } ${!canEditClient ? "cursor-not-allowed opacity-60" : ""}`}
+              >
+                <input
+                  type="radio"
+                  name="roleplaySatisfaction"
+                  value={n}
+                  checked={draft.sessionFeedback.satisfactionScore === n}
+                  disabled={!canEditClient}
+                  onChange={() =>
+                    setDraft({
+                      ...draft,
+                      sessionFeedback: { ...draft.sessionFeedback, satisfactionScore: n },
+                    })
+                  }
+                  className="sr-only"
+                />
+                {n}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <label className="block text-base">
+          <span className="font-medium text-slate-800">
+            満足度の理由 <span className="text-red-600">*</span>
+          </span>
+          <textarea
+            rows={3}
+            disabled={!canEditClient}
+            value={draft.sessionFeedback.satisfactionReason}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                sessionFeedback: { ...draft.sessionFeedback, satisfactionReason: e.target.value },
+              })
+            }
+            className={fieldClass}
+            placeholder="良かった点、もっとこうだったらよかった点など"
+          />
+        </label>
+      </div>
+
       {canSave ? (
         <div className="flex flex-wrap items-center gap-3">
           <button
@@ -639,11 +679,11 @@ export function CoachingSessionRoleplayPanel({
           {error ? <span className="text-base text-rose-700">{error}</span> : null}
           {canEditPartner ? (
             <span className="text-sm text-slate-500">
-              点数はクライアントに表示されます。自由記述はクライアントには表示されません。
+              点数・自由記述はクライアントに表示されます。
             </span>
           ) : canEditClient ? (
             <span className="text-sm text-slate-500">
-              点数はパートナーに表示されます。自由記述はパートナーには表示されません。
+              点数・自由記述・満足度はパートナーに表示されます。
             </span>
           ) : null}
         </div>

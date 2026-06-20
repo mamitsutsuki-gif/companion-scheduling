@@ -8,8 +8,10 @@ import {
 import {
   DEFAULT_COMPANY_PLAN,
   normalizeCompanyPlan,
+  normalizePlanFeatureOverrides,
   resolveCompanyPlan,
   type CompanyPlan,
+  type PlanFeatureOverrides,
 } from "@/lib/company-plan";
 import { normalizeCompanySkillDefinitions, type SkillDefinition } from "@/lib/skill-check";
 
@@ -160,6 +162,8 @@ export type CompanyAppSettingsOverride = Partial<AppSettingsOverridableFields> &
   shareFtaWithinCompany?: boolean;
   /** 個別伴走プラン向け：企業独自スキル項目 */
   skillCheckCompanySkills?: SkillDefinition[];
+  /** 個別伴走プラン向け：成果物タブの ON/OFF（未設定 = プラン既定） */
+  planFeatureOverrides?: PlanFeatureOverrides;
 };
 
 export function normalizeCompanies(input: unknown): CompanyOption[] {
@@ -320,6 +324,8 @@ export function normalizeCompanyAppSettingsOverride(
     const skills = normalizeCompanySkillDefinitions(raw.skillCheckCompanySkills);
     if (skills.length > 0) out.skillCheckCompanySkills = skills;
   }
+  const pfo = normalizePlanFeatureOverrides(raw.planFeatureOverrides);
+  if (pfo) out.planFeatureOverrides = pfo;
   return out;
 }
 
@@ -759,6 +765,8 @@ export async function upsertCompanyAppSettingsOverride(
     clearClientProjectOverview?: boolean;
     /** 明示的に true / false を指定。undefined の場合は変更しない（既存値を保持）。 */
     shareFtaWithinCompany?: boolean;
+    planFeatureOverrides?: PlanFeatureOverrides | null;
+    clearPlanFeatureOverrides?: boolean;
   },
 ): Promise<CompanyAppSettingsOverride | null> {
   const cid = sanitizeCompanyId(companyId);
@@ -774,6 +782,8 @@ export async function upsertCompanyAppSettingsOverride(
     partnerProjectOverview: patchPartnerPo,
     clientProjectOverview: patchClientPo,
     shareFtaWithinCompany: patchShareFta,
+    planFeatureOverrides: patchPlanFeatures,
+    clearPlanFeatureOverrides,
     ...restPatch
   } = patch;
 
@@ -806,6 +816,13 @@ export async function upsertCompanyAppSettingsOverride(
   }
   if (patchShareFta !== undefined) {
     writeData.shareFtaWithinCompany = patchShareFta;
+  }
+  if (clearPlanFeatureOverrides) {
+    writeData.planFeatureOverrides = FieldValue.delete();
+  } else if (patchPlanFeatures !== undefined) {
+    const pfo =
+      patchPlanFeatures === null ? null : normalizePlanFeatureOverrides(patchPlanFeatures);
+    writeData.planFeatureOverrides = pfo ?? FieldValue.delete();
   }
   await ref.set(writeData, { merge: true });
   const snap = await ref.get();
@@ -840,6 +857,8 @@ export type EffectiveAppSettings = AppSettingsRow & {
   shareFtaWithinCompany: boolean;
   /** 当該企業に設定された導入プラン。未設定企業は職場活性プラン。 */
   companyPlan: CompanyPlan;
+  /** 個別伴走プラン向け：成果物タブの企業上書き（未設定 = プラン既定） */
+  planFeatureOverrides: PlanFeatureOverrides | null;
 };
 
 export async function getEffectiveAppSettings(opts: {
@@ -859,6 +878,7 @@ export async function getEffectiveAppSettings(opts: {
       // 企業未設定（=未割当 / 不正 ID）でもデフォルトは「共有する」。
       shareFtaWithinCompany: true,
       companyPlan: DEFAULT_COMPANY_PLAN,
+      planFeatureOverrides: null,
     };
   }
   const override =
@@ -872,6 +892,7 @@ export async function getEffectiveAppSettings(opts: {
       clientProjectOverview: null,
       shareFtaWithinCompany: true,
       companyPlan: resolveCompanyPlan(cid, global.companies),
+      planFeatureOverrides: null,
     };
   }
   const overridden: Array<keyof AppSettingsOverridableFields> = [];
@@ -911,5 +932,6 @@ export async function getEffectiveAppSettings(opts: {
     // 明示的に false が保存されている時のみ false（未設定 / true は true）。
     shareFtaWithinCompany: override.shareFtaWithinCompany === false ? false : true,
     companyPlan: resolveCompanyPlan(cid, global.companies),
+    planFeatureOverrides: override.planFeatureOverrides ?? null,
   };
 }

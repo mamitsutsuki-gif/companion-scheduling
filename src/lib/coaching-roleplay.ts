@@ -88,6 +88,13 @@ export const ROLEPLAY_ITEM_BY_ID = Object.fromEntries(
 
 export type RoleplayItemScore = { score: number | null; comment: string };
 
+export type RoleplaySessionFeedback = {
+  /** 1〜10。セッション全体の満足度（クライアント入力）。 */
+  satisfactionScore: number | null;
+  /** 満足度の理由（必須想定）。パートナーにも開示。 */
+  satisfactionReason: string;
+};
+
 export type RoleplaySession = {
   round: 1 | 2 | 3;
   conductedAt: string;
@@ -98,6 +105,7 @@ export type RoleplaySession = {
   partnerScores: Record<string, RoleplayItemScore>;
   clientReflection: { good: string; improve: string; nextFocus: string };
   partnerFeedback: { good: string; improve: string; advice: string };
+  sessionFeedback: RoleplaySessionFeedback;
   updatedAt: string;
 };
 
@@ -138,6 +146,17 @@ export function normalizeRoleplaySession(input: unknown, round: 1 | 2 | 3): Role
   const pfRaw = raw.partnerFeedback && typeof raw.partnerFeedback === "object"
     ? (raw.partnerFeedback as Record<string, unknown>)
     : {};
+  const sfRaw =
+    raw.sessionFeedback && typeof raw.sessionFeedback === "object"
+      ? (raw.sessionFeedback as Record<string, unknown>)
+      : {};
+  const satRaw = sfRaw.satisfactionScore ?? raw.satisfactionScore;
+  let satisfactionScore: number | null = null;
+  if (typeof satRaw === "number" && Number.isFinite(satRaw)) {
+    const n = Math.round(satRaw);
+    if (n >= 1 && n <= 10) satisfactionScore = n;
+  }
+
   return {
     round,
     conductedAt: typeof raw.conductedAt === "string" ? raw.conductedAt.slice(0, 10) : "",
@@ -155,6 +174,10 @@ export function normalizeRoleplaySession(input: unknown, round: 1 | 2 | 3): Role
       good: trim(pfRaw.good, 4000),
       improve: trim(pfRaw.improve, 4000),
       advice: trim(pfRaw.advice, 4000),
+    },
+    sessionFeedback: {
+      satisfactionScore,
+      satisfactionReason: trim(sfRaw.satisfactionReason ?? raw.satisfactionReason, 4000),
     },
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
   };
@@ -212,51 +235,65 @@ export function roleplaySideComplete(
   return ROLEPLAY_ITEM_IDS.some((id) => scores[id]?.score != null);
 }
 
-/** 閲覧ロールに応じて非公開の自由記述を伏せる。点数（評価）はクライアント・パートナー双方が閲覧可能。 */
+/**
+ * 閲覧ロールに応じて伏せるフィールドがあれば加工する。
+ * クライアント・パートナー・クライアント管理者は点数・自由記述を相互に閲覧可能。
+ */
 export function redactRoleplayStoreForViewer(
   store: RoleplayStore,
   role: string,
 ): RoleplayStore {
-  if (role === "ADMIN" || role === "ADMIN_ASSISTANT") return store;
-  const hideClientReflection = role === "PARTNER";
-  const hidePartnerFeedback =
-    role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR";
-  if (!hideClientReflection && !hidePartnerFeedback) return store;
+  if (
+    role === "ADMIN" ||
+    role === "ADMIN_ASSISTANT" ||
+    role === "PARTNER" ||
+    role === "CLIENT" ||
+    role === "CLIENT_ADMIN" ||
+    role === "CLIENT_HR"
+  ) {
+    return store;
+  }
   return {
     ...store,
     sessions: store.sessions.map((s) => ({
       ...s,
-      clientReflection: hideClientReflection
-        ? { good: "", improve: "", nextFocus: "" }
-        : s.clientReflection,
-      partnerFeedback: hidePartnerFeedback
-        ? { good: "", improve: "", advice: "" }
-        : s.partnerFeedback,
+      clientReflection: { good: "", improve: "", nextFocus: "" },
+      partnerFeedback: { good: "", improve: "", advice: "" },
+      sessionFeedback: { satisfactionScore: null, satisfactionReason: "" },
     })),
   };
 }
 
 export const SCORE_LABELS: Record<number, string> = {
   1: "ほとんどできていない",
-  2: "一部できているが、実践には大きな課題がある",
-  3: "意識はできているが、実践は不安定",
-  4: "基本的にはできている",
+  2: "一部はできているが、実践には大きな課題がある",
+  3: "意識はできているが、実践はまだ不安定",
+  4: "おおむねできているが、安定感には欠ける",
   5: "安定して実践できている",
-  6: "相手に良い影響を与えるレベルで実践できている",
+  6: "7点に近いが、まだ伸び代はある",
   7: "非常に高いレベルで自然に実践できている",
 };
 
-/** 各項目の1〜7点の目安（プルダウン表示用）。7点は項目固有、1〜6点は段階的な目安。 */
+const SCORE_TIER_HINTS: Record<1 | 2 | 3 | 4 | 5 | 6, string> = {
+  1: SCORE_LABELS[1]!,
+  2: SCORE_LABELS[2]!,
+  3: SCORE_LABELS[3]!,
+  4: SCORE_LABELS[4]!,
+  5: SCORE_LABELS[5]!,
+  6: SCORE_LABELS[6]!,
+};
+
+/** 各項目の1〜7点の目安（プルダウン表示用）。7点は項目固有、1〜6点は共通の段階目安。 */
 export function scoreHintsForItem(item: RoleplayItemDef): Record<1 | 2 | 3 | 4 | 5 | 6 | 7, string> {
-  const { label, sevenPointHint } = item;
+  const { sevenPointHint } = item;
   return {
     7: sevenPointHint,
-    6: `${label}について、7点の目安（${sevenPointHint}）に近いレベルで実践できている`,
-    5: `${label}について、${SCORE_LABELS[5]}`,
-    4: `${label}について、${SCORE_LABELS[4]}`,
-    3: `${label}について、${SCORE_LABELS[3]}`,
-    2: `${label}について、${SCORE_LABELS[2]}`,
-    1: `${label}について、${SCORE_LABELS[1]}`,
+    6: SCORE_TIER_HINTS[6],
+    5: SCORE_TIER_HINTS[5],
+    4: SCORE_TIER_HINTS[4],
+    3: SCORE_TIER_HINTS[3],
+    2: SCORE_TIER_HINTS[2],
+    1: SCORE_TIER_HINTS[1],
   };
 }
 

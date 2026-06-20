@@ -58,6 +58,39 @@ export type PlanFeatures = {
   planComingSoon: boolean;
 };
 
+/** 個別伴走プランで企業ごとに ON/OFF できる成果物タブ */
+export type IndividualCompanionFeatureKey =
+  | "fta"
+  | "skillCheck"
+  | "pdca"
+  | "reflection"
+  | "lifelineChart"
+  | "summaryReport";
+
+export const INDIVIDUAL_COMPANION_FEATURE_OPTIONS: Array<{
+  key: IndividualCompanionFeatureKey;
+  label: string;
+}> = [
+  { key: "fta", label: "自分FTA" },
+  { key: "skillCheck", label: "スキルチェック" },
+  { key: "lifelineChart", label: "ライフラインチャート" },
+  { key: "pdca", label: "PDCAシート" },
+  { key: "reflection", label: "振り返りシート" },
+  { key: "summaryReport", label: "サマリーレポート" },
+];
+
+export type PlanFeatureOverrides = Partial<Record<IndividualCompanionFeatureKey, boolean>>;
+
+export function normalizePlanFeatureOverrides(input: unknown): PlanFeatureOverrides | undefined {
+  if (!input || typeof input !== "object") return undefined;
+  const raw = input as Record<string, unknown>;
+  const out: PlanFeatureOverrides = {};
+  for (const { key } of INDIVIDUAL_COMPANION_FEATURE_OPTIONS) {
+    if (typeof raw[key] === "boolean") out[key] = raw[key];
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
   switch (plan) {
     case "individual_companion":
@@ -122,6 +155,20 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         planComingSoon: false,
       };
   }
+}
+
+/** プラン既定値に企業ごとの成果物 ON/OFF を合成する（個別伴走プランのみ）。 */
+export function resolvePlanFeatures(
+  plan: CompanyPlan,
+  overrides?: PlanFeatureOverrides | null,
+): PlanFeatures {
+  const base = getPlanFeatures(plan);
+  if (plan !== "individual_companion" || !overrides) return base;
+  const merged = { ...base };
+  for (const { key } of INDIVIDUAL_COMPANION_FEATURE_OPTIONS) {
+    if (overrides[key] !== undefined) merged[key] = overrides[key]!;
+  }
+  return merged;
 }
 
 export function resolveCompanyPlan(

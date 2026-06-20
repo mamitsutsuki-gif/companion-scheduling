@@ -3,6 +3,15 @@
 import { AdminCompanyClientPartnerBriefingsSection } from "@/components/admin-company-client-partner-briefings-section";
 import Link from "next/link";
 import { use, useEffect, useMemo, useState } from "react";
+import {
+  INDIVIDUAL_COMPANION_FEATURE_OPTIONS,
+  companyPlanLabel,
+  getPlanFeatures,
+  resolvePlanFeatures,
+  type CompanyPlan,
+  type IndividualCompanionFeatureKey,
+  type PlanFeatureOverrides,
+} from "@/lib/company-plan";
 
 type PartnerProjectOverviewForm = {
   companyName: string;
@@ -47,6 +56,7 @@ type SettingsSnapshot = {
    * - override 値: undefined（未設定）/ true / false の三状態
    */
   shareFtaWithinCompany?: boolean | null;
+  planFeatureOverrides?: PlanFeatureOverrides | null;
 };
 
 type OverridableKey = keyof Pick<
@@ -66,8 +76,11 @@ type ApiResponse = {
   company: { id: string; name: string } | null;
   isRegistered: boolean;
   override: Partial<SettingsSnapshot> | null;
-  global: SettingsSnapshot;
-  effective: SettingsSnapshot & { overriddenFields: OverridableKey[] };
+  global: SettingsSnapshot & { companies?: Array<{ id: string; name: string; plan?: CompanyPlan }> };
+  effective: SettingsSnapshot & {
+    overriddenFields: OverridableKey[];
+    planFeatureOverrides?: PlanFeatureOverrides | null;
+  };
 };
 
 const OVERRIDABLE_KEYS: readonly OverridableKey[] = [
@@ -150,6 +163,81 @@ export default function AdminCompanySettingsPage({
   const [vShareFtaMode, setVShareFtaMode] = useState<ShareFtaMode>("default");
   /** 保存時の値の判定に使う初期スナップショット。 */
   const [initialShareFtaMode, setInitialShareFtaMode] = useState<ShareFtaMode>("default");
+  const [vPlanFeatures, setVPlanFeatures] = useState<Record<IndividualCompanionFeatureKey, boolean>>(() =>
+    defaultPlanFeatureToggles("individual_companion"),
+  );
+  const [planFeaturesCustomized, setPlanFeaturesCustomized] = useState(false);
+
+  function applyApiResponse(json: ApiResponse) {
+    setData(json);
+    const ov = json.override ?? {};
+    setOverrideFlags({
+      slotDurationMinutes: ov.slotDurationMinutes !== undefined,
+      totalSessions: ov.totalSessions !== undefined,
+      timezone: ov.timezone !== undefined,
+      slotEarliestHour: ov.slotEarliestHour !== undefined,
+      slotLatestHour: ov.slotLatestHour !== undefined,
+      allowWeekends: ov.allowWeekends !== undefined,
+      partnerExtraQuestionsByRound: ov.partnerExtraQuestionsByRound !== undefined,
+      clientExtraQuestionsByRound: ov.clientExtraQuestionsByRound !== undefined,
+      sessionGuidelinesByRound: ov.sessionGuidelinesByRound !== undefined,
+    });
+    const eff = json.effective;
+    setSlotDurationMinutes(eff.slotDurationMinutes);
+    setTotalSessions(eff.totalSessions);
+    setTimezone(eff.timezone);
+    setSlotEarliestHour(eff.slotEarliestHour);
+    setSlotLatestHour(eff.slotLatestHour);
+    setAllowWeekends(eff.allowWeekends);
+    setPartnerQs(eff.partnerExtraQuestionsByRound);
+    setClientQs(eff.clientExtraQuestionsByRound ?? {});
+    setGuidelines(eff.sessionGuidelinesByRound);
+    const po = eff.partnerProjectOverview;
+    setVPartnerPo(
+      po
+        ? {
+            companyName: po.companyName ?? "",
+            sessionPeriod: po.sessionPeriod ?? "",
+            sessionFrequency: po.sessionFrequency ?? "",
+            background: po.background ?? "",
+            sessionFocus: po.sessionFocus ?? "",
+            expectations: po.expectations ?? "",
+            other: po.other ?? "",
+          }
+        : emptyPartnerPo,
+    );
+    const co = eff.clientProjectOverview;
+    setVClientPo(
+      co
+        ? {
+            sessionPeriod: co.sessionPeriod ?? "",
+            sessionFrequency: co.sessionFrequency ?? "",
+            background: co.background ?? "",
+            sessionFocus: co.sessionFocus ?? "",
+            expectations: co.expectations ?? "",
+            other: co.other ?? "",
+          }
+        : emptyClientPo,
+    );
+    const ovShare = ov.shareFtaWithinCompany;
+    const initialMode: ShareFtaMode =
+      ovShare === true ? "share" : ovShare === false ? "no-share" : "default";
+    setVShareFtaMode(initialMode);
+    setInitialShareFtaMode(initialMode);
+    const companyPlan = resolveCompanyPlanFromApi(json, companyId);
+    const effectiveFeatures = resolvePlanFeatures(companyPlan, eff.planFeatureOverrides ?? null);
+    setVPlanFeatures(planFeaturesToToggles(effectiveFeatures));
+    setPlanFeaturesCustomized(Boolean(eff.planFeatureOverrides && Object.keys(eff.planFeatureOverrides).length > 0));
+  }
+
+  function ensureOverride(key: OverridableKey) {
+    setOverrideFlags((p) => (p[key] ? p : { ...p, [key]: true }));
+  }
+
+  const companyPlan = useMemo(
+    () => (data ? resolveCompanyPlanFromApi(data, companyId) : ("workplace_activation" as CompanyPlan)),
+    [data, companyId],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -170,63 +258,7 @@ export default function AdminCompanySettingsPage({
           setLoading(false);
           return;
         }
-        setData(json);
-        const ov = json.override ?? {};
-        setOverrideFlags({
-          slotDurationMinutes: ov.slotDurationMinutes !== undefined,
-          totalSessions: ov.totalSessions !== undefined,
-          timezone: ov.timezone !== undefined,
-          slotEarliestHour: ov.slotEarliestHour !== undefined,
-          slotLatestHour: ov.slotLatestHour !== undefined,
-          allowWeekends: ov.allowWeekends !== undefined,
-          partnerExtraQuestionsByRound: ov.partnerExtraQuestionsByRound !== undefined,
-          clientExtraQuestionsByRound: ov.clientExtraQuestionsByRound !== undefined,
-          sessionGuidelinesByRound: ov.sessionGuidelinesByRound !== undefined,
-        });
-        // 編集値は「実効値」を初期表示する（上書き OFF の項目は global と同じ）
-        const eff = json.effective;
-        setSlotDurationMinutes(eff.slotDurationMinutes);
-        setTotalSessions(eff.totalSessions);
-        setTimezone(eff.timezone);
-        setSlotEarliestHour(eff.slotEarliestHour);
-        setSlotLatestHour(eff.slotLatestHour);
-        setAllowWeekends(eff.allowWeekends);
-        setPartnerQs(eff.partnerExtraQuestionsByRound);
-        setClientQs(eff.clientExtraQuestionsByRound ?? {});
-        setGuidelines(eff.sessionGuidelinesByRound);
-        const po = eff.partnerProjectOverview;
-        setVPartnerPo(
-          po
-            ? {
-                companyName: po.companyName ?? "",
-                sessionPeriod: po.sessionPeriod ?? "",
-                sessionFrequency: po.sessionFrequency ?? "",
-                background: po.background ?? "",
-                sessionFocus: po.sessionFocus ?? "",
-                expectations: po.expectations ?? "",
-                other: po.other ?? "",
-              }
-            : emptyPartnerPo,
-        );
-        const co = eff.clientProjectOverview;
-        setVClientPo(
-          co
-            ? {
-                sessionPeriod: co.sessionPeriod ?? "",
-                sessionFrequency: co.sessionFrequency ?? "",
-                background: co.background ?? "",
-                sessionFocus: co.sessionFocus ?? "",
-                expectations: co.expectations ?? "",
-                other: co.other ?? "",
-              }
-            : emptyClientPo,
-        );
-        // FTA 共有設定：override に明示値があればそれ、なければ "default"。
-        const ovShare = ov.shareFtaWithinCompany;
-        const initialMode: ShareFtaMode =
-          ovShare === true ? "share" : ovShare === false ? "no-share" : "default";
-        setVShareFtaMode(initialMode);
-        setInitialShareFtaMode(initialMode);
+        applyApiResponse(json);
       } catch {
         if (!cancelled) setError("ネットワークエラーが発生しました。");
       } finally {
@@ -413,6 +445,16 @@ export default function AdminCompanySettingsPage({
     }
     if (clearFields.length > 0) body.clearFields = clearFields;
 
+    if (companyPlan === "individual_companion" && planFeaturesCustomized) {
+      const overrides: PlanFeatureOverrides = {};
+      for (const { key } of INDIVIDUAL_COMPANION_FEATURE_OPTIONS) {
+        overrides[key] = vPlanFeatures[key];
+      }
+      body.planFeatureOverrides = overrides;
+    } else if (companyPlan === "individual_companion" && data.override?.planFeatureOverrides) {
+      body.clearPlanFeatureOverrides = true;
+    }
+
     try {
       const res = await fetch(
         `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
@@ -435,7 +477,7 @@ export default function AdminCompanySettingsPage({
           { cache: "no-store" },
         );
         const next = (await reload.json().catch(() => null)) as ApiResponse | null;
-        if (next) setData(next);
+        if (next) applyApiResponse(next);
       }
     } catch {
       setError("ネットワークエラーが発生しました。");
@@ -466,31 +508,7 @@ export default function AdminCompanySettingsPage({
           { cache: "no-store" },
         );
         const next = (await reload.json().catch(() => null)) as ApiResponse | null;
-        if (next) {
-          setData(next);
-          setOverrideFlags({
-            slotDurationMinutes: false,
-            totalSessions: false,
-            timezone: false,
-            slotEarliestHour: false,
-            slotLatestHour: false,
-            allowWeekends: false,
-            partnerExtraQuestionsByRound: false,
-            clientExtraQuestionsByRound: false,
-            sessionGuidelinesByRound: false,
-          });
-          setSlotDurationMinutes(next.global.slotDurationMinutes);
-          setTotalSessions(next.global.totalSessions);
-          setTimezone(next.global.timezone);
-          setSlotEarliestHour(next.global.slotEarliestHour);
-          setSlotLatestHour(next.global.slotLatestHour);
-          setAllowWeekends(next.global.allowWeekends);
-          setPartnerQs(next.global.partnerExtraQuestionsByRound);
-          setClientQs(next.global.clientExtraQuestionsByRound ?? {});
-          setGuidelines(next.global.sessionGuidelinesByRound);
-          setVPartnerPo(emptyPartnerPo);
-          setVClientPo(emptyClientPo);
-        }
+        if (next) applyApiResponse(next);
       }
     } catch {
       setError("ネットワークエラーが発生しました。");
@@ -526,7 +544,7 @@ export default function AdminCompanySettingsPage({
           { cache: "no-store" },
         );
         const next = (await reload.json().catch(() => null)) as ApiResponse | null;
-        if (next) setData(next);
+        if (next) applyApiResponse(next);
       }
     } catch {
       setError("ネットワークエラーが発生しました。");
@@ -572,7 +590,7 @@ export default function AdminCompanySettingsPage({
           { cache: "no-store" },
         );
         const next = (await reload.json().catch(() => null)) as ApiResponse | null;
-        if (next) setData(next);
+        if (next) applyApiResponse(next);
       }
     } catch {
       setError("ネットワークエラーが発生しました。");
@@ -621,7 +639,7 @@ export default function AdminCompanySettingsPage({
           { cache: "no-store" },
         );
         const next = (await reload.json().catch(() => null)) as ApiResponse | null;
-        if (next) setData(next);
+        if (next) applyApiResponse(next);
       }
     } catch {
       setError("ネットワークエラーが発生しました。");
@@ -644,8 +662,8 @@ export default function AdminCompanySettingsPage({
         </h1>
         <p className="mt-1 font-mono text-xs text-slate-500">企業ID: {companyId}</p>
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          各項目で「<span className="font-semibold">全体設定を使う</span>
-          」を外すと、この企業だけ別の値で動作します。チェックを入れたままなら全体設定をそのまま使います。
+          各項目は、チェックを入れるとこの企業だけ別の値で動作します。数値を変更すると自動的に上書きが有効になります。
+          チェックを外すと全体設定に戻ります。
         </p>
         <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           補足: 「対応可能時間の選択肢」は、企業ごと上書きを一時停止中です（リリースまで無効化）。
@@ -843,6 +861,63 @@ export default function AdminCompanySettingsPage({
             </div>
           </section>
 
+          {companyPlan === "individual_companion" ? (
+            <section className="rounded-2xl border border-violet-200 bg-violet-50/30 p-5 shadow-sm sm:p-8">
+              <h2 className="text-lg font-semibold text-violet-950">個別伴走プラン — 成果物の表示</h2>
+              <p className="mt-2 text-sm text-violet-900/90">
+                クライアントのマッチルームに表示するシート・成果物を選びます。選択したタブは、
+                ペアになったパートナーも同じルーム内でリアルタイムに閲覧できます。
+              </p>
+              <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-violet-300 bg-white px-4 py-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={planFeaturesCustomized}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setPlanFeaturesCustomized(on);
+                    if (!on) {
+                      setVPlanFeatures(planFeaturesToToggles(getPlanFeatures("individual_companion")));
+                    }
+                  }}
+                  className="mt-0.5 h-4 w-4 accent-violet-700"
+                />
+                <span>
+                  <span className="font-semibold">この企業で成果物を個別に設定する</span>
+                  <span className="mt-1 block text-xs text-violet-800/80">
+                    オフの場合は個別伴走プランの既定（すべて表示）を使います。
+                  </span>
+                </span>
+              </label>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {INDIVIDUAL_COMPANION_FEATURE_OPTIONS.map(({ key, label }) => (
+                  <label
+                    key={key}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                      planFeaturesCustomized
+                        ? "border-violet-200 bg-white text-violet-950"
+                        : "border-slate-200 bg-slate-50 text-slate-500"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={vPlanFeatures[key]}
+                      disabled={!planFeaturesCustomized}
+                      onChange={(e) =>
+                        setVPlanFeatures((p) => ({ ...p, [key]: e.target.checked }))
+                      }
+                      className="h-4 w-4 accent-violet-700"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </section>
+          ) : (
+            <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              導入プラン: {companyPlanLabel(companyPlan)} — 成果物の個別選択は個別伴走プランのみ利用できます。
+            </p>
+          )}
+
           {/* 枠・回数・TZ */}
           <SectionCard
             title="枠・回数・タイムゾーン"
@@ -855,8 +930,10 @@ export default function AdminCompanySettingsPage({
               <FieldNumber
                 label="1回の長さ（分）"
                 value={vSlotDurationMinutes}
-                onChange={setSlotDurationMinutes}
-                disabled={!overrideFlags.slotDurationMinutes}
+                onChange={(n) => {
+                  ensureOverride("slotDurationMinutes");
+                  setSlotDurationMinutes(n);
+                }}
                 min={5}
                 max={240}
                 step={5}
@@ -864,8 +941,10 @@ export default function AdminCompanySettingsPage({
               <FieldNumber
                 label="総セッション数"
                 value={vTotalSessions}
-                onChange={setTotalSessions}
-                disabled={!overrideFlags.totalSessions}
+                onChange={(n) => {
+                  ensureOverride("totalSessions");
+                  setTotalSessions(n);
+                }}
                 min={1}
                 max={60}
               />
@@ -873,9 +952,11 @@ export default function AdminCompanySettingsPage({
                 タイムゾーン
                 <input
                   value={vTimezone}
-                  onChange={(e) => setTimezone(e.target.value)}
-                  disabled={!overrideFlags.timezone}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 disabled:bg-slate-100 disabled:text-slate-500"
+                  onChange={(e) => {
+                    ensureOverride("timezone");
+                    setTimezone(e.target.value);
+                  }}
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
                 />
               </label>
             </div>
@@ -894,9 +975,11 @@ export default function AdminCompanySettingsPage({
                 開始時刻（時）
                 <select
                   value={vSlotEarliestHour}
-                  onChange={(e) => setSlotEarliestHour(Number(e.target.value))}
-                  disabled={!overrideFlags.slotEarliestHour}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 disabled:bg-slate-100 disabled:text-slate-500"
+                  onChange={(e) => {
+                    ensureOverride("slotEarliestHour");
+                    setSlotEarliestHour(Number(e.target.value));
+                  }}
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
                 >
                   {Array.from({ length: 24 }, (_, h) => h).map((h) => (
                     <option key={h} value={h}>
@@ -909,9 +992,11 @@ export default function AdminCompanySettingsPage({
                 終了時刻（時）
                 <select
                   value={vSlotLatestHour}
-                  onChange={(e) => setSlotLatestHour(Number(e.target.value))}
-                  disabled={!overrideFlags.slotLatestHour}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 disabled:bg-slate-100 disabled:text-slate-500"
+                  onChange={(e) => {
+                    ensureOverride("slotLatestHour");
+                    setSlotLatestHour(Number(e.target.value));
+                  }}
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
                 >
                   {Array.from({ length: 25 }, (_, h) => h).map((h) => (
                     <option key={h} value={h}>
@@ -925,8 +1010,10 @@ export default function AdminCompanySettingsPage({
               <input
                 type="checkbox"
                 checked={vAllowWeekends}
-                onChange={(e) => setAllowWeekends(e.target.checked)}
-                disabled={!overrideFlags.allowWeekends}
+                onChange={(e) => {
+                  ensureOverride("allowWeekends");
+                  setAllowWeekends(e.target.checked);
+                }}
                 className="h-4 w-4"
               />
               土日も候補日として選択可能にする
@@ -1183,14 +1270,34 @@ function SectionCard({
         <label className="flex items-center gap-2 text-sm font-medium text-slate-800">
           <input
             type="checkbox"
-            checked={allOff}
-            onChange={(e) => setAll(!e.target.checked)}
+            checked={allOn}
+            onChange={(e) => setAll(e.target.checked)}
             className="h-4 w-4"
           />
-          全体設定を使う
+          この企業で上書きする
         </label>
       </div>
       <div>{children}</div>
     </section>
   );
+}
+
+function resolveCompanyPlanFromApi(json: ApiResponse, companyId: string): CompanyPlan {
+  const fromCompany = json.global.companies?.find((c) => c.id === companyId)?.plan;
+  if (fromCompany) return fromCompany;
+  return "workplace_activation";
+}
+
+function defaultPlanFeatureToggles(plan: CompanyPlan): Record<IndividualCompanionFeatureKey, boolean> {
+  return planFeaturesToToggles(getPlanFeatures(plan));
+}
+
+function planFeaturesToToggles(
+  features: ReturnType<typeof getPlanFeatures>,
+): Record<IndividualCompanionFeatureKey, boolean> {
+  const out = {} as Record<IndividualCompanionFeatureKey, boolean>;
+  for (const { key } of INDIVIDUAL_COMPANION_FEATURE_OPTIONS) {
+    out[key] = features[key];
+  }
+  return out;
 }
