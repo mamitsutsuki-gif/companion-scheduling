@@ -112,9 +112,9 @@ async function main() {
     assertEq("2-3 A社 slotLatestHour は 22", effA.slotLatestHour, 22);
     assertEq("2-4 A社 allowWeekends は true", effA.allowWeekends, true);
     assertEq(
-      "2-5 A社 availabilitySlotOptions は差し替え",
+      "2-5 A社 availabilitySlotOptions は global のまま（企業上書き無効）",
       effA.availabilitySlotOptions,
-      [{ id: "weekday-evening", label: "平日 18:00〜22:00" }],
+      GLOBAL.availabilitySlotOptions,
     );
     // 上書きしていない項目はグローバル値を保持
     assertEq("2-6 A社 timezone は global のまま Asia/Tokyo", effA.timezone, "Asia/Tokyo");
@@ -128,7 +128,6 @@ async function main() {
       overridden,
       [
         "allowWeekends",
-        "availabilitySlotOptions",
         "partnerExtraQuestionsByRound",
         "slotDurationMinutes",
         "slotLatestHour",
