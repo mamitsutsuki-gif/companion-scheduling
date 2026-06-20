@@ -25,6 +25,7 @@ export async function getCompanySkillDefinitions(companyId: string): Promise<Ski
 export async function getSkillCheckProfile(userId: string): Promise<SkillCheckProfile | null> {
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
+    if (!db) return null;
     const snap = await db.collection(COLLECTION).doc(userId).get();
     if (!snap.exists) return null;
     const data = snap.data() ?? {};
@@ -68,6 +69,7 @@ export async function upsertSkillCheckProfile(input: {
 
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
+    if (!db) return profile;
     await db.collection(COLLECTION).doc(input.userId).set(profile, { merge: true });
     return profile;
   }
