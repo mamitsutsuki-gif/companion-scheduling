@@ -1,31 +1,23 @@
 import Link from "next/link";
 
-type LogoVariant = "icon" | "horizontal" | "vertical";
+type LogoVariant = "icon" | "horizontal";
 
-/** 黒背景の PNG を白地 UI 上で自然に見せる */
-const ON_WHITE_BLEND = "mix-blend-screen";
+const HORIZONTAL = {
+  src: "/brand/motiv-iji-logo-horizontal.png",
+  width: 1024,
+  height: 244,
+};
 
-const ASSETS: Record<
-  LogoVariant,
-  { src: string; width: number; height: number; defaultClass: string }
-> = {
+const ASSETS: Record<LogoVariant, { width: number; height: number; defaultClass: string }> = {
   icon: {
-    src: "/brand/motiv-iji-logo-horizontal.png",
     width: 244,
     height: 244,
-    defaultClass: `h-9 w-9 shrink-0 object-cover object-left ${ON_WHITE_BLEND}`,
+    defaultClass: "h-9 w-9 shrink-0 object-cover object-left",
   },
   horizontal: {
-    src: "/brand/motiv-iji-logo-horizontal.png",
-    width: 1024,
-    height: 244,
-    defaultClass: `h-8 w-auto max-w-[10rem] object-contain sm:h-9 sm:max-w-[11rem] ${ON_WHITE_BLEND}`,
-  },
-  vertical: {
-    src: "/brand/motiv-iji-logo-vertical.png",
-    width: 715,
-    height: 937,
-    defaultClass: `h-[4.5rem] w-auto max-w-[5.75rem] object-contain sm:h-20 sm:max-w-[6.25rem] ${ON_WHITE_BLEND}`,
+    width: HORIZONTAL.width,
+    height: HORIZONTAL.height,
+    defaultClass: "h-7 w-auto max-w-[9.5rem] object-contain sm:h-8 sm:max-w-[10.5rem]",
   },
 };
 
@@ -50,7 +42,7 @@ export function MotiveIjiLogo({
   const img = (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={asset.src}
+      src={HORIZONTAL.src}
       alt=""
       aria-hidden
       width={asset.width}

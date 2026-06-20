@@ -180,7 +180,7 @@ export function ApplicationChrome({
             className="order-1 flex shrink-0 items-center gap-2.5 no-underline sm:order-none"
           >
             <MotiveIjiLogo variant="icon" />
-            <span className="text-[15px] leading-snug font-semibold tracking-tight text-slate-900 sm:text-base">
+            <span className="text-base font-semibold tracking-tight text-slate-900">
               {APP_DISPLAY_NAME}
             </span>
           </Link>
