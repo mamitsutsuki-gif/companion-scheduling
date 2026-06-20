@@ -88,6 +88,8 @@ const patchSchema = z.object({
     })
     .optional(),
   clearPlanFeatureOverrides: z.boolean().optional(),
+  meetingProvider: z.enum(["zoom", "google_meet"]).optional(),
+  clearMeetingProvider: z.boolean().optional(),
 });
 
 /**
@@ -137,7 +139,7 @@ export async function PATCH(request: Request, ctx: RouteContext) {
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
 
-  const { clearFields, clearPartnerProjectOverview, clearClientProjectOverview, clearPlanFeatureOverrides, ...rest } =
+  const { clearFields, clearPartnerProjectOverview, clearClientProjectOverview, clearPlanFeatureOverrides, clearMeetingProvider, ...rest } =
     parsed.data;
   if (clearFields && clearFields.length > 0) {
     for (const k of clearFields) {
@@ -165,6 +167,7 @@ export async function PATCH(request: Request, ctx: RouteContext) {
 
   const next = await upsertCompanyAppSettingsOverride(companyId, {
     ...rest,
+    meetingProvider: rest.meetingProvider,
     planFeatureOverrides: rest.planFeatureOverrides
       ? normalizePlanFeatureOverrides(rest.planFeatureOverrides)
       : undefined,
@@ -172,6 +175,7 @@ export async function PATCH(request: Request, ctx: RouteContext) {
     clearPartnerProjectOverview: clearPartnerProjectOverview === true,
     clearClientProjectOverview: clearClientProjectOverview === true,
     clearPlanFeatureOverrides: clearPlanFeatureOverrides === true,
+    clearMeetingProvider: clearMeetingProvider === true,
   });
 
   const substantiveKeys = next

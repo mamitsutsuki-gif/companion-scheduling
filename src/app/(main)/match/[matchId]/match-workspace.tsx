@@ -1827,21 +1827,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 総括レポート
               </button>
             ) : null}
-            {scheduleSettings.planFeatures.coachingQuestions ? (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === "coachingQuestions"}
-                onClick={() => goTab("coachingQuestions")}
-                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
-                  activeTab === "coachingQuestions"
-                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
-                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
-                }`}
-              >
-                質問リスト
-              </button>
-            ) : null}
             {scheduleSettings.planFeatures.coachingIcebreaker ? (
               <button
                 type="button"
@@ -1855,6 +1840,21 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 }`}
               >
                 アイスブレイク
+              </button>
+            ) : null}
+            {scheduleSettings.planFeatures.coachingQuestions ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "coachingQuestions"}
+                onClick={() => goTab("coachingQuestions")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "coachingQuestions"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                質問リスト
               </button>
             ) : null}
             {scheduleSettings.planFeatures.coachingOneOnOneFormat ? (

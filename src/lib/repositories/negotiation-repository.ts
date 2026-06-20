@@ -307,7 +307,12 @@ export async function submitVotes(negotiationId: string, votes: Record<string, "
 export async function confirmNegotiationSlot(
   negotiationId: string,
   slotId: string,
-  options?: { zoomUrl?: string | null; zoomMeetingId?: string | null; zoomPass?: string | null },
+  options?: {
+    zoomUrl?: string | null;
+    zoomMeetingId?: string | null;
+    zoomPass?: string | null;
+    meetingProvider?: "zoom" | "google_meet" | null;
+  },
 ) {
   const negotiation = await getNegotiationById(negotiationId);
   if (!negotiation) return null;
@@ -324,6 +329,7 @@ export async function confirmNegotiationSlot(
         confirmedZoomUrl: options?.zoomUrl ?? null,
         confirmedZoomMeetingId: options?.zoomMeetingId ?? null,
         confirmedZoomPass: options?.zoomPass ?? null,
+        confirmedMeetingProvider: options?.meetingProvider ?? null,
         updatedAt: new Date().toISOString(),
       },
       { merge: true },
@@ -339,7 +345,10 @@ export async function confirmNegotiationSlot(
           status: "CONFIRMED",
           confirmedZoomUrl: options?.zoomUrl ?? null,
           confirmedZoomPass: options?.zoomPass ?? null,
-          ...({ confirmedZoomMeetingId: options?.zoomMeetingId ?? null } as Record<string, unknown>),
+          ...({
+            confirmedZoomMeetingId: options?.zoomMeetingId ?? null,
+            confirmedMeetingProvider: options?.meetingProvider ?? null,
+          } as Record<string, unknown>),
         },
       }),
     ]);

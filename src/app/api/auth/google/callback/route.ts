@@ -4,9 +4,6 @@ import { exchangeGoogleCode, fetchGoogleProfile } from "@/lib/oauth-google";
 import { prisma } from "@/lib/prisma";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
-import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
-import { upsertPartnerZoomProfile } from "@/lib/repositories/zoom-repository";
-import { normalizeAvailabilitySelections } from "@/lib/availability";
 
 function resolvedAppOrigin(request: NextRequest) {
   const fromEnv = process.env.APP_ORIGIN?.replace(/\/$/, "");
@@ -53,23 +50,6 @@ export async function GET(request: NextRequest) {
     return redirectLogin(request, "legal_required");
   }
 
-  if (requestedRole === "PARTNER") {
-    const zoomUrl = payload.partnerZoomUrl?.trim() ?? "";
-    const zoomPass = payload.partnerZoomPass?.trim() ?? "";
-    try {
-      // eslint-disable-next-line no-new
-      new URL(zoomUrl);
-    } catch {
-      return redirectLogin(request, "partner_zoom_required");
-    }
-    if (!zoomUrl.startsWith("https://") && !zoomUrl.startsWith("http://")) {
-      return redirectLogin(request, "partner_zoom_required");
-    }
-    if (zoomPass.length < 1 || zoomPass.length > 120) {
-      return redirectLogin(request, "partner_zoom_required");
-    }
-  }
-
   let user:
     | {
         id: string;
@@ -112,12 +92,6 @@ export async function GET(request: NextRequest) {
         return redirectLogin(request, "email_already_registered");
       }
       const display = profile.name?.trim() || email.split("@")[0] || "Googleユーザー";
-      // クライアント新規登録の場合のみ、stateに含まれる対応可能時間を保存。
-      let availabilitySlotIds: string[] = [];
-      if (requestedRole === "CLIENT" && payload.availabilitySlotIds && payload.availabilitySlotIds.length > 0) {
-        const settings = await getAppSettingsRow();
-        availabilitySlotIds = normalizeAvailabilitySelections(payload.availabilitySlotIds, settings.availabilitySlotOptions);
-      }
       const ref = users.doc();
       await ref.set(
         {
@@ -126,21 +100,13 @@ export async function GET(request: NextRequest) {
           role: requestedRole,
           googleSub,
           firebaseUid: null,
-          availabilitySlotIds,
+          availabilitySlotIds: [],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
         { merge: true },
       );
       user = { id: ref.id, role: requestedRole };
-      if (requestedRole === "PARTNER" && payload.partnerZoomUrl && payload.partnerZoomPass) {
-        await upsertPartnerZoomProfile({
-          partnerId: ref.id,
-          zoomUrl: payload.partnerZoomUrl.trim(),
-          zoomMeetingId: payload.partnerZoomMeetingId?.trim() || null,
-          zoomPass: payload.partnerZoomPass.trim() === "なし" ? null : payload.partnerZoomPass.trim(),
-        });
-      }
     }
   } else {
     const existing = await prisma.user.findFirst({
@@ -162,20 +128,16 @@ export async function GET(request: NextRequest) {
           passwordHash: null,
         },
       });
-      if (requestedRole === "PARTNER" && payload.partnerZoomUrl && payload.partnerZoomPass) {
-        await upsertPartnerZoomProfile({
-          partnerId: user.id,
-          zoomUrl: payload.partnerZoomUrl.trim(),
-          zoomMeetingId: payload.partnerZoomMeetingId?.trim() || null,
-          zoomPass: payload.partnerZoomPass.trim() === "なし" ? null : payload.partnerZoomPass.trim(),
-        });
-      }
     }
   }
 
   if (!user) return redirectLogin(request, "oauth_not_allowed");
   await createSessionCookie({ sub: user.id, role: user.role });
 
-  const next = payload.next && payload.next.startsWith("/") ? payload.next : "/dashboard";
+  const defaultNext =
+    requestedRole === "PARTNER" || requestedRole === "CLIENT"
+      ? "/register/complete-profile"
+      : "/dashboard";
+  const next = payload.next && payload.next.startsWith("/") ? payload.next : defaultNext;
   return NextResponse.redirect(new URL(next, resolvedAppOrigin(request)));
 }

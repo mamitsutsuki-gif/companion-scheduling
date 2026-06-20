@@ -81,6 +81,13 @@ export const INDIVIDUAL_COMPANION_FEATURE_OPTIONS: Array<{
 
 export type PlanFeatureOverrides = Partial<Record<IndividualCompanionFeatureKey, boolean>>;
 
+export {
+  MEETING_PROVIDER_OPTIONS,
+  normalizeMeetingProvider,
+  meetingProviderLabel,
+  type MeetingProvider,
+} from "@/lib/meeting-provider-shared";
+
 export function normalizePlanFeatureOverrides(input: unknown): PlanFeatureOverrides | undefined {
   if (!input || typeof input !== "object") return undefined;
   const raw = input as Record<string, unknown>;

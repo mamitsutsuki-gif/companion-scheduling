@@ -8,9 +8,11 @@ import {
 import {
   DEFAULT_COMPANY_PLAN,
   normalizeCompanyPlan,
+  normalizeMeetingProvider,
   normalizePlanFeatureOverrides,
   resolveCompanyPlan,
   type CompanyPlan,
+  type MeetingProvider,
   type PlanFeatureOverrides,
 } from "@/lib/company-plan";
 import { normalizeCompanySkillDefinitions, type SkillDefinition } from "@/lib/skill-check";
@@ -164,6 +166,8 @@ export type CompanyAppSettingsOverride = Partial<AppSettingsOverridableFields> &
   skillCheckCompanySkills?: SkillDefinition[];
   /** 個別伴走プラン向け：成果物タブの ON/OFF（未設定 = プラン既定） */
   planFeatureOverrides?: PlanFeatureOverrides;
+  /** 1on1 で使うオンライン会議（Zoom / Google Meet）。未設定 = Zoom。 */
+  meetingProvider?: MeetingProvider;
 };
 
 export function normalizeCompanies(input: unknown): CompanyOption[] {
@@ -326,6 +330,9 @@ export function normalizeCompanyAppSettingsOverride(
   }
   const pfo = normalizePlanFeatureOverrides(raw.planFeatureOverrides);
   if (pfo) out.planFeatureOverrides = pfo;
+  if (raw.meetingProvider === "zoom" || raw.meetingProvider === "google_meet") {
+    out.meetingProvider = raw.meetingProvider;
+  }
   return out;
 }
 
@@ -767,6 +774,8 @@ export async function upsertCompanyAppSettingsOverride(
     shareFtaWithinCompany?: boolean;
     planFeatureOverrides?: PlanFeatureOverrides | null;
     clearPlanFeatureOverrides?: boolean;
+    meetingProvider?: MeetingProvider;
+    clearMeetingProvider?: boolean;
   },
 ): Promise<CompanyAppSettingsOverride | null> {
   const cid = sanitizeCompanyId(companyId);
@@ -784,6 +793,8 @@ export async function upsertCompanyAppSettingsOverride(
     shareFtaWithinCompany: patchShareFta,
     planFeatureOverrides: patchPlanFeatures,
     clearPlanFeatureOverrides,
+    meetingProvider: patchMeetingProvider,
+    clearMeetingProvider,
     ...restPatch
   } = patch;
 
@@ -824,6 +835,11 @@ export async function upsertCompanyAppSettingsOverride(
       patchPlanFeatures === null ? null : normalizePlanFeatureOverrides(patchPlanFeatures);
     writeData.planFeatureOverrides = pfo ?? FieldValue.delete();
   }
+  if (clearMeetingProvider) {
+    writeData.meetingProvider = FieldValue.delete();
+  } else if (patchMeetingProvider !== undefined) {
+    writeData.meetingProvider = normalizeMeetingProvider(patchMeetingProvider);
+  }
   await ref.set(writeData, { merge: true });
   const snap = await ref.get();
   return normalizeCompanyAppSettingsOverride(cid, snap.data() ?? {});
@@ -859,6 +875,8 @@ export type EffectiveAppSettings = AppSettingsRow & {
   companyPlan: CompanyPlan;
   /** 個別伴走プラン向け：成果物タブの企業上書き（未設定 = プラン既定） */
   planFeatureOverrides: PlanFeatureOverrides | null;
+  /** 1on1 で使うオンライン会議。未設定 = Zoom。 */
+  meetingProvider: MeetingProvider;
 };
 
 export async function getEffectiveAppSettings(opts: {
@@ -879,6 +897,7 @@ export async function getEffectiveAppSettings(opts: {
       shareFtaWithinCompany: true,
       companyPlan: DEFAULT_COMPANY_PLAN,
       planFeatureOverrides: null,
+      meetingProvider: "zoom",
     };
   }
   const override =
@@ -893,6 +912,7 @@ export async function getEffectiveAppSettings(opts: {
       shareFtaWithinCompany: true,
       companyPlan: resolveCompanyPlan(cid, global.companies),
       planFeatureOverrides: null,
+      meetingProvider: "zoom",
     };
   }
   const overridden: Array<keyof AppSettingsOverridableFields> = [];
@@ -933,5 +953,6 @@ export async function getEffectiveAppSettings(opts: {
     shareFtaWithinCompany: override.shareFtaWithinCompany === false ? false : true,
     companyPlan: resolveCompanyPlan(cid, global.companies),
     planFeatureOverrides: override.planFeatureOverrides ?? null,
+    meetingProvider: normalizeMeetingProvider(override.meetingProvider),
   };
 }

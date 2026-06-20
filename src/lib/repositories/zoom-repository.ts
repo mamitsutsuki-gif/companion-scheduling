@@ -7,6 +7,7 @@ export type PartnerZoomProfileRow = {
   zoomUrl: string;
   zoomMeetingId: string | null;
   zoomPass: string | null;
+  googleMeetUrl: string | null;
 };
 
 export async function getPartnerZoomProfile(partnerId: string): Promise<PartnerZoomProfileRow | null> {
@@ -22,6 +23,7 @@ export async function getPartnerZoomProfile(partnerId: string): Promise<PartnerZ
       zoomUrl: String(raw.zoomUrl ?? ""),
       zoomMeetingId: typeof raw.zoomMeetingId === "string" ? raw.zoomMeetingId : null,
       zoomPass: typeof raw.zoomPass === "string" ? raw.zoomPass : null,
+      googleMeetUrl: typeof raw.googleMeetUrl === "string" ? raw.googleMeetUrl : null,
     };
   }
   const row = await prisma.partnerZoomProfile.findUnique({ where: { partnerId } });
@@ -32,6 +34,7 @@ export async function getPartnerZoomProfile(partnerId: string): Promise<PartnerZ
     zoomUrl: row.zoomUrl,
     zoomMeetingId: (row as unknown as { zoomMeetingId?: string | null }).zoomMeetingId ?? null,
     zoomPass: row.zoomPass,
+    googleMeetUrl: (row as unknown as { googleMeetUrl?: string | null }).googleMeetUrl ?? null,
   };
 }
 
@@ -40,6 +43,7 @@ export async function upsertPartnerZoomProfile(input: {
   zoomUrl: string;
   zoomMeetingId: string | null;
   zoomPass: string | null;
+  googleMeetUrl?: string | null;
 }): Promise<PartnerZoomProfileRow> {
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
@@ -50,6 +54,7 @@ export async function upsertPartnerZoomProfile(input: {
         zoomUrl: input.zoomUrl,
         zoomMeetingId: input.zoomMeetingId,
         zoomPass: input.zoomPass,
+        googleMeetUrl: input.googleMeetUrl ?? null,
         updatedAt: new Date().toISOString(),
       },
       { merge: true },
@@ -60,6 +65,7 @@ export async function upsertPartnerZoomProfile(input: {
       zoomUrl: input.zoomUrl,
       zoomMeetingId: input.zoomMeetingId,
       zoomPass: input.zoomPass,
+      googleMeetUrl: input.googleMeetUrl ?? null,
     };
   }
   const row = await prisma.partnerZoomProfile.upsert({
@@ -67,13 +73,19 @@ export async function upsertPartnerZoomProfile(input: {
     update: {
       zoomUrl: input.zoomUrl,
       zoomPass: input.zoomPass,
-      ...({ zoomMeetingId: input.zoomMeetingId } as Record<string, unknown>),
+      ...({ zoomMeetingId: input.zoomMeetingId, googleMeetUrl: input.googleMeetUrl ?? null } as Record<
+        string,
+        unknown
+      >),
     },
     create: {
       partnerId: input.partnerId,
       zoomUrl: input.zoomUrl,
       zoomPass: input.zoomPass,
-      ...({ zoomMeetingId: input.zoomMeetingId } as Record<string, unknown>),
+      ...({ zoomMeetingId: input.zoomMeetingId, googleMeetUrl: input.googleMeetUrl ?? null } as Record<
+        string,
+        unknown
+      >),
     },
   });
   return {
@@ -82,5 +94,6 @@ export async function upsertPartnerZoomProfile(input: {
     zoomUrl: row.zoomUrl,
     zoomMeetingId: (row as unknown as { zoomMeetingId?: string | null }).zoomMeetingId ?? null,
     zoomPass: row.zoomPass,
+    googleMeetUrl: (row as unknown as { googleMeetUrl?: string | null }).googleMeetUrl ?? null,
   };
 }

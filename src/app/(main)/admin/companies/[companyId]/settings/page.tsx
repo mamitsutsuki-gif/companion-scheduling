@@ -5,6 +5,7 @@ import Link from "next/link";
 import { use, useEffect, useMemo, useState } from "react";
 import {
   INDIVIDUAL_COMPANION_FEATURE_OPTIONS,
+  MEETING_PROVIDER_OPTIONS,
   companyPlanLabel,
   getPlanFeatures,
   resolvePlanFeatures,
@@ -57,6 +58,7 @@ type SettingsSnapshot = {
    */
   shareFtaWithinCompany?: boolean | null;
   planFeatureOverrides?: PlanFeatureOverrides | null;
+  meetingProvider?: "zoom" | "google_meet";
 };
 
 type OverridableKey = keyof Pick<
@@ -80,6 +82,7 @@ type ApiResponse = {
   effective: SettingsSnapshot & {
     overriddenFields: OverridableKey[];
     planFeatureOverrides?: PlanFeatureOverrides | null;
+    meetingProvider?: "zoom" | "google_meet";
   };
 };
 
@@ -167,6 +170,8 @@ export default function AdminCompanySettingsPage({
     defaultPlanFeatureToggles("individual_companion"),
   );
   const [planFeaturesCustomized, setPlanFeaturesCustomized] = useState(false);
+  const [vMeetingProvider, setVMeetingProvider] = useState<"zoom" | "google_meet">("zoom");
+  const [initialMeetingProvider, setInitialMeetingProvider] = useState<"zoom" | "google_meet">("zoom");
 
   function applyApiResponse(json: ApiResponse) {
     setData(json);
@@ -228,6 +233,9 @@ export default function AdminCompanySettingsPage({
     const effectiveFeatures = resolvePlanFeatures(companyPlan, eff.planFeatureOverrides ?? null);
     setVPlanFeatures(planFeaturesToToggles(effectiveFeatures));
     setPlanFeaturesCustomized(Boolean(eff.planFeatureOverrides && Object.keys(eff.planFeatureOverrides).length > 0));
+    const mp = eff.meetingProvider ?? "zoom";
+    setVMeetingProvider(mp);
+    setInitialMeetingProvider(mp);
   }
 
   function ensureOverride(key: OverridableKey) {
@@ -553,6 +561,40 @@ export default function AdminCompanySettingsPage({
     }
   }
 
+  async function onSaveMeetingProvider() {
+    if (!data) return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch(
+        `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ meetingProvider: vMeetingProvider }),
+        },
+      );
+      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!res.ok || !json?.ok) {
+        setError(json?.error ?? "オンライン会議の設定保存に失敗しました。");
+      } else {
+        setMessage("1on1 で使うオンライン会議の設定を保存しました。");
+        setInitialMeetingProvider(vMeetingProvider);
+        const reload = await fetch(
+          `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
+          { cache: "no-store" },
+        );
+        const next = (await reload.json().catch(() => null)) as ApiResponse | null;
+        if (next) applyApiResponse(next);
+      }
+    } catch {
+      setError("ネットワークエラーが発生しました。");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function onSaveShareFta() {
     if (!data) return;
     setSaving(true);
@@ -803,6 +845,43 @@ export default function AdminCompanySettingsPage({
             companyName={data.company?.name ?? companyId}
             variant="editable"
           />
+
+          {/* 1on1 オンライン会議 */}
+          <section className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-5 shadow-sm sm:p-8">
+            <h2 className="text-lg font-semibold text-indigo-950">1on1 オンライン会議</h2>
+            <p className="mt-2 text-sm text-indigo-900/90">
+              この企業のプランで日程確定時に使うオンライン会議を選びます。パートナーは Zoom と Google Meet
+              の両方を登録しますが、ここで選んだ方の URL が 1on1 案内に使われます（確定済みの過去分は変わりません）。
+            </p>
+            <fieldset className="mt-4 space-y-2">
+              {MEETING_PROVIDER_OPTIONS.map((opt) => (
+                <label
+                  key={opt.value}
+                  className="flex cursor-pointer items-center gap-3 rounded-lg border border-indigo-200 bg-white px-4 py-3 text-sm text-indigo-950 hover:bg-indigo-50/70"
+                >
+                  <input
+                    type="radio"
+                    name="meetingProvider"
+                    value={opt.value}
+                    checked={vMeetingProvider === opt.value}
+                    onChange={() => setVMeetingProvider(opt.value)}
+                    className="accent-indigo-700"
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </fieldset>
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => void onSaveMeetingProvider()}
+                disabled={saving || vMeetingProvider === initialMeetingProvider}
+                className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-800 disabled:opacity-50"
+              >
+                オンライン会議の設定を保存
+              </button>
+            </div>
+          </section>
 
           {/* 自分FTA の社内共有設定 */}
           <section className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm sm:p-8">

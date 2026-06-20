@@ -24,6 +24,7 @@ const scheduleConfirmedPayloadSchema = z.object({
   zoomUrl: z.string().nullable().optional(),
   zoomMeetingId: z.string().nullable().optional(),
   zoomPass: z.string().nullable().optional(),
+  meetingProvider: z.enum(["zoom", "google_meet"]).nullable().optional(),
   icsContent: z.string().nullable().optional(),
   googleCalendarUrl: z.string().nullable().optional(),
   outlookCalendarUrl: z.string().nullable().optional(),
@@ -180,10 +181,19 @@ function downloadIcs(filename: string, content: string) {
 export function ScheduleConfirmedCard({ payload }: ScheduleConfirmedCardProps) {
   const p = scheduleConfirmedPayloadSchema.safeParse(payload);
   if (!p.success) return null;
-  const zoomBits: string[] = [];
-  if (p.data.zoomUrl) zoomBits.push(p.data.zoomUrl);
-  if (p.data.zoomMeetingId) zoomBits.push(`ID: ${p.data.zoomMeetingId}`);
-  if (p.data.zoomPass) zoomBits.push(`パス: ${p.data.zoomPass}`);
+  const joinUrl = p.data.zoomUrl;
+  const provider = p.data.meetingProvider ?? (joinUrl?.includes("meet.google.com") ? "google_meet" : "zoom");
+  const meetingBits: string[] = [];
+  if (joinUrl) {
+    if (provider === "google_meet") {
+      meetingBits.push(joinUrl);
+    } else {
+      meetingBits.push(joinUrl);
+      if (p.data.zoomMeetingId) meetingBits.push(`ID: ${p.data.zoomMeetingId}`);
+      if (p.data.zoomPass) meetingBits.push(`パス: ${p.data.zoomPass}`);
+    }
+  }
+  const openLabel = provider === "google_meet" ? "Google Meetを開く" : "Zoomを開く";
   const sessionLabel = p.data.sessionNumber ? `第${p.data.sessionNumber}回 / ` : "";
   return (
     <div className="rounded-2xl border border-emerald-200 bg-emerald-50/95 px-4 py-3 text-sm text-emerald-950 shadow-sm ring-1 ring-emerald-100">
@@ -192,17 +202,17 @@ export function ScheduleConfirmedCard({ payload }: ScheduleConfirmedCardProps) {
         {sessionLabel}
         {fmt(p.data.start)} 〜 {fmt(p.data.end)}
       </p>
-      {zoomBits.length ? <p className="mt-1 text-xs opacity-90">{zoomBits.join(" · ")}</p> : null}
-      {(p.data.googleCalendarUrl || p.data.outlookCalendarUrl || p.data.icsContent || p.data.zoomUrl) ? (
+      {meetingBits.length ? <p className="mt-1 text-xs opacity-90">{meetingBits.join(" · ")}</p> : null}
+      {(p.data.googleCalendarUrl || p.data.outlookCalendarUrl || p.data.icsContent || joinUrl) ? (
         <div className="mt-3 flex flex-wrap gap-2">
-          {p.data.zoomUrl ? (
+          {joinUrl ? (
             <a
-              href={p.data.zoomUrl}
+              href={joinUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="rounded-md border border-emerald-300 bg-white px-2.5 py-1 text-xs font-semibold text-emerald-900 no-underline hover:bg-emerald-100"
             >
-              Zoomを開く
+              {openLabel}
             </a>
           ) : null}
           {p.data.googleCalendarUrl ? (

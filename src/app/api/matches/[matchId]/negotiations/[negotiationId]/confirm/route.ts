@@ -12,12 +12,16 @@ import {
   confirmNegotiationSlot,
   getNegotiationById,
 } from "@/lib/repositories/negotiation-repository";
-import { getPartnerZoomProfile } from "@/lib/repositories/zoom-repository";
 import { enqueueSessionFeedbackEmailJob } from "@/lib/repositories/session-feedback-job-repository";
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
 import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { formatJaDateTime } from "@/lib/format-datetime";
+import {
+  formatMeetingLines,
+  meetingProviderLabel,
+  resolveMeetingSnapshotForMatch,
+} from "@/lib/meeting-provider";
 
 const schema = z.object({
   slotId: z.string().min(1),
@@ -53,20 +57,19 @@ export async function POST(request: Request, context: RouteContext) {
   }
   const matchFull = await getMatchById(matchId);
   if (!matchFull) return jsonOk({ ok: true });
-  const zoom = await getPartnerZoomProfile(matchFull.partnerId);
+  const meeting = await resolveMeetingSnapshotForMatch(matchId, matchFull.partnerId);
   await confirmNegotiationSlot(negotiationId, parsed.data.slotId, {
-    zoomUrl: zoom?.zoomUrl ?? null,
-    zoomMeetingId: zoom?.zoomMeetingId ?? null,
-    zoomPass: zoom?.zoomPass ?? null,
+    zoomUrl: meeting?.joinUrl ?? null,
+    zoomMeetingId: meeting?.zoomMeetingId ?? null,
+    zoomPass: meeting?.zoomPass ?? null,
+    meetingProvider: meeting?.provider ?? null,
   });
   // 同じセッション番号で過去に立てられた「再調整中」フラグをクリア
   await clearRescheduleFlagsForSession(matchId, Number(negotiation.sessionNumber ?? 1)).catch(() => null);
 
-  const zoomLines: string[] = [];
-  if (zoom?.zoomUrl) zoomLines.push(`Zoom URL: ${zoom.zoomUrl}`);
-  if (zoom?.zoomMeetingId) zoomLines.push(`ミーティング ID: ${zoom.zoomMeetingId}`);
-  if (zoom?.zoomPass) zoomLines.push(`パスコード: ${zoom.zoomPass}`);
-  const zoomLine = zoomLines.join("\n");
+  const meetingLines = formatMeetingLines(meeting);
+  const meetingLine = meetingLines.join("\n");
+  const providerLabel = meeting ? meetingProviderLabel(meeting.provider) : "オンライン会議";
 
   const ics = buildIcsEvent({
     uid: `${chosen.id}@companion-scheduling`,
@@ -74,8 +77,8 @@ export async function POST(request: Request, context: RouteContext) {
     end: new Date(chosen.endAt),
     title: `モチベイジ1on1（${matchFull.client.displayName}さん）`,
     description:
-      `${zoomLine}\n\nご予約が確定しました。アプリ内チャットにもメモをご利用ください。\n連絡先はプラットフォームを通じない共有はできません。`.trim(),
-    location: zoom?.zoomUrl,
+      `${meetingLine}\n\nご予約が確定しました。アプリ内チャットにもメモをご利用ください。\n連絡先はプラットフォームを通じない共有はできません。`.trim(),
+    location: meeting?.joinUrl,
   });
 
   const settings = await getEffectiveAppSettingsForMatch(matchId);
@@ -85,25 +88,25 @@ export async function POST(request: Request, context: RouteContext) {
     `次の日程が確定しました。\n` +
     `開始: ${formatJaDateTime(chosen.startAt, displayTz)}\n` +
     `終了: ${formatJaDateTime(chosen.endAt, displayTz)}\n` +
-    (zoomLine ? `${zoomLine}\n` : "") +
+    (meetingLine ? `${providerLabel}\n${meetingLine}\n` : "") +
     `\n連絡先はプラットフォーム内チャットのみをご利用ください。\nカレンダー用 .ics を添付しています。`;
 
   const eventTitle = `モチベイジ1on1（${matchFull.client.displayName}さん）`;
   const eventDetails =
-    `${zoomLine}\n\nご予約が確定しました。アプリ内チャットにもメモをご利用ください。`.trim();
+    `${meetingLine}\n\nご予約が確定しました。アプリ内チャットにもメモをご利用ください。`.trim();
   const googleCalendarLink = buildGoogleCalendarLink({
     title: eventTitle,
     start: new Date(chosen.startAt),
     end: new Date(chosen.endAt),
     details: eventDetails,
-    location: zoom?.zoomUrl,
+    location: meeting?.joinUrl,
   });
   const outlookCalendarLink = buildOutlookCalendarLink({
     title: eventTitle,
     start: new Date(chosen.startAt),
     end: new Date(chosen.endAt),
     details: eventDetails,
-    location: zoom?.zoomUrl,
+    location: meeting?.joinUrl,
   });
 
   await notifyMatchStakeholders(matchId, {
@@ -119,16 +122,17 @@ export async function POST(request: Request, context: RouteContext) {
   await createMessage({
     matchId,
     senderId: session.sub,
-    body: `日程確定: ${formatJaDateTime(chosen.startAt, displayTz)} 〜 ${formatJaDateTime(chosen.endAt, displayTz)}${zoom ? ` / ${zoom.zoomUrl}` : ""}`,
+    body: `日程確定: ${formatJaDateTime(chosen.startAt, displayTz)} 〜 ${formatJaDateTime(chosen.endAt, displayTz)}${meeting ? ` / ${meeting.joinUrl}` : ""}`,
     kind: "SCHEDULE_CONFIRMED",
     payload: {
       negotiationId,
       sessionNumber: negotiation.sessionNumber ?? null,
       start: chosen.startAt,
       end: chosen.endAt,
-      zoomUrl: zoom?.zoomUrl ?? null,
-      zoomMeetingId: zoom?.zoomMeetingId ?? null,
-      zoomPass: zoom?.zoomPass ?? null,
+      zoomUrl: meeting?.joinUrl ?? null,
+      zoomMeetingId: meeting?.zoomMeetingId ?? null,
+      zoomPass: meeting?.zoomPass ?? null,
+      meetingProvider: meeting?.provider ?? null,
       icsContent: ics,
       googleCalendarUrl: googleCalendarLink,
       outlookCalendarUrl: outlookCalendarLink,

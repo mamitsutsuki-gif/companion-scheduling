@@ -7,11 +7,8 @@ import {
   createFirebaseUser,
   findUserForFirebaseLogin,
   isDeletedUser,
-  updateUserAvailability,
 } from "@/lib/repositories/user-repository";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
-import { normalizeAvailabilitySelections } from "@/lib/availability";
-import { upsertPartnerZoomProfile } from "@/lib/repositories/zoom-repository";
 
 const bodySchema = z.object({
   idToken: z.string().min(1),
@@ -20,10 +17,11 @@ const bodySchema = z.object({
   role: z.enum(["PARTNER", "CLIENT"]).optional(),
   displayName: z.string().min(1).max(80).optional(),
   availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64).optional(),
-  /** パートナー新規登録時は必須（会議リンク設定と同期） */
+  /** パートナー新規登録時は complete-profile で登録 */
   zoomUrl: z.string().url().max(500).optional(),
   zoomMeetingId: z.string().max(60).optional(),
   zoomPass: z.string().min(1).max(120).optional(),
+  googleMeetUrl: z.string().url().max(500).optional(),
 });
 
 export async function POST(request: Request) {
@@ -73,12 +71,9 @@ export async function POST(request: Request) {
     }
   }
 
-  // 対応可能時間（任意）。新規作成時に保存。クライアント登録のみ意味があるが、
-  // 余分なIDが渡っても normalize で無効値は落とすので安全。
+  // 対応可能時間（任意）。complete-profile で保存。
   const settings = parsed.data.availabilitySlotIds ? await getAppSettingsRow() : null;
-  const availabilitySlotIds = settings && parsed.data.availabilitySlotIds
-    ? normalizeAvailabilitySelections(parsed.data.availabilitySlotIds, settings.availabilitySlotOptions)
-    : [];
+  const availabilitySlotIds: string[] = [];
 
   if (!user) {
     if (parsed.data.intent !== "register") {
@@ -90,34 +85,29 @@ export async function POST(request: Request) {
     const displayName =
       (parsed.data.displayName || decoded.name || email.split("@")[0] || "ユーザー").slice(0, 80);
     const targetRole = parsed.data.role ?? "CLIENT";
-    if (targetRole === "PARTNER") {
-      if (!parsed.data.zoomUrl || !parsed.data.zoomPass) {
-        return jsonError("パートナー登録では Zoom の会議URLとパスコードが必要です。", 400);
-      }
-    }
     user = await createFirebaseUser({ email, displayName, firebaseUid, availabilitySlotIds });
     if (parsed.data.role && user.role !== parsed.data.role) {
       const { updateUserRole } = await import("@/lib/repositories/user-repository");
       const updated = await updateUserRole(user.id, parsed.data.role);
       if (updated) user = updated;
     }
-    if (user.role === "PARTNER" && parsed.data.zoomUrl) {
-      await upsertPartnerZoomProfile({
-        partnerId: user.id,
-        zoomUrl: parsed.data.zoomUrl,
-        zoomMeetingId: parsed.data.zoomMeetingId?.trim() || null,
-        zoomPass: parsed.data.zoomPass?.trim() === "なし" ? null : (parsed.data.zoomPass ?? null),
-      });
-    }
   } else if (!user.firebaseUid) {
     user = await attachFirebaseUid(user.id, firebaseUid);
   }
   if (!user) return jsonError("ユーザー連携に失敗しました。", 500);
 
-  // 既存ユーザーで対応可能時間が指定されていれば上書き保存（再登録/再ログイン時の更新を許容）。
-  if (parsed.data.availabilitySlotIds && availabilitySlotIds.length > 0) {
-    const updated = await updateUserAvailability(user.id, availabilitySlotIds).catch(() => null);
-    if (updated) user = updated;
+  // 既存ユーザーで対応可能時間が指定されていれば上書き保存（再ログイン時の更新を許容）。
+  if (parsed.data.availabilitySlotIds && settings && parsed.data.availabilitySlotIds.length > 0) {
+    const { normalizeAvailabilitySelections } = await import("@/lib/availability");
+    const { updateUserAvailability } = await import("@/lib/repositories/user-repository");
+    const normalized = normalizeAvailabilitySelections(
+      parsed.data.availabilitySlotIds,
+      settings.availabilitySlotOptions,
+    );
+    if (normalized.length > 0) {
+      const updated = await updateUserAvailability(user.id, normalized).catch(() => null);
+      if (updated) user = updated;
+    }
   }
 
   await createSessionCookie({ sub: user.id, role: user.role });

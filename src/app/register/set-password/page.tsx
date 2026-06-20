@@ -69,10 +69,11 @@ function SetPasswordInner() {
       return;
     }
     setSuccess(true);
+    const nextPath = data?.next ?? "/register/complete-profile";
     setTimeout(() => {
-      router.push("/login");
+      router.push(nextPath);
       router.refresh();
-    }, 1500);
+    }, 800);
   }
 
   if (loadError) {
@@ -95,7 +96,7 @@ function SetPasswordInner() {
     return (
       <AuthShell title="登録が完了しました" subtitle="">
         <p className="text-sm text-emerald-800">
-          パスワードを設定しました。ログイン画面に移動します…
+          パスワードを設定しました。必須情報の入力画面に移動します…
         </p>
       </AuthShell>
     );

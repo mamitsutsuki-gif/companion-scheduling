@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { createSessionCookie } from "@/lib/session";
 import {
   createFirebaseAuthUserWithPassword,
   getFirebaseFirestoreClient,
@@ -11,9 +11,7 @@ import {
   deletePendingRegistrationByToken,
   getPendingRegistrationByToken,
 } from "@/lib/repositories/pending-registration-repository";
-import { upsertPartnerZoomProfile } from "@/lib/repositories/zoom-repository";
-import { normalizeAvailabilitySelections } from "@/lib/availability";
-import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { z } from "zod";
 
 const bodySchema = z.object({
   token: z.string().min(16).max(256),
@@ -76,13 +74,6 @@ export async function POST(request: Request) {
   if (!db) return jsonError("Firestore が未設定です。", 500);
 
   let availabilitySlotIds: string[] = [];
-  if (pending.role === "CLIENT" && pending.availabilitySlotIds.length > 0) {
-    const settings = await getAppSettingsRow();
-    availabilitySlotIds = normalizeAvailabilitySelections(
-      pending.availabilitySlotIds,
-      settings.availabilitySlotOptions,
-    );
-  }
 
   await db.collection("users").doc(uid).set(
     {
@@ -98,15 +89,7 @@ export async function POST(request: Request) {
     { merge: true },
   );
 
-  if (pending.role === "PARTNER" && pending.zoomUrl) {
-    await upsertPartnerZoomProfile({
-      partnerId: uid,
-      zoomUrl: pending.zoomUrl,
-      zoomMeetingId: pending.zoomMeetingId,
-      zoomPass: pending.zoomPass,
-    });
-  }
-
   await deletePendingRegistrationByToken(parsed.data.token);
-  return jsonOk({ ok: true });
+  await createSessionCookie({ sub: uid, role: pending.role });
+  return jsonOk({ ok: true, next: "/register/complete-profile" });
 }

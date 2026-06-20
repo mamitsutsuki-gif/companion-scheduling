@@ -13,7 +13,7 @@ function clampScore(v: unknown): number | null {
 
 export type RoleplayCategoryId = "listening" | "questioning" | "mindset" | "condition";
 
-export type RoleplayItemDef = { id: string; label: string; sevenPointHint: string };
+export type RoleplayItemDef = { id: string; label: string; sevenPointHint: string; onePointHint: string };
 
 export type RoleplayCategoryDef = {
   id: RoleplayCategoryId;
@@ -26,15 +26,41 @@ export const ROLEPLAY_CATEGORIES: RoleplayCategoryDef[] = [
     id: "listening",
     label: "傾聴力",
     items: [
-      { id: "ease", label: "話しやすさ", sevenPointHint: "相手が安心して本音を話せていると感じる" },
-      { id: "expression", label: "表情", sevenPointHint: "相手の話に自然にうなずき、共感が伝わる表情だった" },
-      { id: "backchannel", label: "相槌", sevenPointHint: "相手のペースに合った相槌で会話が途切れなかった" },
-      { id: "natural_reaction", label: "反応の自然さ", sevenPointHint: "作為なく、相手の言葉に自然に反応できていた" },
-      { id: "no_interrupt", label: "相手の話を遮らない", sevenPointHint: "相手が話し終えるまで待ち、遮ることなく聴けていた" },
+      {
+        id: "ease",
+        label: "話しやすさ",
+        sevenPointHint: "相手が安心して本音を話せていることが伝わる。それが安定的にできている。",
+        onePointHint: "相手が話しにくそうにしており、本音や考えを十分に話せていない。",
+      },
+      {
+        id: "expression",
+        label: "表情",
+        sevenPointHint: "表情が自然で柔らかく、相手が安心して話せる雰囲気をつくれている。",
+        onePointHint: "表情が硬い、無表情、または不自然で、相手が話しにくい印象を与えている。",
+      },
+      {
+        id: "backchannel",
+        label: "相槌",
+        sevenPointHint: "相手の話に合わせて自然で適切な相槌ができており、話を促進している。",
+        onePointHint: "相槌が少ない、または不自然で、相手が話しづらそうにしている。",
+      },
+      {
+        id: "natural_reaction",
+        label: "反応の自然さ",
+        sevenPointHint: "相手の話に対する反応が自然で、対話がスムーズに流れている。",
+        onePointHint: "反応に違和感があり、対話の流れを妨げている。",
+      },
+      {
+        id: "no_interrupt",
+        label: "相手の話を遮らない",
+        sevenPointHint: "相手の話を最後まで尊重して聴き、途中で遮ることがほとんどない。",
+        onePointHint: "相手の話を途中で遮る場面が多い。",
+      },
       {
         id: "space",
         label: "相手が話しきれる余白をつくれている",
-        sevenPointHint: "沈黙も含め、相手が考えて話せる余白をつくれていた",
+        sevenPointHint: "沈黙や間を適切に活用し、相手が十分に考えながら話せている。",
+        onePointHint: "間を待てず、相手が話しきる前に介入してしまう。",
       },
     ],
   },
@@ -42,40 +68,102 @@ export const ROLEPLAY_CATEGORIES: RoleplayCategoryDef[] = [
     id: "questioning",
     label: "質問力",
     items: [
-      { id: "interest", label: "相手に興味を持って質問している", sevenPointHint: "相手の世界に本当に入り込んで質問できていた" },
-      { id: "depth", label: "掘り下げ力がある", sevenPointHint: "表面的な話の奥にある本質に届く質問ができていた" },
-      { id: "wording", label: "質問の言葉選びに違和感がない", sevenPointHint: "相手が答えやすい言葉で、自然な質問ができていた" },
+      {
+        id: "interest",
+        label: "相手に興味を持って質問している",
+        sevenPointHint: "相手への純粋な関心が伝わり、質問に自然な一貫性がある。",
+        onePointHint: "質問が形式的で、相手への関心が感じられない。",
+      },
+      {
+        id: "depth",
+        label: "掘り下げ力がある",
+        sevenPointHint: "表面的な話で終わらず、背景や価値観まで自然に掘り下げられている。",
+        onePointHint: "話題の深掘りがほとんどなく、表面的な会話に留まっている。",
+      },
+      {
+        id: "wording",
+        label: "質問の言葉選びに違和感がない",
+        sevenPointHint: "相手にとって受け取りやすく、考えやすい言葉で質問できている。",
+        onePointHint: "質問の表現に違和感があり、相手を戸惑わせている。",
+      },
       {
         id: "unknown_answer",
         label: "クライアント自身も答えを知らないような質問があった",
-        sevenPointHint: "答えのない問いで、相手の思考が動いた",
+        sevenPointHint: "相手の新たな気づきや内省を促す問いが複数見られる。",
+        onePointHint: "既知の事実確認に終始し、新たな視点を生む問いがほとんどない。",
       },
-      { id: "perspective", label: "相手の視点を変える質問があった", sevenPointHint: "相手が新しい視点に気づく質問ができていた" },
-      { id: "insight", label: "相手に気づきが生まれた", sevenPointHint: "相手が「そうか」と自分ごととして気づいた" },
+      {
+        id: "perspective",
+        label: "相手の視点を変える質問があった",
+        sevenPointHint: "相手の見方や捉え方に変化をもたらす問いができている。",
+        onePointHint: "視点の変化につながる問いが見られない。",
+      },
+      {
+        id: "insight",
+        label: "相手に気づきが生まれた",
+        sevenPointHint: "対話の中で相手自身の気づきや発見が明確に生まれている。",
+        onePointHint: "新たな気づきにつながる場面が見られない。",
+      },
     ],
   },
   {
     id: "mindset",
     label: "マインド",
     items: [
-      { id: "no_judge", label: "ジャッジしない姿勢がある", sevenPointHint: "評価や正解を押し付けず、相手を受け止めていた" },
-      { id: "no_fix", label: "相手を変えようとしすぎていない", sevenPointHint: "相手のペースを尊重し、変えようとしすぎなかった" },
-      { id: "no_advice", label: "アドバイスに偏りすぎていない", sevenPointHint: "答えを与えるより、相手の中から引き出せていた" },
-      { id: "belief", label: "相手の可能性を信じて関わっている", sevenPointHint: "相手の力を信じ、可能性を引き出す関わりができていた" },
+      {
+        id: "no_judge",
+        label: "ジャッジしない姿勢がある",
+        sevenPointHint: "良い悪いを評価せず、相手を理解しようとする姿勢が一貫している。",
+        onePointHint: "評価や決めつけが目立ち、相手が自由に話しにくい。",
+      },
+      {
+        id: "no_fix",
+        label: "相手を変えようとしすぎていない",
+        sevenPointHint: "相手の主体性を尊重し、変化を押し付けていない。",
+        onePointHint: "相手を変えようとする意図が強く表れている。",
+      },
+      {
+        id: "no_advice",
+        label: "アドバイスに偏りすぎていない",
+        sevenPointHint: "相手の思考を促すことを優先し、必要な時だけ助言している。",
+        onePointHint: "アドバイスが中心となり、相手が考える機会を奪っている。",
+      },
+      {
+        id: "belief",
+        label: "相手の可能性を信じて関わっている",
+        sevenPointHint: "相手の力や可能性を信頼した関わりが一貫して見られる。",
+        onePointHint: "相手への不信や過度な誘導が感じられる。",
+      },
     ],
   },
   {
     id: "condition",
     label: "コンディション",
     items: [
-      { id: "good_state", label: "当日、良いコンディションで1on1に臨めた", sevenPointHint: "体調・メンタルともに万全で臨めた" },
+      {
+        id: "good_state",
+        label: "当日、良いコンディションで1on1に臨めた",
+        sevenPointHint: "十分な準備と心身の状態でセッションに臨めている。",
+        onePointHint: "準備不足やコンディション不良が目立つ。",
+      },
       {
         id: "focus",
         label: "集中して相手に向き合えていた",
-        sevenPointHint: "他のことを考える時間はないくらい相手の話に集中した",
+        sevenPointHint: "相手に意識を向け続け、高い集中状態を維持できている。",
+        onePointHint: "注意が散漫で、相手への集中が不足している。",
       },
-      { id: "calm", label: "落ち着いて対話できていた", sevenPointHint: "焦らず、落ち着いて対話の場をつくれていた" },
-      { id: "self_aware", label: "自分の状態を客観視できていた", sevenPointHint: "自分の感情や偏りに気づき、対話に活かせていた" },
+      {
+        id: "calm",
+        label: "落ち着いて対話できていた",
+        sevenPointHint: "終始落ち着いており、安心感のある場をつくれている。",
+        onePointHint: "焦りや緊張が対話に表れている。",
+      },
+      {
+        id: "self_aware",
+        label: "自分の状態を客観視できていた",
+        sevenPointHint: "自身の感情や反応を認識しながら対話できている。",
+        onePointHint: "自分の感情や状態に無自覚なまま対話している。",
+      },
     ],
   },
 ];
@@ -264,36 +352,34 @@ export function redactRoleplayStoreForViewer(
   };
 }
 
+const SCORE_TIER_HINTS: Record<2 | 3 | 4 | 5 | 6, string> = {
+  6: "良い状態で実践できていることが多く、相手にも良い影響を与えている。",
+  5: "基本的にはできているが、場面によってばらつきがある。",
+  4: "できている場面とできていない場面が同程度ある。",
+  3: "意識は見られるが、実践できていない場面が目立つ。",
+  2: "十分に実践できていない。",
+};
+
 export const SCORE_LABELS: Record<number, string> = {
-  1: "ほとんどできていない",
-  2: "一部はできているが、実践には大きな課題がある",
-  3: "意識はできているが、実践はまだ不安定",
-  4: "おおむねできているが、安定感には欠ける",
-  5: "安定して実践できている",
-  6: "7点に近いが、まだ伸び代はある",
-  7: "非常に高いレベルで自然に実践できている",
+  1: "1点の目安",
+  2: SCORE_TIER_HINTS[2],
+  3: SCORE_TIER_HINTS[3],
+  4: SCORE_TIER_HINTS[4],
+  5: SCORE_TIER_HINTS[5],
+  6: SCORE_TIER_HINTS[6],
+  7: "7点の目安",
 };
 
-const SCORE_TIER_HINTS: Record<1 | 2 | 3 | 4 | 5 | 6, string> = {
-  1: SCORE_LABELS[1]!,
-  2: SCORE_LABELS[2]!,
-  3: SCORE_LABELS[3]!,
-  4: SCORE_LABELS[4]!,
-  5: SCORE_LABELS[5]!,
-  6: SCORE_LABELS[6]!,
-};
-
-/** 各項目の1〜7点の目安（プルダウン表示用）。7点は項目固有、1〜6点は共通の段階目安。 */
+/** 各項目の1〜7点の目安（プルダウン表示用）。7点・1点は項目固有、2〜6点は共通。 */
 export function scoreHintsForItem(item: RoleplayItemDef): Record<1 | 2 | 3 | 4 | 5 | 6 | 7, string> {
-  const { sevenPointHint } = item;
   return {
-    7: sevenPointHint,
+    7: item.sevenPointHint,
     6: SCORE_TIER_HINTS[6],
     5: SCORE_TIER_HINTS[5],
     4: SCORE_TIER_HINTS[4],
     3: SCORE_TIER_HINTS[3],
     2: SCORE_TIER_HINTS[2],
-    1: SCORE_TIER_HINTS[1],
+    1: item.onePointHint,
   };
 }
 

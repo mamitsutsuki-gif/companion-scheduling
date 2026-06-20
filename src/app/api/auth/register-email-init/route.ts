@@ -11,10 +11,6 @@ const bodySchema = z.object({
   role: z.enum(["PARTNER", "CLIENT"]),
   /** 利用規約・プライバシーポリシーへの同意（必須） */
   acceptedLegal: z.literal(true),
-  availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64).optional(),
-  zoomUrl: z.string().url().max(500).optional(),
-  zoomMeetingId: z.string().max(60).optional(),
-  zoomPass: z.string().max(120).optional(),
 });
 
 function resolvedOrigin(request: Request) {
@@ -51,26 +47,10 @@ export async function POST(request: Request) {
     );
   }
 
-  if (parsed.data.role === "PARTNER") {
-    if (!parsed.data.zoomUrl) {
-      return jsonError("パートナー登録には Zoom URL が必要です。", 400);
-    }
-    if (!parsed.data.zoomMeetingId) {
-      return jsonError("パートナー登録には Zoom のミーティング ID が必要です。", 400);
-    }
-    if (!parsed.data.zoomPass) {
-      return jsonError("パートナー登録には Zoom のパスコードが必要です。", 400);
-    }
-  }
-
   const { token, expiresAt } = await createPendingRegistration({
     email,
     displayName: parsed.data.displayName.trim(),
     role: parsed.data.role,
-    availabilitySlotIds: parsed.data.availabilitySlotIds,
-    zoomUrl: parsed.data.zoomUrl,
-    zoomMeetingId: parsed.data.zoomMeetingId,
-    zoomPass: parsed.data.zoomPass,
   });
 
   const origin = resolvedOrigin(request);
