@@ -245,3 +245,23 @@ export const SCORE_LABELS: Record<number, string> = {
   6: "相手に良い影響を与えるレベルで実践できている",
   7: "非常に高いレベルで自然に実践できている",
 };
+
+/** 各項目の1〜7点の目安（プルダウン表示用）。7点は項目固有、1〜6点は段階的な目安。 */
+export function scoreHintsForItem(item: RoleplayItemDef): Record<1 | 2 | 3 | 4 | 5 | 6 | 7, string> {
+  const { label, sevenPointHint } = item;
+  return {
+    7: sevenPointHint,
+    6: `${label}について、7点の目安（${sevenPointHint}）に近いレベルで実践できている`,
+    5: `${label}について、${SCORE_LABELS[5]}`,
+    4: `${label}について、${SCORE_LABELS[4]}`,
+    3: `${label}について、${SCORE_LABELS[3]}`,
+    2: `${label}について、${SCORE_LABELS[2]}`,
+    1: `${label}について、${SCORE_LABELS[1]}`,
+  };
+}
+
+export function scoreOptionLabel(item: RoleplayItemDef, score: number): string {
+  const hints = scoreHintsForItem(item);
+  const hint = hints[score as 1 | 2 | 3 | 4 | 5 | 6 | 7];
+  return `${score}点：${hint}`;
+}

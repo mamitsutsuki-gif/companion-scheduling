@@ -1,4 +1,4 @@
-import { APP_DISPLAY_NAME } from "@/lib/brand";
+import { MotiveIjiLogo } from "@/components/motive-iji-logo";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -18,23 +18,12 @@ export function AuthShell({
   return (
     <div className="min-h-full px-4 py-12">
       <div className="app-surface-raised mx-auto w-full max-w-md rounded-2xl px-8 py-10">
-        <div className="mb-9 flex justify-center border-b border-slate-100 pb-7">
-          <Link
-            href="/"
-            className="flex items-center gap-2 font-semibold tracking-tight text-slate-900 no-underline"
-          >
-            <span
-              aria-hidden
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-b from-indigo-500 to-indigo-700 text-base font-bold text-white shadow-md shadow-indigo-900/25 ring-1 ring-indigo-600/35"
-            >
-              M
-            </span>
-            {APP_DISPLAY_NAME}
-          </Link>
+        <div className="mb-9 flex justify-center border-b border-slate-100 pb-8">
+          <MotiveIjiLogo variant="vertical" href="/" className="h-[7.5rem] w-auto" priority />
         </div>
-        <div className="mb-7">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{title}</h1>
-          {subtitle ? <p className="mt-2.5 text-sm leading-relaxed text-slate-600">{subtitle}</p> : null}
+        <div className="mb-8">
+          <h1 className="text-[1.75rem] font-semibold tracking-tight text-slate-950">{title}</h1>
+          {subtitle ? <p className="mt-3 text-base leading-relaxed text-slate-600">{subtitle}</p> : null}
         </div>
         {children}
       </div>

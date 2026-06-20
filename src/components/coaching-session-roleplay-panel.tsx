@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { CoachingRadarChart } from "@/components/coaching-radar-chart";
 import {
   ROLEPLAY_CATEGORIES,
-  SCORE_LABELS,
+  scoreOptionLabel,
+  scoreHintsForItem,
   categoryRadarValues,
   type RoleplayCategoryDef,
+  type RoleplayItemDef,
   type RoleplayItemScore,
   type RoleplaySession,
   type RoleplayStore,
@@ -25,50 +27,124 @@ type ViewerRole =
 function VisibilityNote({ children, tone = "neutral" }: { children: ReactNode; tone?: "visible" | "hidden" | "neutral" }) {
   const cls =
     tone === "visible"
-      ? "text-amber-900 bg-amber-50 border-amber-200"
+      ? "text-amber-950 bg-amber-50/90 border-amber-200/80"
       : tone === "hidden"
         ? "text-slate-700 bg-slate-50 border-slate-200"
         : "text-slate-600 bg-slate-50 border-slate-200";
   return (
-    <p className={`rounded-lg border px-3 py-2 text-sm leading-relaxed ${cls}`}>{children}</p>
+    <p className={`rounded-xl border px-4 py-3 text-base leading-relaxed ${cls}`}>{children}</p>
   );
 }
 
 function ScoreSelect({
-  label,
-  sevenPointHint,
+  item,
   value,
   disabled,
   onScore,
 }: {
-  label: string;
-  sevenPointHint: string;
+  item: RoleplayItemDef;
   value: number | null;
   disabled: boolean;
   onScore: (v: number | null) => void;
 }) {
+  const listId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const hints = useMemo(() => scoreHintsForItem(item), [item]);
+  const selectedHint = value != null ? hints[value as 1 | 2 | 3 | 4 | 5 | 6 | 7] : null;
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: MouseEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <div className="flex flex-wrap items-start gap-2">
-        <span className="min-w-[8rem] flex-1 text-sm font-medium text-slate-800">{label}</span>
-        <select
-          value={value ?? ""}
+    <div ref={rootRef} className="rounded-2xl border border-slate-200/90 bg-white px-4 py-4 shadow-sm">
+      <p className="text-[17px] font-medium leading-snug text-slate-900">{item.label}</p>
+      <div className="relative mt-3">
+        <button
+          type="button"
+          id={listId}
           disabled={disabled}
-          onChange={(e) => onScore(e.target.value ? Number(e.target.value) : null)}
-          className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onClick={() => !disabled && setOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-base text-slate-900 transition hover:border-slate-300 hover:bg-white focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-55"
         >
-          <option value="">—</option>
-          {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-            <option key={n} value={n}>
-              {n}点
-            </option>
-          ))}
-        </select>
+          <span className="min-w-0 flex-1">
+            {value != null ? (
+              <>
+                <span className="font-semibold text-indigo-900">{value}点</span>
+                {selectedHint ? (
+                  <span className="mt-0.5 block truncate text-[15px] font-normal text-slate-600">{selectedHint}</span>
+                ) : null}
+              </>
+            ) : (
+              <span className="text-slate-500">点数を選択…</span>
+            )}
+          </span>
+          <span aria-hidden className="shrink-0 text-slate-400">
+            ▾
+          </span>
+        </button>
+        {open ? (
+          <ul
+            role="listbox"
+            aria-labelledby={listId}
+            className="absolute z-20 mt-1.5 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg shadow-slate-900/10"
+          >
+            {([7, 6, 5, 4, 3, 2, 1] as const).map((n) => {
+              const hint = hints[n];
+              const selected = value === n;
+              return (
+                <li key={n} role="presentation">
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    onClick={() => {
+                      onScore(n);
+                      setOpen(false);
+                    }}
+                    className={[
+                      "w-full px-4 py-3 text-left text-[15px] leading-snug transition",
+                      selected ? "bg-indigo-50 text-indigo-950" : "text-slate-800 hover:bg-slate-50",
+                    ].join(" ")}
+                  >
+                    <span className="font-semibold">{n}点</span>
+                    <span className="mt-0.5 block text-slate-600">{hint}</span>
+                  </button>
+                </li>
+              );
+            })}
+            {value != null ? (
+              <li role="presentation" className="border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onScore(null);
+                    setOpen(false);
+                  }}
+                  className="w-full px-4 py-2.5 text-left text-[15px] text-slate-500 hover:bg-slate-50"
+                >
+                  選択をクリア
+                </button>
+              </li>
+            ) : null}
+          </ul>
+        ) : null}
       </div>
-      <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-        <span className="font-medium text-indigo-700">7点の目安：</span>
-        {sevenPointHint}
-      </p>
     </div>
   );
 }
@@ -78,24 +154,20 @@ function CategoryScores({
   scores,
   disabled,
   onPatch,
-  heading,
 }: {
   cat: RoleplayCategoryDef;
   scores: Record<string, RoleplayItemScore>;
   disabled: boolean;
   onPatch: (itemId: string, score: number | null) => void;
-  heading: string;
 }) {
   return (
-    <details className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-3" open>
-      <summary className="cursor-pointer text-base font-semibold text-indigo-950">{cat.label}</summary>
-      <div className="mt-3 space-y-2">
-        <h4 className="text-sm font-semibold text-indigo-900">{heading}</h4>
+    <details className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm" open>
+      <summary className="cursor-pointer text-xl font-semibold tracking-tight text-slate-900">{cat.label}</summary>
+      <div className="mt-4 space-y-3">
         {cat.items.map((item) => (
           <ScoreSelect
             key={item.id}
-            label={item.label}
-            sevenPointHint={item.sevenPointHint}
+            item={item}
             value={scores[item.id]?.score ?? null}
             disabled={disabled}
             onScore={(v) => onPatch(item.id, v)}
@@ -120,19 +192,19 @@ function ComparisonBlock({
   const hasData = series.some((s) => s.values.some((v) => v != null && v > 0));
   if (!hasData) return null;
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+      <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
       <CoachingRadarChart labels={labels} series={series} />
-      <div className="mt-2 flex flex-wrap justify-center gap-3 text-xs">
+      <div className="mt-3 flex flex-wrap justify-center gap-4 text-sm">
         {series.map((s) => (
-          <span key={s.label} className="inline-flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+          <span key={s.label} className="inline-flex items-center gap-2">
+            <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: s.color }} />
             {s.label}
           </span>
         ))}
       </div>
       {deltas && deltas.length > 0 ? (
-        <ul className="mt-2 space-y-1 text-xs text-slate-600">
+        <ul className="mt-3 space-y-1.5 text-sm text-slate-600">
           {deltas.map((d) =>
             d.delta == null ? null : (
               <li key={d.label}>
@@ -292,61 +364,64 @@ export function CoachingSessionRoleplayPanel({
   const showClientFreeText = isClientViewer || isAdminViewer;
   const showPartnerFreeText = isPartnerViewer || isAdminViewer;
 
-  if (loading) return <p className="text-sm text-slate-500">読込中…</p>;
-  if (error && !store) return <p className="text-sm text-rose-700">{error}</p>;
+  const fieldClass =
+    "mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-slate-50 disabled:text-slate-500";
+
+  if (loading) return <p className="text-base text-slate-500">読込中…</p>;
+  if (error && !store) return <p className="text-base text-rose-700">{error}</p>;
   if (!draft) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-semibold text-indigo-950">ロールプレイング・評価（第{round}回）</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          各項目を1〜7点で評価します。7点の目安を参考に、自己評価とパートナー評価を入力してください。
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">ロールプレイング・評価（第{round}回）</h2>
+        <p className="mt-2 text-base leading-relaxed text-slate-600">
+          各項目を1〜7点で評価します。プルダウンを開くと、点数ごとの目安が表示されます。
         </p>
       </div>
 
-      <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
-        <label className="block text-sm">
-          <span className="font-medium text-slate-700">実施日</span>
+      <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-5 sm:grid-cols-2">
+        <label className="block text-base">
+          <span className="font-medium text-slate-800">実施日</span>
           <input
             type="date"
             value={draft.conductedAt}
             disabled={!canEditClient && !canEditPartner}
             onChange={(e) => setDraft({ ...draft, conductedAt: e.target.value })}
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5"
+            className={fieldClass}
           />
         </label>
-        <label className="block text-sm">
-          <span className="font-medium text-slate-700">テーマ</span>
+        <label className="block text-base">
+          <span className="font-medium text-slate-800">テーマ</span>
           <input
             value={draft.theme}
             disabled={!canEditClient && !canEditPartner}
             onChange={(e) => setDraft({ ...draft, theme: e.target.value })}
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5"
+            className={fieldClass}
           />
         </label>
-        <label className="block text-sm">
-          <span className="font-medium text-slate-700">クライアント役</span>
+        <label className="block text-base">
+          <span className="font-medium text-slate-800">クライアント役</span>
           <input
             value={draft.clientRole}
             disabled={!canEditClient}
             onChange={(e) => setDraft({ ...draft, clientRole: e.target.value })}
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5"
+            className={fieldClass}
           />
         </label>
-        <label className="block text-sm">
-          <span className="font-medium text-slate-700">パートナー役</span>
+        <label className="block text-base">
+          <span className="font-medium text-slate-800">パートナー役</span>
           <input
             value={draft.partnerRole}
             disabled={!canEditPartner}
             onChange={(e) => setDraft({ ...draft, partnerRole: e.target.value })}
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5"
+            className={fieldClass}
           />
         </label>
       </div>
 
-      <div className="space-y-3">
-        <h3 className="text-lg font-semibold text-indigo-950">自己評価（クライアント）</h3>
+      <div className="space-y-4">
+        <h3 className="text-xl font-semibold tracking-tight text-slate-900">自己評価（クライアント）</h3>
         {canEditClient ? (
           <VisibilityNote tone="visible">
             入力した点数はパートナーにも表示されます（ギャップ確認のため）。
@@ -361,13 +436,12 @@ export function CoachingSessionRoleplayPanel({
             scores={draft.selfScores}
             disabled={!canEditClient}
             onPatch={patchSelf}
-            heading="自己評価"
           />
         ))}
       </div>
 
-      <div className="space-y-3">
-        <h3 className="text-lg font-semibold text-emerald-950">パートナー評価</h3>
+      <div className="space-y-4">
+        <h3 className="text-xl font-semibold tracking-tight text-slate-900">パートナー評価</h3>
         {canEditPartner ? (
           <VisibilityNote tone="visible">
             入力した点数はクライアントに表示されます。
@@ -382,13 +456,12 @@ export function CoachingSessionRoleplayPanel({
             scores={draft.partnerScores}
             disabled={!canEditPartner}
             onPatch={patchPartner}
-            heading="パートナー評価"
           />
         ))}
       </div>
 
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-slate-900">評価の可視化</h3>
+        <h3 className="text-xl font-semibold tracking-tight text-slate-900">評価の可視化</h3>
         {isClientViewer ? (
           <VisibilityNote>
             グラフには、あなたの自己評価とパートナー評価（点数）が表示されます。パートナーの自由記述は含まれません。
@@ -461,105 +534,94 @@ export function CoachingSessionRoleplayPanel({
         ) : null}
       </div>
 
-      <details className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-        <summary className="cursor-pointer font-semibold text-slate-800">点数基準（共通）</summary>
-        <ul className="mt-2 list-inside list-disc space-y-1">
-          {Object.entries(SCORE_LABELS).map(([k, v]) => (
-            <li key={k}>
-              {k}点: {v}
-            </li>
-          ))}
-        </ul>
-      </details>
-
-      <div className={`grid gap-4 ${showClientFreeText && showPartnerFreeText ? "lg:grid-cols-2" : ""}`}>
+      <div className={`grid gap-5 ${showClientFreeText && showPartnerFreeText ? "lg:grid-cols-2" : ""}`}>
         {showClientFreeText ? (
-        <div className="space-y-2 rounded-xl border border-indigo-100 bg-indigo-50/30 p-4">
-          <h3 className="font-semibold text-indigo-950">自由記述（クライアント）</h3>
-          {canEditClient ? (
-            <VisibilityNote tone="hidden">
-              ここに書いた内容はパートナーには表示されません。
-            </VisibilityNote>
-          ) : isAdminViewer ? (
-            <VisibilityNote tone="hidden">
-              クライアント向けの自由記述です（パートナーには非表示）。
-            </VisibilityNote>
-          ) : null}
-          <label className="block text-sm">
-            <span className="font-medium">良かった点</span>
-            <textarea
-              rows={3}
-              disabled={!canEditClient}
-              value={draft.clientReflection.good}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  clientReflection: { ...draft.clientReflection, good: e.target.value },
-                })
-              }
-              className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="font-medium">もっと良くなると思うこと</span>
-            <textarea
-              rows={3}
-              disabled={!canEditClient}
-              value={draft.clientReflection.improve}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  clientReflection: { ...draft.clientReflection, improve: e.target.value },
-                })
-              }
-              className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5"
-            />
-          </label>
-        </div>
+          <div className="space-y-3 rounded-2xl border border-indigo-100 bg-indigo-50/25 p-5">
+            <h3 className="text-lg font-semibold text-indigo-950">自由記述（クライアント）</h3>
+            {canEditClient ? (
+              <VisibilityNote tone="hidden">
+                ここに書いた内容はパートナーには表示されません。
+              </VisibilityNote>
+            ) : isAdminViewer ? (
+              <VisibilityNote tone="hidden">
+                クライアント向けの自由記述です（パートナーには非表示）。
+              </VisibilityNote>
+            ) : null}
+            <label className="block text-base">
+              <span className="font-medium text-slate-800">良かった点</span>
+              <textarea
+                rows={3}
+                disabled={!canEditClient}
+                value={draft.clientReflection.good}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    clientReflection: { ...draft.clientReflection, good: e.target.value },
+                  })
+                }
+                className={fieldClass}
+              />
+            </label>
+            <label className="block text-base">
+              <span className="font-medium text-slate-800">もっと良くなると思うこと</span>
+              <textarea
+                rows={3}
+                disabled={!canEditClient}
+                value={draft.clientReflection.improve}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    clientReflection: { ...draft.clientReflection, improve: e.target.value },
+                  })
+                }
+                className={fieldClass}
+              />
+            </label>
+          </div>
         ) : null}
         {showPartnerFreeText ? (
-        <div className="space-y-2 rounded-xl border border-emerald-100 bg-emerald-50/30 p-4">
-          <h3 className="font-semibold text-emerald-950">自由記述（パートナー）</h3>
-          {canEditPartner ? (
-            <VisibilityNote tone="hidden">
-              ここに書いた内容はクライアントには表示されません。
-            </VisibilityNote>
-          ) : isAdminViewer ? (
-            <VisibilityNote tone="hidden">
-              パートナー向けの自由記述です（クライアントには非表示）。
-            </VisibilityNote>
-          ) : null}
-          <label className="block text-sm">
-            <span className="font-medium">良かった点</span>
-            <textarea
-              rows={3}
-              disabled={!canEditPartner}
-              value={draft.partnerFeedback.good}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  partnerFeedback: { ...draft.partnerFeedback, good: e.target.value },
-                })
-              }
-              className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="font-medium">もっと良くなると思うこと</span>
-            <textarea
-              rows={3}
-              disabled={!canEditPartner}
-              value={draft.partnerFeedback.improve}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  partnerFeedback: { ...draft.partnerFeedback, improve: e.target.value },
-                })
-              }
-              className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5"
-            />
-          </label>
-        </div>
+          <div className="space-y-3 rounded-2xl border border-emerald-100 bg-emerald-50/25 p-5">
+            <h3 className="text-lg font-semibold text-emerald-950">自由記述（パートナー）</h3>
+            {canEditPartner ? (
+              <VisibilityNote tone="hidden">
+                ここに書いた内容はクライアントには表示されません。
+              </VisibilityNote>
+            ) : isAdminViewer ? (
+              <VisibilityNote tone="hidden">
+                パートナー向けの自由記述です（クライアントには非表示）。
+              </VisibilityNote>
+            ) : null}
+            <label className="block text-base">
+              <span className="font-medium text-slate-800">良かった点</span>
+              <textarea
+                rows={3}
+                disabled={!canEditPartner}
+                value={draft.partnerFeedback.good}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    partnerFeedback: { ...draft.partnerFeedback, good: e.target.value },
+                  })
+                }
+                className={fieldClass}
+              />
+            </label>
+            <label className="block text-base">
+              <span className="font-medium text-slate-800">もっと良くなると思うこと</span>
+              <textarea
+                rows={3}
+                disabled={!canEditPartner}
+                value={draft.partnerFeedback.improve}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    partnerFeedback: { ...draft.partnerFeedback, improve: e.target.value },
+                  })
+                }
+                className={fieldClass}
+              />
+            </label>
+          </div>
         ) : null}
       </div>
 
@@ -569,24 +631,24 @@ export function CoachingSessionRoleplayPanel({
             type="button"
             disabled={saving}
             onClick={() => void save()}
-            className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="rounded-xl bg-indigo-700 px-5 py-2.5 text-base font-semibold text-white disabled:opacity-50"
           >
             {saving ? "保存中…" : "評価を保存"}
           </button>
-          {notice ? <span className="text-sm text-emerald-700">{notice}</span> : null}
-          {error ? <span className="text-sm text-rose-700">{error}</span> : null}
+          {notice ? <span className="text-base text-emerald-700">{notice}</span> : null}
+          {error ? <span className="text-base text-rose-700">{error}</span> : null}
           {canEditPartner ? (
-            <span className="text-xs text-slate-500">
+            <span className="text-sm text-slate-500">
               点数はクライアントに表示されます。自由記述はクライアントには表示されません。
             </span>
           ) : canEditClient ? (
-            <span className="text-xs text-slate-500">
+            <span className="text-sm text-slate-500">
               点数はパートナーに表示されます。自由記述はパートナーには表示されません。
             </span>
           ) : null}
         </div>
       ) : readOnly ? (
-        <p className="text-sm text-slate-500">閲覧のみ（編集不可）</p>
+        <p className="text-base text-slate-500">閲覧のみ（編集不可）</p>
       ) : null}
     </div>
   );
