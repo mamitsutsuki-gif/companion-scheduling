@@ -12,6 +12,10 @@ import { PdcaPanel } from "@/components/pdca-panel";
 import { ReflectionPanel } from "@/components/reflection-panel";
 import { LifelinePanel } from "@/components/lifeline-panel";
 import { SummaryReportPanel } from "@/components/summary-report-panel";
+import { CoachingRoleplayPanel } from "@/components/coaching-roleplay-panel";
+import { CoachingQuestionsPanel } from "@/components/coaching-questions-panel";
+import { CoachingIcebreakerPanel } from "@/components/coaching-icebreaker-panel";
+import { CoachingOneOnOneFormatPanel } from "@/components/coaching-one-on-one-format-panel";
 import type { FtaChart } from "@/lib/fta";
 import { defaultFtaChart } from "@/lib/fta";
 import {
@@ -130,7 +134,11 @@ type MatchTab =
   | "pdca"
   | "reflection"
   | "summaryReport"
-  | "lifelineChart";
+  | "lifelineChart"
+  | "coachingRoleplay"
+  | "coachingQuestions"
+  | "coachingIcebreaker"
+  | "coachingOneOnOneFormat";
 
 const TAB_HASH_MAP: Record<string, MatchTab> = {
   chat: "chat",
@@ -144,6 +152,14 @@ const TAB_HASH_MAP: Record<string, MatchTab> = {
   reflection: "reflection",
   "summary-report": "summaryReport",
   "lifeline-chart": "lifelineChart",
+  roleplay: "coachingRoleplay",
+  "coaching-roleplay": "coachingRoleplay",
+  questions: "coachingQuestions",
+  "coaching-questions": "coachingQuestions",
+  icebreaker: "coachingIcebreaker",
+  "coaching-icebreaker": "coachingIcebreaker",
+  "one-on-one-format": "coachingOneOnOneFormat",
+  format: "coachingOneOnOneFormat",
 };
 
 function tabFromHash(hash: string): MatchTab | null {
@@ -156,6 +172,10 @@ function hashFromTab(tab: MatchTab): string {
   if (tab === "skillCheck") return "skill-check";
   if (tab === "summaryReport") return "summary-report";
   if (tab === "lifelineChart") return "lifeline-chart";
+  if (tab === "coachingRoleplay") return "roleplay";
+  if (tab === "coachingQuestions") return "questions";
+  if (tab === "coachingIcebreaker") return "icebreaker";
+  if (tab === "coachingOneOnOneFormat") return "one-on-one-format";
   return tab;
 }
 
@@ -1796,6 +1816,66 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 総括レポート
               </button>
             ) : null}
+            {scheduleSettings.planFeatures.coachingRoleplay ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "coachingRoleplay"}
+                onClick={() => goTab("coachingRoleplay")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "coachingRoleplay"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                ロールプレイ
+              </button>
+            ) : null}
+            {scheduleSettings.planFeatures.coachingQuestions ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "coachingQuestions"}
+                onClick={() => goTab("coachingQuestions")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "coachingQuestions"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                質問リスト
+              </button>
+            ) : null}
+            {scheduleSettings.planFeatures.coachingIcebreaker ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "coachingIcebreaker"}
+                onClick={() => goTab("coachingIcebreaker")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "coachingIcebreaker"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                アイスブレイク
+              </button>
+            ) : null}
+            {scheduleSettings.planFeatures.coachingOneOnOneFormat ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "coachingOneOnOneFormat"}
+                onClick={() => goTab("coachingOneOnOneFormat")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "coachingOneOnOneFormat"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                1on1フォーマット
+              </button>
+            ) : null}
           </div>
         </nav>
 
@@ -2525,6 +2605,22 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
       {activeTab === "summaryReport" && scheduleSettings.planFeatures.summaryReport ? (
         <SummaryReportPanel matchId={matchId} />
+      ) : null}
+
+      {activeTab === "coachingRoleplay" && scheduleSettings.planFeatures.coachingRoleplay ? (
+        <CoachingRoleplayPanel matchId={matchId} />
+      ) : null}
+
+      {activeTab === "coachingQuestions" && scheduleSettings.planFeatures.coachingQuestions ? (
+        <CoachingQuestionsPanel matchId={matchId} />
+      ) : null}
+
+      {activeTab === "coachingIcebreaker" && scheduleSettings.planFeatures.coachingIcebreaker ? (
+        <CoachingIcebreakerPanel matchId={matchId} />
+      ) : null}
+
+      {activeTab === "coachingOneOnOneFormat" && scheduleSettings.planFeatures.coachingOneOnOneFormat ? (
+        <CoachingOneOnOneFormatPanel matchId={matchId} />
       ) : null}
         </div>
       </div>

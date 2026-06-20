@@ -44,6 +44,14 @@ export type PlanFeatures = {
   reflection: boolean;
   lifelineChart: boolean;
   summaryReport: boolean;
+  /** コーチングマネジメント研修: ロールプレイング・フィードバック */
+  coachingRoleplay: boolean;
+  /** コーチングマネジメント研修: 質問リスト（4象限） */
+  coachingQuestions: boolean;
+  /** コーチングマネジメント研修: アイスブレイクネタ帳 */
+  coachingIcebreaker: boolean;
+  /** コーチングマネジメント研修: 1on1フォーマット（プレースホルダー） */
+  coachingOneOnOneFormat: boolean;
   /** セッション後フィードバック・レポートの設問を管理者がすべて設定可能 */
   configurableSessionQuestions: boolean;
   /** プラン機能が未実装のプレースホルダ表示 */
@@ -65,6 +73,10 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         reflection: true,
         lifelineChart: true,
         summaryReport: true,
+        coachingRoleplay: false,
+        coachingQuestions: false,
+        coachingIcebreaker: false,
+        coachingOneOnOneFormat: false,
         configurableSessionQuestions: true,
         planComingSoon: false,
       };
@@ -73,16 +85,20 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         overview: true,
         clientInfo: false,
         chat: true,
-        schedule: false,
+        schedule: true,
         fta: false,
-        sessions: false,
+        sessions: true,
         skillCheck: false,
         pdca: false,
         reflection: false,
         lifelineChart: false,
         summaryReport: false,
+        coachingRoleplay: true,
+        coachingQuestions: true,
+        coachingIcebreaker: true,
+        coachingOneOnOneFormat: true,
         configurableSessionQuestions: false,
-        planComingSoon: true,
+        planComingSoon: false,
       };
     case "workplace_activation":
     default:
@@ -98,6 +114,10 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         reflection: false,
         lifelineChart: false,
         summaryReport: false,
+        coachingRoleplay: false,
+        coachingQuestions: false,
+        coachingIcebreaker: false,
+        coachingOneOnOneFormat: false,
         configurableSessionQuestions: false,
         planComingSoon: false,
       };
