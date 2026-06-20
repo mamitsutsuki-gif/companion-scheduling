@@ -12,11 +12,31 @@ export type QuestionQuadrant =
   | "neither_knows"
   | "unassigned";
 
-export const QUESTION_QUADRANTS: Array<{ id: QuestionQuadrant; label: string; short: string }> = [
-  { id: "both_know", label: "部下が答えを知っている × 上司が答えを知っている", short: "双方が知っている" },
-  { id: "report_knows", label: "部下が答えを知っている × 上司が答えを知らない", short: "部下のみ知っている" },
-  { id: "manager_knows", label: "部下が答えを知らない × 上司が答えを知っている", short: "上司のみ知っている" },
-  { id: "neither_knows", label: "部下が答えを知らない × 上司が答えを知らない", short: "双方が知らない" },
+export const QUESTION_QUADRANTS: Array<{ id: QuestionQuadrant; label: string; name: string; short: string }> = [
+  {
+    id: "both_know",
+    label: "部下が答えを知っている × 上司が答えを知っている",
+    name: "前提確認の質問",
+    short: "前提確認",
+  },
+  {
+    id: "report_knows",
+    label: "部下が答えを知っている × 上司が答えを知らない",
+    name: "情報収集の質問",
+    short: "情報収集",
+  },
+  {
+    id: "manager_knows",
+    label: "部下が答えを知らない × 上司が答えを知っている",
+    name: "誘導の質問",
+    short: "誘導",
+  },
+  {
+    id: "neither_knows",
+    label: "部下が答えを知らない × 上司が答えを知らない",
+    name: "効果的な質問",
+    short: "効果的",
+  },
 ];
 
 export type CoachingQuestion = {

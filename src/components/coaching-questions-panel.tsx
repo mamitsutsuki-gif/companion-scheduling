@@ -12,6 +12,10 @@ const QUADRANT_IDS = QUESTION_QUADRANTS.map((q) => q.id).filter(
   (id): id is Exclude<QuestionQuadrant, "unassigned"> => id !== "unassigned",
 );
 
+function quadrantMeta(qid: QuestionQuadrant) {
+  return QUESTION_QUADRANTS.find((q) => q.id === qid);
+}
+
 export function CoachingQuestionsPanel({ matchId }: { matchId: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -19,6 +23,8 @@ export function CoachingQuestionsPanel({ matchId }: { matchId: string }) {
   const [store, setStore] = useState<CoachingQuestionStore | null>(null);
   const [canEdit, setCanEdit] = useState(false);
   const [draft, setDraft] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,7 +47,7 @@ export function CoachingQuestionsPanel({ matchId }: { matchId: string }) {
     void load();
   }, [load]);
 
-  async function saveQuestion(q: Partial<CoachingQuestion>) {
+  async function saveQuestion(q: Partial<CoachingQuestion>): Promise<boolean> {
     setSaving(true);
     setError(null);
     const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/coaching/questions`, {
@@ -53,9 +59,10 @@ export function CoachingQuestionsPanel({ matchId }: { matchId: string }) {
     setSaving(false);
     if (!res.ok) {
       setError(json?.error ?? "保存に失敗しました。");
-      return;
+      return false;
     }
     setStore(json.store);
+    return true;
   }
 
   async function addQuestion() {
@@ -64,8 +71,29 @@ export function CoachingQuestionsPanel({ matchId }: { matchId: string }) {
       setError("質問を入力してください。");
       return;
     }
-    await saveQuestion({ text, quadrant: "unassigned" });
-    setDraft("");
+    const ok = await saveQuestion({ text, quadrant: "unassigned" });
+    if (ok) setDraft("");
+  }
+
+  function startEdit(q: CoachingQuestion) {
+    setEditingId(q.id);
+    setEditDraft(q.text);
+    setError(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditDraft("");
+  }
+
+  async function saveEdit(q: CoachingQuestion) {
+    const text = editDraft.trim();
+    if (!text) {
+      setError("質問を入力してください。");
+      return;
+    }
+    const ok = await saveQuestion({ ...q, text });
+    if (ok) cancelEdit();
   }
 
   async function setQuadrant(q: CoachingQuestion, quadrant: QuestionQuadrant) {
@@ -84,6 +112,7 @@ export function CoachingQuestionsPanel({ matchId }: { matchId: string }) {
       setError(json?.error ?? "削除に失敗しました。");
       return;
     }
+    if (editingId === id) cancelEdit();
     setStore(json.store);
   }
 
@@ -108,12 +137,6 @@ export function CoachingQuestionsPanel({ matchId }: { matchId: string }) {
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void addQuestion();
-              }
-            }}
             placeholder="例：その判断でうれしかったことは？"
             maxLength={500}
             className="min-w-[12rem] flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
@@ -140,35 +163,75 @@ export function CoachingQuestionsPanel({ matchId }: { matchId: string }) {
                 key={q.id}
                 className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
               >
-                <p className="min-w-0 flex-1 text-sm text-slate-900">{q.text}</p>
+                {editingId === q.id ? (
+                  <input
+                    value={editDraft}
+                    onChange={(e) => setEditDraft(e.target.value)}
+                    maxLength={500}
+                    className="min-w-[12rem] flex-1 rounded-md border border-indigo-300 px-2 py-1.5 text-sm"
+                  />
+                ) : (
+                  <p className="min-w-0 flex-1 text-sm text-slate-900">{q.text}</p>
+                )}
                 {canEdit ? (
                   <>
-                    <select
-                      value={q.quadrant}
-                      disabled={saving}
-                      onChange={(e) => void setQuadrant(q, e.target.value as QuestionQuadrant)}
-                      className="max-w-[11rem] rounded-md border border-slate-300 px-2 py-1 text-xs"
-                    >
-                      <option value="unassigned">象限を選択…</option>
-                      {QUADRANT_IDS.map((id) => (
-                        <option key={id} value={id}>
-                          {QUESTION_QUADRANTS.find((x) => x.id === id)?.short}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => void deleteQuestion(q.id)}
-                      className="text-xs text-rose-700"
-                    >
-                      削除
-                    </button>
+                    {editingId === q.id ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={saving || !editDraft.trim()}
+                          onClick={() => void saveEdit(q)}
+                          className="text-xs font-semibold text-indigo-700"
+                        >
+                          保存
+                        </button>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={cancelEdit}
+                          className="text-xs text-slate-600"
+                        >
+                          キャンセル
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <select
+                          value={q.quadrant}
+                          disabled={saving}
+                          onChange={(e) => void setQuadrant(q, e.target.value as QuestionQuadrant)}
+                          className="max-w-[10rem] rounded-md border border-slate-300 px-2 py-1 text-xs"
+                        >
+                          <option value="unassigned">象限を選択…</option>
+                          {QUADRANT_IDS.map((id) => (
+                            <option key={id} value={id}>
+                              {quadrantMeta(id)?.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => startEdit(q)}
+                          className="text-xs text-indigo-700"
+                        >
+                          編集
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void deleteQuestion(q.id)}
+                          className="text-xs text-rose-700"
+                        >
+                          削除
+                        </button>
+                      </>
+                    )}
                   </>
                 ) : (
                   <span className="text-xs text-slate-500">
                     {q.quadrant === "unassigned"
                       ? "未分類"
-                      : QUESTION_QUADRANTS.find((x) => x.id === q.quadrant)?.short}
+                      : quadrantMeta(q.quadrant)?.name}
                   </span>
                 )}
               </li>
@@ -180,27 +243,29 @@ export function CoachingQuestionsPanel({ matchId }: { matchId: string }) {
       <div className="space-y-3 border-t border-slate-200 pt-6">
         <h3 className="text-sm font-semibold text-slate-800">4象限での分類</h3>
         <div className="grid gap-4 md:grid-cols-2">
-          {QUADRANT_IDS.map((qid) => (
-            <div key={qid} className="rounded-xl border border-indigo-100 bg-indigo-50/30 p-4">
-              <h4 className="text-sm font-semibold text-indigo-950">
-                {QUESTION_QUADRANTS.find((q) => q.id === qid)?.label}
-              </h4>
-              <ul className="mt-3 space-y-2">
-                {byQuadrant(qid).length === 0 ? (
-                  <li className="text-xs text-slate-500">まだ質問がありません</li>
-                ) : (
-                  byQuadrant(qid).map((q) => (
-                    <li
-                      key={q.id}
-                      className="rounded-lg border border-white bg-white px-3 py-2 text-sm text-slate-900"
-                    >
-                      {q.text}
-                    </li>
-                  ))
-                )}
-              </ul>
-            </div>
-          ))}
+          {QUADRANT_IDS.map((qid) => {
+            const meta = quadrantMeta(qid)!;
+            return (
+              <div key={qid} className="rounded-xl border border-indigo-100 bg-indigo-50/30 p-4">
+                <h4 className="text-base font-semibold text-indigo-950">{meta.name}</h4>
+                <p className="mt-0.5 text-xs text-indigo-900/80">{meta.label}</p>
+                <ul className="mt-3 space-y-2">
+                  {byQuadrant(qid).length === 0 ? (
+                    <li className="text-xs text-slate-500">まだ質問がありません</li>
+                  ) : (
+                    byQuadrant(qid).map((q) => (
+                      <li
+                        key={q.id}
+                        className="rounded-lg border border-white bg-white px-3 py-2 text-sm text-slate-900"
+                      >
+                        {q.text}
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>
+            );
+          })}
         </div>
       </div>
 
