@@ -62,8 +62,12 @@ export async function PUT(request: Request, ctx: RouteContext) {
   );
   if (!merged) return jsonError("質問文を入力してください。", 400);
 
-  const nextQuestions = store.questions.filter((q) => q.id !== id);
-  nextQuestions.unshift(merged);
+  let nextQuestions = store.questions.filter((q) => q.id !== id);
+  if (prev) {
+    nextQuestions = store.questions.map((q) => (q.id === id ? merged : q));
+  } else {
+    nextQuestions = [...store.questions, merged];
+  }
   const saved = await saveQuestionStore({
     ...store,
     userId: access.targetUserId,
