@@ -81,3 +81,16 @@ export async function deletePendingRegistrationByToken(token: string) {
   if (!db) return;
   await db.collection("pendingRegistrations").doc(hashToken(token)).delete().catch(() => null);
 }
+
+/** 管理者削除時など、メールアドレスに紐づく未完了の新規登録データを掃除する */
+export async function deletePendingRegistrationsByEmail(email: string): Promise<number> {
+  const db = getFirebaseFirestoreClient();
+  if (!db) return 0;
+  const normalized = email.trim().toLowerCase();
+  const snap = await db.collection("pendingRegistrations").where("email", "==", normalized).get();
+  if (snap.empty) return 0;
+  const batch = db.batch();
+  snap.docs.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
+  return snap.size;
+}

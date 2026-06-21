@@ -6,7 +6,9 @@ import {
   isFirebaseDataBackend,
   deleteFirebaseAuthUserByEmail,
   deleteFirebaseAuthUserByUid,
+  firebaseAuthUserExistsByEmail,
 } from "@/lib/firebase-admin";
+import { deletePendingRegistrationsByEmail } from "@/lib/repositories/pending-registration-repository";
 
 type UserView = {
   id: string;
@@ -407,12 +409,11 @@ export async function listClientsInCompany(companyId: string) {
 
 /**
  * 管理者によるユーザー削除（ハード削除）。
- * - `users/<id>` ドキュメントを削除し、メールアドレスを再登録可能にする
- * - Firebase Auth 上のアカウントを **完全に削除** する（disable ではなく deleteUser）
- *   これにより、同じメールアドレスで新規登録すると別アカウントが作られる
- * - 個人プロフィール系（zoom 設定 / 請求書プロフィール / 自分FTA / 編集アンロック）も
- *   合わせて掃除する。マッチ・チャット・通知などの履歴ドキュメントは残す
- *   （userId 参照は残り、UI 側で「不明なユーザー」として安全に表示される想定）。
+ * Firebase Console を開く必要はない — アプリの「マッチ管理」から実行する。
+ * - ログイン用アカウント（メール/パスワード登録者）を Auth から削除
+ * - `users/<id>` ドキュメントを削除し、同じメールでの新規登録を可能にする
+ * - 未完了の新規登録トークン（pendingRegistrations）も掃除
+ * - マッチ・チャットなどの履歴は残す
  */
 export async function deleteUserAsAdmin(userId: string) {
   if (isFirebaseDataBackend()) {
@@ -424,6 +425,11 @@ export async function deleteUserAsAdmin(userId: string) {
     const raw = userSnap.data() as Record<string, unknown>;
     const firebaseUid = typeof raw.firebaseUid === "string" ? raw.firebaseUid : null;
     const email = typeof raw.email === "string" ? raw.email.trim().toLowerCase() : null;
+    const usesEmailPasswordAuth = Boolean(firebaseUid);
+
+    if (email) {
+      await deletePendingRegistrationsByEmail(email);
+    }
 
     // 個人プロフィール系を best-effort で削除（履歴系は残す）
     const personalCollections = [
@@ -458,12 +464,24 @@ export async function deleteUserAsAdmin(userId: string) {
       /* noop */
     }
 
+    // ログイン用アカウントを先に削除。失敗したら users ドキュメントは残し、管理者が再試行できる。
+    const uidOk = await deleteFirebaseAuthUserByUid(firebaseUid ?? userId);
+    const emailOk = email ? await deleteFirebaseAuthUserByEmail(email) : true;
+    if (usesEmailPasswordAuth && email && (!uidOk || !emailOk || (await firebaseAuthUserExistsByEmail(email)))) {
+      await deleteFirebaseAuthUserByEmail(email);
+      if (await firebaseAuthUserExistsByEmail(email)) {
+        return {
+          ok: false as const,
+          error:
+            "ログイン用アカウントの削除に失敗したため、削除を中断しました。しばらくしてからもう一度「削除」を実行してください。",
+          status: 502,
+        };
+      }
+    }
+
     // users ドキュメント自体を完全削除
     await userRef.delete().catch(() => null);
 
-    // メール登録は doc ID = Auth UID のことが多い。Google 登録は firebaseUid が null でも email で Auth を掃除する。
-    await deleteFirebaseAuthUserByUid(firebaseUid ?? userId);
-    if (email) await deleteFirebaseAuthUserByEmail(email);
     return { ok: true as const };
   }
 

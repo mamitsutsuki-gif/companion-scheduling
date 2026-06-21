@@ -79,7 +79,29 @@ function getFirebaseAuthAdmin() {
   return getAuth(app);
 }
 
-/** Firebase Auth ユーザーを UID で削除（失敗時は false、サーバーログのみ） */
+function isAuthUserNotFound(error: unknown): boolean {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code: unknown }).code)
+      : "";
+  return code === "auth/user-not-found";
+}
+
+/** メールアドレスに紐づく Firebase Auth ユーザーが存在するか */
+export async function firebaseAuthUserExistsByEmail(email: string): Promise<boolean> {
+  const auth = getFirebaseAuthAdmin();
+  if (!auth) return false;
+  try {
+    await auth.getUserByEmail(email.trim().toLowerCase());
+    return true;
+  } catch (error) {
+    if (isAuthUserNotFound(error)) return false;
+    console.warn("[firebase-admin] getUserByEmail failed", { email, error });
+    return true;
+  }
+}
+
+/** Firebase Auth ユーザーを UID で削除（存在しない場合は成功扱い） */
 export async function deleteFirebaseAuthUserByUid(uid: string): Promise<boolean> {
   const auth = getFirebaseAuthAdmin();
   if (!auth) return false;
@@ -88,11 +110,13 @@ export async function deleteFirebaseAuthUserByUid(uid: string): Promise<boolean>
     await auth.deleteUser(cleanUid);
     return true;
   } catch (error) {
+    if (isAuthUserNotFound(error)) return true;
     if (cleanUid !== uid) {
       try {
         await auth.deleteUser(uid);
         return true;
       } catch (retryError) {
+        if (isAuthUserNotFound(retryError)) return true;
         console.warn("[firebase-admin] deleteUser by uid failed", { uid, cleanUid, retryError });
       }
     } else {
@@ -102,7 +126,7 @@ export async function deleteFirebaseAuthUserByUid(uid: string): Promise<boolean>
   }
 }
 
-/** Firebase Auth ユーザーをメールアドレスで削除（失敗時は false、サーバーログのみ） */
+/** Firebase Auth ユーザーをメールアドレスで削除（存在しない場合は成功扱い） */
 export async function deleteFirebaseAuthUserByEmail(email: string): Promise<boolean> {
   const auth = getFirebaseAuthAdmin();
   if (!auth) return false;
@@ -111,6 +135,7 @@ export async function deleteFirebaseAuthUserByEmail(email: string): Promise<bool
     await auth.deleteUser(rec.uid);
     return true;
   } catch (error) {
+    if (isAuthUserNotFound(error)) return true;
     console.warn("[firebase-admin] deleteUser by email failed", { email, error });
     return false;
   }
