@@ -378,6 +378,12 @@ function schedulingGuideAudience(role: Role): SchedulingGuideAudience | null {
   return null;
 }
 
+function chatSendFormLabel(role: Role): string {
+  return role === "PARTNER"
+    ? "メッセージ送信（クライアントにチャットを送付する）"
+    : "メッセージ送信";
+}
+
 /** チャットタブ上部の日程ガイド（ロールごと）。 */
 function ChatScheduleHints({ role }: { role: Role }) {
   const audience = schedulingGuideAudience(role);
@@ -2012,7 +2018,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           />
           <form onSubmit={onSendChat} className="app-surface-raised flex flex-col gap-3 rounded-2xl p-4">
             <label className="text-base font-medium">
-              メッセージ送信
+              {chatSendFormLabel(me.role)}
               <textarea
                 name="body"
                 rows={3}
@@ -2669,7 +2675,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         />
         <form onSubmit={onSendChat} className="app-surface-raised flex shrink-0 flex-col gap-3 rounded-2xl p-4">
           <label className="text-base font-medium">
-            メッセージ送信
+            {chatSendFormLabel(me.role)}
             <textarea
               name="body"
               rows={3}
