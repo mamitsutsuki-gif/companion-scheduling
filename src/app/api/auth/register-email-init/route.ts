@@ -6,6 +6,7 @@ import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { findUserByEmail } from "@/lib/repositories/user-repository";
 import { createPendingRegistration } from "@/lib/repositories/pending-registration-repository";
 import { sendMail } from "@/lib/mail";
+import { AUTH_MSG_EMAIL_ALREADY_REGISTERED } from "@/lib/auth-user-messages";
 
 const bodySchema = z.object({
   email: z.string().email().max(200),
@@ -57,10 +58,7 @@ export async function POST(request: Request) {
         409,
       );
     }
-    return jsonError(
-      "このメールアドレスは既に登録されています。ログイン画面からログインしてください。",
-      409,
-    );
+    return jsonError(AUTH_MSG_EMAIL_ALREADY_REGISTERED, 409);
   }
 
   const clientAvailabilitySlotIds =

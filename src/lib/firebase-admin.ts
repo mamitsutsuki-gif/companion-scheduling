@@ -73,6 +73,49 @@ export async function getFirebaseAuthUserEmail(uid: string): Promise<string | nu
   }
 }
 
+function getFirebaseAuthAdmin() {
+  const app = getFirebaseAdminApp();
+  if (!app) return null;
+  return getAuth(app);
+}
+
+/** Firebase Auth ユーザーを UID で削除（失敗時は false、サーバーログのみ） */
+export async function deleteFirebaseAuthUserByUid(uid: string): Promise<boolean> {
+  const auth = getFirebaseAuthAdmin();
+  if (!auth) return false;
+  const cleanUid = uid.replace(/__deleted_\d+/g, "");
+  try {
+    await auth.deleteUser(cleanUid);
+    return true;
+  } catch (error) {
+    if (cleanUid !== uid) {
+      try {
+        await auth.deleteUser(uid);
+        return true;
+      } catch (retryError) {
+        console.warn("[firebase-admin] deleteUser by uid failed", { uid, cleanUid, retryError });
+      }
+    } else {
+      console.warn("[firebase-admin] deleteUser by uid failed", { uid, error });
+    }
+    return false;
+  }
+}
+
+/** Firebase Auth ユーザーをメールアドレスで削除（失敗時は false、サーバーログのみ） */
+export async function deleteFirebaseAuthUserByEmail(email: string): Promise<boolean> {
+  const auth = getFirebaseAuthAdmin();
+  if (!auth) return false;
+  try {
+    const rec = await auth.getUserByEmail(email.trim().toLowerCase());
+    await auth.deleteUser(rec.uid);
+    return true;
+  } catch (error) {
+    console.warn("[firebase-admin] deleteUser by email failed", { email, error });
+    return false;
+  }
+}
+
 /**
  * Admin SDK で Firebase Auth に新規ユーザーを作成する。
  * メール本文のリンクを踏んで来た本人だけが叩く finish API で使う。

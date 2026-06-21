@@ -11,20 +11,22 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useMemo, useState } from "react";
 import { getFirebaseAuthClient } from "@/lib/firebase-client";
 import { signInWithEmailAndPassword } from "firebase/auth";
+import {
+  AUTH_MSG_GOOGLE_ACCOUNT_NOT_REGISTERED,
+  AUTH_MSG_GOOGLE_EMAIL_ALREADY_REGISTERED,
+} from "@/lib/auth-user-messages";
 
 function oauthErrorMessage(code: string | null) {
   if (!code) return null;
   const map: Record<string, string> = {
     oauth_unconfigured:
-      "Google ログインが未設定です。.env に GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / APP_ORIGIN を設定してください。",
+      "Google ログインが未設定です。管理者にお問い合わせください。",
     oauth_missing: "ログイン情報が不足しました。もう一度お試しください。",
     oauth_state: "セキュリティ確認に失敗しました。最初からやり直してください。",
     oauth_token: "Google との連携に失敗しました。しばらくしてから再試行してください。",
     oauth_unverified: "Google メールの確認が取れていません。",
-    oauth_not_allowed:
-      "Googleログインは許可されたアカウントのみ利用できます。事前登録済みアカウントでログインしてください。",
-    email_already_registered:
-      "このメールアドレスは既にメール/パスワードで登録されています。元のログイン方法でサインインしてください。",
+    oauth_not_allowed: AUTH_MSG_GOOGLE_ACCOUNT_NOT_REGISTERED,
+    email_already_registered: AUTH_MSG_GOOGLE_EMAIL_ALREADY_REGISTERED,
     oauth_error: "ログイン処理でエラーが発生しました。",
     partner_zoom_required:
       "パートナー登録には Zoom の会議URLとパスコードが必要です。最初からやり直してください。",
@@ -40,7 +42,8 @@ function LoginInner() {
   const router = useRouter();
   const search = useSearchParams();
   const next = search.get("next") ?? "/dashboard";
-  const urlError = oauthErrorMessage(search.get("error"));
+  const urlErrorCode = search.get("error");
+  const urlError = oauthErrorMessage(urlErrorCode);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -168,7 +171,16 @@ function LoginInner() {
             className={authFieldClass}
           />
         </label>
-        {showError ? <p className="text-sm font-medium text-red-700">{showError}</p> : null}
+        {urlErrorCode === "oauth_not_allowed" ? (
+          <p className="text-sm font-medium text-red-700">
+            {AUTH_MSG_GOOGLE_ACCOUNT_NOT_REGISTERED}{" "}
+            <AuthNavLink href="/register" className="inline-block">
+              新規登録へ
+            </AuthNavLink>
+          </p>
+        ) : showError ? (
+          <p className="text-sm font-medium text-red-700">{showError}</p>
+        ) : null}
         <AuthPrimaryButton disabled={loading}>{loading ? "送信中…" : "ログイン"}</AuthPrimaryButton>
       </form>
       <nav className="mt-10 flex flex-col gap-4 border-t border-slate-100 pt-8 text-center">

@@ -4,6 +4,8 @@ import {
   getFirebaseAuthUserEmail,
   getFirebaseFirestoreClient,
   isFirebaseDataBackend,
+  deleteFirebaseAuthUserByEmail,
+  deleteFirebaseAuthUserByUid,
 } from "@/lib/firebase-admin";
 
 type UserView = {
@@ -413,59 +415,6 @@ export async function listClientsInCompany(companyId: string) {
  *   （userId 参照は残り、UI 側で「不明なユーザー」として安全に表示される想定）。
  */
 export async function deleteUserAsAdmin(userId: string) {
-  // Firebase Auth: 該当 uid を完全に削除する（DATA_BACKEND 問わず常に試みる）
-  async function deleteFirebaseAuthUserIfPossible(firebaseUid: string | null | undefined) {
-    if (!firebaseUid) return;
-    try {
-      const { isFirebaseAdminConfigured } = await import("@/lib/firebase-admin");
-      if (!isFirebaseAdminConfigured()) return;
-      const { getApps, initializeApp, applicationDefault, cert } = await import(
-        "firebase-admin/app"
-      );
-      const { getAuth } = await import("firebase-admin/auth");
-      if (!getApps().length) {
-        const hasKey = Boolean(
-          process.env.FIREBASE_PROJECT_ID &&
-            process.env.FIREBASE_CLIENT_EMAIL &&
-            process.env.FIREBASE_PRIVATE_KEY,
-        );
-        if (hasKey) {
-          initializeApp({
-            credential: cert({
-              projectId: process.env.FIREBASE_PROJECT_ID,
-              clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-              privateKey: (process.env.FIREBASE_PRIVATE_KEY ?? "").replace(/\\n/g, "\n").trim(),
-            }),
-          });
-        } else {
-          initializeApp({
-            credential: applicationDefault(),
-            projectId: process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT,
-          });
-        }
-      }
-      // 旧仕様で `__deleted_<unix>` が末尾に追加された UID を渡された場合も想定し、
-      // suffix を取り除いてから削除する。
-      const cleanUid = firebaseUid.replace(/__deleted_\d+/g, "");
-      try {
-        await getAuth().deleteUser(cleanUid);
-      } catch (inner) {
-        // 元の UID でも試す
-        if (cleanUid !== firebaseUid) {
-          await getAuth()
-            .deleteUser(firebaseUid)
-            .catch((e2) => {
-              console.warn("[user-delete] failed to delete firebase auth user (both)", e2);
-            });
-        } else {
-          console.warn("[user-delete] failed to delete firebase auth user", inner);
-        }
-      }
-    } catch (error) {
-      console.warn("[user-delete] failed to delete firebase auth user", error);
-    }
-  }
-
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
     if (!db) return { ok: false as const, error: "Firestore 未設定です。" };
@@ -474,6 +423,7 @@ export async function deleteUserAsAdmin(userId: string) {
     if (!userSnap.exists) return { ok: false as const, error: "ユーザーが見つかりません。", status: 404 };
     const raw = userSnap.data() as Record<string, unknown>;
     const firebaseUid = typeof raw.firebaseUid === "string" ? raw.firebaseUid : null;
+    const email = typeof raw.email === "string" ? raw.email.trim().toLowerCase() : null;
 
     // 個人プロフィール系を best-effort で削除（履歴系は残す）
     const personalCollections = [
@@ -511,7 +461,9 @@ export async function deleteUserAsAdmin(userId: string) {
     // users ドキュメント自体を完全削除
     await userRef.delete().catch(() => null);
 
-    await deleteFirebaseAuthUserIfPossible(firebaseUid);
+    // メール登録は doc ID = Auth UID のことが多い。Google 登録は firebaseUid が null でも email で Auth を掃除する。
+    await deleteFirebaseAuthUserByUid(firebaseUid ?? userId);
+    if (email) await deleteFirebaseAuthUserByEmail(email);
     return { ok: true as const };
   }
 
@@ -536,7 +488,8 @@ export async function deleteUserAsAdmin(userId: string) {
         },
       });
     });
-    await deleteFirebaseAuthUserIfPossible(existing.firebaseUid);
+    await deleteFirebaseAuthUserByUid(existing.firebaseUid ?? userId);
+    if (existing.email) await deleteFirebaseAuthUserByEmail(existing.email);
     return { ok: true as const };
   } catch {
     return { ok: false as const, error: "ユーザー削除に失敗しました。", status: 400 };

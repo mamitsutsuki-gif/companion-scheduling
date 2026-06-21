@@ -1,11 +1,17 @@
 import { createSessionCookie } from "@/lib/session";
 import {
   createFirebaseAuthUserWithPassword,
+  deleteFirebaseAuthUserByEmail,
   getFirebaseFirestoreClient,
   isFirebaseAdminConfigured,
   isFirebaseDataBackend,
 } from "@/lib/firebase-admin";
 import { jsonError, jsonOk } from "@/lib/json";
+import {
+  AUTH_MSG_EMAIL_ALREADY_REGISTERED,
+  AUTH_MSG_EMAIL_AUTH_CONFLICT,
+  AUTH_MSG_REGISTRATION_FAILED,
+} from "@/lib/auth-user-messages";
 import { normalizeAvailabilitySelections } from "@/lib/availability";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { findUserByEmail } from "@/lib/repositories/user-repository";
@@ -24,9 +30,32 @@ const bodySchema = z.object({
   password: z.string().min(10).max(200),
 });
 
+function isFirebaseEmailTakenError(e: unknown) {
+  const msg = e instanceof Error ? e.message : String(e);
+  const code =
+    typeof e === "object" && e !== null && "code" in e && typeof (e as { code: unknown }).code === "string"
+      ? (e as { code: string }).code
+      : "";
+  return (
+    code === "auth/email-already-exists" ||
+    code === "auth/email-already-in-use" ||
+    msg.includes("email-already-exists") ||
+    msg.includes("EMAIL_EXISTS") ||
+    /already in use by another account/i.test(msg)
+  );
+}
+
+async function createAuthUserForPending(pending: { email: string; password: string; displayName: string }) {
+  return createFirebaseAuthUserWithPassword({
+    email: pending.email,
+    password: pending.password,
+    displayName: pending.displayName,
+  });
+}
+
 export async function POST(request: Request) {
   if (!isFirebaseDataBackend() || !isFirebaseAdminConfigured()) {
-    return jsonError("このフローは Firebase バックエンドでのみ利用できます。", 400);
+    return jsonError(AUTH_MSG_REGISTRATION_FAILED, 500);
   }
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
@@ -38,46 +67,49 @@ export async function POST(request: Request) {
   const existing = await findUserByEmail(pending.email);
   if (existing) {
     await deletePendingRegistrationByToken(parsed.data.token);
-    return jsonError(
-      "このメールアドレスは既に登録されています。ログイン画面からログインしてください。",
-      409,
-    );
+    return jsonError(AUTH_MSG_EMAIL_ALREADY_REGISTERED, 409);
   }
 
   // Firebase Auth にユーザー作成
   let uid: string;
   try {
-    const rec = await createFirebaseAuthUserWithPassword({
+    const rec = await createAuthUserForPending({
       email: pending.email,
       password: parsed.data.password,
       displayName: pending.displayName,
     });
     uid = rec.uid;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    const code =
-      typeof e === "object" && e !== null && "code" in e && typeof (e as { code: unknown }).code === "string"
-        ? (e as { code: string }).code
-        : "";
-    const emailTaken =
-      code === "auth/email-already-exists" ||
-      code === "auth/email-already-in-use" ||
-      msg.includes("email-already-exists") ||
-      msg.includes("EMAIL_EXISTS") ||
-      /already in use by another account/i.test(msg);
-    if (emailTaken) {
-      await deletePendingRegistrationByToken(parsed.data.token);
-      return jsonError(
-        "このメールアドレスは Firebase Authentication 上にまだアカウントとして残っています（Firestore のユーザー一覧からは消えていても起こり得ます）。Firebase Console の Authentication → Users で該当メールを検索し、不要ならユーザーを削除してから再度「新規登録」してください。または、既に登録済みならログイン画面からログインしてください。",
-        409,
-      );
+    if (isFirebaseEmailTakenError(e)) {
+      // Firestore にユーザーが無いのに Auth だけ残っている（管理者削除の取りこぼし等）なら修復して再試行
+      const orphaned = !(await findUserByEmail(pending.email));
+      if (orphaned) {
+        await deleteFirebaseAuthUserByEmail(pending.email);
+        try {
+          const rec = await createAuthUserForPending({
+            email: pending.email,
+            password: parsed.data.password,
+            displayName: pending.displayName,
+          });
+          uid = rec.uid;
+        } catch (retryError) {
+          console.error("[register-email-finish] auth user recreate failed", retryError);
+          await deletePendingRegistrationByToken(parsed.data.token);
+          return jsonError(AUTH_MSG_EMAIL_AUTH_CONFLICT, 409);
+        }
+      } else {
+        await deletePendingRegistrationByToken(parsed.data.token);
+        return jsonError(AUTH_MSG_EMAIL_AUTH_CONFLICT, 409);
+      }
+    } else {
+      console.error("[register-email-finish] auth user create failed", e);
+      return jsonError(AUTH_MSG_REGISTRATION_FAILED, 500);
     }
-    return jsonError(`Firebase ユーザー作成に失敗しました: ${msg}`, 500);
   }
 
   // Firestore に User ドキュメント作成
   const db = getFirebaseFirestoreClient();
-  if (!db) return jsonError("Firestore が未設定です。", 500);
+  if (!db) return jsonError(AUTH_MSG_REGISTRATION_FAILED, 500);
 
   let availabilitySlotIds: string[] = [];
   if (pending.role === "CLIENT" && pending.availabilitySlotIds.length > 0) {
