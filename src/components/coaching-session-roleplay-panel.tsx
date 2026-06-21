@@ -447,11 +447,11 @@ export function CoachingSessionRoleplayPanel({
         </div>
 
         <ComparisonBlock
-          title="レーダーチャート（自己評価 vs パートナー評価）"
+          title="レーダーチャート（自己評価 ・パートナーからの評価）"
           labels={categoryLabels}
           series={[
             { label: "自己評価", color: "#4f46e5", values: selfRadar },
-            { label: "パートナー評価", color: "#059669", values: partnerRadar },
+            { label: "パートナーからの評価", color: "#059669", values: partnerRadar },
           ]}
         />
 
