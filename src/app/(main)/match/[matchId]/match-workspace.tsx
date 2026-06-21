@@ -24,6 +24,15 @@ import {
   type CompanyPlan,
   type PlanFeatures,
 } from "@/lib/company-plan";
+import {
+  buildSlotStartTimeOptions,
+  formatTimeHmInZone,
+  isSlotStartOnPickerGrid,
+  slotStartPickerStepLabel,
+  slotStartPickerStepMinutes,
+  zonedWallClockToUtc,
+  calendarDateInTimeZone,
+} from "@/lib/slot-schedule";
 import { MatchRoomGuideBanner } from "@/components/match-room-guide-banner";
 import { ScheduleRulesDetail } from "@/components/schedule-rules-detail";
 import {
@@ -807,6 +816,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     null,
   );
   const [clientBriefingLoading, setClientBriefingLoading] = useState(false);
+  const [confirmSlotId, setConfirmSlotId] = useState("");
 
   const goTab = useCallback((tab: MatchTab) => {
     setActiveTab(tab);
@@ -846,25 +856,26 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     };
   }, [chatFullscreen]);
 
-  const timeOptions = useMemo(() => {
-    const interval = Math.max(1, scheduleSettings.slotDurationMinutes);
-    const earliest = scheduleSettings.slotEarliestHour * 60;
-    // 候補は `start + interval <= latest` までしか取れない
-    const latest = scheduleSettings.slotLatestHour * 60 - interval;
-    const out: { value: string; label: string }[] = [];
-    if (latest < earliest) return out;
-    for (let total = earliest; total <= latest; total += interval) {
-      const h = Math.floor(total / 60);
-      const m = total % 60;
-      const value = `${pad2(h)}:${pad2(m)}`;
-      out.push({ value, label: value });
-    }
-    return out;
-  }, [
-    scheduleSettings.slotDurationMinutes,
-    scheduleSettings.slotEarliestHour,
-    scheduleSettings.slotLatestHour,
-  ]);
+  const timeOptions = useMemo(
+    () =>
+      buildSlotStartTimeOptions({
+        slotDurationMinutes: scheduleSettings.slotDurationMinutes,
+        slotEarliestHour: scheduleSettings.slotEarliestHour,
+        slotLatestHour: scheduleSettings.slotLatestHour,
+        allowWeekends: scheduleSettings.allowWeekends,
+        timezone: scheduleSettings.timezone,
+      }),
+    [
+      scheduleSettings.slotDurationMinutes,
+      scheduleSettings.slotEarliestHour,
+      scheduleSettings.slotLatestHour,
+      scheduleSettings.allowWeekends,
+      scheduleSettings.timezone,
+    ],
+  );
+
+  const slotPickerStep = slotStartPickerStepMinutes(scheduleSettings.slotDurationMinutes);
+  const slotPickerStepText = slotStartPickerStepLabel(slotPickerStep);
 
   function isWeekendDateString(yyyymmdd: string) {
     if (!yyyymmdd) return false;
@@ -1188,6 +1199,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     [negotiations],
   );
 
+  useEffect(() => {
+    setConfirmSlotId("");
+  }, [activeNegotiation?.id, activeNegotiation?.status]);
+
   const sessionPlans = useMemo(() => {
     const total = Math.max(1, scheduleSettings.totalSessions);
     const latestConfirmedBySession = new Map<number, { round: number; slot: SlotRow }>();
@@ -1276,12 +1291,30 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     if (!activeNegotiation || activeNegotiation.status !== "AWAITING_PARTNER_CONFIRM") return;
     const fd = new FormData(e.currentTarget);
     const slotId = String(fd.get("slotId"));
+    const chosen = activeNegotiation.slots.find((s) => s.id === slotId);
+    if (!chosen || chosen.clientVote !== "YES") {
+      setError("選択した候補はクライアントが希望していません。");
+      return;
+    }
+    const adjustTime = String(fd.get("adjustStartTime") ?? "").trim();
+    const body: { slotId: string; adjustedStartAt?: string } = { slotId };
+    if (adjustTime) {
+      const dateYmd = calendarDateInTimeZone(new Date(chosen.startAt), scheduleSettings.timezone);
+      const defaultTime = formatTimeHmInZone(new Date(chosen.startAt), scheduleSettings.timezone);
+      if (adjustTime !== defaultTime) {
+        body.adjustedStartAt = zonedWallClockToUtc(
+          dateYmd,
+          adjustTime,
+          scheduleSettings.timezone,
+        ).toISOString();
+      }
+    }
     const res = await fetch(
       `/api/matches/${matchId}/negotiations/${activeNegotiation.id}/confirm`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slotId }),
+        body: JSON.stringify(body),
       },
     );
     const json = await res.json().catch(() => null);
@@ -1316,8 +1349,16 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         setError(`${i} 件目の日時が不正です。`);
         return;
       }
-      if (d.getSeconds() !== 0 || d.getMinutes() % Math.max(1, scheduleSettings.slotDurationMinutes) !== 0) {
-        setError(`候補は ${scheduleSettings.slotDurationMinutes} 分単位で入力してください。`);
+      if (
+        !isSlotStartOnPickerGrid(d, {
+          slotDurationMinutes: scheduleSettings.slotDurationMinutes,
+          slotEarliestHour: scheduleSettings.slotEarliestHour,
+          slotLatestHour: scheduleSettings.slotLatestHour,
+          allowWeekends: scheduleSettings.allowWeekends,
+          timezone: scheduleSettings.timezone,
+        })
+      ) {
+        setError(`候補 ${i} の開始時刻は ${slotPickerStepText} 刻みで選んでください。`);
         return;
       }
       starts.push(d.toISOString());
@@ -2202,7 +2243,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 <strong className="text-indigo-800">{scheduleSettings.slotDurationMinutes} 分</strong>
                 、タイムゾーン {scheduleSettings.timezone}）に応じて自動で付きます。
               </p>
-              <p className="mt-1 text-sm text-slate-500">開始時刻は{scheduleSettings.slotDurationMinutes}分単位で選んでください。</p>
+              <p className="mt-1 text-sm text-slate-500">
+                開始時刻は {slotPickerStepText} 刻みで選びます（1回 {scheduleSettings.slotDurationMinutes}{" "}
+                分の終了時刻は自動計算）。
+              </p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               {[1, 2, 3].map((index) => (
@@ -2219,7 +2263,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                     />
                   </label>
                   <label className="block text-xs uppercase text-slate-500">
-                    時刻（{scheduleSettings.slotDurationMinutes}分刻み）
+                    時刻（{slotPickerStepText}刻み）
                     <select
                       name={`startTime${index}`}
                       required
@@ -2338,7 +2382,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             <select
               name="slotId"
               required
-              defaultValue=""
+              value={confirmSlotId}
+              onChange={(e) => setConfirmSlotId(e.target.value)}
               className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-amber-900"
             >
               <option disabled value="">
@@ -2353,6 +2398,27 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                   </option>
                 ))}
             </select>
+            {confirmSlotId ? (
+              <label className="block text-sm text-amber-950">
+                開始時刻の微調整（任意・5分刻み）
+                <p className="mt-1 text-xs font-normal text-amber-900/85">
+                  クライアントから「8:20 なら平気」などの希望があった場合、同じ日付の中で開始時刻だけ変更できます。
+                </p>
+                <input
+                  key={confirmSlotId}
+                  name="adjustStartTime"
+                  type="time"
+                  step={300}
+                  defaultValue={formatTimeHmInZone(
+                    new Date(
+                      activeNegotiation.slots.find((s) => s.id === confirmSlotId)!.startAt,
+                    ),
+                    scheduleSettings.timezone,
+                  )}
+                  className="mt-2 w-full max-w-xs rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm"
+                />
+              </label>
+            ) : null}
             <div className="space-y-2">
               <button
                 type="submit"

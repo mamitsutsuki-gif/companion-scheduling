@@ -47,3 +47,6 @@ jobs:
 
       - name: Verify schedule datetime formatting (UTC host → Asia/Tokyo)
         run: TZ=UTC npx tsx scripts/verify-format-datetime.ts
+
+      - name: Verify slot start picker grid
+        run: npx tsx scripts/verify-slot-schedule.ts

@@ -312,16 +312,24 @@ export async function confirmNegotiationSlot(
     zoomMeetingId?: string | null;
     zoomPass?: string | null;
     meetingProvider?: "zoom" | "google_meet" | null;
+    finalStartAt?: Date;
+    finalEndAt?: Date;
   },
 ) {
   const negotiation = await getNegotiationById(negotiationId);
   if (!negotiation) return null;
   const chosen = negotiation.slots.find((s) => s.id === slotId);
   if (!chosen) return null;
+  const startIso = (options?.finalStartAt ?? new Date(chosen.startAt)).toISOString();
+  const endIso = (options?.finalEndAt ?? new Date(chosen.endAt)).toISOString();
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
     if (!db) return null;
-    const slots = negotiation.slots.map((s) => ({ ...s, isConfirmed: s.id === slotId }));
+    const slots = negotiation.slots.map((s) => ({
+      ...s,
+      isConfirmed: s.id === slotId,
+      ...(s.id === slotId ? { startAt: startIso, endAt: endIso } : {}),
+    }));
     await db.collection("negotiations").doc(negotiationId).set(
       {
         slots,
@@ -337,7 +345,13 @@ export async function confirmNegotiationSlot(
   } else {
     await prisma.$transaction([
       ...negotiation.slots.map((s) =>
-        prisma.slot.update({ where: { id: s.id }, data: { isConfirmed: s.id === slotId } }),
+        prisma.slot.update({
+          where: { id: s.id },
+          data:
+            s.id === slotId
+              ? { isConfirmed: true, startAt: new Date(startIso), endAt: new Date(endIso) }
+              : { isConfirmed: false },
+        }),
       ),
       prisma.negotiation.update({
         where: { id: negotiationId },
@@ -353,7 +367,14 @@ export async function confirmNegotiationSlot(
       }),
     ]);
   }
-  return { chosen };
+  return {
+    chosen: {
+      ...chosen,
+      startAt: startIso,
+      endAt: endIso,
+      isConfirmed: true,
+    },
+  };
 }
 
 /**

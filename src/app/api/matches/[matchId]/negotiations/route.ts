@@ -17,6 +17,12 @@ import { appendMemberNotification } from "@/lib/repositories/member-notification
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
 import { formatJaDateTimeRange } from "@/lib/format-datetime";
+import {
+  isSlotStartOnPickerGrid,
+  slotStartPickerStepLabel,
+  slotStartPickerStepMinutes,
+  validateSlotWindow,
+} from "@/lib/slot-schedule";
 
 const startsPayload = z.object({
   starts: z.array(z.string()).min(3).max(5),
@@ -94,43 +100,26 @@ export async function POST(request: Request, context: RouteContext) {
   const sessionNumber = Math.min(Math.max(1, sessionNumberRaw), Math.max(1, settings.totalSessions));
   const slotData: { startAt: Date; endAt: Date }[] = [];
 
+  const slotWindow = {
+    slotDurationMinutes: settings.slotDurationMinutes,
+    slotEarliestHour: settings.slotEarliestHour,
+    slotLatestHour: settings.slotLatestHour,
+    allowWeekends: settings.allowWeekends,
+    timezone: settings.timezone || "Asia/Tokyo",
+  };
+
   function validateWithinAllowedWindow(start: Date, end: Date) {
-    // 表示・案内 TZ で見たときに 開始/終了 が許容ウィンドウに収まっているかチェック。
-    const tz = settings.timezone || "Asia/Tokyo";
-    const fmt = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hour12: false,
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    const partsStart = Object.fromEntries(fmt.formatToParts(start).map((p) => [p.type, p.value]));
-    const partsEnd = Object.fromEntries(fmt.formatToParts(end).map((p) => [p.type, p.value]));
-    const startHour = Number(partsStart.hour);
-    const startMinute = Number(partsStart.minute);
-    const endHour = Number(partsEnd.hour);
-    const endMinute = Number(partsEnd.minute);
-    const startMinutes = startHour * 60 + startMinute;
-    const endMinutes =
-      endHour === 0 && endMinute === 0 ? 24 * 60 : endHour * 60 + endMinute;
-    const earliest = settings.slotEarliestHour * 60;
-    const latest = settings.slotLatestHour * 60;
-    if (startMinutes < earliest || endMinutes > latest) {
-      return `候補日時は ${String(settings.slotEarliestHour).padStart(2, "0")}:00〜${String(settings.slotLatestHour).padStart(2, "0")}:00 の間で指定してください。`;
-    }
-    if (!settings.allowWeekends) {
-      const weekday = String(partsStart.weekday).slice(0, 3);
-      if (weekday === "Sat" || weekday === "Sun") {
-        return "土曜・日曜は、このサービスの設定では候補として指定できません。";
-      }
-    }
-    return null;
+    return validateSlotWindow(start, end, slotWindow);
   }
 
   if (parsedStarts.success) {
     for (const iso of parsedStarts.data.starts) {
       const start = new Date(iso);
       if (Number.isNaN(start.valueOf())) return jsonError("開始日時が不正です。");
+      if (!isSlotStartOnPickerGrid(start, slotWindow)) {
+        const step = slotStartPickerStepLabel(slotStartPickerStepMinutes(settings.slotDurationMinutes));
+        return jsonError(`候補の開始時刻は ${step} 刻みで指定してください。`);
+      }
       const end = addMinutes(start, settings.slotDurationMinutes);
       const v = validateWithinAllowedWindow(start, end);
       if (v) return jsonError(v);
