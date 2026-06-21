@@ -83,7 +83,13 @@ function LoginInner() {
             setError(typeof bridgeData?.error === "string" ? bridgeData.error : "ログインに失敗しました。");
             return;
           }
-          router.push(next.startsWith("/") ? next : "/dashboard");
+          const bridgeNext =
+            typeof bridgeData?.next === "string" && bridgeData.next.startsWith("/")
+              ? bridgeData.next
+              : next.startsWith("/")
+                ? next
+                : "/dashboard";
+          router.push(bridgeNext);
           router.refresh();
           return;
         } catch {

@@ -21,6 +21,7 @@ function SetPasswordInner() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [nextPath, setNextPath] = useState("/dashboard");
 
   useEffect(() => {
     if (!token) {
@@ -69,9 +70,13 @@ function SetPasswordInner() {
       return;
     }
     setSuccess(true);
-    const nextPath = data?.next ?? "/register/complete-profile";
+    const resolvedNext =
+      typeof data?.next === "string" && data.next.startsWith("/")
+        ? data.next
+        : "/register/complete-profile";
+    setNextPath(resolvedNext);
     setTimeout(() => {
-      router.push(nextPath);
+      router.push(resolvedNext);
       router.refresh();
     }, 800);
   }
@@ -96,7 +101,9 @@ function SetPasswordInner() {
     return (
       <AuthShell title="登録が完了しました" subtitle="">
         <p className="text-sm text-emerald-800">
-          パスワードを設定しました。必須情報の入力画面に移動します…
+          {nextPath === "/dashboard"
+            ? "パスワードを設定しました。ホーム画面に移動します…"
+            : "パスワードを設定しました。必須情報の入力画面に移動します…"}
         </p>
       </AuthShell>
     );

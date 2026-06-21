@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { jsonError, jsonOk } from "@/lib/json";
+import { normalizeAvailabilitySelections } from "@/lib/availability";
+import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { findUserByEmail } from "@/lib/repositories/user-repository";
 import { createPendingRegistration } from "@/lib/repositories/pending-registration-repository";
 import { sendMail } from "@/lib/mail";
@@ -9,6 +11,8 @@ const bodySchema = z.object({
   email: z.string().email().max(200),
   displayName: z.string().min(1).max(80),
   role: z.enum(["PARTNER", "CLIENT"]),
+  /** クライアント新規登録時の対応可能時間（登録画面で選択） */
+  availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64).optional(),
   /** 利用規約・プライバシーポリシーへの同意（必須） */
   acceptedLegal: z.literal(true),
 });
@@ -31,6 +35,18 @@ export async function POST(request: Request) {
   if (!parsed.success) return jsonError("入力内容が不正です。");
 
   const email = parsed.data.email.trim().toLowerCase();
+  const settings = await getAppSettingsRow();
+
+  if (parsed.data.role === "CLIENT") {
+    const rawIds = parsed.data.availabilitySlotIds ?? [];
+    if (rawIds.length === 0) {
+      return jsonError("対応可能時間を1つ以上選択してください。", 400);
+    }
+    const normalized = normalizeAvailabilitySelections(rawIds, settings.availabilitySlotOptions);
+    if (normalized.length === 0) {
+      return jsonError("有効な対応可能時間を選択してください。", 400);
+    }
+  }
 
   // 既に Firestore にユーザーが存在する場合は登録不可（Google 登録済み / メールパス登録済みの両方をブロック）
   const existing = await findUserByEmail(email);
@@ -47,10 +63,16 @@ export async function POST(request: Request) {
     );
   }
 
+  const clientAvailabilitySlotIds =
+    parsed.data.role === "CLIENT"
+      ? normalizeAvailabilitySelections(parsed.data.availabilitySlotIds ?? [], settings.availabilitySlotOptions)
+      : [];
+
   const { token, expiresAt } = await createPendingRegistration({
     email,
     displayName: parsed.data.displayName.trim(),
     role: parsed.data.role,
+    availabilitySlotIds: clientAvailabilitySlotIds,
   });
 
   const origin = resolvedOrigin(request);

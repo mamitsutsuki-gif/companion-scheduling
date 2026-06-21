@@ -6,11 +6,17 @@ import {
   isFirebaseDataBackend,
 } from "@/lib/firebase-admin";
 import { jsonError, jsonOk } from "@/lib/json";
+import { normalizeAvailabilitySelections } from "@/lib/availability";
+import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { findUserByEmail } from "@/lib/repositories/user-repository";
 import {
   deletePendingRegistrationByToken,
   getPendingRegistrationByToken,
 } from "@/lib/repositories/pending-registration-repository";
+import {
+  isClientRegistrationComplete,
+  isPartnerRegistrationComplete,
+} from "@/lib/registration-profile";
 import { z } from "zod";
 
 const bodySchema = z.object({
@@ -74,6 +80,13 @@ export async function POST(request: Request) {
   if (!db) return jsonError("Firestore が未設定です。", 500);
 
   let availabilitySlotIds: string[] = [];
+  if (pending.role === "CLIENT" && pending.availabilitySlotIds.length > 0) {
+    const settings = await getAppSettingsRow();
+    availabilitySlotIds = normalizeAvailabilitySelections(
+      pending.availabilitySlotIds,
+      settings.availabilitySlotOptions,
+    );
+  }
 
   await db.collection("users").doc(uid).set(
     {
@@ -91,5 +104,21 @@ export async function POST(request: Request) {
 
   await deletePendingRegistrationByToken(parsed.data.token);
   await createSessionCookie({ sub: uid, role: pending.role });
-  return jsonOk({ ok: true, next: "/register/complete-profile" });
+
+  const profileUser = {
+    id: uid,
+    role: pending.role,
+    availabilitySlotIds,
+  };
+  const needsProfileCompletion =
+    pending.role === "PARTNER"
+      ? !(await isPartnerRegistrationComplete(uid))
+      : pending.role === "CLIENT"
+        ? !isClientRegistrationComplete(profileUser)
+        : false;
+
+  return jsonOk({
+    ok: true,
+    next: needsProfileCompletion ? "/register/complete-profile" : "/dashboard",
+  });
 }

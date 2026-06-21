@@ -43,12 +43,17 @@ export default function CompleteRegistrationProfilePage() {
         router.replace("/dashboard");
         return;
       }
-      setRole(data.role === "PARTNER" ? "PARTNER" : "CLIENT");
+      const apiRole = data.role === "PARTNER" ? "PARTNER" : data.role === "CLIENT" ? "CLIENT" : null;
+      if (!apiRole) {
+        router.replace("/dashboard");
+        return;
+      }
+      setRole(apiRole);
       if (Array.isArray(data.availabilitySlotOptions) && data.availabilitySlotOptions.length > 0) {
         setAvailabilityOptions(data.availabilitySlotOptions);
       }
       if (Array.isArray(data.availabilitySlotIds)) setSelectedSlotIds(data.availabilitySlotIds);
-      if (data.zoom) {
+      if (apiRole === "PARTNER" && data.zoom) {
         setZoomUrl(data.zoom.zoomUrl ?? "");
         setZoomMeetingId(data.zoom.zoomMeetingId ?? "");
         setZoomPass(data.zoom.zoomPass ?? "");

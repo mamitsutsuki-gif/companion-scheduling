@@ -6,9 +6,11 @@ import {
   attachFirebaseUid,
   createFirebaseUser,
   findUserForFirebaseLogin,
+  getUserById,
   isDeletedUser,
 } from "@/lib/repositories/user-repository";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { needsRegistrationProfileCompletion } from "@/lib/registration-profile";
 
 const bodySchema = z.object({
   idToken: z.string().min(1),
@@ -111,8 +113,15 @@ export async function POST(request: Request) {
   }
 
   await createSessionCookie({ sub: user.id, role: user.role });
+
+  const profile = await getUserById(user.id);
+  const needsProfileCompletion = profile
+    ? await needsRegistrationProfileCompletion(profile)
+    : false;
+
   return jsonOk({
     ok: true,
     user: { id: user.id, displayName: user.displayName, role: user.role, email: user.email },
+    next: needsProfileCompletion ? "/register/complete-profile" : "/dashboard",
   });
 }

@@ -3,6 +3,10 @@ import { openOAuthState } from "@/lib/oauth-state";
 import { exchangeGoogleCode, fetchGoogleProfile } from "@/lib/oauth-google";
 import { prisma } from "@/lib/prisma";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
+import { normalizeAvailabilitySelections } from "@/lib/availability";
+import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { getUserById } from "@/lib/repositories/user-repository";
+import { needsRegistrationProfileCompletion } from "@/lib/registration-profile";
 import { NextRequest, NextResponse } from "next/server";
 
 function resolvedAppOrigin(request: NextRequest) {
@@ -92,6 +96,14 @@ export async function GET(request: NextRequest) {
         return redirectLogin(request, "email_already_registered");
       }
       const display = profile.name?.trim() || email.split("@")[0] || "Googleユーザー";
+      let availabilitySlotIds: string[] = [];
+      if (requestedRole === "CLIENT" && payload.availabilitySlotIds && payload.availabilitySlotIds.length > 0) {
+        const settings = await getAppSettingsRow();
+        availabilitySlotIds = normalizeAvailabilitySelections(
+          payload.availabilitySlotIds,
+          settings.availabilitySlotOptions,
+        );
+      }
       const ref = users.doc();
       await ref.set(
         {
@@ -100,7 +112,7 @@ export async function GET(request: NextRequest) {
           role: requestedRole,
           googleSub,
           firebaseUid: null,
-          availabilitySlotIds: [],
+          availabilitySlotIds,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
@@ -134,10 +146,16 @@ export async function GET(request: NextRequest) {
   if (!user) return redirectLogin(request, "oauth_not_allowed");
   await createSessionCookie({ sub: user.id, role: user.role });
 
-  const defaultNext =
-    requestedRole === "PARTNER" || requestedRole === "CLIENT"
-      ? "/register/complete-profile"
+  const row = await getUserById(user.id);
+  const needsProfileCompletion = await needsRegistrationProfileCompletion({
+    id: user.id,
+    role: user.role,
+    availabilitySlotIds: row?.availabilitySlotIds ?? [],
+  });
+  const next = needsProfileCompletion
+    ? "/register/complete-profile"
+    : payload.next && payload.next.startsWith("/")
+      ? payload.next
       : "/dashboard";
-  const next = payload.next && payload.next.startsWith("/") ? payload.next : defaultNext;
   return NextResponse.redirect(new URL(next, resolvedAppOrigin(request)));
 }

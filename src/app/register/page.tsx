@@ -6,24 +6,55 @@ import {
   AuthShell,
   authFieldClass,
 } from "@/components/auth-shell";
+import {
+  AVAILABILITY_NOTICE,
+  DEFAULT_AVAILABILITY_OPTIONS,
+  type AvailabilitySlotOption,
+} from "@/lib/availability";
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sentMessage, setSentMessage] = useState<string | null>(null);
   const [role, setRole] = useState<"PARTNER" | "CLIENT">("CLIENT");
+  const [availabilityOptions, setAvailabilityOptions] = useState<AvailabilitySlotOption[]>(
+    DEFAULT_AVAILABILITY_OPTIONS,
+  );
+  const [selectedSlotIds, setSelectedSlotIds] = useState<string[]>([]);
   const [acceptedLegal, setAcceptedLegal] = useState(false);
   const googleHref = useMemo(() => {
     const params = new URLSearchParams({
-      next: "/register/complete-profile",
+      next: "/dashboard",
       role,
       register: "1",
     });
     if (acceptedLegal) params.set("legal", "1");
+    if (role === "CLIENT" && selectedSlotIds.length > 0) {
+      params.set("slots", selectedSlotIds.join(","));
+    }
     return `/api/auth/google?${params.toString()}`;
-  }, [role, acceptedLegal]);
+  }, [role, selectedSlotIds, acceptedLegal]);
+
+  useEffect(() => {
+    fetch("/api/settings", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d?.availabilitySlotOptions) && d.availabilitySlotOptions.length > 0) {
+          setAvailabilityOptions(d.availabilitySlotOptions);
+        }
+      })
+      .catch(() => {
+        // 取得失敗時はデフォルト選択肢を使う。
+      });
+  }, []);
+
+  function toggleSlot(slotId: string) {
+    setSelectedSlotIds((prev) =>
+      prev.includes(slotId) ? prev.filter((id) => id !== slotId) : [...prev, slotId],
+    );
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -37,6 +68,11 @@ export default function RegisterPage() {
     const email = String(fd.get("email") ?? "").trim().toLowerCase();
     const displayName = String(fd.get("displayName") ?? "").trim();
     const selectedRole = String(fd.get("role") ?? role) as "PARTNER" | "CLIENT";
+    const availabilitySlotIds = selectedRole === "CLIENT" ? selectedSlotIds : [];
+    if (selectedRole === "CLIENT" && availabilitySlotIds.length === 0) {
+      setError("対応可能時間を1つ以上選択してください。");
+      return;
+    }
     setLoading(true);
     const res = await fetch("/api/auth/register-email-init", {
       method: "POST",
@@ -46,6 +82,7 @@ export default function RegisterPage() {
         displayName,
         role: selectedRole,
         acceptedLegal: true as const,
+        availabilitySlotIds,
       }),
     });
     const data = await res.json().catch(() => null);
@@ -55,7 +92,9 @@ export default function RegisterPage() {
       return;
     }
     setSentMessage(
-      `${email} にパスワード設定リンクを送信しました。メール内のリンクからパスワードを設定すると登録が完了し、続けて必須情報の入力画面に進みます（リンクの有効期限は24時間です）。`,
+      selectedRole === "CLIENT"
+        ? `${email} にパスワード設定リンクを送信しました。メール内のリンクからパスワードを設定すると登録が完了します（リンクの有効期限は24時間）。`
+        : `${email} にパスワード設定リンクを送信しました。メール内のリンクからパスワードを設定すると登録が完了し、続けて Zoom / Google Meet の入力画面に進みます（リンクの有効期限は24時間）。`,
     );
   }
 
@@ -92,6 +131,38 @@ export default function RegisterPage() {
           パートナー
         </label>
       </fieldset>
+      {role === "CLIENT" ? (
+        <fieldset className="mt-4 space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-4">
+          <legend className="px-1 text-base font-semibold text-emerald-900">対応可能時間（複数選択）</legend>
+          <p className="text-sm leading-relaxed text-emerald-900/85">{AVAILABILITY_NOTICE}</p>
+          <div className="space-y-2">
+            {availabilityOptions.map((opt) => (
+              <label
+                key={opt.id}
+                className="flex cursor-pointer items-center gap-3 rounded-md bg-white/70 px-3 py-2 text-base text-emerald-950 hover:bg-white"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedSlotIds.includes(opt.id)}
+                  onChange={() => toggleSlot(opt.id)}
+                  className="h-4 w-4 accent-emerald-700"
+                />
+                <span>{opt.label}</span>
+              </label>
+            ))}
+          </div>
+          {selectedSlotIds.length === 0 ? (
+            <p className="text-sm text-amber-800">少なくとも1つ選択してください。</p>
+          ) : (
+            <p className="text-sm text-emerald-800">{selectedSlotIds.length} 件 選択中</p>
+          )}
+        </fieldset>
+      ) : null}
+      {role === "PARTNER" ? (
+        <p className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50/70 px-4 py-3 text-sm leading-relaxed text-indigo-950">
+          パートナー登録後、Zoom と Google Meet の会議リンク入力画面に進みます。
+        </p>
+      ) : null}
       <fieldset className="mt-4 space-y-2 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-800">
         <label className="flex cursor-pointer items-start gap-3">
           <input
@@ -118,6 +189,11 @@ export default function RegisterPage() {
           if (!acceptedLegal) {
             e.preventDefault();
             setError("利用規約およびプライバシーポリシーに同意してください。");
+            return;
+          }
+          if (role === "CLIENT" && selectedSlotIds.length === 0) {
+            e.preventDefault();
+            setError("Google で登録する前に、対応可能時間を1つ以上選択してください。");
           }
         }}
         className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 shadow-xs no-underline transition hover:bg-slate-50"
@@ -182,7 +258,7 @@ export default function RegisterPage() {
           {loading ? "送信中…" : "確認メールを送信"}
         </AuthPrimaryButton>
         <p className="text-xs leading-relaxed text-slate-500">
-          入力したメールアドレス宛に確認メールを送信します。メールに記載のリンクからパスワードを設定すると登録が完了し、続けてロール別の必須情報入力画面に進みます（リンクの有効期限は24時間）。
+          入力したメールアドレス宛に確認メールを送信します。メールに記載のリンクからパスワードを設定すると登録が完了します（リンクの有効期限は24時間）。
         </p>
       </form>
       <p className="mt-10 border-t border-zinc-100 pt-8 text-center text-sm text-zinc-600">

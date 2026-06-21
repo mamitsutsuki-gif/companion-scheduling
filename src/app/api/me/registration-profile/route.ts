@@ -1,4 +1,4 @@
-import { readSession } from "@/lib/session";
+import { readSession, createSessionCookie } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
 import { getUserById, updateUserAvailability } from "@/lib/repositories/user-repository";
 import { getPartnerZoomProfile, upsertPartnerZoomProfile } from "@/lib/repositories/zoom-repository";
@@ -17,6 +17,11 @@ export async function GET() {
   if (!session) return jsonError("未ログインです。", 401);
   const user = await getUserById(session.sub);
   if (!user) return jsonError("ユーザーが見つかりません。", 404);
+
+  if (session.role !== user.role) {
+    await createSessionCookie({ sub: user.id, role: user.role });
+  }
+
   if (user.role !== "PARTNER" && user.role !== "CLIENT") {
     return jsonOk({ complete: true, role: user.role });
   }
@@ -55,6 +60,10 @@ export async function PUT(request: Request) {
   if (!session) return jsonError("未ログインです。", 401);
   const user = await getUserById(session.sub);
   if (!user) return jsonError("ユーザーが見つかりません。", 404);
+
+  if (session.role !== user.role) {
+    await createSessionCookie({ sub: user.id, role: user.role });
+  }
 
   const parsed = putSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
