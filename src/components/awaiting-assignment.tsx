@@ -19,10 +19,7 @@ export function AwaitingAssignment({ role }: { role: Role }) {
           <p className="font-semibold">{isClient ? "クライアントの皆さんへ" : "パートナーの皆さんへ"}</p>
           <ul className="mt-3 list-inside list-decimal space-y-2 text-[0.975rem] sm:text-base">
             {isClient ? (
-              <>
-                <li>自分FTA を入力しましょう（メニューの「自分FTA」）。</li>
-                <li>専属の対話パートナーが決まるまでお待ちください。決まり次第、アプリおよびメールでお知らせします。</li>
-              </>
+              <li>専属の対話パートナーが決まるまでお待ちください。決まり次第、アプリおよびメールでお知らせします。</li>
             ) : (
               <>
                 <li>自分FTA に入力してみましょう（クライアントや他の方に公開されることはありません）。</li>

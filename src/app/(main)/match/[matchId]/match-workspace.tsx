@@ -177,16 +177,18 @@ function hashFromTab(tab: MatchTab): string {
   return tab;
 }
 
+function isClientSideRole(role: Me["role"]) {
+  return role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR";
+}
+
 function canShowFtaTab(me: Me, settings: ScheduleSettingsPayload): boolean {
   if (!settings.planFeatures.fta) return false;
   if (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") return true;
-  return settings.companyPlan === "individual_companion" && me.role === "CLIENT";
+  return isClientSideRole(me.role);
 }
 
-function ftaTabLabel(me: Me, settings: ScheduleSettingsPayload): string {
-  return me.role === "CLIENT" && settings.companyPlan === "individual_companion"
-    ? "自分FTA"
-    : "クライアント自分FTA";
+function ftaTabLabel(me: Me, _settings: ScheduleSettingsPayload): string {
+  return isClientSideRole(me.role) ? "自分FTA" : "クライアント自分FTA";
 }
 
 type SessionAbandonmentApi = {
@@ -1010,14 +1012,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   }, [load, loadClientFta, loadAvailability, loadSessions]);
 
   useEffect(() => {
-    if (
-      me?.role === "CLIENT" &&
-      scheduleSettings.companyPlan === "individual_companion" &&
-      scheduleSettings.planFeatures.fta
-    ) {
+    if (me && isClientSideRole(me.role) && scheduleSettings.planFeatures.fta) {
       void loadMyFta();
     }
-  }, [me?.role, scheduleSettings.companyPlan, scheduleSettings.planFeatures.fta, loadMyFta]);
+  }, [me, scheduleSettings.planFeatures.fta, loadMyFta]);
 
   useEffect(() => {
     if (!myFtaDirty || myFtaSaving) return;

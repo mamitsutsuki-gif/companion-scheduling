@@ -188,14 +188,21 @@ export function resolveCompanyPlan(
   return normalizeCompanyPlan(company?.plan);
 }
 
-/** グローバルナビ・ホーム等の「自分FTA」導線を出すか（パートナーは常に、企業メンバーはプラン依存）。 */
+/**
+ * グローバルナビ・ホームの「自分FTA」導線を出すか。
+ * クライアント系はペアルーム内タブのみ（プランに応じて match-workspace 側で制御）。
+ */
 export function shouldShowGlobalFta(
   role: "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "CLIENT_HR" | string,
-  companyPlan: CompanyPlan,
+  _companyPlan?: CompanyPlan,
 ): boolean {
-  if (role === "PARTNER") return true;
-  if (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR") {
-    return getPlanFeatures(companyPlan).fta;
-  }
-  return false;
+  return role === "PARTNER";
+}
+
+/** クライアント向け FTA 入力・促しを出すか（マッチ／企業のプラン依存）。 */
+export function shouldUseClientFta(
+  companyPlan: CompanyPlan,
+  overrides?: PlanFeatureOverrides | null,
+): boolean {
+  return resolvePlanFeatures(companyPlan, overrides).fta;
 }

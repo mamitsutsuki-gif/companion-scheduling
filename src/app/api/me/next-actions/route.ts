@@ -13,7 +13,7 @@ import { getFtaByUserId } from "@/lib/repositories/fta-repository";
 import { getPartnerInvoice } from "@/lib/repositories/partner-invoice-repository";
 import { isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { getEffectiveAppSettingsForUser, getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
-import { shouldShowGlobalFta } from "@/lib/company-plan";
+import { shouldShowGlobalFta, shouldUseClientFta } from "@/lib/company-plan";
 import { getRoleplayStore } from "@/lib/repositories/coaching-repository";
 import {
   computeAllActions,
@@ -140,19 +140,25 @@ export async function GET() {
     messageCountByMatch[row.m.matchId] = row.messages.length;
   }
 
-  // FTA (CLIENT 系のみ意味があるが、プランで FTA が無効な企業メンバーには出さない)
+  // FTA (CLIENT 系: マッチがありプランで FTA が有効なときだけ促す)
   let myFta: ComputeInput["myFta"] | undefined;
-  const effective = await getEffectiveAppSettingsForUser(me.id);
-  const showFta = shouldShowGlobalFta(me.role, effective.companyPlan);
-  if (
-    showFta &&
-    (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR")
-  ) {
-    const chart = await getFtaByUserId(me.id);
-    myFta = {
-      visionText: chart.vision.text,
-      hasAnyElement: chart.elements.some((e) => e.text.trim().length > 0),
-    };
+  let ftaPromptMatchId: string | null = null;
+  const isClientSide =
+    me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR";
+  if (isClientSide) {
+    for (const row of perMatch) {
+      if (shouldUseClientFta(row.effective.companyPlan, row.effective.planFeatureOverrides)) {
+        ftaPromptMatchId = row.m.matchId;
+        break;
+      }
+    }
+    if (ftaPromptMatchId) {
+      const chart = await getFtaByUserId(me.id);
+      myFta = {
+        visionText: chart.vision.text,
+        hasAnyElement: chart.elements.some((e) => e.text.trim().length > 0),
+      };
+    }
   }
 
   // パートナーの当月請求書（Firestore バックエンドのみ。Prisma では getPartnerInvoice が常に null のため
@@ -175,6 +181,7 @@ export async function GET() {
     unreadByMatch,
     messageCountByMatch,
     myFta,
+    ftaPromptMatchId,
     myInvoice,
     now: new Date(),
   };

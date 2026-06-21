@@ -119,6 +119,8 @@ export type ComputeInput = {
   messageCountByMatch: Record<string, number>;
   /** 自分の FTA（CLIENT 系のときだけ意味がある） */
   myFta?: FtaSnapshot;
+  /** FTA 入力促しを出す先のマッチ（プランで FTA が有効なペア） */
+  ftaPromptMatchId?: string | null;
   /** 自分の当月請求書（PARTNER のときだけ意味がある） */
   myInvoice?: InvoiceSnapshot;
   /** 判定用の現在時刻（テスト/サーバ時刻ずれ対策） */
@@ -353,16 +355,16 @@ export function computeAllActions(input: ComputeInput): ActionItem[] {
   // ----- グローバル: FTA が空 (CLIENT 系のみ) -----
   const isClientSide =
     input.me.role === "CLIENT" || input.me.role === "CLIENT_ADMIN" || input.me.role === "CLIENT_HR";
-  if (isClientSide && input.myFta) {
+  if (isClientSide && input.myFta && input.ftaPromptMatchId) {
     const visionEmpty = (input.myFta.visionText ?? "").trim().length === 0;
     if (visionEmpty) {
       items.push({
         kind: "FILL_FTA",
-        message: "自分FTA がまだ書かれていません。「ありたい姿」だけでも入れてみましょう。",
-        href: "/fta",
-        ctaLabel: "自分FTAを開く",
+        message: "自分FTA がまだ書かれていません。担当ペアのルームから「ありたい姿」だけでも入れてみましょう。",
+        href: `/match/${input.ftaPromptMatchId}#fta`,
+        ctaLabel: "自分FTAタブを開く",
         severity: "todo",
-        matchId: null,
+        matchId: input.ftaPromptMatchId,
         weight: 65,
       });
     }

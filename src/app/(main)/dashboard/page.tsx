@@ -3,7 +3,6 @@ import { requireUser } from "@/lib/require-user";
 import { APP_DISPLAY_NAME } from "@/lib/brand";
 import { listMatchesForRole } from "@/lib/repositories/match-repository";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
-import { getEffectiveAppSettingsForUser } from "@/lib/effective-app-settings";
 import { shouldShowGlobalFta } from "@/lib/company-plan";
 import { PartnerInvoiceAlert } from "@/components/partner-invoice-alert";
 import { TodayFocusCard } from "@/components/today-focus-card";
@@ -30,12 +29,11 @@ export default async function DashboardPage({
   const rawCompany = sp.company;
   const companyFilter = typeof rawCompany === "string" ? rawCompany.trim() : "";
 
-  const [allMatches, settings, effective] = await Promise.all([
+  const [allMatches, settings] = await Promise.all([
     listMatchesForRole({ role: me.role, userId: me.id }),
     getAppSettingsRow(),
-    getEffectiveAppSettingsForUser(me.id),
   ]);
-  const showFta = shouldShowGlobalFta(me.role, effective.companyPlan);
+  const showFta = shouldShowGlobalFta(me.role);
 
   // 管理者・管理者アシスタントだけが企業フィルタを使える。それ以外は全件のままで挙動を変えない。
   const isAdmin = me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT";
