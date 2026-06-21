@@ -3,16 +3,22 @@
 import { AdminCompanyClientPartnerBriefingsSection } from "@/components/admin-company-client-partner-briefings-section";
 import Link from "next/link";
 import { use, useEffect, useMemo, useState } from "react";
+import type { CompanyPlan } from "@/lib/company-plan";
 import {
   INDIVIDUAL_COMPANION_FEATURE_OPTIONS,
   MEETING_PROVIDER_OPTIONS,
   companyPlanLabel,
   getPlanFeatures,
   resolvePlanFeatures,
-  type CompanyPlan,
   type IndividualCompanionFeatureKey,
   type PlanFeatureOverrides,
 } from "@/lib/company-plan";
+import {
+  buildDefaultCoachingSessionModes,
+  resolveCoachingSessionMode,
+  type CoachingSessionMode,
+  type CoachingSessionModesByRound,
+} from "@/lib/coaching-session-mode";
 
 type PartnerProjectOverviewForm = {
   companyName: string;
@@ -59,6 +65,7 @@ type SettingsSnapshot = {
   shareFtaWithinCompany?: boolean | null;
   planFeatureOverrides?: PlanFeatureOverrides | null;
   meetingProvider?: "zoom" | "google_meet";
+  coachingSessionModesByRound?: CoachingSessionModesByRound | null;
 };
 
 type OverridableKey = keyof Pick<
@@ -83,6 +90,7 @@ type ApiResponse = {
     overriddenFields: OverridableKey[];
     planFeatureOverrides?: PlanFeatureOverrides | null;
     meetingProvider?: "zoom" | "google_meet";
+    coachingSessionModesByRound?: CoachingSessionModesByRound | null;
   };
 };
 
@@ -172,6 +180,27 @@ export default function AdminCompanySettingsPage({
   const [planFeaturesCustomized, setPlanFeaturesCustomized] = useState(false);
   const [vMeetingProvider, setVMeetingProvider] = useState<"zoom" | "google_meet">("zoom");
   const [initialMeetingProvider, setInitialMeetingProvider] = useState<"zoom" | "google_meet">("zoom");
+  const [vCoachingModes, setVCoachingModes] = useState<CoachingSessionModesByRound>({});
+  const [coachingModesCustomized, setCoachingModesCustomized] = useState(false);
+
+  function coachingModesFromEffective(
+    eff: ApiResponse["effective"],
+    plan: CompanyPlan,
+  ): CoachingSessionModesByRound {
+    if (plan !== "coaching_management_training") return {};
+    const out: CoachingSessionModesByRound = {};
+    for (let i = 1; i <= eff.totalSessions; i++) {
+      out[String(i)] = resolveCoachingSessionMode(
+        {
+          companyPlan: plan,
+          totalSessions: eff.totalSessions,
+          coachingSessionModesByRound: eff.coachingSessionModesByRound ?? null,
+        },
+        i,
+      );
+    }
+    return out;
+  }
 
   function applyApiResponse(json: ApiResponse) {
     setData(json);
@@ -236,6 +265,10 @@ export default function AdminCompanySettingsPage({
     const mp = eff.meetingProvider ?? "zoom";
     setVMeetingProvider(mp);
     setInitialMeetingProvider(mp);
+    setVCoachingModes(coachingModesFromEffective(eff, companyPlan));
+    setCoachingModesCustomized(
+      Boolean(ov.coachingSessionModesByRound && Object.keys(ov.coachingSessionModesByRound).length > 0),
+    );
   }
 
   function ensureOverride(key: OverridableKey) {
@@ -461,6 +494,16 @@ export default function AdminCompanySettingsPage({
       body.planFeatureOverrides = overrides;
     } else if (companyPlan === "individual_companion" && data.override?.planFeatureOverrides) {
       body.clearPlanFeatureOverrides = true;
+    }
+
+    if (companyPlan === "coaching_management_training") {
+      const cleaned: CoachingSessionModesByRound = {};
+      for (let i = 1; i <= vTotalSessions; i++) {
+        cleaned[String(i)] = vCoachingModes[String(i)] ?? buildDefaultCoachingSessionModes(vTotalSessions)[String(i)]!;
+      }
+      body.coachingSessionModesByRound = cleaned;
+    } else if (data.override?.coachingSessionModesByRound) {
+      body.clearCoachingSessionModes = true;
     }
 
     try {
@@ -991,6 +1034,58 @@ export default function AdminCompanySettingsPage({
                 ))}
               </div>
             </section>
+          ) : companyPlan === "coaching_management_training" ? (
+            <section className="rounded-xl border border-teal-200 bg-teal-50/60 p-4">
+              <h3 className="text-base font-semibold text-teal-950">各回の 1on1 フォーム種別</h3>
+              <p className="mt-2 text-sm leading-relaxed text-teal-900/90">
+                コーチングマネジメント研修では、回ごとに「ロールプレイ評価（双方評価・レーダーチャート）」か
+                「通常のセッションフィードバック」と切り替えられます。未設定の回は 1〜3 回目をロールプレイ、4 回目以降を通常フィードバックとします。
+              </p>
+              <ul className="mt-4 space-y-3">
+                {Array.from({ length: Math.max(1, vTotalSessions) }, (_, i) => i + 1).map((round) => {
+                  const mode = vCoachingModes[String(round)] ?? "roleplay";
+                  return (
+                    <li
+                      key={round}
+                      className="rounded-lg border border-teal-200 bg-white px-4 py-3"
+                    >
+                      <p className="text-sm font-semibold text-teal-950">{round} 回目</p>
+                      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-800">
+                          <input
+                            type="radio"
+                            name={`coaching-mode-${round}`}
+                            checked={mode === "roleplay"}
+                            onChange={() => {
+                              setCoachingModesCustomized(true);
+                              setVCoachingModes((p) => ({ ...p, [String(round)]: "roleplay" }));
+                            }}
+                            className="h-4 w-4 accent-teal-700"
+                          />
+                          ロールプレイ評価（双方評価・レーダーチャート）
+                        </label>
+                        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-800">
+                          <input
+                            type="radio"
+                            name={`coaching-mode-${round}`}
+                            checked={mode === "standard"}
+                            onChange={() => {
+                              setCoachingModesCustomized(true);
+                              setVCoachingModes((p) => ({ ...p, [String(round)]: "standard" }));
+                            }}
+                            className="h-4 w-4 accent-teal-700"
+                          />
+                          通常のセッションフィードバック
+                        </label>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              {coachingModesCustomized ? (
+                <p className="mt-3 text-xs text-teal-900/75">企業ごとの設定として保存されます。</p>
+              ) : null}
+            </section>
           ) : (
             <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
               導入プラン: {companyPlanLabel(companyPlan)} — 成果物の個別選択は個別伴走プランのみ利用できます。
@@ -1023,6 +1118,19 @@ export default function AdminCompanySettingsPage({
                 onChange={(n) => {
                   ensureOverride("totalSessions");
                   setTotalSessions(n);
+                  if (companyPlan === "coaching_management_training") {
+                    setVCoachingModes((prev) => {
+                      const next = { ...prev };
+                      for (let i = 1; i <= n; i++) {
+                        const key = String(i);
+                        if (!next[key]) next[key] = buildDefaultCoachingSessionModes(n)[key]!;
+                      }
+                      for (const key of Object.keys(next)) {
+                        if (Number(key) > n) delete next[key];
+                      }
+                      return next;
+                    });
+                  }
                 }}
                 min={1}
                 max={60}

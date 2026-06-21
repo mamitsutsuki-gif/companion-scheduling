@@ -6,6 +6,10 @@ import { getSessionFeedback } from "@/lib/repositories/session-feedback-reposito
 import { getSessionReport } from "@/lib/repositories/session-report-repository";
 import { getSessionAbandonment } from "@/lib/repositories/session-abandonment-repository";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
+import {
+  coachingSessionModeContextFromEffective,
+  isCoachingRoleplaySession,
+} from "@/lib/coaching-session-mode";
 
 type RouteContext = { params: Promise<{ matchId: string; sessionNumber: string }> };
 
@@ -41,6 +45,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
   // この match のクライアント企業に効く実効設定で、ガイドライン・追加質問を返す。
   const settings = await getEffectiveAppSettingsForMatch(matchId);
+  const modeCtx = coachingSessionModeContextFromEffective(settings);
   const partnerExtraQuestions = settings.partnerExtraQuestionsByRound[String(n)] ?? [];
   const clientExtraQuestions = settings.clientExtraQuestionsByRound[String(n)] ?? [];
   const guidelineRaw = settings.sessionGuidelinesByRound[String(n)] ?? null;
@@ -70,8 +75,7 @@ export async function GET(_request: Request, context: RouteContext) {
     matchId,
     sessionNumber: n,
     companyPlan: settings.companyPlan,
-    isCoachingRoleplaySession:
-      settings.companyPlan === "coaching_management_training" && n >= 1 && n <= 3,
+    isCoachingRoleplaySession: isCoachingRoleplaySession(modeCtx, n),
     plan: target,
     openable: true,
     viewerRole: session.role,

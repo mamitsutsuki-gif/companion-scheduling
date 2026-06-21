@@ -6,6 +6,7 @@ import {
   ROLEPLAY_CATEGORIES,
   SCORE_LABELS,
   categoryAverages,
+  ensureRoleplayStoreSessions,
   normalizeRoleplaySession,
   redactRoleplayStoreForViewer,
   roleplayBothSubmitted,
@@ -15,6 +16,11 @@ import {
 } from "@/lib/coaching-roleplay";
 import { getRoleplayStore, saveRoleplayStore } from "@/lib/repositories/coaching-repository";
 import { notifyRoleplayMutualReveal } from "@/lib/notify-members";
+import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
+import {
+  coachingSessionModeContextFromEffective,
+  isCoachingRoleplaySession,
+} from "@/lib/coaching-session-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +32,7 @@ const scoreSchema = z.object({
 });
 
 const sessionSchema = z.object({
-  round: z.number().int().min(1).max(3),
+  round: z.number().int().min(1).max(60),
   conductedAt: z.string().max(20).optional(),
   clientRole: z.string().max(200).optional(),
   partnerRole: z.string().max(200).optional(),
@@ -66,6 +72,8 @@ export async function GET(_req: Request, ctx: RouteContext) {
     return jsonError("権限がありません。", 403);
   }
   const store = await getRoleplayStore(matchId);
+  const settings = await getEffectiveAppSettingsForMatch(matchId);
+  const modeCtx = coachingSessionModeContextFromEffective(settings);
   const rounds = store.sessions.map((s) => ({
     round: s.round,
     selfCategoryAvg: categoryAverages(s.selfScores),
@@ -78,6 +86,9 @@ export async function GET(_req: Request, ctx: RouteContext) {
     scoreLabels: SCORE_LABELS,
     roundSummaries: rounds,
     roundStatuses: store.sessions.map(roleplayRoundStatus),
+    roleplaySessionNumbers: Array.from({ length: settings.totalSessions }, (_, i) => i + 1).filter(
+      (sn) => isCoachingRoleplaySession(modeCtx, sn),
+    ),
     permissions: {
       canEditClient: access.canEditClient,
       canEditPartner: access.canEditPartner,
@@ -97,9 +108,16 @@ export async function PUT(request: Request, ctx: RouteContext) {
   if (!parsed.success) return jsonError("入力内容を確認してください。", 400);
 
   const store = await getRoleplayStore(matchId);
-  const round = parsed.data.round as 1 | 2 | 3;
+  const settings = await getEffectiveAppSettingsForMatch(matchId);
+  const modeCtx = coachingSessionModeContextFromEffective(settings);
+  const round = parsed.data.round;
+  if (!isCoachingRoleplaySession(modeCtx, round)) {
+    return jsonError("この回のセッションはロールプレイ評価ではありません。", 403);
+  }
+
   const idx = round - 1;
-  const prev = store.sessions[idx] ?? normalizeRoleplaySession({}, round);
+  const sessions = ensureRoleplayStoreSessions(store, round);
+  const prev = sessions[idx] ?? normalizeRoleplaySession({}, round);
 
   if (
     roleplayBothSubmitted(prev) &&
@@ -187,7 +205,7 @@ export async function PUT(request: Request, ctx: RouteContext) {
     // 開示後は双方とも編集不可（管理者は API 上は別途）
   }
 
-  const nextSessions = store.sessions.slice();
+  const nextSessions = sessions.slice();
   nextSessions[idx] = merged;
   const saved = await saveRoleplayStore({ ...store, matchId, sessions: nextSessions });
 

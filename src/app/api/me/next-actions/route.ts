@@ -101,6 +101,8 @@ export async function GET() {
     metaByMatch[row.m.matchId] = {
       matchId: row.m.matchId,
       companyPlan: row.effective.companyPlan,
+      totalSessions: row.effective.totalSessions,
+      coachingSessionModesByRound: row.effective.coachingSessionModesByRound,
       roleplayStore: row.roleplayStore,
     };
     negotiationsByMatch[row.m.matchId] = row.negs.map((n) => ({

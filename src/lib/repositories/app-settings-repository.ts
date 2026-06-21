@@ -16,6 +16,10 @@ import {
   type PlanFeatureOverrides,
 } from "@/lib/company-plan";
 import { normalizeCompanySkillDefinitions, type SkillDefinition } from "@/lib/skill-check";
+import {
+  normalizeCoachingSessionModesByRound,
+  type CoachingSessionModesByRound,
+} from "@/lib/coaching-session-mode";
 
 /** { [sessionNumber: number]: string[] } 各回のレポートに表示する追加設問 */
 export type PartnerExtraQuestionsByRound = Record<string, string[]>;
@@ -168,6 +172,8 @@ export type CompanyAppSettingsOverride = Partial<AppSettingsOverridableFields> &
   planFeatureOverrides?: PlanFeatureOverrides;
   /** 1on1 で使うオンライン会議（Zoom / Google Meet）。未設定 = Zoom。 */
   meetingProvider?: MeetingProvider;
+  /** コーチング研修: 各回の 1on1 フォーム種別（未設定 = 1〜3回目ロールプレイ） */
+  coachingSessionModesByRound?: CoachingSessionModesByRound;
 };
 
 export function normalizeCompanies(input: unknown): CompanyOption[] {
@@ -332,6 +338,9 @@ export function normalizeCompanyAppSettingsOverride(
   if (pfo) out.planFeatureOverrides = pfo;
   if (raw.meetingProvider === "zoom" || raw.meetingProvider === "google_meet") {
     out.meetingProvider = raw.meetingProvider;
+  }
+  if (raw.coachingSessionModesByRound !== undefined && raw.coachingSessionModesByRound !== null) {
+    out.coachingSessionModesByRound = normalizeCoachingSessionModesByRound(raw.coachingSessionModesByRound);
   }
   return out;
 }
@@ -776,6 +785,8 @@ export async function upsertCompanyAppSettingsOverride(
     clearPlanFeatureOverrides?: boolean;
     meetingProvider?: MeetingProvider;
     clearMeetingProvider?: boolean;
+    coachingSessionModesByRound?: CoachingSessionModesByRound | null;
+    clearCoachingSessionModes?: boolean;
   },
 ): Promise<CompanyAppSettingsOverride | null> {
   const cid = sanitizeCompanyId(companyId);
@@ -795,6 +806,8 @@ export async function upsertCompanyAppSettingsOverride(
     clearPlanFeatureOverrides,
     meetingProvider: patchMeetingProvider,
     clearMeetingProvider,
+    coachingSessionModesByRound: patchCoachingSessionModes,
+    clearCoachingSessionModes,
     ...restPatch
   } = patch;
 
@@ -840,6 +853,16 @@ export async function upsertCompanyAppSettingsOverride(
   } else if (patchMeetingProvider !== undefined) {
     writeData.meetingProvider = normalizeMeetingProvider(patchMeetingProvider);
   }
+  if (clearCoachingSessionModes) {
+    writeData.coachingSessionModesByRound = FieldValue.delete();
+  } else if (patchCoachingSessionModes !== undefined) {
+    const modes =
+      patchCoachingSessionModes === null
+        ? null
+        : normalizeCoachingSessionModesByRound(patchCoachingSessionModes);
+    writeData.coachingSessionModesByRound =
+      modes && Object.keys(modes).length > 0 ? modes : FieldValue.delete();
+  }
   await ref.set(writeData, { merge: true });
   const snap = await ref.get();
   return normalizeCompanyAppSettingsOverride(cid, snap.data() ?? {});
@@ -877,6 +900,8 @@ export type EffectiveAppSettings = AppSettingsRow & {
   planFeatureOverrides: PlanFeatureOverrides | null;
   /** 1on1 で使うオンライン会議。未設定 = Zoom。 */
   meetingProvider: MeetingProvider;
+  /** コーチング研修: 各回フォーム種別の企業上書き（未設定 = プラン既定） */
+  coachingSessionModesByRound: CoachingSessionModesByRound | null;
 };
 
 export async function getEffectiveAppSettings(opts: {
@@ -898,6 +923,7 @@ export async function getEffectiveAppSettings(opts: {
       companyPlan: DEFAULT_COMPANY_PLAN,
       planFeatureOverrides: null,
       meetingProvider: "zoom",
+      coachingSessionModesByRound: null,
     };
   }
   const override =
@@ -913,6 +939,7 @@ export async function getEffectiveAppSettings(opts: {
       companyPlan: resolveCompanyPlan(cid, global.companies),
       planFeatureOverrides: null,
       meetingProvider: "zoom",
+      coachingSessionModesByRound: null,
     };
   }
   const overridden: Array<keyof AppSettingsOverridableFields> = [];
@@ -954,5 +981,6 @@ export async function getEffectiveAppSettings(opts: {
     companyPlan: resolveCompanyPlan(cid, global.companies),
     planFeatureOverrides: override.planFeatureOverrides ?? null,
     meetingProvider: normalizeMeetingProvider(override.meetingProvider),
+    coachingSessionModesByRound: override.coachingSessionModesByRound ?? null,
   };
 }

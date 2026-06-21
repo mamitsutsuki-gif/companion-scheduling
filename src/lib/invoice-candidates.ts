@@ -5,6 +5,10 @@ import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { getRoleplayStore } from "@/lib/repositories/coaching-repository";
 import { roleplaySideComplete } from "@/lib/coaching-roleplay";
+import {
+  coachingSessionModeContextFromEffective,
+  isCoachingRoleplaySession,
+} from "@/lib/coaching-session-mode";
 import { companyLabelFromRegistry } from "@/lib/company-display";
 import type { PartnerInvoiceItem } from "@/lib/repositories/partner-invoice-repository";
 
@@ -110,12 +114,12 @@ function reportKey(matchId: string, sessionNumber: number) {
 function partnerSessionHasBillableContent(input: {
   matchId: string;
   sessionNumber: number;
-  isCoachingPlan: boolean;
+  modeCtx: ReturnType<typeof coachingSessionModeContextFromEffective>;
   report: RawReportDoc | null;
   roleplayStore: Awaited<ReturnType<typeof getRoleplayStore>> | null;
 }): boolean {
-  const { sessionNumber, isCoachingPlan, report, roleplayStore } = input;
-  if (isCoachingPlan && sessionNumber >= 1 && sessionNumber <= 3) {
+  const { sessionNumber, modeCtx, report, roleplayStore } = input;
+  if (isCoachingRoleplaySession(modeCtx, sessionNumber)) {
     const session = roleplayStore?.sessions[sessionNumber - 1];
     return session ? roleplaySideComplete(session, "partner") : false;
   }
@@ -214,8 +218,11 @@ export async function buildInvoiceCandidatesForPartner(
   await Promise.all(
     matches.map(async (match) => {
       const effective = await getEffectiveAppSettingsForMatch(match.id);
-      const isCoachingPlan = effective.companyPlan === "coaching_management_training";
-      const roleplayStore = isCoachingPlan ? await getRoleplayStore(match.id) : null;
+      const modeCtx = coachingSessionModeContextFromEffective(effective);
+      const roleplayStore =
+        effective.companyPlan === "coaching_management_training"
+          ? await getRoleplayStore(match.id)
+          : null;
       const plan = await listSessionPlanForMatch(match.id);
 
       for (const session of plan) {
@@ -229,7 +236,7 @@ export async function buildInvoiceCandidatesForPartner(
           !partnerSessionHasBillableContent({
             matchId: match.id,
             sessionNumber: session.sessionNumber,
-            isCoachingPlan,
+            modeCtx,
             report,
             roleplayStore,
           })
@@ -309,8 +316,11 @@ export async function listPartnersWithReportsForMonth(
     matches.map(async (match) => {
       if (!match.partnerId) return;
       const effective = await getEffectiveAppSettingsForMatch(match.id);
-      const isCoachingPlan = effective.companyPlan === "coaching_management_training";
-      const roleplayStore = isCoachingPlan ? await getRoleplayStore(match.id) : null;
+      const modeCtx = coachingSessionModeContextFromEffective(effective);
+      const roleplayStore =
+        effective.companyPlan === "coaching_management_training"
+          ? await getRoleplayStore(match.id)
+          : null;
       const plan = await listSessionPlanForMatch(match.id);
 
       for (const session of plan) {
@@ -323,7 +333,7 @@ export async function listPartnersWithReportsForMonth(
           !partnerSessionHasBillableContent({
             matchId: match.id,
             sessionNumber: session.sessionNumber,
-            isCoachingPlan,
+            modeCtx,
             report,
             roleplayStore,
           })

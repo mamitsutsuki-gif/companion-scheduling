@@ -10,6 +10,7 @@ import {
   upsertCompanyAppSettingsOverride,
 } from "@/lib/repositories/app-settings-repository";
 import { normalizePlanFeatureOverrides } from "@/lib/company-plan";
+import { normalizeCoachingSessionModesByRound } from "@/lib/coaching-session-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +91,10 @@ const patchSchema = z.object({
   clearPlanFeatureOverrides: z.boolean().optional(),
   meetingProvider: z.enum(["zoom", "google_meet"]).optional(),
   clearMeetingProvider: z.boolean().optional(),
+  coachingSessionModesByRound: z
+    .record(z.string(), z.enum(["standard", "roleplay"]))
+    .optional(),
+  clearCoachingSessionModes: z.boolean().optional(),
 });
 
 /**
@@ -139,7 +144,7 @@ export async function PATCH(request: Request, ctx: RouteContext) {
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
 
-  const { clearFields, clearPartnerProjectOverview, clearClientProjectOverview, clearPlanFeatureOverrides, clearMeetingProvider, ...rest } =
+  const { clearFields, clearPartnerProjectOverview, clearClientProjectOverview, clearPlanFeatureOverrides, clearMeetingProvider, clearCoachingSessionModes, ...rest } =
     parsed.data;
   if (clearFields && clearFields.length > 0) {
     for (const k of clearFields) {
@@ -156,6 +161,9 @@ export async function PATCH(request: Request, ctx: RouteContext) {
   }
   if (clearPlanFeatureOverrides && rest.planFeatureOverrides !== undefined) {
     return jsonError("planFeatureOverrides を同時に clear と set することはできません。");
+  }
+  if (clearCoachingSessionModes && rest.coachingSessionModesByRound !== undefined) {
+    return jsonError("coachingSessionModesByRound を同時に clear と set することはできません。");
   }
   if (
     typeof rest.slotEarliestHour === "number" &&
@@ -176,6 +184,10 @@ export async function PATCH(request: Request, ctx: RouteContext) {
     clearClientProjectOverview: clearClientProjectOverview === true,
     clearPlanFeatureOverrides: clearPlanFeatureOverrides === true,
     clearMeetingProvider: clearMeetingProvider === true,
+    clearCoachingSessionModes: clearCoachingSessionModes === true,
+    coachingSessionModesByRound: rest.coachingSessionModesByRound
+      ? normalizeCoachingSessionModesByRound(rest.coachingSessionModesByRound)
+      : undefined,
   });
 
   const substantiveKeys = next

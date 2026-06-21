@@ -8,6 +8,10 @@ import { listSessionAbandonmentsForMatch } from "@/lib/repositories/session-aban
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { getRoleplayStore } from "@/lib/repositories/coaching-repository";
 import { roleplaySideComplete } from "@/lib/coaching-roleplay";
+import {
+  coachingSessionModeContextFromEffective,
+  isCoachingRoleplaySession,
+} from "@/lib/coaching-session-mode";
 
 type RouteContext = { params: Promise<{ matchId: string }> };
 
@@ -27,6 +31,7 @@ export async function GET(_request: Request, context: RouteContext) {
   const reports = await listSessionReportsForMatch(matchId);
   const abandonments = await listSessionAbandonmentsForMatch(matchId);
   const effective = await getEffectiveAppSettingsForMatch(matchId);
+  const modeCtx = coachingSessionModeContextFromEffective(effective);
   const isCoachingPlan = effective.companyPlan === "coaching_management_training";
   const roleplayStore = isCoachingPlan ? await getRoleplayStore(matchId) : null;
 
@@ -39,18 +44,21 @@ export async function GET(_request: Request, context: RouteContext) {
   const rows = plan.map((row) => {
     const ab = abMap.get(row.sessionNumber) ?? null;
     const roleplaySession =
-      isCoachingPlan && row.sessionNumber >= 1 && row.sessionNumber <= 3
+      isCoachingRoleplaySession(modeCtx, row.sessionNumber)
         ? roleplayStore?.sessions[row.sessionNumber - 1] ?? null
         : null;
-    const hasClientFeedback = isCoachingPlan && roleplaySession
-      ? roleplaySideComplete(roleplaySession, "client")
-      : fbSet.has(row.sessionNumber);
-    const hasPartnerReport = isCoachingPlan && roleplaySession
-      ? roleplaySideComplete(roleplaySession, "partner")
-      : rpSet.has(row.sessionNumber);
+    const hasClientFeedback =
+      roleplaySession != null
+        ? roleplaySideComplete(roleplaySession, "client")
+        : fbSet.has(row.sessionNumber);
+    const hasPartnerReport =
+      roleplaySession != null
+        ? roleplaySideComplete(roleplaySession, "partner")
+        : rpSet.has(row.sessionNumber);
     return {
       ...row,
       openable: true,
+      isRoleplaySession: isCoachingRoleplaySession(modeCtx, row.sessionNumber),
       hasClientFeedback,
       hasPartnerReport,
       abandonment: ab

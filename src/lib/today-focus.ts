@@ -1,5 +1,10 @@
 import type { ActionItem, ComputeInput, MatchSnapshot, SessionPlanSnapshot } from "@/lib/next-actions";
 import { computeAllActions } from "@/lib/next-actions";
+import {
+  coachingSessionModeContextFromEffective,
+  isCoachingRoleplaySession,
+  type CoachingSessionModesByRound,
+} from "@/lib/coaching-session-mode";
 import { roleplaySideComplete, type RoleplayStore } from "@/lib/coaching-roleplay";
 
 export type TodayFocusNextSession = {
@@ -39,6 +44,8 @@ export type TodayFocus = {
 export type TodayFocusMatchMeta = {
   matchId: string;
   companyPlan: string;
+  totalSessions: number;
+  coachingSessionModesByRound: CoachingSessionModesByRound | null;
   roleplayStore: RoleplayStore | null;
 };
 
@@ -131,8 +138,14 @@ function findPendingRoleplay(
     const meta = metaByMatch[m.matchId];
     if (!meta || meta.companyPlan !== "coaching_management_training" || !meta.roleplayStore) continue;
 
+    const modeCtx = coachingSessionModeContextFromEffective({
+      companyPlan: "coaching_management_training",
+      totalSessions: meta.totalSessions,
+      coachingSessionModesByRound: meta.coachingSessionModesByRound,
+    });
     const plan = sessionPlanByMatch[m.matchId] ?? [];
-    for (let sn = 1; sn <= 3; sn++) {
+    for (let sn = 1; sn <= meta.totalSessions; sn++) {
+      if (!isCoachingRoleplaySession(modeCtx, sn)) continue;
       const row = plan.find((p) => p.sessionNumber === sn);
       if (!row?.confirmed || !row.endAt || new Date(row.endAt) > now) continue;
       const session = meta.roleplayStore.sessions[sn - 1];

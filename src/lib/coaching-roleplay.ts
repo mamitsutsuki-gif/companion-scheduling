@@ -184,7 +184,8 @@ export type RoleplaySessionFeedback = {
 };
 
 export type RoleplaySession = {
-  round: 1 | 2 | 3;
+  /** セッション回数（1on1 の第 N 回） */
+  round: number;
   conductedAt: string;
   clientRole: string;
   partnerRole: string;
@@ -215,7 +216,7 @@ function emptyScores(): Record<string, RoleplayItemScore> {
   return out;
 }
 
-export function normalizeRoleplaySession(input: unknown, round: 1 | 2 | 3): RoleplaySession {
+export function normalizeRoleplaySession(input: unknown, round: number): RoleplaySession {
   const raw = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
   const parseScores = (src: unknown) => {
     const base = emptyScores();
@@ -283,17 +284,32 @@ export function normalizeRoleplaySession(input: unknown, round: 1 | 2 | 3): Role
   };
 }
 
+export function ensureRoleplayStoreSessions(store: RoleplayStore, sessionNumber: number): RoleplaySession[] {
+  const sessions = [...store.sessions];
+  const target = Math.max(1, Math.min(60, Math.round(sessionNumber)));
+  while (sessions.length < target) {
+    sessions.push(normalizeRoleplaySession({}, sessions.length + 1));
+  }
+  return sessions;
+}
+
+export function getRoleplaySessionForNumber(
+  store: RoleplayStore,
+  sessionNumber: number,
+): RoleplaySession {
+  const sessions = ensureRoleplayStoreSessions(store, sessionNumber);
+  return sessions[sessionNumber - 1]!;
+}
+
 export function normalizeRoleplayStore(matchId: string, input: unknown): RoleplayStore {
   const raw = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
   const sessions: RoleplaySession[] = [];
   const rawSessions = Array.isArray(raw.sessions) ? raw.sessions : [];
-  for (let i = 0; i < Math.min(3, rawSessions.length); i++) {
-    const round = (i + 1) as 1 | 2 | 3;
-    sessions.push(normalizeRoleplaySession(rawSessions[i], round));
+  for (let i = 0; i < rawSessions.length && i < 60; i++) {
+    sessions.push(normalizeRoleplaySession(rawSessions[i], i + 1));
   }
   while (sessions.length < 3) {
-    const round = (sessions.length + 1) as 1 | 2 | 3;
-    sessions.push(normalizeRoleplaySession({}, round));
+    sessions.push(normalizeRoleplaySession({}, sessions.length + 1));
   }
   return {
     matchId,

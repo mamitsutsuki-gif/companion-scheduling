@@ -215,6 +215,7 @@ type SessionPlanApiRow = {
   endAt: string | null;
   negotiationId: string | null;
   openable: boolean;
+  isRoleplaySession?: boolean;
   hasClientFeedback: boolean;
   hasPartnerReport: boolean;
   abandonment?: SessionAbandonmentApi | null;
@@ -2583,18 +2584,19 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               const filledBadges: string[] = [];
               if (!isAbandoned) {
                 const coachingPlan = scheduleSettings.companyPlan === "coaching_management_training";
+                const isRoleplayRow = coachingPlan && row.isRoleplaySession !== false;
                 if (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") {
                   filledBadges.push(
                     row.hasClientFeedback
-                      ? coachingPlan ? "自己評価済" : "クライアント振り返り済"
-                      : coachingPlan ? "自己評価未入力" : "クライアント未提出",
+                      ? isRoleplayRow ? "自己評価済" : coachingPlan ? "振り返り済" : "クライアント振り返り済"
+                      : isRoleplayRow ? "自己評価未入力" : coachingPlan ? "振り返り未入力" : "クライアント未提出",
                   );
                 }
                 if (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") {
                   filledBadges.push(
                     row.hasPartnerReport
-                      ? coachingPlan ? "パートナー評価済" : "パートナーレポート済"
-                      : coachingPlan ? "パートナー評価未入力" : "パートナー未提出",
+                      ? isRoleplayRow ? "パートナー評価済" : coachingPlan ? "レポート済" : "パートナーレポート済"
+                      : isRoleplayRow ? "パートナー評価未入力" : coachingPlan ? "レポート未入力" : "パートナー未提出",
                   );
                 }
               }

@@ -271,7 +271,7 @@ export function CoachingSessionRoleplayPanel({
   readOnly?: boolean;
   viewerRole: ViewerRole;
 }) {
-  const round = sessionNumber as 1 | 2 | 3;
+  const round = sessionNumber;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -12,6 +12,10 @@ import { listSessionPlanForMatch } from "@/lib/repositories/match-sessions-repos
 import { listConfirmedSessionsForCompany } from "@/lib/repositories/confirmed-sessions-admin-repository";
 import { getRoleplayStore } from "@/lib/repositories/coaching-repository";
 import { roleplaySideComplete } from "@/lib/coaching-roleplay";
+import {
+  coachingSessionModeContextFromEffective,
+  isCoachingRoleplaySession,
+} from "@/lib/coaching-session-mode";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { companyLabelFromRegistry } from "@/lib/company-display";
 
@@ -128,7 +132,7 @@ function buildFocusLines(args: {
   partnerName: string;
   clientName: string;
   plan: Awaited<ReturnType<typeof listSessionPlanForMatch>>;
-  isCoaching: boolean;
+  modeCtx: ReturnType<typeof coachingSessionModeContextFromEffective>;
   roleplayStore: Awaited<ReturnType<typeof getRoleplayStore>> | null;
   now: Date;
 }): string[] {
@@ -140,8 +144,9 @@ function buildFocusLines(args: {
   if (upcoming?.startAt) {
     lines.push(`次回 1on1: 第${upcoming.sessionNumber}回（${formatJa(upcoming.startAt)}）— ${other}`);
   }
-  if (args.isCoaching && args.roleplayStore) {
-    for (let i = 1; i <= 3; i++) {
+  if (args.roleplayStore) {
+    for (let i = 1; i <= args.modeCtx.totalSessions; i++) {
+      if (!isCoachingRoleplaySession(args.modeCtx, i)) continue;
       const s = args.roleplayStore.sessions[i - 1];
       if (!s) continue;
       const side = args.role === "PARTNER" ? "partner" : "client";
@@ -266,6 +271,7 @@ export async function buildAdminDemoMatchPreview(matchId: string): Promise<Admin
     effective.planFeatureOverrides,
   );
   const isCoaching = effective.companyPlan === "coaching_management_training";
+  const modeCtx = coachingSessionModeContextFromEffective(effective);
   const roleplayStore = isCoaching ? await getRoleplayStore(matchId) : null;
   const now = new Date();
   const sessions = sessionRowsFromPlan(plan, now);
@@ -311,7 +317,7 @@ export async function buildAdminDemoMatchPreview(matchId: string): Promise<Admin
         partnerName,
         clientName,
         plan,
-        isCoaching,
+        modeCtx,
         roleplayStore,
         now,
       }),
@@ -342,7 +348,7 @@ export async function buildAdminDemoMatchPreview(matchId: string): Promise<Admin
         partnerName,
         clientName,
         plan,
-        isCoaching,
+        modeCtx,
         roleplayStore,
         now,
       }),
