@@ -16,6 +16,13 @@ import {
 
 type Permissions = { canEditClient: boolean; canEditPartner: boolean };
 
+type RoundStatus = {
+  round: number;
+  clientSubmitted: boolean;
+  partnerSubmitted: boolean;
+  mutualReveal: boolean;
+};
+
 type ViewerRole =
   | "ADMIN"
   | "ADMIN_ASSISTANT"
@@ -178,6 +185,40 @@ function CategoryScores({
   );
 }
 
+function ItemScoreComparison({
+  cat,
+  selfScores,
+  partnerScores,
+}: {
+  cat: RoleplayCategoryDef;
+  selfScores: Record<string, RoleplayItemScore>;
+  partnerScores: Record<string, RoleplayItemScore>;
+}) {
+  return (
+    <details className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm">
+      <summary className="cursor-pointer text-lg font-semibold text-slate-900">{cat.label}</summary>
+      <ul className="mt-4 space-y-2">
+        {cat.items.map((item) => {
+          const self = selfScores[item.id]?.score;
+          const partner = partnerScores[item.id]?.score;
+          if (self == null && partner == null) return null;
+          return (
+            <li
+              key={item.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm"
+            >
+              <span className="font-medium text-slate-900">{item.label}</span>
+              <span className="text-slate-600">
+                自己 {self ?? "—"}点 / パートナー {partner ?? "—"}点
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
+  );
+}
+
 function ComparisonBlock({
   title,
   labels,
@@ -237,6 +278,7 @@ export function CoachingSessionRoleplayPanel({
   const [notice, setNotice] = useState<string | null>(null);
   const [store, setStore] = useState<RoleplayStore | null>(null);
   const [permissions, setPermissions] = useState<Permissions>({ canEditClient: false, canEditPartner: false });
+  const [roundStatuses, setRoundStatuses] = useState<RoundStatus[]>([]);
   const [draft, setDraft] = useState<RoleplaySession | null>(null);
 
   const load = useCallback(async () => {
@@ -253,6 +295,7 @@ export function CoachingSessionRoleplayPanel({
       }
       setStore(json.store as RoleplayStore);
       setPermissions(json.permissions ?? { canEditClient: false, canEditPartner: false });
+      setRoundStatuses(Array.isArray(json.roundStatuses) ? json.roundStatuses : []);
     } catch {
       setError("ネットワークエラーが発生しました。");
     } finally {
@@ -273,38 +316,6 @@ export function CoachingSessionRoleplayPanel({
 
   const selfRadar = useMemo(() => (draft ? categoryRadarValues(draft.selfScores) : []), [draft]);
   const partnerRadar = useMemo(() => (draft ? categoryRadarValues(draft.partnerScores) : []), [draft]);
-
-  const prevSession = round >= 2 ? store?.sessions[round - 2] ?? null : null;
-  const prevPrevSession = round >= 3 ? store?.sessions[round - 3] ?? null : null;
-
-  const prevSelfRadar = useMemo(
-    () => (prevSession ? categoryRadarValues(prevSession.selfScores) : []),
-    [prevSession],
-  );
-  const prevPartnerRadar = useMemo(
-    () => (prevSession ? categoryRadarValues(prevSession.partnerScores) : []),
-    [prevSession],
-  );
-  const prevPrevSelfRadar = useMemo(
-    () => (prevPrevSession ? categoryRadarValues(prevPrevSession.selfScores) : []),
-    [prevPrevSession],
-  );
-  const prevPrevPartnerRadar = useMemo(
-    () => (prevPrevSession ? categoryRadarValues(prevPrevSession.partnerScores) : []),
-    [prevPrevSession],
-  );
-
-  function roundDeltas(
-    current: Array<number | null>,
-    previous: Array<number | null>,
-  ): Array<{ label: string; delta: number | null }> {
-    return ROLEPLAY_CATEGORIES.map((c, i) => {
-      const cur = current[i];
-      const prev = previous[i];
-      if (cur == null || prev == null) return { label: c.label, delta: null };
-      return { label: c.label, delta: Math.round((cur - prev) * 10) / 10 };
-    });
-  }
 
   function patchSelf(itemId: string, score: number | null) {
     if (!draft) return;
@@ -355,6 +366,7 @@ export function CoachingSessionRoleplayPanel({
         return;
       }
       setStore(json.store as RoleplayStore);
+      if (Array.isArray(json.roundStatuses)) setRoundStatuses(json.roundStatuses);
       setNotice("保存しました。");
     } catch {
       setError("ネットワークエラーが発生しました。");
@@ -363,16 +375,23 @@ export function CoachingSessionRoleplayPanel({
     }
   }
 
-  const canEditClient = !readOnly && permissions.canEditClient;
-  const canEditPartner = !readOnly && permissions.canEditPartner;
-  const canSave = canEditClient || canEditPartner;
-
   const isClientViewer =
     viewerRole === "CLIENT" || viewerRole === "CLIENT_ADMIN" || viewerRole === "CLIENT_HR";
   const isPartnerViewer = viewerRole === "PARTNER";
   const isAdminViewer = viewerRole === "ADMIN" || viewerRole === "ADMIN_ASSISTANT";
-  const showClientFreeText = isClientViewer || isPartnerViewer || isAdminViewer;
-  const showPartnerFreeText = isClientViewer || isPartnerViewer || isAdminViewer;
+  const roundStatus =
+    roundStatuses.find((r) => r.round === round) ?? {
+      round,
+      clientSubmitted: false,
+      partnerSubmitted: false,
+      mutualReveal: false,
+    };
+  const mutualReveal = roundStatus.mutualReveal;
+  const canEditClient = !readOnly && permissions.canEditClient && !mutualReveal;
+  const canEditPartner = !readOnly && permissions.canEditPartner && !mutualReveal;
+  const canSave = canEditClient || canEditPartner;
+  const showClientInput = !mutualReveal && (canEditClient || isAdminViewer);
+  const showPartnerInput = !mutualReveal && (canEditPartner || isAdminViewer);
 
   const fieldClass =
     "mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-slate-50 disabled:text-slate-500";
@@ -381,152 +400,144 @@ export function CoachingSessionRoleplayPanel({
   if (error && !store) return <p className="text-base text-rose-700">{error}</p>;
   if (!draft) return null;
 
-  return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">ロールプレイング・評価（第{round}回）</h2>
-        <p className="mt-2 text-base leading-relaxed text-slate-600">
-          各項目を1〜7点で評価します。プルダウンを開くと、点数ごとの目安が表示されます。
-        </p>
-      </div>
+  if (mutualReveal) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+            ロールプレイング・評価（第{round}回）
+          </h2>
+        </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5">
-        <label className="block text-base">
-          <span className="font-medium text-slate-800">テーマ</span>
-          <input
-            value={draft.theme}
-            disabled={!canEditClient && !canEditPartner}
-            onChange={(e) => setDraft({ ...draft, theme: e.target.value })}
-            className={fieldClass}
-          />
-        </label>
-      </div>
+        <section className="rounded-2xl border border-indigo-200 bg-indigo-50/50 px-5 py-5">
+          <h3 className="text-xl font-semibold text-indigo-950">フィードバックが届きました</h3>
+          <p className="mt-2 text-base leading-relaxed text-indigo-900/90">
+            双方の入力が完了しました。レーダーチャートと自由記述をご確認ください。
+          </p>
+        </section>
 
-      <div className="space-y-4">
-        <h3 className="text-xl font-semibold tracking-tight text-slate-900">自己評価（クライアント）</h3>
-        {canEditClient ? (
-          <VisibilityNote tone="visible">
-            入力した点数・自由記述はパートナーにも表示されます。
-          </VisibilityNote>
-        ) : isPartnerViewer ? (
-          <VisibilityNote>クライアント本人の自己評価です（点数・自由記述を共有しています）。</VisibilityNote>
-        ) : isClientViewer && viewerRole !== "CLIENT" ? (
-          <VisibilityNote>クライアントの自己評価です（点数・自由記述）。</VisibilityNote>
-        ) : null}
-        {ROLEPLAY_CATEGORIES.map((cat) => (
-          <CategoryScores
-            key={`self-${cat.id}`}
-            cat={cat}
-            scores={draft.selfScores}
-            disabled={!canEditClient}
-            onPatch={patchSelf}
-          />
-        ))}
-      </div>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/30 p-5">
+            <h3 className="text-lg font-semibold text-indigo-950">良かったところ（クライアント）</h3>
+            <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">
+              {draft.clientReflection.good.trim() || "（未入力）"}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/30 p-5">
+            <h3 className="text-lg font-semibold text-emerald-950">良かったところ（パートナー）</h3>
+            <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">
+              {draft.partnerFeedback.good.trim() || "（未入力）"}
+            </p>
+          </div>
+        </div>
 
-      <div className="space-y-4">
-        <h3 className="text-xl font-semibold tracking-tight text-slate-900">パートナー評価</h3>
-        {canEditPartner ? (
-          <VisibilityNote tone="visible">
-            入力した点数・自由記述はクライアントにも表示されます。
-          </VisibilityNote>
-        ) : isClientViewer ? (
-          <VisibilityNote>パートナーからの評価です（点数・自由記述を共有しています）。</VisibilityNote>
-        ) : isPartnerViewer ? (
-          <VisibilityNote>あなたのパートナー評価です。</VisibilityNote>
-        ) : null}
-        {ROLEPLAY_CATEGORIES.map((cat) => (
-          <CategoryScores
-            key={`partner-${cat.id}`}
-            cat={cat}
-            scores={draft.partnerScores}
-            disabled={!canEditPartner}
-            onPatch={patchPartner}
-          />
-        ))}
-      </div>
-
-      <div className="space-y-4">
-        <h3 className="text-xl font-semibold tracking-tight text-slate-900">評価の可視化</h3>
-        {isClientViewer || isPartnerViewer ? (
-          <VisibilityNote>
-            グラフには、クライアントの自己評価とパートナー評価（点数）が表示されます。自由記述もお互いに共有されています。
-          </VisibilityNote>
-        ) : null}
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="rounded-2xl border border-indigo-100 bg-white p-5">
+            <h3 className="text-lg font-semibold text-indigo-950">もっと良くなると思うこと（クライアント）</h3>
+            <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">
+              {draft.clientReflection.improve.trim() || "（未入力）"}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-emerald-100 bg-white p-5">
+            <h3 className="text-lg font-semibold text-emerald-950">もっと良くなると思うこと（パートナー）</h3>
+            <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">
+              {draft.partnerFeedback.improve.trim() || "（未入力）"}
+            </p>
+          </div>
+        </div>
 
         <ComparisonBlock
-          title="ギャップ（自己 vs パートナー）"
+          title="レーダーチャート（自己評価 vs パートナー評価）"
           labels={categoryLabels}
           series={[
             { label: "自己評価", color: "#4f46e5", values: selfRadar },
             { label: "パートナー評価", color: "#059669", values: partnerRadar },
           ]}
-          deltas={ROLEPLAY_CATEGORIES.map((c, i) => {
-            const s = selfRadar[i];
-            const p = partnerRadar[i];
-            if (s == null || p == null) return { label: c.label, delta: null };
-            return { label: c.label, delta: Math.round((p - s) * 10) / 10 };
-          })}
         />
 
-        {round >= 2 && prevSession ? (
-          <>
-            <ComparisonBlock
-              title={`前回との比較 — 自己評価（第${round - 1}回 → 第${round}回）`}
-              labels={categoryLabels}
-              series={[
-                { label: `第${round - 1}回`, color: "#94a3b8", values: prevSelfRadar },
-                { label: `第${round}回`, color: "#4f46e5", values: selfRadar },
-              ]}
-              deltas={roundDeltas(selfRadar, prevSelfRadar)}
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-slate-900">各項目の点数</h3>
+          {ROLEPLAY_CATEGORIES.map((cat) => (
+            <ItemScoreComparison
+              key={`cmp-${cat.id}`}
+              cat={cat}
+              selfScores={draft.selfScores}
+              partnerScores={draft.partnerScores}
             />
-            <ComparisonBlock
-              title={`前回との比較 — パートナー評価（第${round - 1}回 → 第${round}回）`}
-              labels={categoryLabels}
-              series={[
-                { label: `第${round - 1}回`, color: "#94a3b8", values: prevPartnerRadar },
-                { label: `第${round}回`, color: "#059669", values: partnerRadar },
-              ]}
-              deltas={roundDeltas(partnerRadar, prevPartnerRadar)}
-            />
-          </>
+          ))}
+        </div>
+
+        {draft.sessionFeedback.satisfactionScore != null ? (
+          <div className="rounded-2xl border border-violet-100 bg-violet-50/30 p-5">
+            <h3 className="text-lg font-semibold text-slate-900">セッション満足度（クライアント）</h3>
+            <p className="mt-2 text-base text-slate-800">
+              {draft.sessionFeedback.satisfactionScore} / 10
+            </p>
+            {draft.sessionFeedback.satisfactionReason.trim() ? (
+              <p className="mt-2 whitespace-pre-wrap text-base leading-relaxed text-slate-700">
+                {draft.sessionFeedback.satisfactionReason}
+              </p>
+            ) : null}
+          </div>
         ) : null}
 
-        {round >= 3 && prevPrevSession && prevSession ? (
-          <>
-            <ComparisonBlock
-              title={`前々回と前回の比較 — 自己評価（第${round - 2}回 → 第${round - 1}回）`}
-              labels={categoryLabels}
-              series={[
-                { label: `第${round - 2}回`, color: "#cbd5e1", values: prevPrevSelfRadar },
-                { label: `第${round - 1}回`, color: "#64748b", values: prevSelfRadar },
-              ]}
-              deltas={roundDeltas(prevSelfRadar, prevPrevSelfRadar)}
-            />
-            <ComparisonBlock
-              title={`前々回と前回の比較 — パートナー評価（第${round - 2}回 → 第${round - 1}回）`}
-              labels={categoryLabels}
-              series={[
-                { label: `第${round - 2}回`, color: "#cbd5e1", values: prevPrevPartnerRadar },
-                { label: `第${round - 1}回`, color: "#64748b", values: prevPartnerRadar },
-              ]}
-              deltas={roundDeltas(prevPartnerRadar, prevPrevPartnerRadar)}
-            />
-          </>
-        ) : null}
+        {readOnly ? <p className="text-base text-slate-500">閲覧のみ（編集不可）</p> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">ロールプレイング・評価（第{round}回）</h2>
+        <p className="mt-2 text-base leading-relaxed text-slate-600">
+          各項目を1〜7点で評価します。双方の入力が完了すると、お互いのフィードバックとレーダーチャートが表示されます。
+        </p>
       </div>
 
-      <div className={`grid gap-5 ${showClientFreeText && showPartnerFreeText ? "lg:grid-cols-2" : ""}`}>
-        {showClientFreeText ? (
+      {!isAdminViewer ? (
+        <VisibilityNote>
+          {isClientViewer
+            ? roundStatus.clientSubmitted
+              ? "入力を保存済みです。パートナーの入力が完了すると、双方の評価が開示されます。"
+              : "まずはご自身の評価を入力して保存してください。パートナーの入力完了後に相互開示されます。"
+            : roundStatus.partnerSubmitted
+              ? "入力を保存済みです。クライアントの入力が完了すると、双方の評価が開示されます。"
+              : "まずはご自身の評価を入力して保存してください。クライアントの入力完了後に相互開示されます。"}
+        </VisibilityNote>
+      ) : null}
+
+      {(showClientInput || showPartnerInput) && (canEditClient || canEditPartner) ? (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5">
+          <label className="block text-base">
+            <span className="font-medium text-slate-800">テーマ</span>
+            <input
+              value={draft.theme}
+              disabled={!canEditClient && !canEditPartner}
+              onChange={(e) => setDraft({ ...draft, theme: e.target.value })}
+              className={fieldClass}
+            />
+          </label>
+        </div>
+      ) : null}
+
+      {showClientInput || (isAdminViewer && !mutualReveal) ? (
+        <>
+          <div className="space-y-4">
+            <h3 className="text-xl font-semibold tracking-tight text-slate-900">自己評価（クライアント）</h3>
+            {ROLEPLAY_CATEGORIES.map((cat) => (
+              <CategoryScores
+                key={`self-${cat.id}`}
+                cat={cat}
+                scores={draft.selfScores}
+                disabled={!canEditClient}
+                onPatch={patchSelf}
+              />
+            ))}
+          </div>
+
           <div className="space-y-3 rounded-2xl border border-indigo-100 bg-indigo-50/25 p-5">
             <h3 className="text-lg font-semibold text-indigo-950">自由記述（クライアント）</h3>
-            {canEditClient ? (
-              <VisibilityNote tone="visible">
-                ここに書いた内容はパートナーにも表示されます。
-              </VisibilityNote>
-            ) : isAdminViewer ? (
-              <VisibilityNote>クライアント向けの自由記述です。</VisibilityNote>
-            ) : null}
             <label className="block text-base">
               <span className="font-medium text-slate-800">良かった点</span>
               <textarea
@@ -558,17 +569,81 @@ export function CoachingSessionRoleplayPanel({
               />
             </label>
           </div>
-        ) : null}
-        {showPartnerFreeText ? (
+
+          <div className="space-y-4 rounded-2xl border border-violet-100 bg-violet-50/30 p-5">
+            <h3 className="text-xl font-semibold tracking-tight text-slate-900">セッション満足度（クライアント）</h3>
+            <fieldset className="space-y-3" disabled={!canEditClient}>
+              <legend className="text-base font-medium text-slate-800">
+                今回のロールプレイセッションの満足度（1〜10） <span className="text-red-600">*</span>
+              </legend>
+              <div className="flex flex-wrap gap-2">
+                {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                  <label
+                    key={n}
+                    className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-semibold ${
+                      draft.sessionFeedback.satisfactionScore === n
+                        ? "border-indigo-500 bg-indigo-600 text-white"
+                        : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                    } ${!canEditClient ? "cursor-not-allowed opacity-60" : ""}`}
+                  >
+                    <input
+                      type="radio"
+                      name="roleplaySatisfaction"
+                      value={n}
+                      checked={draft.sessionFeedback.satisfactionScore === n}
+                      disabled={!canEditClient}
+                      onChange={() =>
+                        setDraft({
+                          ...draft,
+                          sessionFeedback: { ...draft.sessionFeedback, satisfactionScore: n },
+                        })
+                      }
+                      className="sr-only"
+                    />
+                    {n}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <label className="block text-base">
+              <span className="font-medium text-slate-800">
+                満足度の理由 <span className="text-red-600">*</span>
+              </span>
+              <textarea
+                rows={3}
+                disabled={!canEditClient}
+                value={draft.sessionFeedback.satisfactionReason}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    sessionFeedback: { ...draft.sessionFeedback, satisfactionReason: e.target.value },
+                  })
+                }
+                className={fieldClass}
+                placeholder="良かった点、もっとこうだったらよかった点など"
+              />
+            </label>
+          </div>
+        </>
+      ) : null}
+
+      {showPartnerInput || (isAdminViewer && !mutualReveal) ? (
+        <>
+          <div className="space-y-4">
+            <h3 className="text-xl font-semibold tracking-tight text-slate-900">パートナー評価</h3>
+            {ROLEPLAY_CATEGORIES.map((cat) => (
+              <CategoryScores
+                key={`partner-${cat.id}`}
+                cat={cat}
+                scores={draft.partnerScores}
+                disabled={!canEditPartner}
+                onPatch={patchPartner}
+              />
+            ))}
+          </div>
+
           <div className="space-y-3 rounded-2xl border border-emerald-100 bg-emerald-50/25 p-5">
             <h3 className="text-lg font-semibold text-emerald-950">自由記述（パートナー）</h3>
-            {canEditPartner ? (
-              <VisibilityNote tone="visible">
-                ここに書いた内容はクライアントにも表示されます。
-              </VisibilityNote>
-            ) : isAdminViewer ? (
-              <VisibilityNote>パートナー向けの自由記述です。</VisibilityNote>
-            ) : null}
             <label className="block text-base">
               <span className="font-medium text-slate-800">良かった点</span>
               <textarea
@@ -600,70 +675,8 @@ export function CoachingSessionRoleplayPanel({
               />
             </label>
           </div>
-        ) : null}
-      </div>
-
-      <div className="space-y-4 rounded-2xl border border-violet-100 bg-violet-50/30 p-5">
-        <h3 className="text-xl font-semibold tracking-tight text-slate-900">セッション満足度（クライアント）</h3>
-        {canEditClient ? (
-          <VisibilityNote tone="visible">
-            満足度と理由はパートナーにも表示されます。
-          </VisibilityNote>
-        ) : isPartnerViewer || (isClientViewer && viewerRole !== "CLIENT") ? (
-          <VisibilityNote>クライアントが入力したセッション満足度です。</VisibilityNote>
-        ) : null}
-        <fieldset className="space-y-3" disabled={!canEditClient}>
-          <legend className="text-base font-medium text-slate-800">
-            今回のロールプレイセッションの満足度（1〜10） <span className="text-red-600">*</span>
-          </legend>
-          <div className="flex flex-wrap gap-2">
-            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-              <label
-                key={n}
-                className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-semibold ${
-                  draft.sessionFeedback.satisfactionScore === n
-                    ? "border-indigo-500 bg-indigo-600 text-white"
-                    : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
-                } ${!canEditClient ? "cursor-not-allowed opacity-60" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="roleplaySatisfaction"
-                  value={n}
-                  checked={draft.sessionFeedback.satisfactionScore === n}
-                  disabled={!canEditClient}
-                  onChange={() =>
-                    setDraft({
-                      ...draft,
-                      sessionFeedback: { ...draft.sessionFeedback, satisfactionScore: n },
-                    })
-                  }
-                  className="sr-only"
-                />
-                {n}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        <label className="block text-base">
-          <span className="font-medium text-slate-800">
-            満足度の理由 <span className="text-red-600">*</span>
-          </span>
-          <textarea
-            rows={3}
-            disabled={!canEditClient}
-            value={draft.sessionFeedback.satisfactionReason}
-            onChange={(e) =>
-              setDraft({
-                ...draft,
-                sessionFeedback: { ...draft.sessionFeedback, satisfactionReason: e.target.value },
-              })
-            }
-            className={fieldClass}
-            placeholder="良かった点、もっとこうだったらよかった点など"
-          />
-        </label>
-      </div>
+        </>
+      ) : null}
 
       {canSave ? (
         <div className="flex flex-wrap items-center gap-3">
@@ -677,15 +690,6 @@ export function CoachingSessionRoleplayPanel({
           </button>
           {notice ? <span className="text-base text-emerald-700">{notice}</span> : null}
           {error ? <span className="text-base text-rose-700">{error}</span> : null}
-          {canEditPartner ? (
-            <span className="text-sm text-slate-500">
-              点数・自由記述はクライアントに表示されます。
-            </span>
-          ) : canEditClient ? (
-            <span className="text-sm text-slate-500">
-              点数・自由記述・満足度はパートナーに表示されます。
-            </span>
-          ) : null}
         </div>
       ) : readOnly ? (
         <p className="text-base text-slate-500">閲覧のみ（編集不可）</p>

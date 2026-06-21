@@ -107,7 +107,7 @@ export async function POST(request: Request, context: RouteContext) {
     end: finalEnd,
     title: `モチベイジ1on1（${matchFull.client.displayName}さん）`,
     description:
-      `${meetingLine}\n\nご予約が確定しました。アプリ内チャットにもメモをご利用ください。\n連絡先はプラットフォームを通じない共有はできません。`.trim(),
+      `${meetingLine}\n\nご予約が確定しました。\n連絡先はプラットフォームを通じない共有はできません。`.trim(),
     location: meeting?.joinUrl,
   });
 
@@ -122,7 +122,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   const eventTitle = `モチベイジ1on1（${matchFull.client.displayName}さん）`;
   const eventDetails =
-    `${meetingLine}\n\nご予約が確定しました。アプリ内チャットにもメモをご利用ください。`.trim();
+    `${meetingLine}\n\nご予約が確定しました。`.trim();
   const googleCalendarLink = buildGoogleCalendarLink({
     title: eventTitle,
     start: finalStart,

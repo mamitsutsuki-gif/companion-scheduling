@@ -96,9 +96,6 @@ export function MatchRoomGuideBanner({
           <h2 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
             ここから始めてください
           </h2>
-          <p className="mt-2 text-base leading-relaxed text-slate-600">
-            タブは増えていますが、最初はこの順番で進めれば大丈夫です。
-          </p>
         </div>
         <button
           type="button"

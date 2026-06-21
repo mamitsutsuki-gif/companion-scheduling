@@ -8,8 +8,13 @@ import {
   categoryAverages,
   normalizeRoleplaySession,
   redactRoleplayStoreForViewer,
+  roleplayBothSubmitted,
+  roleplayClientSubmissionComplete,
+  roleplayPartnerSubmissionComplete,
+  roleplayRoundStatus,
 } from "@/lib/coaching-roleplay";
 import { getRoleplayStore, saveRoleplayStore } from "@/lib/repositories/coaching-repository";
+import { notifyRoleplayMutualReveal } from "@/lib/notify-members";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +77,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
     categories: ROLEPLAY_CATEGORIES,
     scoreLabels: SCORE_LABELS,
     roundSummaries: rounds,
+    roundStatuses: store.sessions.map(roleplayRoundStatus),
     permissions: {
       canEditClient: access.canEditClient,
       canEditPartner: access.canEditPartner,
@@ -94,6 +100,14 @@ export async function PUT(request: Request, ctx: RouteContext) {
   const round = parsed.data.round as 1 | 2 | 3;
   const idx = round - 1;
   const prev = store.sessions[idx] ?? normalizeRoleplaySession({}, round);
+
+  if (
+    roleplayBothSubmitted(prev) &&
+    session.role !== "ADMIN" &&
+    session.role !== "ADMIN_ASSISTANT"
+  ) {
+    return jsonError("双方の入力が完了したため、評価の編集はできません。", 409);
+  }
 
   const merged = normalizeRoleplaySession(
     {
@@ -154,12 +168,41 @@ export async function PUT(request: Request, ctx: RouteContext) {
         parsed.data.conductedAt !== undefined && (access.canEditClient || access.canEditPartner)
           ? parsed.data.conductedAt
           : prev.conductedAt,
+      clientSubmittedAt: prev.clientSubmittedAt,
+      partnerSubmittedAt: prev.partnerSubmittedAt,
     },
     round,
   );
 
+  const wasBothSubmitted = roleplayBothSubmitted(prev);
+
+  if (access.canEditClient && roleplayClientSubmissionComplete(merged) && !merged.clientSubmittedAt) {
+    merged.clientSubmittedAt = new Date().toISOString();
+  }
+  if (access.canEditPartner && roleplayPartnerSubmissionComplete(merged) && !merged.partnerSubmittedAt) {
+    merged.partnerSubmittedAt = new Date().toISOString();
+  }
+
+  if (roleplayBothSubmitted(merged)) {
+    // 開示後は双方とも編集不可（管理者は API 上は別途）
+  }
+
   const nextSessions = store.sessions.slice();
   nextSessions[idx] = merged;
   const saved = await saveRoleplayStore({ ...store, matchId, sessions: nextSessions });
-  return jsonOk({ store: redactRoleplayStoreForViewer(saved, session.role) });
+
+  const nowBothSubmitted = roleplayBothSubmitted(merged);
+  if (!wasBothSubmitted && nowBothSubmitted) {
+    const origin = new URL(request.url).origin;
+    await notifyRoleplayMutualReveal({
+      matchId,
+      sessionNumber: round,
+      appOrigin: origin,
+    }).catch(() => null);
+  }
+
+  return jsonOk({
+    store: redactRoleplayStoreForViewer(saved, session.role),
+    roundStatuses: saved.sessions.map(roleplayRoundStatus),
+  });
 }

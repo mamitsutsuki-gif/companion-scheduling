@@ -168,3 +168,66 @@ export async function notifyNewMatchAssignment(matchId: string) {
     console.error("[notify] notifyNewMatchAssignment failed", matchId, e);
   }
 }
+
+/** ロールプレイ評価が双方入力完了し、相互開示されたタイミングで通知。 */
+export async function notifyRoleplayMutualReveal(input: {
+  matchId: string;
+  sessionNumber: number;
+  appOrigin?: string;
+}) {
+  try {
+    const m = await getMatchById(input.matchId);
+    if (!m?.partner?.id || !m.client?.id) return;
+    const partnerId = m.partner.id;
+    const clientId = m.client.id;
+    const sn = input.sessionNumber;
+    const roomPath = `/match/${encodeURIComponent(input.matchId)}/sessions/${sn}`;
+    const appBase = (process.env.APP_ORIGIN || input.appOrigin || "").replace(/\/$/, "");
+    const absLink = appBase ? `${appBase}${roomPath}` : roomPath;
+
+    const summary = `第 ${sn} 回のロールプレイ評価が双方入力完了しました。フィードバックとレーダーチャートをご確認ください。`;
+    const emailSubject = `ロールプレイ評価：フィードバックが届きました（第 ${sn} 回）`;
+    const emailBody =
+      `第 ${sn} 回のロールプレイ評価について、クライアントとパートナー双方の入力が完了しました。\n` +
+      `アプリ上でお互いのフィードバックとレーダーチャートをご確認ください。\n\n${absLink}`;
+
+    await appendMemberNotification({
+      recipientUserId: partnerId,
+      type: "ROLEPLAY_REVEALED",
+      matchId: input.matchId,
+      sessionNumber: sn,
+      summary,
+      link: roomPath,
+    });
+    await appendMemberNotification({
+      recipientUserId: clientId,
+      type: "ROLEPLAY_REVEALED",
+      matchId: input.matchId,
+      sessionNumber: sn,
+      summary,
+      link: roomPath,
+    });
+
+    const [partnerEmail, clientEmail] = await Promise.all([
+      resolveUserEmailForNotifications(partnerId),
+      resolveUserEmailForNotifications(clientId),
+    ]);
+
+    if (partnerEmail?.trim()) {
+      await sendMail({
+        to: partnerEmail.trim(),
+        subject: emailSubject,
+        text: `${m.partner.displayName}さん\n\n${emailBody}`,
+      });
+    }
+    if (clientEmail?.trim()) {
+      await sendMail({
+        to: clientEmail.trim(),
+        subject: emailSubject,
+        text: `${m.client.displayName}さん\n\n${emailBody}`,
+      });
+    }
+  } catch (e) {
+    console.error("[notify] notifyRoleplayMutualReveal failed", input.matchId, e);
+  }
+}

@@ -194,6 +194,10 @@ export type RoleplaySession = {
   clientReflection: { good: string; improve: string; nextFocus: string };
   partnerFeedback: { good: string; improve: string; advice: string };
   sessionFeedback: RoleplaySessionFeedback;
+  /** クライアントが入力完了して保存した時刻（相互開示の判定用） */
+  clientSubmittedAt: string | null;
+  /** パートナーが入力完了して保存した時刻（相互開示の判定用） */
+  partnerSubmittedAt: string | null;
   updatedAt: string;
 };
 
@@ -267,6 +271,14 @@ export function normalizeRoleplaySession(input: unknown, round: 1 | 2 | 3): Role
       satisfactionScore,
       satisfactionReason: trim(sfRaw.satisfactionReason ?? raw.satisfactionReason, 4000),
     },
+    clientSubmittedAt:
+      typeof raw.clientSubmittedAt === "string" && raw.clientSubmittedAt.trim()
+        ? raw.clientSubmittedAt
+        : null,
+    partnerSubmittedAt:
+      typeof raw.partnerSubmittedAt === "string" && raw.partnerSubmittedAt.trim()
+        ? raw.partnerSubmittedAt
+        : null,
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
   };
 }
@@ -323,32 +335,70 @@ export function roleplaySideComplete(
   return ROLEPLAY_ITEM_IDS.some((id) => scores[id]?.score != null);
 }
 
+/** クライアント側の入力が「提出済み」扱いになる条件（保存時に submittedAt を付与）。 */
+export function roleplayClientSubmissionComplete(session: RoleplaySession): boolean {
+  if (!roleplaySideComplete(session, "client")) return false;
+  if (session.sessionFeedback.satisfactionScore == null) return false;
+  if (!session.sessionFeedback.satisfactionReason.trim()) return false;
+  return true;
+}
+
+/** パートナー側の入力が「提出済み」扱いになる条件。 */
+export function roleplayPartnerSubmissionComplete(session: RoleplaySession): boolean {
+  return roleplaySideComplete(session, "partner");
+}
+
+export function roleplayBothSubmitted(session: RoleplaySession): boolean {
+  return Boolean(session.clientSubmittedAt && session.partnerSubmittedAt);
+}
+
+function isClientRole(role: string): boolean {
+  return role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR";
+}
+
+function redactSessionForViewer(session: RoleplaySession, role: string): RoleplaySession {
+  if (role === "ADMIN" || role === "ADMIN_ASSISTANT") return session;
+  if (roleplayBothSubmitted(session)) return session;
+
+  if (role === "PARTNER") {
+    return {
+      ...session,
+      selfScores: emptyScores(),
+      clientReflection: { good: "", improve: "", nextFocus: "" },
+      sessionFeedback: { satisfactionScore: null, satisfactionReason: "" },
+    };
+  }
+  if (isClientRole(role)) {
+    return {
+      ...session,
+      partnerScores: emptyScores(),
+      partnerFeedback: { good: "", improve: "", advice: "" },
+    };
+  }
+  return session;
+}
+
 /**
  * 閲覧ロールに応じて伏せるフィールドがあれば加工する。
- * クライアント・パートナー・クライアント管理者は点数・自由記述を相互に閲覧可能。
+ * コーチング研修: 双方の入力完了までは自分のフォームのみ。完了後に相互開示。
  */
 export function redactRoleplayStoreForViewer(
   store: RoleplayStore,
   role: string,
 ): RoleplayStore {
-  if (
-    role === "ADMIN" ||
-    role === "ADMIN_ASSISTANT" ||
-    role === "PARTNER" ||
-    role === "CLIENT" ||
-    role === "CLIENT_ADMIN" ||
-    role === "CLIENT_HR"
-  ) {
-    return store;
-  }
+  if (role === "ADMIN" || role === "ADMIN_ASSISTANT") return store;
   return {
     ...store,
-    sessions: store.sessions.map((s) => ({
-      ...s,
-      clientReflection: { good: "", improve: "", nextFocus: "" },
-      partnerFeedback: { good: "", improve: "", advice: "" },
-      sessionFeedback: { satisfactionScore: null, satisfactionReason: "" },
-    })),
+    sessions: store.sessions.map((s) => redactSessionForViewer(s, role)),
+  };
+}
+
+export function roleplayRoundStatus(session: RoleplaySession) {
+  return {
+    round: session.round,
+    clientSubmitted: Boolean(session.clientSubmittedAt),
+    partnerSubmitted: Boolean(session.partnerSubmittedAt),
+    mutualReveal: roleplayBothSubmitted(session),
   };
 }
 
