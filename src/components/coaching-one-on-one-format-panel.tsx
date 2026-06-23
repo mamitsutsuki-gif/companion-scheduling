@@ -47,23 +47,21 @@ export function CoachingOneOnOneFormatPanel({ matchId }: { matchId: string }) {
 
   if (loading) return <p className="text-sm text-slate-500">読込中…</p>;
 
+  const hasConfiguredFields = Boolean(doc && doc.fields.length > 0);
+
   return (
     <section className="space-y-4">
       <div>
         <h2 className="text-2xl font-semibold text-slate-900">1on1フォーマット</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          1on1の記録フォーマットです。具体的な入力項目は今後追加予定です（拡張可能な設計）。
-        </p>
       </div>
 
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-        現在はプレースホルダー版です。管理者が項目を設定できるようになると、ここに記録フォームが表示されます。
-        {doc?.schemaVersion ? `（スキーマ v${doc.schemaVersion}）` : null}
-      </div>
-
-      {doc && doc.fields.length > 0 ? (
+      {!hasConfiguredFields ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-700">
+          研修が進んだ段階で表示されます。少々お待ちください。
+        </div>
+      ) : (
         <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-          {doc.fields.map((f) => (
+          {doc!.fields.map((f) => (
             <label key={f.id} className="block text-sm">
               <span className="font-medium text-slate-800">{f.label}</span>
               {f.type === "textarea" ? (
@@ -83,22 +81,21 @@ export function CoachingOneOnOneFormatPanel({ matchId }: { matchId: string }) {
             </label>
           ))}
         </div>
-      ) : (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-          記録項目は未設定です
-        </div>
       )}
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <label className="block text-sm">
-          <span className="font-medium text-slate-800">自由メモ（暫定）</span>
+          <span className="font-medium text-slate-800">型についてのメモ</span>
+          <p className="mt-1 text-xs text-slate-600">
+            1on1の型について、自分なりの注意点やアレンジをメモする欄です。
+          </p>
           <textarea
             value={notes}
             disabled={!canEdit}
             onChange={(e) => setNotes(e.target.value)}
             rows={4}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            placeholder="1on1の記録メモをここに書けます（将来は専用項目に移行します）"
+            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            placeholder="例：傾聴のときは相手の言葉を要約してから質問する、など"
           />
         </label>
         {canEdit ? (

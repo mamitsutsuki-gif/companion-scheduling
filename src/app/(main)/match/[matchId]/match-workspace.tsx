@@ -190,6 +190,34 @@ function isClientSideRole(role: Me["role"]) {
   return role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR";
 }
 
+function matchTabRequiresPartner(tab: MatchTab): boolean {
+  return (
+    tab === "overview" ||
+    tab === "chat" ||
+    tab === "schedule" ||
+    tab === "sessions" ||
+    tab === "clientInfo"
+  );
+}
+
+function firstPrePartnerCoachingTab(features: PlanFeatures): MatchTab {
+  if (features.coachingIcebreaker) return "coachingIcebreaker";
+  if (features.coachingQuestions) return "coachingQuestions";
+  if (features.coachingOneOnOneFormat) return "coachingOneOnOneFormat";
+  return "coachingIcebreaker";
+}
+
+function matchTabButtonClass(active: boolean, locked: boolean): string {
+  if (locked) {
+    return "shrink-0 cursor-not-allowed rounded-t-lg border border-transparent px-3.5 py-2.5 text-base font-semibold text-slate-400 opacity-60 sm:px-4";
+  }
+  return `shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+    active
+      ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+      : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+  }`;
+}
+
 function canShowFtaTab(me: Me, settings: ScheduleSettingsPayload): boolean {
   if (!settings.planFeatures.fta) return false;
   if (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") return true;
@@ -818,6 +846,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   );
   const [clientBriefingLoading, setClientBriefingLoading] = useState(false);
   const [confirmSlotId, setConfirmSlotId] = useState("");
+  const [partnerPending, setPartnerPending] = useState(false);
 
   const goTab = useCallback((tab: MatchTab) => {
     setActiveTab(tab);
@@ -828,12 +857,30 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     }
   }, []);
 
+  const tryGoTab = useCallback(
+    (tab: MatchTab) => {
+      const isAdminViewer = me?.role === "ADMIN" || me?.role === "ADMIN_ASSISTANT";
+      if (partnerPending && !isAdminViewer && matchTabRequiresPartner(tab)) return;
+      goTab(tab);
+    },
+    [partnerPending, me?.role, goTab],
+  );
+
+  useEffect(() => {
+    if (!partnerPending) return;
+    const isAdminViewer = me?.role === "ADMIN" || me?.role === "ADMIN_ASSISTANT";
+    if (isAdminViewer) return;
+    if (matchTabRequiresPartner(activeTab)) {
+      goTab(firstPrePartnerCoachingTab(scheduleSettings.planFeatures));
+    }
+  }, [partnerPending, activeTab, scheduleSettings.planFeatures, goTab, me?.role]);
+
   useEffect(() => {
     if (!me) return;
     if (me.role !== "PARTNER" && me.role !== "ADMIN" && activeTab === "clientInfo") {
-      goTab("chat");
+      tryGoTab("chat");
     }
-  }, [me, activeTab, goTab]);
+  }, [me, activeTab, tryGoTab]);
 
   useEffect(() => {
     if (activeTab !== "chat") setChatFullscreen(false);
@@ -900,12 +947,15 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
   const load = useCallback(async () => {
     setError(null);
+    const roomRes = await fetch(`/api/matches/${encodeURIComponent(matchId)}`, { cache: "no-store" });
+    const roomJson = await roomRes.json().catch(() => null);
+    const pending = roomRes.ok && roomJson?.partnerPending === true;
+    setPartnerPending(pending);
+
     const [mRes, gRes, nRes, sRes] = await Promise.all([
       fetch("/api/me", { cache: "no-store" }),
       fetch(`/api/matches/${matchId}/messages`, { cache: "no-store" }),
       fetch(`/api/matches/${matchId}/negotiations`, { cache: "no-store" }),
-      // matchId を付けることで、当該クライアントの企業に上書きされた設定がある場合
-      // それを優先する。無ければグローバル設定にフォールバックする。
       fetch(`/api/settings?matchId=${encodeURIComponent(matchId)}`, { cache: "no-store" }),
     ]);
     const mJson = await mRes.json().catch(() => null);
@@ -1501,6 +1551,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     );
   }
 
+  const partnerTabsLocked =
+    partnerPending && me.role !== "ADMIN" && me.role !== "ADMIN_ASSISTANT";
+
   return (
     <>
     <div className="mx-auto flex w-full max-w-none flex-1 flex-col gap-8 px-1 py-4 sm:gap-12 sm:px-6 sm:py-10">
@@ -1586,13 +1639,25 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       me.role === "CLIENT" ||
       me.role === "CLIENT_ADMIN" ||
       me.role === "CLIENT_HR" ? (
+        !partnerPending ? (
         <MatchRoomGuideBanner
           userId={me.id}
           role={me.role}
           planFeatures={scheduleSettings.planFeatures}
           isCoachingPlan={scheduleSettings.companyPlan === "coaching_management_training"}
-          onGoTab={(tab) => goTab(tab as MatchTab)}
+          onGoTab={(tab) => tryGoTab(tab as MatchTab)}
         />
+        ) : null
+      ) : null}
+
+      {partnerPending ? (
+        <section className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
+          <p className="text-base font-semibold text-slate-900">パートナー未割当</p>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+            パートナーが決まるまで、プロジェクト概要・チャット・日程調整・1on1セッションはご利用いただけません。
+            アイスブレイク・質問リスト・1on1フォーマットはお使いいただけます。
+          </p>
+        </section>
       ) : null}
 
       {/*
@@ -1602,7 +1667,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         - severity に応じて色を変える (info: 青 / todo: 紫 / warn: 琥珀)。
         - 押下で該当タブにジャンプ。
       */}
-      {(() => {
+      {!partnerPending
+        ? (() => {
         const banner = computeMatchBanner({
           meRole: me.role,
           negotiations,
@@ -1634,7 +1700,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               <button
                 type="button"
                 onClick={() => {
-                  goTab(banner.ctaTab!);
+                  tryGoTab(banner.ctaTab!);
                   if (banner.scrollToId) {
                     window.setTimeout(() => {
                       document
@@ -1650,9 +1716,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             ) : null}
           </div>
         );
-      })()}
+      })() : null}
 
-      {availability ? (
+      {availability && !partnerPending ? (
         <section className="app-surface-emerald rounded-2xl px-5 py-4">
           <h2 className="text-lg font-semibold text-emerald-900">お互いの対応可能時間</h2>
           <p className="mt-1 text-sm text-emerald-900/80">
@@ -1708,12 +1774,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               type="button"
               role="tab"
               aria-selected={activeTab === "overview"}
-              onClick={() => goTab("overview")}
-              className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
-                activeTab === "overview"
-                  ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
-                  : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
-              }`}
+              aria-disabled={partnerTabsLocked}
+              onClick={() => tryGoTab("overview")}
+              className={matchTabButtonClass(activeTab === "overview", partnerTabsLocked)}
             >
               プロジェクト概要
             </button>
@@ -1722,12 +1785,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 type="button"
                 role="tab"
                 aria-selected={activeTab === "clientInfo"}
-                onClick={() => goTab("clientInfo")}
-                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
-                  activeTab === "clientInfo"
-                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
-                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
-                }`}
+                aria-disabled={partnerTabsLocked}
+                onClick={() => tryGoTab("clientInfo")}
+                className={matchTabButtonClass(activeTab === "clientInfo", partnerTabsLocked)}
               >
                 クライアント情報
               </button>
@@ -1737,15 +1797,12 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               type="button"
               role="tab"
               aria-selected={activeTab === "chat"}
-              onClick={() => goTab("chat")}
-              className={`relative shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
-                activeTab === "chat"
-                  ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
-                  : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
-              }`}
+              aria-disabled={partnerTabsLocked}
+              onClick={() => tryGoTab("chat")}
+              className={`relative ${matchTabButtonClass(activeTab === "chat", partnerTabsLocked)}`}
             >
               チャット
-              {unreadChatCount > 0 ? (
+              {unreadChatCount > 0 && !partnerTabsLocked ? (
                 <span className="ml-1.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1.5 align-middle text-xs font-bold text-white">
                   {unreadChatCount > 99 ? "99+" : unreadChatCount}
                 </span>
@@ -1757,12 +1814,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               type="button"
               role="tab"
               aria-selected={activeTab === "schedule"}
-              onClick={() => goTab("schedule")}
-              className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
-                activeTab === "schedule"
-                  ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
-                  : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
-              }`}
+              aria-disabled={partnerTabsLocked}
+              onClick={() => tryGoTab("schedule")}
+              className={matchTabButtonClass(activeTab === "schedule", partnerTabsLocked)}
             >
               日程調整
             </button>
@@ -1772,12 +1826,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               type="button"
               role="tab"
               aria-selected={activeTab === "sessions"}
-              onClick={() => goTab("sessions")}
-              className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
-                activeTab === "sessions"
-                  ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
-                  : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
-              }`}
+              aria-disabled={partnerTabsLocked}
+              onClick={() => tryGoTab("sessions")}
+              className={matchTabButtonClass(activeTab === "sessions", partnerTabsLocked)}
             >
               1on1セッション
             </button>

@@ -16,6 +16,7 @@ import { appendAdminNotification } from "@/lib/repositories/admin-notification-r
 import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
+import { isPartnerPendingMatch } from "@/lib/match-partner-pending";
 import { formatJaDateTimeRange } from "@/lib/format-datetime";
 import {
   isSlotStartOnPickerGrid,
@@ -55,6 +56,10 @@ export async function GET(_request: Request, context: RouteContext) {
     return jsonError(status === 404 ? "見つかりません。" : "閲覧できません。", status);
   }
 
+  if (isPartnerPendingMatch(gate.match)) {
+    return jsonOk({ negotiations: [] });
+  }
+
   const negotiations = await listNegotiationsForMatch(matchId);
 
   return jsonOk({ negotiations });
@@ -70,6 +75,9 @@ export async function POST(request: Request, context: RouteContext) {
   if ("error" in gate) {
     const status = gate.error === "not_found" ? 404 : 403;
     return jsonError(status === 404 ? "見つかりません。" : "操作できません。", status);
+  }
+  if (isPartnerPendingMatch(gate.match)) {
+    return jsonError("パートナーが決まるまで、日程調整はご利用いただけません。", 403);
   }
 
   const raw = await request.json().catch(() => null);

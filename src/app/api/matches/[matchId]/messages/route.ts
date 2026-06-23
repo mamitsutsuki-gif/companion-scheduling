@@ -12,6 +12,7 @@ import { getUserMapByIds } from "@/lib/repositories/user-repository";
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
 import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
+import { isPartnerPendingMatch } from "@/lib/match-partner-pending";
 
 const postSchema = z.object({
   body: z.string().min(1).max(5000),
@@ -28,6 +29,10 @@ export async function GET(_request: Request, context: RouteContext) {
   if ("error" in gate) {
     const status = gate.error === "not_found" ? 404 : 403;
     return jsonError(status === 404 ? "見つかりません。" : "閲覧できません。", status);
+  }
+
+  if (isPartnerPendingMatch(gate.match)) {
+    return jsonOk({ messages: [] });
   }
 
   const all = await listMessagesForMatch(matchId);
@@ -48,6 +53,10 @@ export async function POST(request: Request, context: RouteContext) {
   if ("error" in gate) {
     const status = gate.error === "not_found" ? 404 : 403;
     return jsonError(status === 404 ? "見つかりません。" : "送信できません。", status);
+  }
+
+  if (isPartnerPendingMatch(gate.match)) {
+    return jsonError("パートナーが決まるまで、チャットはご利用いただけません。", 403);
   }
 
   const senderMap = await getUserMapByIds([session.sub]);

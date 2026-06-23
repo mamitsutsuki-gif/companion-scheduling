@@ -4,6 +4,7 @@ import { APP_DISPLAY_NAME } from "@/lib/brand";
 import { listMatchesForRole } from "@/lib/repositories/match-repository";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { shouldShowGlobalFta } from "@/lib/company-plan";
+import { ensureCoachingRoomForClient, PENDING_PARTNER_DISPLAY_NAME } from "@/lib/match-partner-pending";
 import { PartnerInvoiceAlert } from "@/components/partner-invoice-alert";
 import { TodayFocusCard } from "@/components/today-focus-card";
 import { AwaitingAssignment } from "@/components/awaiting-assignment";
@@ -29,11 +30,21 @@ export default async function DashboardPage({
   const rawCompany = sp.company;
   const companyFilter = typeof rawCompany === "string" ? rawCompany.trim() : "";
 
+  const isClientMember =
+    me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR";
+  if (isClientMember) {
+    await ensureCoachingRoomForClient(me.id);
+  }
+
   const [allMatches, settings] = await Promise.all([
     listMatchesForRole({ role: me.role, userId: me.id }),
     getAppSettingsRow(),
   ]);
   const showFta = shouldShowGlobalFta(me.role);
+  const roomSectionTitle = isClientMember ? "セッション・研修ルーム" : "担当ペア";
+  const roomSectionDescription = isClientMember
+    ? "研修ルームで準備やセッションを進めます。"
+    : "各ペアのルームでメッセージと日程を管理します。";
 
   // 管理者・管理者アシスタントだけが企業フィルタを使える。それ以外は全件のままで挙動を変えない。
   const isAdmin = me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT";
@@ -75,7 +86,11 @@ export default async function DashboardPage({
           {me.displayName} さん
         </h1>
         {!isAdmin && allMatches.length > 0 ? (
-          <p className="mt-2 text-base text-slate-600">担当ペアのルームは下の一覧から開けます。</p>
+          <p className="mt-2 text-base text-slate-600">
+            {isClientMember
+              ? "セッション・研修ルームは下の一覧から開けます。"
+              : "担当ペアのルームは下の一覧から開けます。"}
+          </p>
         ) : (
           <p className="mt-2.5 max-w-2xl text-base leading-relaxed text-slate-600">
             {APP_DISPLAY_NAME} では、担当ペアごとにチャットと日程調整をまとめて行えます。
@@ -195,9 +210,9 @@ export default async function DashboardPage({
         ) : null}
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900">担当ペア</h2>
+            <h2 className="text-xl font-semibold text-slate-900">{roomSectionTitle}</h2>
             <p className="mt-1 text-base text-slate-600">
-              各ペアのルームでメッセージと日程を管理します。
+              {roomSectionDescription}
               {isAdmin ? (
                 <span className="ml-1 text-sm text-slate-500">
                   企業フィルタで表示を絞り込めます。
@@ -220,7 +235,9 @@ export default async function DashboardPage({
                 ? "この絞り込み条件に該当するペアはありません。"
                 : isAdmin
                   ? "まだ担当ペアがありません。「マッチ管理」から登録してください。"
-                  : "まだ担当ペアがありません。準備が整い次第、こちらに表示されます。"}
+                  : isClientMember
+                    ? "まだルームがありません。準備が整い次第、こちらに表示されます。"
+                    : "まだ担当ペアがありません。準備が整い次第、こちらに表示されます。"}
             </li>
           ) : (
             matches.map((match) => (
@@ -235,7 +252,9 @@ export default async function DashboardPage({
                   <p className="mt-1.5 text-[17px] font-semibold tracking-tight text-slate-900">
                     {withHonorificSan(match.client.displayName)}
                     <span className="mx-2 font-normal text-slate-400">↔</span>
-                    {withHonorificSan(match.partner.displayName)}
+                    {match.partner.displayName === PENDING_PARTNER_DISPLAY_NAME
+                      ? PENDING_PARTNER_DISPLAY_NAME
+                      : withHonorificSan(match.partner.displayName)}
                   </p>
                   {(match.client as { companyName?: string | null }).companyName ? (
                     <p className="mt-1.5 text-sm text-slate-600">

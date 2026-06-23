@@ -17,6 +17,7 @@ import {
   getEffectiveAppSettings,
 } from "@/lib/repositories/app-settings-repository";
 import { normalizeAvailabilitySelections } from "@/lib/availability";
+import { ensureCoachingRoomForClient } from "@/lib/match-partner-pending";
 
 const querySchema = z.object({
   role: z
@@ -132,6 +133,9 @@ export async function PATCH(request: Request) {
     const updated = await setUserCompany(parsed.data.userId, trimmed || null).catch(() => null);
     if (!updated) return jsonError("企業ID の更新に失敗しました。", 400);
     resultUser = updated;
+    if (trimmed) {
+      await ensureCoachingRoomForClient(parsed.data.userId).catch(() => null);
+    }
     revalidatePath("/dashboard");
     revalidatePath("/admin/matches");
     revalidatePath("/admin/companies");
