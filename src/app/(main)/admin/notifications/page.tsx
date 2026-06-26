@@ -14,7 +14,8 @@ type NotificationRow = {
     | "FEEDBACK_SUBMITTED"
     | "REPORT_SUBMITTED"
     | "SESSION_ABANDONED"
-    | "INVOICE_SUBMITTED";
+    | "INVOICE_SUBMITTED"
+    | "INQUIRY_SUBMITTED";
   matchId: string | null;
   sessionNumber: number | null;
   actorRole: string | null;
@@ -35,6 +36,7 @@ const typeLabel: Record<NotificationRow["type"], string> = {
   REPORT_SUBMITTED: "パートナーレポート",
   SESSION_ABANDONED: "未実施・消化",
   INVOICE_SUBMITTED: "請求書提出",
+  INQUIRY_SUBMITTED: "お問い合わせ",
 };
 
 const typeBadgeClass: Record<NotificationRow["type"], string> = {
@@ -47,6 +49,7 @@ const typeBadgeClass: Record<NotificationRow["type"], string> = {
   REPORT_SUBMITTED: "border-emerald-300 bg-emerald-50 text-emerald-900",
   SESSION_ABANDONED: "border-red-300 bg-red-50 text-red-900",
   INVOICE_SUBMITTED: "border-indigo-300 bg-indigo-50 text-indigo-900",
+  INQUIRY_SUBMITTED: "border-sky-300 bg-sky-50 text-sky-900",
 };
 
 function formatJa(iso: string) {

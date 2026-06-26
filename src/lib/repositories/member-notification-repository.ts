@@ -14,7 +14,8 @@ export type MemberNotificationType =
   | "INVOICE_CONFIRMED"
   | "INVOICE_RETURNED"
   | "MATCH_ASSIGNED"
-  | "ROLEPLAY_REVEALED";
+  | "ROLEPLAY_REVEALED"
+  | "INQUIRY_REPLIED";
 
 export type MemberNotificationRow = {
   id: string;
@@ -40,7 +41,8 @@ function isType(value: unknown): value is MemberNotificationType {
     value === "INVOICE_CONFIRMED" ||
     value === "INVOICE_RETURNED" ||
     value === "MATCH_ASSIGNED" ||
-    value === "ROLEPLAY_REVEALED"
+    value === "ROLEPLAY_REVEALED" ||
+    value === "INQUIRY_REPLIED"
   );
 }
 

@@ -374,3 +374,28 @@ model MemberNotification {
   @@index([recipientUserId, readAt])
   @@index([recipientUserId, createdAt])
 }
+
+/// お問い合わせ（クライアント / パートナー）
+model Inquiry {
+  id              String    @id @default(cuid())
+  receptionNumber String    @unique
+  userId          String
+  submitterRole   String
+  name            String
+  category        String
+  body            String
+  status          String    @default("OPEN")
+  replyBody       String?
+  repliedByUserId String?
+  repliedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([submitterRole, status, createdAt])
+  @@index([userId, createdAt])
+}
+
+model InquiryCounter {
+  id   String @id @default("inquiries")
+  year String
+  seq  Int
+}

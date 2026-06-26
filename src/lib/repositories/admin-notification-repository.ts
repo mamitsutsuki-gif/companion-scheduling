@@ -10,7 +10,8 @@ export type AdminNotificationType =
   | "FEEDBACK_SUBMITTED"
   | "REPORT_SUBMITTED"
   | "SESSION_ABANDONED"
-  | "INVOICE_SUBMITTED";
+  | "INVOICE_SUBMITTED"
+  | "INQUIRY_SUBMITTED";
 
 export type AdminNotificationRow = {
   id: string;
@@ -35,7 +36,8 @@ function isType(value: unknown): value is AdminNotificationType {
     value === "FEEDBACK_SUBMITTED" ||
     value === "REPORT_SUBMITTED" ||
     value === "SESSION_ABANDONED" ||
-    value === "INVOICE_SUBMITTED"
+    value === "INVOICE_SUBMITTED" ||
+    value === "INQUIRY_SUBMITTED"
   );
 }
 
@@ -82,6 +84,8 @@ function resolveLink(
       return `/match/${matchId}#sessions`;
     case "INVOICE_SUBMITTED":
       return storedLink;
+    case "INQUIRY_SUBMITTED":
+      return storedLink ?? "/admin/inquiries";
     default:
       return storedLink;
   }

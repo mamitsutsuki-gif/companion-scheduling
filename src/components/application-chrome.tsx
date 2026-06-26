@@ -30,6 +30,7 @@ export function ApplicationChrome({
   const [invoiceBadge, setInvoiceBadge] = useState<number>(0);
   const [memberUnreadBadge, setMemberUnreadBadge] = useState<number>(0);
   const [adminUnreadBadge, setAdminUnreadBadge] = useState<number>(0);
+  const [adminInquiryBadge, setAdminInquiryBadge] = useState<number>(0);
 
   useEffect(() => {
     if (profile.role !== "PARTNER") return;
@@ -103,6 +104,28 @@ export function ApplicationChrome({
     };
   }, [profile.role]);
 
+  // 管理者向け未回答問い合わせバッジ
+  useEffect(() => {
+    if (profile.role !== "ADMIN" && profile.role !== "ADMIN_ASSISTANT") return;
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch("/api/admin/inquiries", { cache: "no-store" });
+        if (!res.ok) return;
+        const json = (await res.json().catch(() => null)) as { openCount?: number } | null;
+        if (!cancelled) setAdminInquiryBadge(json?.openCount ?? 0);
+      } catch {
+        /* ignore */
+      }
+    }
+    void load();
+    const id = window.setInterval(load, 5_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [profile.role]);
+
   type NavLink = { href: string; label: string; badge?: number };
 
   const nav: NavLink[] = [{ href: "/dashboard", label: "ホーム" }];
@@ -115,9 +138,13 @@ export function ApplicationChrome({
   ) {
     nav.push({ href: "/notifications", label: "通知", badge: memberUnreadBadge });
   }
+  if (profile.role === "CLIENT" || profile.role === "PARTNER") {
+    nav.push({ href: "/contact", label: "問い合わせ" });
+  }
   if (profile.role === "ADMIN" || profile.role === "ADMIN_ASSISTANT") {
-    // 並び順: ホーム → 通知 → 企業 → マッチ管理 → 1on1日程一覧 → レポート作成 → 請求書 → アプリ設定
+    // 並び順: ホーム → 通知 → 問い合わせ → 企業 → マッチ管理 → 1on1日程一覧 → レポート作成 → 請求書 → アプリ設定
     nav.push({ href: "/admin/notifications", label: "通知", badge: adminUnreadBadge });
+    nav.push({ href: "/admin/inquiries", label: "問い合わせ", badge: adminInquiryBadge });
     nav.push({ href: "/admin/companies", label: "企業" });
     nav.push({ href: "/admin/matches", label: "マッチ管理" });
     nav.push({ href: "/admin/sessions", label: "1on1日程一覧" });
@@ -205,7 +232,7 @@ export function ApplicationChrome({
           <div className="order-2 mr-0 ml-auto flex shrink-0 items-center gap-2 sm:order-none sm:gap-3 md:gap-4">
             <Link
               href="/account"
-              className="rounded-lg px-2 py-1 text-xs font-semibold text-indigo-800 no-underline hover:bg-indigo-50 sm:hidden"
+              className="rounded-lg px-2 py-1 text-sm font-semibold text-indigo-800 no-underline hover:bg-indigo-50 sm:hidden"
             >
               アカウント
             </Link>
@@ -218,7 +245,7 @@ export function ApplicationChrome({
               <span className="max-w-[10rem] truncate text-sm font-medium text-slate-900">
                 {withHonorificSan(profile.displayName)}
               </span>
-              <span className="hidden text-[11px] font-medium text-slate-500 lg:inline">
+              <span className="hidden text-xs font-medium text-slate-500 lg:inline">
                 {roleLabel}
               </span>
             </Link>
