@@ -13,7 +13,7 @@ import { slotStartPickerStepLabel, slotStartPickerStepMinutes } from "@/lib/slot
 type RangeRow = TimeRangeInput & { key: string };
 
 function emptyRange(): RangeRow {
-  return { key: String(Date.now()) + Math.random(), dateYmd: "", startTime: "18:00", endTime: "21:00" };
+  return { key: String(Date.now()) + Math.random(), dateYmd: "", startTime: "09:00", endTime: "17:00" };
 }
 
 function weekdayJa(dateYmd: string) {
