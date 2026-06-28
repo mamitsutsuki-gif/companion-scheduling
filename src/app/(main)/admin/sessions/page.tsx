@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ScheduleNegotiationsPanel } from "@/components/schedule-negotiations-panel";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Row = {
@@ -241,6 +242,7 @@ export default function AdminSessionsPage() {
           </table>
         </div>
       )}
+      <ScheduleNegotiationsPanel />
     </div>
   );
 }

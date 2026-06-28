@@ -26,6 +26,8 @@ type NegotiationRow = {
   confirmedZoomMeetingId?: string | null;
   confirmedZoomPass?: string | null;
   rescheduleRequestedAt?: string | null;
+  responseDeadline?: string | null;
+  clientRespondedAt?: string | null;
 };
 
 function toIso(dt: Date | string) {
@@ -68,6 +70,10 @@ export async function listNegotiationsForMatch(matchId: string) {
           confirmedZoomPass: typeof raw?.confirmedZoomPass === "string" ? raw.confirmedZoomPass : null,
           rescheduleRequestedAt:
             typeof raw?.rescheduleRequestedAt === "string" ? raw.rescheduleRequestedAt : null,
+          responseDeadline:
+            typeof raw?.responseDeadline === "string" ? raw.responseDeadline : null,
+          clientRespondedAt:
+            typeof raw?.clientRespondedAt === "string" ? raw.clientRespondedAt : null,
         };
       })
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -103,6 +109,8 @@ export async function listNegotiationsForMatch(matchId: string) {
       confirmedZoomMeetingId: ext.confirmedZoomMeetingId ?? null,
       confirmedZoomPass: ext.confirmedZoomPass ?? null,
       rescheduleRequestedAt: ext.rescheduleRequestedAt?.toISOString() ?? null,
+      responseDeadline: (ext as { responseDeadline?: Date | null }).responseDeadline?.toISOString() ?? null,
+      clientRespondedAt: (ext as { clientRespondedAt?: Date | null }).clientRespondedAt?.toISOString() ?? null,
     };
   });
 }
@@ -117,7 +125,10 @@ export async function createNegotiationRound(input: {
   sessionNumber: number;
   round: number;
   slotData: { startAt: Date; endAt: Date }[];
+  responseDeadline?: Date;
 }) {
+  const now = new Date();
+  const responseDeadlineIso = (input.responseDeadline ?? now).toISOString();
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
     if (!db) throw new Error("Firestore is not configured");
@@ -135,8 +146,10 @@ export async function createNegotiationRound(input: {
       round: input.round,
       status: "AWAITING_CLIENT_RESPONSE",
       slots,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      responseDeadline: responseDeadlineIso,
+      clientRespondedAt: null,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
     });
     return {
       id: ref.id,
@@ -145,7 +158,9 @@ export async function createNegotiationRound(input: {
       round: input.round,
       status: "AWAITING_CLIENT_RESPONSE" as const,
       slots,
-      createdAt: new Date().toISOString(),
+      responseDeadline: responseDeadlineIso,
+      clientRespondedAt: null,
+      createdAt: now.toISOString(),
     };
   }
 
@@ -165,6 +180,7 @@ export async function createNegotiationRound(input: {
         sessionNumber: input.sessionNumber,
         round: input.round,
         status: "AWAITING_CLIENT_RESPONSE",
+        responseDeadline: input.responseDeadline ?? now,
         slots: {
           createMany: {
             data: input.slotData.map((s) => ({ startAt: s.startAt, endAt: s.endAt })),
@@ -180,6 +196,7 @@ export async function createNegotiationRound(input: {
         matchId: input.matchId,
         round: input.round,
         status: "AWAITING_CLIENT_RESPONSE",
+        responseDeadline: input.responseDeadline ?? now,
         slots: {
           createMany: {
             data: input.slotData.map((s) => ({ startAt: s.startAt, endAt: s.endAt })),
@@ -248,6 +265,10 @@ export async function getNegotiationById(negotiationId: string) {
       confirmedZoomPass: typeof raw.confirmedZoomPass === "string" ? raw.confirmedZoomPass : null,
       rescheduleRequestedAt:
         typeof raw.rescheduleRequestedAt === "string" ? raw.rescheduleRequestedAt : null,
+      responseDeadline:
+        typeof raw.responseDeadline === "string" ? raw.responseDeadline : null,
+      clientRespondedAt:
+        typeof raw.clientRespondedAt === "string" ? raw.clientRespondedAt : null,
     };
   }
 
@@ -276,6 +297,8 @@ export async function getNegotiationById(negotiationId: string) {
     confirmedZoomMeetingId: ext.confirmedZoomMeetingId ?? null,
     confirmedZoomPass: ext.confirmedZoomPass ?? null,
     rescheduleRequestedAt: ext.rescheduleRequestedAt?.toISOString() ?? null,
+    responseDeadline: (ext as { responseDeadline?: Date | null }).responseDeadline?.toISOString() ?? null,
+    clientRespondedAt: (ext as { clientRespondedAt?: Date | null }).clientRespondedAt?.toISOString() ?? null,
   };
 }
 
@@ -285,12 +308,18 @@ export async function submitVotes(negotiationId: string, votes: Record<string, "
   const allNo = negotiation.slots.every((s) => votes[s.id] === "NO");
   const nextStatus = allNo ? "NEEDS_NEW_PROPOSAL" : "AWAITING_PARTNER_CONFIRM";
 
+  const clientRespondedAt = new Date().toISOString();
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
     if (!db) return null;
     const slots = negotiation.slots.map((s) => ({ ...s, clientVote: votes[s.id] ?? null }));
     await db.collection("negotiations").doc(negotiationId).set(
-      { slots, status: nextStatus, updatedAt: new Date().toISOString() },
+      {
+        slots,
+        status: nextStatus,
+        clientRespondedAt,
+        updatedAt: clientRespondedAt,
+      },
       { merge: true },
     );
   } else {
@@ -298,7 +327,10 @@ export async function submitVotes(negotiationId: string, votes: Record<string, "
       ...negotiation.slots.map((slot) =>
         prisma.slot.update({ where: { id: slot.id }, data: { clientVote: votes[slot.id] } }),
       ),
-      prisma.negotiation.update({ where: { id: negotiationId }, data: { status: nextStatus } }),
+      prisma.negotiation.update({
+        where: { id: negotiationId },
+        data: { status: nextStatus, clientRespondedAt: new Date(clientRespondedAt) },
+      }),
     ]);
   }
   return { nextStatus };

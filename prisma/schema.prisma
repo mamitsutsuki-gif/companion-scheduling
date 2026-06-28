@@ -284,6 +284,10 @@ model Negotiation {
   confirmedZoomPass      String?
   /// 確定後に変更希望が出された時刻。新しい round が CONFIRMED されたらクリア。
   rescheduleRequestedAt DateTime?
+  /// クライアント回答期限（提示から3日後18:00）
+  responseDeadline      DateTime?
+  /// クライアントが回答した日時
+  clientRespondedAt     DateTime?
 
   slots Slot[]
 

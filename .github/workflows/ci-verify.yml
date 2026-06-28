@@ -50,3 +50,6 @@ jobs:
 
       - name: Verify slot start picker grid
         run: npx tsx scripts/verify-slot-schedule.ts
+
+      - name: Verify slot generation from time ranges
+        run: npx tsx scripts/verify-generate-slots.ts

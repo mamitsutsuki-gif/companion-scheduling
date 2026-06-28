@@ -19,28 +19,41 @@ import { getMatchById } from "@/lib/repositories/match-repository";
 import { isPartnerPendingMatch } from "@/lib/match-partner-pending";
 import { formatJaDateTimeRange } from "@/lib/format-datetime";
 import {
+  generateSlotsFromTimeRanges,
+  MAX_PROPOSAL_SLOTS,
+  type TimeRangeInput,
+} from "@/lib/generate-slots-from-ranges";
+import { computeResponseDeadline } from "@/lib/negotiation-display";
+import {
   isSlotStartOnPickerGrid,
   slotStartPickerStepLabel,
   slotStartPickerStepMinutes,
   validateSlotWindow,
 } from "@/lib/slot-schedule";
 
+const timeRangeSchema = z.object({
+  dateYmd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+});
+
+const rangesPayload = z.object({
+  sessionNumber: z.number().int().min(1).optional(),
+  timeRanges: z.array(timeRangeSchema).min(1).max(14),
+});
+
+/** 後方互換: 旧来の starts / slots ペイロード */
 const startsPayload = z.object({
-  starts: z.array(z.string()).min(3).max(5),
+  starts: z.array(z.string()).min(1).max(MAX_PROPOSAL_SLOTS),
   sessionNumber: z.number().int().min(1).optional(),
 });
 
 const legacySlotsPayload = z.object({
   sessionNumber: z.number().int().min(1).optional(),
   slots: z
-    .array(
-      z.object({
-        start: z.string(),
-        end: z.string(),
-      }),
-    )
-    .min(3)
-    .max(5),
+    .array(z.object({ start: z.string(), end: z.string() }))
+    .min(1)
+    .max(MAX_PROPOSAL_SLOTS),
 });
 
 type RouteContext = { params: Promise<{ matchId: string }> };
@@ -61,7 +74,6 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const negotiations = await listNegotiationsForMatch(matchId);
-
   return jsonOk({ negotiations });
 }
 
@@ -81,32 +93,32 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const raw = await request.json().catch(() => null);
-  const parsedStarts = startsPayload.safeParse(raw);
-  const parsedLegacy = !parsedStarts.success ? legacySlotsPayload.safeParse(raw) : null;
+  const parsedRanges = rangesPayload.safeParse(raw);
+  const parsedStarts = !parsedRanges.success ? startsPayload.safeParse(raw) : null;
+  const parsedLegacy =
+    !parsedRanges.success && (!parsedStarts || !parsedStarts.success)
+      ? legacySlotsPayload.safeParse(raw)
+      : null;
 
-  if (!parsedStarts.success && (!parsedLegacy || !parsedLegacy.success)) {
-    return jsonError("候補は3〜5件。開始時刻のみ（starts）または従来の開始・終了ペアで送ってください。");
+  if (!parsedRanges.success && (!parsedStarts || !parsedStarts.success) && (!parsedLegacy || !parsedLegacy.success)) {
+    return jsonError("対応可能な時間帯を1件以上登録してください。");
   }
 
   const latest = await findLatestNegotiation(matchId);
-
   if (latest && latest.status !== "CONFIRMED" && latest.status !== "NEEDS_NEW_PROPOSAL") {
     return jsonError("進行中の日程調整があるため新しい提案を出せません。", 409);
   }
-
   if (latest?.status === "NEEDS_NEW_PROPOSAL") {
     await markNegotiationSuperseded(latest.id);
   }
 
-  // この match のクライアントが所属する企業の実効設定を読む。
-  // 企業上書きが無ければグローバル設定にフォールバックするので従来挙動と互換。
   const settings = await getEffectiveAppSettingsForMatch(matchId);
   const sessionNumberRaw =
-    (parsedStarts.success ? parsedStarts.data.sessionNumber : undefined) ??
+    (parsedRanges.success ? parsedRanges.data.sessionNumber : undefined) ??
+    (parsedStarts?.success ? parsedStarts.data.sessionNumber : undefined) ??
     (parsedLegacy?.success ? parsedLegacy.data.sessionNumber : undefined) ??
     1;
   const sessionNumber = Math.min(Math.max(1, sessionNumberRaw), Math.max(1, settings.totalSessions));
-  const slotData: { startAt: Date; endAt: Date }[] = [];
 
   const slotWindow = {
     slotDurationMinutes: settings.slotDurationMinutes,
@@ -116,11 +128,20 @@ export async function POST(request: Request, context: RouteContext) {
     timezone: settings.timezone || "Asia/Tokyo",
   };
 
-  function validateWithinAllowedWindow(start: Date, end: Date) {
-    return validateSlotWindow(start, end, slotWindow);
-  }
+  let slotData: { startAt: Date; endAt: Date }[] = [];
+  let truncated = false;
 
-  if (parsedStarts.success) {
+  if (parsedRanges.success) {
+    const generated = generateSlotsFromTimeRanges(
+      parsedRanges.data.timeRanges as TimeRangeInput[],
+      slotWindow,
+    );
+    slotData = generated.slots;
+    truncated = generated.truncated;
+    if (slotData.length === 0) {
+      return jsonError("入力された時間帯から候補日時を生成できませんでした。日付・時刻をご確認ください。");
+    }
+  } else if (parsedStarts?.success) {
     for (const iso of parsedStarts.data.starts) {
       const start = new Date(iso);
       if (Number.isNaN(start.valueOf())) return jsonError("開始日時が不正です。");
@@ -129,7 +150,7 @@ export async function POST(request: Request, context: RouteContext) {
         return jsonError(`候補の開始時刻は ${step} 刻みで指定してください。`);
       }
       const end = addMinutes(start, settings.slotDurationMinutes);
-      const v = validateWithinAllowedWindow(start, end);
+      const v = validateSlotWindow(start, end, slotWindow);
       if (v) return jsonError(v);
       slotData.push({ startAt: start, endAt: end });
     }
@@ -140,19 +161,22 @@ export async function POST(request: Request, context: RouteContext) {
       if (Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf()) || start >= end) {
         return jsonError("開始・終了の日時が不正です。");
       }
-      const v = validateWithinAllowedWindow(start, end);
+      const v = validateSlotWindow(start, end, slotWindow);
       if (v) return jsonError(v);
       slotData.push({ startAt: start, endAt: end });
     }
   }
 
   const round = latest ? latest.round + 1 : 1;
+  const proposedAt = new Date();
+  const responseDeadline = computeResponseDeadline(proposedAt, slotWindow.timezone);
 
   const negotiation = await createNegotiationRound({
     matchId,
     sessionNumber,
     round,
     slotData,
+    responseDeadline,
   });
 
   const payload = {
@@ -168,7 +192,7 @@ export async function POST(request: Request, context: RouteContext) {
     })),
   };
 
-  const bodyShort = `${sessionNumber}回目の日程候補 Round ${negotiation.round}（各 ${settings.slotDurationMinutes} 分 × ${negotiation.slots.length} 件）`;
+  const bodyShort = `${sessionNumber}回目の候補日時 Round ${negotiation.round}（各 ${settings.slotDurationMinutes} 分 × ${negotiation.slots.length} 件）`;
 
   await createMessage({
     matchId,
@@ -180,16 +204,19 @@ export async function POST(request: Request, context: RouteContext) {
 
   const displayTz = settings.timezone || "Asia/Tokyo";
   const lines = negotiation.slots
+    .slice(0, 10)
     .map(
       (slot: { startAt: string; endAt: string }, i: number) =>
         `${i + 1}. ${formatJaDateTimeRange(slot.startAt, slot.endAt, displayTz)}`,
     )
     .join("\n");
+  const moreLine =
+    negotiation.slots.length > 10 ? `\n…他 ${negotiation.slots.length - 10} 件（アプリでご確認ください）` : "";
 
   await notifyMatchStakeholders(matchId, {
     appOrigin: new URL(request.url).origin,
-    subject: `${sessionNumber}回目の日程候補 Round ${negotiation.round} が提示されました`,
-    text: `${bodyShort}\n\n${lines}\n\nアプリのチャットで○／×の回答をお願いします。`,
+    subject: `${sessionNumber}回目の候補日時 Round ${negotiation.round} が届きました`,
+    text: `${bodyShort}\n\n${lines}${moreLine}\n\nアプリの「日程調整」タブからご都合の良い日時を選択してください。`,
     excludeUserId: session.sub,
   });
 
@@ -201,8 +228,7 @@ export async function POST(request: Request, context: RouteContext) {
     sessionNumber,
     actorUserId: session.sub,
     actorRole: session.role,
-    summary: `${sender?.displayName ?? "パートナー"}さんが ${sessionNumber} 回目の日程候補（Round ${negotiation.round}）を提示しました。`,
-    // 日程候補は match ページの日程調整タブに直接飛ばす。
+    summary: `${sender?.displayName ?? "パートナー"}さんが ${sessionNumber} 回目の候補日時（Round ${negotiation.round}）を提示しました。`,
     link: `/match/${matchId}#schedule`,
   });
 
@@ -215,10 +241,10 @@ export async function POST(request: Request, context: RouteContext) {
       sessionNumber,
       actorUserId: session.sub,
       actorRole: session.role,
-      summary: `${sender?.displayName ?? "パートナー"}さんが ${sessionNumber} 回目の日程候補を提示しました。○／× で回答してください。`,
+      summary: `${sender?.displayName ?? "パートナー"}さんから ${sessionNumber} 回目のご案内可能な日時が届きました。日程調整タブからご回答ください。`,
       link: `/match/${matchId}#schedule`,
     });
   }
 
-  return jsonOk({ ok: true, negotiation });
+  return jsonOk({ ok: true, negotiation, truncated, slotCount: negotiation.slots.length });
 }

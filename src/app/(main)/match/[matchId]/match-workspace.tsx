@@ -25,21 +25,16 @@ import {
   type PlanFeatures,
 } from "@/lib/company-plan";
 import {
-  buildSlotStartTimeOptions,
   formatTimeHmInZone,
-  isSlotStartOnPickerGrid,
-  slotStartPickerStepLabel,
-  slotStartPickerStepMinutes,
   zonedWallClockToUtc,
   calendarDateInTimeZone,
 } from "@/lib/slot-schedule";
+import { ScheduleProposeForm } from "@/components/schedule-propose-form";
+import { ScheduleClientVoteForm } from "@/components/schedule-client-vote-form";
 import { MatchRoomGuideBanner } from "@/components/match-room-guide-banner";
+import { LEGACY_STATUS_LABEL } from "@/lib/negotiation-display";
+import type { TimeRangeInput } from "@/lib/generate-slots-from-ranges";
 import { ScheduleRulesDetail } from "@/components/schedule-rules-detail";
-import {
-  SCHEDULE_SUMMARY_CLIENT,
-  SCHEDULE_SUMMARY_PARTNER,
-  type SchedulingGuideAudience,
-} from "@/lib/scheduling-rules-copy";
 import Link from "next/link";
 import {
   FormEvent,
@@ -47,7 +42,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  type ChangeEvent,
 } from "react";
 
 type Role =
@@ -103,6 +97,8 @@ type NegotiationRow = {
   confirmedZoomMeetingId?: string | null;
   confirmedZoomPass?: string | null;
   rescheduleRequestedAt?: string | null;
+  responseDeadline?: string | null;
+  clientRespondedAt?: string | null;
 };
 
 type MatchFtaPayload = {
@@ -350,13 +346,7 @@ function renderClientOverview(
   );
 }
 
-const statusLabel: Record<NegotiationRow["status"], string> = {
-  AWAITING_CLIENT_RESPONSE: "クライアント回答待ち",
-  NEEDS_NEW_PROPOSAL: "すべて×／再提案が必要",
-  AWAITING_PARTNER_CONFIRM: "パートナーによる確定待ち",
-  CONFIRMED: "確定済み",
-  SUPERSEDED: "再提案により破棄",
-};
+const statusLabel: Record<NegotiationRow["status"], string> = LEGACY_STATUS_LABEL;
 
 const roleBadge: Record<Role, string> = {
   ADMIN: "管理者",
@@ -410,58 +400,10 @@ function resolveVoteNegotiationForMessage(
   return neg?.status === "AWAITING_CLIENT_RESPONSE" ? neg : null;
 }
 
-function schedulingGuideAudience(role: Role): SchedulingGuideAudience | null {
-  if (role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT") return "partner";
-  if (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR") return "client";
-  return null;
-}
-
 function chatSendFormLabel(role: Role): string {
   return role === "PARTNER"
     ? "メッセージ送信（クライアントにチャットを送付する）"
     : "メッセージ送信";
-}
-
-/** チャットタブ上部の日程ガイド（ロールごと）。 */
-function ChatScheduleHints({ role }: { role: Role }) {
-  const audience = schedulingGuideAudience(role);
-  return (
-    <>
-      {audience === "partner" ? (
-        <div className="app-surface-indigo rounded-2xl px-4 py-3">
-          <p className="text-sm font-medium text-indigo-950">{SCHEDULE_SUMMARY_PARTNER}</p>
-          <details className="mt-2">
-            <summary className="cursor-pointer text-xs font-semibold text-indigo-700 hover:underline">
-              日程調整の詳しいご案内を開く
-            </summary>
-            <ScheduleRulesDetail
-              audience="partner"
-              className="mt-3 pr-1"
-              scrollClassName="max-h-[min(60vh,24rem)] overflow-y-auto overflow-x-hidden"
-            />
-          </details>
-        </div>
-      ) : null}
-      {audience === "client" ? (
-        <div className="app-surface-indigo rounded-2xl px-4 py-3">
-          <p className="text-sm font-medium text-indigo-950">{SCHEDULE_SUMMARY_CLIENT}</p>
-          <p className="mt-2 text-xs text-indigo-900/85">
-            日程候補がチャットに届いたら「ここから回答（日程調整タブへ）」から、日程調整画面で ◯・× を入力してください。
-          </p>
-          <details className="mt-2">
-            <summary className="cursor-pointer text-xs font-semibold text-indigo-700 hover:underline">
-              日程調整の詳しいご案内を開く
-            </summary>
-            <ScheduleRulesDetail
-              audience="client"
-              className="mt-3 pr-1"
-              scrollClassName="max-h-[min(60vh,24rem)] overflow-y-auto overflow-x-hidden"
-            />
-          </details>
-        </div>
-      ) : null}
-    </>
-  );
 }
 
 function ChatMsgRow({
@@ -904,47 +846,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     };
   }, [chatFullscreen]);
 
-  const timeOptions = useMemo(
-    () =>
-      buildSlotStartTimeOptions({
-        slotDurationMinutes: scheduleSettings.slotDurationMinutes,
-        slotEarliestHour: scheduleSettings.slotEarliestHour,
-        slotLatestHour: scheduleSettings.slotLatestHour,
-        allowWeekends: scheduleSettings.allowWeekends,
-        timezone: scheduleSettings.timezone,
-      }),
-    [
-      scheduleSettings.slotDurationMinutes,
-      scheduleSettings.slotEarliestHour,
-      scheduleSettings.slotLatestHour,
-      scheduleSettings.allowWeekends,
-      scheduleSettings.timezone,
-    ],
-  );
-
-  const slotPickerStep = slotStartPickerStepMinutes(scheduleSettings.slotDurationMinutes);
-  const slotPickerStepText = slotStartPickerStepLabel(slotPickerStep);
-
-  function isWeekendDateString(yyyymmdd: string) {
-    if (!yyyymmdd) return false;
-    const [y, m, d] = yyyymmdd.split("-").map((v) => Number(v));
-    if (!y || !m || !d) return false;
-    const dt = new Date(y, m - 1, d);
-    const wd = dt.getDay();
-    return wd === 0 || wd === 6;
-  }
-
-  function onProposeDateInputChange(e: ChangeEvent<HTMLInputElement>) {
-    const v = e.target.value;
-    if (scheduleSettings.allowWeekends || !v) return;
-    if (isWeekendDateString(v)) {
-      e.target.value = "";
-      setError(
-        "土曜・日曜はこのサービスでは候補として選べません。平日をご選択ください。",
-      );
-    }
-  }
-
   const load = useCallback(async () => {
     setError(null);
     const roomRes = await fetch(`/api/matches/${encodeURIComponent(matchId)}`, { cache: "no-store" });
@@ -1308,24 +1209,14 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     await load();
   }
 
-  async function onVote(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function onVoteSelected(selectedSlotIds: string[]) {
     if (!activeNegotiation || activeNegotiation.status !== "AWAITING_CLIENT_RESPONSE") return;
-
-    const fd = new FormData(e.currentTarget);
-    const votes: Record<string, "YES" | "NO"> = {};
-    for (const slot of activeNegotiation.slots) {
-      const v = fd.get(`vote:${slot.id}`);
-      if (v !== "YES" && v !== "NO") return setError("全候補に回答してください");
-      votes[slot.id] = v;
-    }
-
     const res = await fetch(
       `/api/matches/${matchId}/negotiations/${activeNegotiation.id}/vote`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ votes }),
+        body: JSON.stringify({ selectedSlotIds }),
       },
     );
     const json = await res.json().catch(() => null);
@@ -1333,7 +1224,48 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       setError(json?.error ?? "回答送信に失敗しました。");
       return;
     }
-    setNotice("回答を送信しました。");
+    setNotice("選択した日時で回答を送信しました。");
+    await load();
+  }
+
+  async function onRequestAlternative() {
+    if (!activeNegotiation || activeNegotiation.status !== "AWAITING_CLIENT_RESPONSE") return;
+    const res = await fetch(
+      `/api/matches/${matchId}/negotiations/${activeNegotiation.id}/vote`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ selectedSlotIds: [] }),
+      },
+    );
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      setError(json?.error ?? "送信に失敗しました。");
+      return;
+    }
+    await load();
+  }
+
+  async function onProposeTimeRanges(payload: { sessionNumber: number; timeRanges: TimeRangeInput[] }) {
+    if (me?.role !== "PARTNER") return;
+    if (proposeSubmitting) return;
+    setProposeSubmitting(true);
+    setError(null);
+    setProposeJustSent(false);
+    const res = await fetch(`/api/matches/${matchId}/negotiations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json().catch(() => null);
+    setProposeSubmitting(false);
+    if (!res.ok) {
+      setError(json?.error ?? "提案に失敗しました。");
+      return;
+    }
+    setProposeJustSent(true);
+    setNotice(`候補日時（${json?.slotCount ?? ""}件）を提示しました。`);
+    window.setTimeout(() => setProposeJustSent(false), 6000);
     await load();
   }
 
@@ -1373,72 +1305,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       setError(json?.error ?? "確定処理に失敗しました。");
       return;
     }
-    setNotice("確定しました。関係者へメール（.ics 添付）で通知しました。");
-    await load();
-  }
-
-  async function onPropose(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (me?.role !== "PARTNER") return;
-    if (proposeSubmitting) return;
-    const form = e.currentTarget;
-    const fd = new FormData(form);
-    const sessionNumber = Number(fd.get("sessionNumber") ?? 1);
-    const starts: string[] = [];
-    for (let i = 1; i <= 5; i += 1) {
-      const raw = String(fd.get(`start${i}`) ?? "").trim();
-      const date = String(fd.get(`startDate${i}`) ?? "").trim();
-      const time = String(fd.get(`startTime${i}`) ?? "").trim();
-      const merged = raw || (date && time ? `${date}T${time}` : "");
-      if (!merged) continue;
-      if (date && !scheduleSettings.allowWeekends && isWeekendDateString(date)) {
-        setError(`${i} 件目: 土曜・日曜はこのサービスでは候補として指定できません。`);
-        return;
-      }
-      const d = new Date(merged);
-      if (Number.isNaN(d.valueOf())) {
-        setError(`${i} 件目の日時が不正です。`);
-        return;
-      }
-      if (
-        !isSlotStartOnPickerGrid(d, {
-          slotDurationMinutes: scheduleSettings.slotDurationMinutes,
-          slotEarliestHour: scheduleSettings.slotEarliestHour,
-          slotLatestHour: scheduleSettings.slotLatestHour,
-          allowWeekends: scheduleSettings.allowWeekends,
-          timezone: scheduleSettings.timezone,
-        })
-      ) {
-        setError(`候補 ${i} の開始時刻は ${slotPickerStepText} 刻みで選んでください。`);
-        return;
-      }
-      starts.push(d.toISOString());
-    }
-
-    if (starts.length < 3 || starts.length > 5) {
-      setError(`候補は3〜5件にしてください。（現在 ${starts.length} 件）`);
-      return;
-    }
-
-    setProposeSubmitting(true);
-    setError(null);
-    setProposeJustSent(false);
-    const res = await fetch(`/api/matches/${matchId}/negotiations`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ starts, sessionNumber }),
-    });
-    const json = await res.json().catch(() => null);
-    setProposeSubmitting(false);
-    if (!res.ok) {
-      setError(json?.error ?? "提案に失敗しました。");
-      return;
-    }
-    // ✓ 送信完了表示 + 既入力をクリア（重複送信防止）
-    form.reset();
-    setProposeJustSent(true);
-    setNotice("候補を提示しました（チャットに反映されました）。");
-    window.setTimeout(() => setProposeJustSent(false), 6000);
+    setNotice("日程を確定しました。関係者へメール（.ics 添付）で通知しました。");
     await load();
   }
 
@@ -2097,7 +1964,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               </button>
             </div>
           </div>
-          <ChatScheduleHints role={me.role} />
           <ChatMessageThread
             messages={messages}
             me={me}
@@ -2161,7 +2027,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <div className="space-y-1">
           <h2 className="text-2xl font-semibold text-indigo-900">日程調整</h2>
           <p className="text-base text-indigo-800">
-            ○／×モデルでの候補提示 → 回答 → （必要なら再提案） → 確定。この画面で状態を確認します。
+            担当パートナーが候補日時を提示し、クライアントが回答、担当パートナーが日程を確定する流れです。
           </p>
         </div>
         <div className="app-surface-indigo space-y-3 rounded-2xl px-5 py-4">
@@ -2264,161 +2130,37 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         </div>
 
         {me.role === "PARTNER" ? (
-          <form onSubmit={onPropose} className="space-y-5 rounded-2xl border border-slate-200 bg-white px-5 py-4">
-            {proposeJustSent ? (
-              <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">
-                ✓ 送信完了：候補をクライアントに通知しました。フォームはクリアされています。
-              </div>
-            ) : null}
-            <div>
-              <h3 className="text-xl font-semibold">候補日を送る（開始時刻のみ・3〜5 件）</h3>
-              <p className="mt-1 text-xs text-slate-600">
-                選択可能な時間帯：{String(scheduleSettings.slotEarliestHour).padStart(2, "0")}:00〜{String(scheduleSettings.slotLatestHour).padStart(2, "0")}:00
-                {scheduleSettings.allowWeekends ? "（土日も可）" : "（土日不可）"}
-              </p>
-              <label className="mt-3 block max-w-xs text-base font-medium text-slate-800">
-                何回目の日程調整か
-                <select
-                  name="sessionNumber"
-                  defaultValue={1}
-                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-base"
-                >
-                  {Array.from({ length: Math.max(1, scheduleSettings.totalSessions) }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={n}>
-                      {n} 回目
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <p className="mt-1 text-base text-slate-600">
-                終了時刻は、ご利用いただける1回あたりの枠の長さ（現在{" "}
-                <strong className="text-indigo-800">{scheduleSettings.slotDurationMinutes} 分</strong>
-                、タイムゾーン {scheduleSettings.timezone}）に応じて自動で付きます。
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
-                開始時刻は {slotPickerStepText} 刻みで選びます（1回 {scheduleSettings.slotDurationMinutes}{" "}
-                分の終了時刻は自動計算）。
-              </p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              {[1, 2, 3].map((index) => (
-                <fieldset key={index} className="space-y-2 rounded-xl border border-dashed border-slate-300 p-4">
-                  <legend className="text-sm font-medium">候補 {index}</legend>
-                  <label className="block text-xs uppercase text-slate-500">
-                    日付
-                    <input
-                      name={`startDate${index}`}
-                      type="date"
-                      required
-                      onChange={onProposeDateInputChange}
-                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1"
-                    />
-                  </label>
-                  <label className="block text-xs uppercase text-slate-500">
-                    時刻（{slotPickerStepText}刻み）
-                    <select
-                      name={`startTime${index}`}
-                      required
-                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1"
-                    >
-                      <option value="">選択してください</option>
-                      {timeOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </fieldset>
-              ))}
-              <fieldset className="space-y-2 rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 md:col-span-2">
-                <legend className="text-sm font-medium text-slate-700">4〜5件目は任意（未入力でも可）</legend>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {[4, 5].map((index) => (
-                    <div key={index} className="space-y-2 rounded-lg border border-slate-100 p-3">
-                      <p className="text-xs font-semibold uppercase text-slate-500">任意 {index}</p>
-                      <input
-                        name={`startDate${index}`}
-                        type="date"
-                        onChange={onProposeDateInputChange}
-                        className="w-full rounded-md border border-slate-300 px-2 py-1"
-                      />
-                      <select
-                        name={`startTime${index}`}
-                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1"
-                      >
-                        <option value="">時刻を選択</option>
-                        {timeOptions.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-              </fieldset>
-            </div>
-            <div className="space-y-2">
-              <button
-                type="submit"
-                disabled={proposeSubmitting}
-                className="app-btn-primary rounded-lg px-4 py-2.5 text-base disabled:cursor-not-allowed"
-              >
-                {proposeSubmitting ? "送信中…" : "候補日を送る（3〜5 件）"}
-              </button>
-              {/* このボタンを押したあとに何が起こるかを明示。実行前に挙動が見える方が安心。 */}
-              <p className="text-xs text-slate-500">
-                → クライアントにメールとアプリ通知が届き、◯× の回答待ちになります。
-              </p>
-            </div>
-          </form>
+          <ScheduleProposeForm
+            scheduleSettings={{
+              slotDurationMinutes: scheduleSettings.slotDurationMinutes,
+              slotEarliestHour: scheduleSettings.slotEarliestHour,
+              slotLatestHour: scheduleSettings.slotLatestHour,
+              allowWeekends: scheduleSettings.allowWeekends,
+              timezone: scheduleSettings.timezone,
+            }}
+            totalSessions={scheduleSettings.totalSessions}
+            submitting={proposeSubmitting}
+            justSent={proposeJustSent}
+            onSubmit={onProposeTimeRanges}
+          />
         ) : null}
 
         {activeNegotiation?.status === "NEEDS_NEW_PROPOSAL" && me.role === "PARTNER" ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-            クライアントが全候補に「×」でした。上のフォームから、新しい時間帯セットを再提案してください。
+            クライアントから別候補の希望がありました。上のフォームから、新しい時間帯を再提示してください。
           </div>
         ) : null}
 
         {activeNegotiation && activeNegotiation.status === "AWAITING_CLIENT_RESPONSE" && isClientRole(me.role) ? (
-          <form
-            id="client-schedule-vote"
-            onSubmit={onVote}
-            className="app-surface-indigo scroll-mt-24 space-y-4 rounded-2xl px-5 py-4"
-          >
-            <h3 className="text-xl font-semibold text-indigo-900">ご希望の時間をすべて回答</h3>
-            <p className="text-base text-indigo-800">参加できる候補は「○」。どれにも入れられないときはすべて「×」を選んでください。</p>
-            <div className="space-y-3">
-              {activeNegotiation.slots.map((slot) => (
-                <div key={slot.id} className="rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-2">
-                  <p className="text-sm font-medium text-indigo-900">
-                    {formatJa(slot.startAt, scheduleSettings.timezone)}〜
-                    {formatJa(slot.endAt, scheduleSettings.timezone)}
-                  </p>
-                  <div className="mt-2 flex gap-4 text-sm">
-                    <label className="flex items-center gap-1">
-                      <input type="radio" name={`vote:${slot.id}`} value="YES" required />○ 参加できる
-                    </label>
-                    <label className="flex items-center gap-1">
-                      <input type="radio" name={`vote:${slot.id}`} value="NO" required />× むり
-                    </label>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="space-y-2">
-              <button
-                type="submit"
-                className="app-btn-primary rounded-lg px-4 py-2.5 text-base"
-              >
-                回答を送信する
-              </button>
-              <p className="text-xs text-slate-500">
-                → パートナーに回答内容が通知されます。すべて × の場合は新しい候補が届きます。
-              </p>
-            </div>
-          </form>
+          <ScheduleClientVoteForm
+            partnerName={availability?.partner.displayName ?? "担当パートナー"}
+            slots={activeNegotiation.slots}
+            timezone={scheduleSettings.timezone}
+            responseDeadline={activeNegotiation.responseDeadline}
+            submitting={false}
+            onSubmitSelected={onVoteSelected}
+            onRequestAlternative={onRequestAlternative}
+          />
         ) : null}
 
         {activeNegotiation && activeNegotiation.status === "AWAITING_PARTNER_CONFIRM" && me.role === "PARTNER" ? (
@@ -2427,9 +2169,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             onSubmit={onConfirm}
             className="space-y-3 rounded-2xl border border-amber-200 bg-white px-5 py-4"
           >
-            <h3 className="text-xl font-semibold text-amber-900">日程を決定する</h3>
+            <h3 className="text-xl font-semibold text-amber-900">日程を確定する</h3>
             <p className="text-base text-amber-800">
-              「○」が複数ある場合は、ご希望時間をひとつ選んで決定してください。
+              クライアントが参加可能と回答した日時の中から、1件を選んで日程を確定してください。
             </p>
             <select
               name="slotId"
@@ -2476,7 +2218,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 type="submit"
                 className="app-btn-amber rounded-lg px-4 py-2.5 text-base"
               >
-                この日に決定する
+                日程を確定する
               </button>
               <p className="text-xs text-amber-900/80">
                 → 双方に Zoom 入りの確定メールが届きます。確定後の変更は「日程変更依頼」から。
@@ -2780,7 +2522,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             閉じる（Esc）
           </button>
         </header>
-        <ChatScheduleHints role={me.role} />
         <ChatMessageThread
           messages={messages}
           me={me}
