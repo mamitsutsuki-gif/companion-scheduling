@@ -9,7 +9,7 @@ import {
   getEffectiveAppSettings,
   upsertCompanyAppSettingsOverride,
 } from "@/lib/repositories/app-settings-repository";
-import { normalizePlanFeatureOverrides } from "@/lib/company-plan";
+import { normalizePlanFeatureOverrides, normalizeCoachingPlanSettingsOverrides } from "@/lib/company-plan";
 import { normalizeCoachingSessionModesByRound } from "@/lib/coaching-session-mode";
 
 export const dynamic = "force-dynamic";
@@ -95,6 +95,16 @@ const patchSchema = z.object({
     .record(z.string(), z.enum(["standard", "roleplay"]))
     .optional(),
   clearCoachingSessionModes: z.boolean().optional(),
+  coachingPlanSettings: z
+    .object({
+      publishQuestions: z.boolean().optional(),
+      publishOneOnOneFormat: z.boolean().optional(),
+      shareIcebreakerWithPartner: z.boolean().optional(),
+      shareQuestionsWithPartner: z.boolean().optional(),
+      shareOneOnOneFormatWithPartner: z.boolean().optional(),
+    })
+    .optional(),
+  clearCoachingPlanSettings: z.boolean().optional(),
 });
 
 /**
@@ -144,7 +154,7 @@ export async function PATCH(request: Request, ctx: RouteContext) {
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容が不正です。");
 
-  const { clearFields, clearPartnerProjectOverview, clearClientProjectOverview, clearPlanFeatureOverrides, clearMeetingProvider, clearCoachingSessionModes, ...rest } =
+  const { clearFields, clearPartnerProjectOverview, clearClientProjectOverview, clearPlanFeatureOverrides, clearMeetingProvider, clearCoachingSessionModes, clearCoachingPlanSettings, ...rest } =
     parsed.data;
   if (clearFields && clearFields.length > 0) {
     for (const k of clearFields) {
@@ -164,6 +174,9 @@ export async function PATCH(request: Request, ctx: RouteContext) {
   }
   if (clearCoachingSessionModes && rest.coachingSessionModesByRound !== undefined) {
     return jsonError("coachingSessionModesByRound を同時に clear と set することはできません。");
+  }
+  if (clearCoachingPlanSettings && rest.coachingPlanSettings !== undefined) {
+    return jsonError("coachingPlanSettings を同時に clear と set することはできません。");
   }
   if (
     typeof rest.slotEarliestHour === "number" &&
@@ -187,6 +200,10 @@ export async function PATCH(request: Request, ctx: RouteContext) {
     clearCoachingSessionModes: clearCoachingSessionModes === true,
     coachingSessionModesByRound: rest.coachingSessionModesByRound
       ? normalizeCoachingSessionModesByRound(rest.coachingSessionModesByRound)
+      : undefined,
+    clearCoachingPlanSettings: clearCoachingPlanSettings === true,
+    coachingPlanSettings: rest.coachingPlanSettings
+      ? normalizeCoachingPlanSettingsOverrides(rest.coachingPlanSettings)
       : undefined,
   });
 

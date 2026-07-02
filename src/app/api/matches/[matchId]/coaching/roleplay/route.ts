@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
-import { resolveCoachingAccessForMatch } from "@/lib/coaching-access";
+import { resolveCoachingMatchParticipantAccess } from "@/lib/coaching-access";
 import {
   ROLEPLAY_CATEGORIES,
   SCORE_LABELS,
@@ -65,7 +65,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
   const { matchId } = await ctx.params;
-  const access = await resolveCoachingAccessForMatch(matchId, { id: session.sub, role: session.role });
+  const access = await resolveCoachingMatchParticipantAccess(matchId, { id: session.sub, role: session.role });
   if ("error" in access) {
     if (access.error === "not_found") return jsonError("マッチが見つかりません。", 404);
     if (access.error === "plan_disabled") return jsonError("このプランでは利用できません。", 403);
@@ -100,7 +100,7 @@ export async function PUT(request: Request, ctx: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
   const { matchId } = await ctx.params;
-  const access = await resolveCoachingAccessForMatch(matchId, { id: session.sub, role: session.role });
+  const access = await resolveCoachingMatchParticipantAccess(matchId, { id: session.sub, role: session.role });
   if ("error" in access) return jsonError("権限がありません。", 403);
 
   const body = await request.json().catch(() => null);

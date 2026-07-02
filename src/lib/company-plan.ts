@@ -81,6 +81,101 @@ export const INDIVIDUAL_COMPANION_FEATURE_OPTIONS: Array<{
 
 export type PlanFeatureOverrides = Partial<Record<IndividualCompanionFeatureKey, boolean>>;
 
+/** コーチング研修プラン: クライアント公開・パートナー共有の企業設定 */
+export type CoachingPlanSettingsOverrides = {
+  publishQuestions?: boolean;
+  publishOneOnOneFormat?: boolean;
+  shareIcebreakerWithPartner?: boolean;
+  shareQuestionsWithPartner?: boolean;
+  shareOneOnOneFormatWithPartner?: boolean;
+};
+
+export type CoachingPlanSettings = {
+  publishQuestions: boolean;
+  publishOneOnOneFormat: boolean;
+  shareIcebreakerWithPartner: boolean;
+  shareQuestionsWithPartner: boolean;
+  shareOneOnOneFormatWithPartner: boolean;
+};
+
+export const COACHING_CLIENT_PUBLISH_OPTIONS: Array<{
+  key: keyof Pick<CoachingPlanSettingsOverrides, "publishQuestions" | "publishOneOnOneFormat">;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "publishQuestions",
+    label: "質問リスト",
+    description: "チェックを入れると、クライアントのマッチルームで質問リストタブが利用可能になります。",
+  },
+  {
+    key: "publishOneOnOneFormat",
+    label: "1on1フォーマット",
+    description: "チェックを入れると、クライアントのマッチルームで1on1フォーマットタブが利用可能になります。",
+  },
+];
+
+export const COACHING_PARTNER_SHARE_OPTIONS: Array<{
+  key: keyof Pick<
+    CoachingPlanSettingsOverrides,
+    "shareIcebreakerWithPartner" | "shareQuestionsWithPartner" | "shareOneOnOneFormatWithPartner"
+  >;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "shareIcebreakerWithPartner",
+    label: "アイスブレイク",
+    description: "チェックを入れると、マッチしたパートナーが担当クライアントのアイスブレイクを閲覧できます。",
+  },
+  {
+    key: "shareQuestionsWithPartner",
+    label: "質問リスト",
+    description:
+      "チェックを入れると、マッチしたパートナーが担当クライアントの質問リストを閲覧できます（クライアント公開後のみ）。",
+  },
+  {
+    key: "shareOneOnOneFormatWithPartner",
+    label: "1on1フォーマット",
+    description:
+      "チェックを入れると、マッチしたパートナーが担当クライアントの1on1フォーマットを閲覧できます（クライアント公開後のみ）。",
+  },
+];
+
+export function normalizeCoachingPlanSettingsOverrides(
+  input: unknown,
+): CoachingPlanSettingsOverrides | undefined {
+  if (!input || typeof input !== "object") return undefined;
+  const raw = input as Record<string, unknown>;
+  const out: CoachingPlanSettingsOverrides = {};
+  if (typeof raw.publishQuestions === "boolean") out.publishQuestions = raw.publishQuestions;
+  if (typeof raw.publishOneOnOneFormat === "boolean") {
+    out.publishOneOnOneFormat = raw.publishOneOnOneFormat;
+  }
+  if (typeof raw.shareIcebreakerWithPartner === "boolean") {
+    out.shareIcebreakerWithPartner = raw.shareIcebreakerWithPartner;
+  }
+  if (typeof raw.shareQuestionsWithPartner === "boolean") {
+    out.shareQuestionsWithPartner = raw.shareQuestionsWithPartner;
+  }
+  if (typeof raw.shareOneOnOneFormatWithPartner === "boolean") {
+    out.shareOneOnOneFormatWithPartner = raw.shareOneOnOneFormatWithPartner;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+export function resolveCoachingPlanSettings(
+  overrides?: CoachingPlanSettingsOverrides | null,
+): CoachingPlanSettings {
+  return {
+    publishQuestions: overrides?.publishQuestions === true,
+    publishOneOnOneFormat: overrides?.publishOneOnOneFormat === true,
+    shareIcebreakerWithPartner: overrides?.shareIcebreakerWithPartner === true,
+    shareQuestionsWithPartner: overrides?.shareQuestionsWithPartner === true,
+    shareOneOnOneFormatWithPartner: overrides?.shareOneOnOneFormatWithPartner === true,
+  };
+}
+
 export {
   MEETING_PROVIDER_OPTIONS,
   normalizeMeetingProvider,
@@ -134,9 +229,9 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         lifelineChart: false,
         summaryReport: false,
         coachingRoleplay: false,
-        coachingQuestions: true,
+        coachingQuestions: false,
         coachingIcebreaker: true,
-        coachingOneOnOneFormat: true,
+        coachingOneOnOneFormat: false,
         configurableSessionQuestions: false,
         planComingSoon: false,
       };
@@ -164,18 +259,29 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
   }
 }
 
-/** プラン既定値に企業ごとの成果物 ON/OFF を合成する（個別伴走プランのみ）。 */
+/** プラン既定値に企業ごとの成果物 ON/OFF を合成する。 */
 export function resolvePlanFeatures(
   plan: CompanyPlan,
   overrides?: PlanFeatureOverrides | null,
+  coachingSettings?: CoachingPlanSettingsOverrides | null,
 ): PlanFeatures {
   const base = getPlanFeatures(plan);
-  if (plan !== "individual_companion" || !overrides) return base;
-  const merged = { ...base };
-  for (const { key } of INDIVIDUAL_COMPANION_FEATURE_OPTIONS) {
-    if (overrides[key] !== undefined) merged[key] = overrides[key]!;
+  if (plan === "individual_companion" && overrides) {
+    const merged = { ...base };
+    for (const { key } of INDIVIDUAL_COMPANION_FEATURE_OPTIONS) {
+      if (overrides[key] !== undefined) merged[key] = overrides[key]!;
+    }
+    return merged;
   }
-  return merged;
+  if (plan === "coaching_management_training") {
+    const cs = resolveCoachingPlanSettings(coachingSettings);
+    return {
+      ...base,
+      coachingQuestions: cs.publishQuestions,
+      coachingOneOnOneFormat: cs.publishOneOnOneFormat,
+    };
+  }
+  return base;
 }
 
 export function resolveCompanyPlan(

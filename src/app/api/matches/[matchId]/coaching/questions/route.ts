@@ -23,7 +23,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
   const { matchId } = await ctx.params;
-  const access = await resolveCoachingAccessForMatch(matchId, { id: session.sub, role: session.role });
+  const access = await resolveCoachingAccessForMatch(matchId, { id: session.sub, role: session.role }, "questions");
   if ("error" in access) {
     if (access.error === "plan_disabled") return jsonError("このプランでは利用できません。", 403);
     return jsonError("権限がありません。", 403);
@@ -40,7 +40,7 @@ export async function PUT(request: Request, ctx: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
   const { matchId } = await ctx.params;
-  const access = await resolveCoachingAccessForMatch(matchId, { id: session.sub, role: session.role });
+  const access = await resolveCoachingAccessForMatch(matchId, { id: session.sub, role: session.role }, "questions");
   if ("error" in access || !access.canEditClient) return jsonError("編集権限がありません。", 403);
 
   const body = await request.json().catch(() => null);
@@ -81,7 +81,7 @@ export async function DELETE(request: Request, ctx: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
   const { matchId } = await ctx.params;
-  const access = await resolveCoachingAccessForMatch(matchId, { id: session.sub, role: session.role });
+  const access = await resolveCoachingAccessForMatch(matchId, { id: session.sub, role: session.role }, "questions");
   if ("error" in access || !access.canEditClient) return jsonError("削除権限がありません。", 403);
 
   const entryId = new URL(request.url).searchParams.get("id") ?? "";

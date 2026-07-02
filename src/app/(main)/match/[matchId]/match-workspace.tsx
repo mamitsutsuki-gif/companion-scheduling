@@ -21,6 +21,8 @@ import {
   DEFAULT_COMPANY_PLAN,
   companyPlanLabel,
   getPlanFeatures,
+  resolveCoachingPlanSettings,
+  type CoachingPlanSettings,
   type CompanyPlan,
   type PlanFeatures,
 } from "@/lib/company-plan";
@@ -124,7 +126,10 @@ type ScheduleSettingsPayload = {
   overriddenFields: string[];
   companyPlan: CompanyPlan;
   planFeatures: PlanFeatures;
+  coachingPlanSettings: CoachingPlanSettings;
 };
+
+const DEFAULT_COACHING_PLAN_SETTINGS = resolveCoachingPlanSettings(null);
 
 const DEFAULT_PLAN_FEATURES = getPlanFeatures(DEFAULT_COMPANY_PLAN);
 
@@ -198,9 +203,42 @@ function matchTabRequiresPartner(tab: MatchTab): boolean {
 
 function firstPrePartnerCoachingTab(features: PlanFeatures): MatchTab {
   if (features.coachingIcebreaker) return "coachingIcebreaker";
-  if (features.coachingQuestions) return "coachingQuestions";
-  if (features.coachingOneOnOneFormat) return "coachingOneOnOneFormat";
   return "coachingIcebreaker";
+}
+
+function isAdminViewerRole(role: Me["role"]) {
+  return role === "ADMIN" || role === "ADMIN_ASSISTANT";
+}
+
+function coachingPublishTabLocked(
+  tab: "coachingQuestions" | "coachingOneOnOneFormat",
+  features: PlanFeatures,
+  role: Me["role"],
+): boolean {
+  if (isAdminViewerRole(role)) return false;
+  if (tab === "coachingQuestions") return !features.coachingQuestions;
+  return !features.coachingOneOnOneFormat;
+}
+
+function showCoachingTabForViewer(
+  tab: Extract<MatchTab, "coachingIcebreaker" | "coachingQuestions" | "coachingOneOnOneFormat">,
+  settings: ScheduleSettingsPayload,
+  role: Me["role"],
+): boolean {
+  if (settings.companyPlan !== "coaching_management_training") {
+    if (tab === "coachingIcebreaker") return settings.planFeatures.coachingIcebreaker;
+    if (tab === "coachingQuestions") return settings.planFeatures.coachingQuestions;
+    return settings.planFeatures.coachingOneOnOneFormat;
+  }
+  const cs = settings.coachingPlanSettings;
+  if (isAdminViewerRole(role)) return true;
+  if (role === "PARTNER") {
+    if (tab === "coachingIcebreaker") return cs.shareIcebreakerWithPartner;
+    if (tab === "coachingQuestions") return cs.shareQuestionsWithPartner;
+    return cs.shareOneOnOneFormatWithPartner;
+  }
+  if (tab === "coachingIcebreaker") return settings.planFeatures.coachingIcebreaker;
+  return true;
 }
 
 function matchTabButtonClass(active: boolean, locked: boolean): string {
@@ -747,6 +785,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     overriddenFields: [],
     companyPlan: DEFAULT_COMPANY_PLAN,
     planFeatures: DEFAULT_PLAN_FEATURES,
+    coachingPlanSettings: DEFAULT_COACHING_PLAN_SETTINGS,
   });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -801,21 +840,37 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
   const tryGoTab = useCallback(
     (tab: MatchTab) => {
-      const isAdminViewer = me?.role === "ADMIN" || me?.role === "ADMIN_ASSISTANT";
+      const isAdminViewer = isAdminViewerRole(me?.role ?? "CLIENT");
       if (partnerPending && !isAdminViewer && matchTabRequiresPartner(tab)) return;
+      if (
+        (tab === "coachingQuestions" || tab === "coachingOneOnOneFormat") &&
+        coachingPublishTabLocked(tab, scheduleSettings.planFeatures, me?.role ?? "CLIENT")
+      ) {
+        return;
+      }
       goTab(tab);
     },
-    [partnerPending, me?.role, goTab],
+    [partnerPending, me?.role, goTab, scheduleSettings.planFeatures],
   );
 
   useEffect(() => {
     if (!partnerPending) return;
-    const isAdminViewer = me?.role === "ADMIN" || me?.role === "ADMIN_ASSISTANT";
+    const isAdminViewer = isAdminViewerRole(me?.role ?? "CLIENT");
     if (isAdminViewer) return;
     if (matchTabRequiresPartner(activeTab)) {
       goTab(firstPrePartnerCoachingTab(scheduleSettings.planFeatures));
     }
   }, [partnerPending, activeTab, scheduleSettings.planFeatures, goTab, me?.role]);
+
+  useEffect(() => {
+    if (!me) return;
+    if (
+      (activeTab === "coachingQuestions" || activeTab === "coachingOneOnOneFormat") &&
+      coachingPublishTabLocked(activeTab, scheduleSettings.planFeatures, me.role)
+    ) {
+      goTab("coachingIcebreaker");
+    }
+  }, [activeTab, scheduleSettings.planFeatures, me, goTab]);
 
   useEffect(() => {
     if (!me) return;
@@ -893,6 +948,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           sJson.planFeatures && typeof sJson.planFeatures === "object"
             ? (sJson.planFeatures as PlanFeatures)
             : DEFAULT_PLAN_FEATURES,
+        coachingPlanSettings:
+          sJson.coachingPlanSettings && typeof sJson.coachingPlanSettings === "object"
+            ? resolveCoachingPlanSettings(sJson.coachingPlanSettings as Record<string, boolean>)
+            : DEFAULT_COACHING_PLAN_SETTINGS,
       });
     }
 
@@ -1421,6 +1480,32 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const partnerTabsLocked =
     partnerPending && me.role !== "ADMIN" && me.role !== "ADMIN_ASSISTANT";
 
+  const coachingQuestionsLocked = coachingPublishTabLocked(
+    "coachingQuestions",
+    scheduleSettings.planFeatures,
+    me.role,
+  );
+  const coachingFormatLocked = coachingPublishTabLocked(
+    "coachingOneOnOneFormat",
+    scheduleSettings.planFeatures,
+    me.role,
+  );
+  const showCoachingIcebreakerTab = showCoachingTabForViewer(
+    "coachingIcebreaker",
+    scheduleSettings,
+    me.role,
+  );
+  const showCoachingQuestionsTab = showCoachingTabForViewer(
+    "coachingQuestions",
+    scheduleSettings,
+    me.role,
+  );
+  const showCoachingFormatTab = showCoachingTabForViewer(
+    "coachingOneOnOneFormat",
+    scheduleSettings,
+    me.role,
+  );
+
   return (
     <>
     <div className="mx-auto flex w-full max-w-none flex-1 flex-col gap-8 px-1 py-4 sm:gap-12 sm:px-6 sm:py-10">
@@ -1791,47 +1876,40 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 総括レポート
               </button>
             ) : null}
-            {scheduleSettings.planFeatures.coachingIcebreaker ? (
+            {showCoachingIcebreakerTab ? (
               <button
                 type="button"
                 role="tab"
                 aria-selected={activeTab === "coachingIcebreaker"}
-                onClick={() => goTab("coachingIcebreaker")}
-                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
-                  activeTab === "coachingIcebreaker"
-                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
-                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
-                }`}
+                onClick={() => tryGoTab("coachingIcebreaker")}
+                className={matchTabButtonClass(activeTab === "coachingIcebreaker", false)}
               >
                 アイスブレイク
               </button>
             ) : null}
-            {scheduleSettings.planFeatures.coachingQuestions ? (
+            {showCoachingQuestionsTab ? (
               <button
                 type="button"
                 role="tab"
                 aria-selected={activeTab === "coachingQuestions"}
-                onClick={() => goTab("coachingQuestions")}
-                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
-                  activeTab === "coachingQuestions"
-                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
-                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
-                }`}
+                aria-disabled={coachingQuestionsLocked}
+                onClick={() => tryGoTab("coachingQuestions")}
+                className={matchTabButtonClass(activeTab === "coachingQuestions", coachingQuestionsLocked)}
               >
                 質問リスト
               </button>
             ) : null}
-            {scheduleSettings.planFeatures.coachingOneOnOneFormat ? (
+            {showCoachingFormatTab ? (
               <button
                 type="button"
                 role="tab"
                 aria-selected={activeTab === "coachingOneOnOneFormat"}
-                onClick={() => goTab("coachingOneOnOneFormat")}
-                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
-                  activeTab === "coachingOneOnOneFormat"
-                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
-                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
-                }`}
+                aria-disabled={coachingFormatLocked}
+                onClick={() => tryGoTab("coachingOneOnOneFormat")}
+                className={matchTabButtonClass(
+                  activeTab === "coachingOneOnOneFormat",
+                  coachingFormatLocked,
+                )}
               >
                 1on1フォーマット
               </button>
@@ -2487,15 +2565,15 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <SummaryReportPanel matchId={matchId} />
       ) : null}
 
-      {activeTab === "coachingQuestions" && scheduleSettings.planFeatures.coachingQuestions ? (
+      {activeTab === "coachingQuestions" && showCoachingQuestionsTab && !coachingQuestionsLocked ? (
         <CoachingQuestionsPanel matchId={matchId} />
       ) : null}
 
-      {activeTab === "coachingIcebreaker" && scheduleSettings.planFeatures.coachingIcebreaker ? (
+      {activeTab === "coachingIcebreaker" && showCoachingIcebreakerTab ? (
         <CoachingIcebreakerPanel matchId={matchId} />
       ) : null}
 
-      {activeTab === "coachingOneOnOneFormat" && scheduleSettings.planFeatures.coachingOneOnOneFormat ? (
+      {activeTab === "coachingOneOnOneFormat" && showCoachingFormatTab && !coachingFormatLocked ? (
         <CoachingOneOnOneFormatPanel matchId={matchId} />
       ) : null}
         </div>

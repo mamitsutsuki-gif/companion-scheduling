@@ -8,9 +8,13 @@ import {
 import {
   DEFAULT_COMPANY_PLAN,
   normalizeCompanyPlan,
+  normalizeCoachingPlanSettingsOverrides,
   normalizeMeetingProvider,
   normalizePlanFeatureOverrides,
+  resolveCoachingPlanSettings,
   resolveCompanyPlan,
+  type CoachingPlanSettings,
+  type CoachingPlanSettingsOverrides,
   type CompanyPlan,
   type MeetingProvider,
   type PlanFeatureOverrides,
@@ -174,6 +178,8 @@ export type CompanyAppSettingsOverride = Partial<AppSettingsOverridableFields> &
   meetingProvider?: MeetingProvider;
   /** コーチング研修: 各回の 1on1 フォーム種別（未設定 = 1〜3回目ロールプレイ） */
   coachingSessionModesByRound?: CoachingSessionModesByRound;
+  /** コーチング研修: クライアント公開・パートナー共有 */
+  coachingPlanSettings?: CoachingPlanSettingsOverrides;
 };
 
 export function normalizeCompanies(input: unknown): CompanyOption[] {
@@ -342,6 +348,8 @@ export function normalizeCompanyAppSettingsOverride(
   if (raw.coachingSessionModesByRound !== undefined && raw.coachingSessionModesByRound !== null) {
     out.coachingSessionModesByRound = normalizeCoachingSessionModesByRound(raw.coachingSessionModesByRound);
   }
+  const cps = normalizeCoachingPlanSettingsOverrides(raw.coachingPlanSettings);
+  if (cps) out.coachingPlanSettings = cps;
   return out;
 }
 
@@ -787,6 +795,8 @@ export async function upsertCompanyAppSettingsOverride(
     clearMeetingProvider?: boolean;
     coachingSessionModesByRound?: CoachingSessionModesByRound | null;
     clearCoachingSessionModes?: boolean;
+    coachingPlanSettings?: CoachingPlanSettingsOverrides | null;
+    clearCoachingPlanSettings?: boolean;
   },
 ): Promise<CompanyAppSettingsOverride | null> {
   const cid = sanitizeCompanyId(companyId);
@@ -808,6 +818,8 @@ export async function upsertCompanyAppSettingsOverride(
     clearMeetingProvider,
     coachingSessionModesByRound: patchCoachingSessionModes,
     clearCoachingSessionModes,
+    coachingPlanSettings: patchCoachingPlanSettings,
+    clearCoachingPlanSettings,
     ...restPatch
   } = patch;
 
@@ -863,6 +875,15 @@ export async function upsertCompanyAppSettingsOverride(
     writeData.coachingSessionModesByRound =
       modes && Object.keys(modes).length > 0 ? modes : FieldValue.delete();
   }
+  if (clearCoachingPlanSettings) {
+    writeData.coachingPlanSettings = FieldValue.delete();
+  } else if (patchCoachingPlanSettings !== undefined) {
+    const cps =
+      patchCoachingPlanSettings === null
+        ? null
+        : normalizeCoachingPlanSettingsOverrides(patchCoachingPlanSettings);
+    writeData.coachingPlanSettings = cps ?? FieldValue.delete();
+  }
   await ref.set(writeData, { merge: true });
   const snap = await ref.get();
   return normalizeCompanyAppSettingsOverride(cid, snap.data() ?? {});
@@ -902,6 +923,8 @@ export type EffectiveAppSettings = AppSettingsRow & {
   meetingProvider: MeetingProvider;
   /** コーチング研修: 各回フォーム種別の企業上書き（未設定 = プラン既定） */
   coachingSessionModesByRound: CoachingSessionModesByRound | null;
+  /** コーチング研修: クライアント公開・パートナー共有の実効値 */
+  coachingPlanSettings: CoachingPlanSettings;
 };
 
 export async function getEffectiveAppSettings(opts: {
@@ -924,6 +947,7 @@ export async function getEffectiveAppSettings(opts: {
       planFeatureOverrides: null,
       meetingProvider: "zoom",
       coachingSessionModesByRound: null,
+      coachingPlanSettings: resolveCoachingPlanSettings(null),
     };
   }
   const override =
@@ -940,6 +964,7 @@ export async function getEffectiveAppSettings(opts: {
       planFeatureOverrides: null,
       meetingProvider: "zoom",
       coachingSessionModesByRound: null,
+      coachingPlanSettings: resolveCoachingPlanSettings(null),
     };
   }
   const overridden: Array<keyof AppSettingsOverridableFields> = [];
@@ -982,5 +1007,6 @@ export async function getEffectiveAppSettings(opts: {
     planFeatureOverrides: override.planFeatureOverrides ?? null,
     meetingProvider: normalizeMeetingProvider(override.meetingProvider),
     coachingSessionModesByRound: override.coachingSessionModesByRound ?? null,
+    coachingPlanSettings: resolveCoachingPlanSettings(override.coachingPlanSettings ?? null),
   };
 }

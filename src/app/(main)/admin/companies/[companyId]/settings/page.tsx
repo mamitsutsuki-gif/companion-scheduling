@@ -5,11 +5,15 @@ import Link from "next/link";
 import { use, useEffect, useMemo, useState } from "react";
 import type { CompanyPlan } from "@/lib/company-plan";
 import {
+  COACHING_CLIENT_PUBLISH_OPTIONS,
+  COACHING_PARTNER_SHARE_OPTIONS,
   INDIVIDUAL_COMPANION_FEATURE_OPTIONS,
   MEETING_PROVIDER_OPTIONS,
   companyPlanLabel,
   getPlanFeatures,
+  resolveCoachingPlanSettings,
   resolvePlanFeatures,
+  type CoachingPlanSettings,
   type IndividualCompanionFeatureKey,
   type PlanFeatureOverrides,
 } from "@/lib/company-plan";
@@ -66,6 +70,7 @@ type SettingsSnapshot = {
   planFeatureOverrides?: PlanFeatureOverrides | null;
   meetingProvider?: "zoom" | "google_meet";
   coachingSessionModesByRound?: CoachingSessionModesByRound | null;
+  coachingPlanSettings?: Partial<CoachingPlanSettings> | null;
 };
 
 type OverridableKey = keyof Pick<
@@ -91,6 +96,7 @@ type ApiResponse = {
     planFeatureOverrides?: PlanFeatureOverrides | null;
     meetingProvider?: "zoom" | "google_meet";
     coachingSessionModesByRound?: CoachingSessionModesByRound | null;
+    coachingPlanSettings?: Partial<CoachingPlanSettings> | null;
   };
 };
 
@@ -182,6 +188,9 @@ export default function AdminCompanySettingsPage({
   const [initialMeetingProvider, setInitialMeetingProvider] = useState<"zoom" | "google_meet">("zoom");
   const [vCoachingModes, setVCoachingModes] = useState<CoachingSessionModesByRound>({});
   const [coachingModesCustomized, setCoachingModesCustomized] = useState(false);
+  const [vCoachingPlanSettings, setVCoachingPlanSettings] = useState<CoachingPlanSettings>(() =>
+    resolveCoachingPlanSettings(null),
+  );
 
   function coachingModesFromEffective(
     eff: ApiResponse["effective"],
@@ -259,7 +268,11 @@ export default function AdminCompanySettingsPage({
     setVShareFtaMode(initialMode);
     setInitialShareFtaMode(initialMode);
     const companyPlan = resolveCompanyPlanFromApi(json, companyId);
-    const effectiveFeatures = resolvePlanFeatures(companyPlan, eff.planFeatureOverrides ?? null);
+    const effectiveFeatures = resolvePlanFeatures(
+      companyPlan,
+      eff.planFeatureOverrides ?? null,
+      eff.coachingPlanSettings ?? null,
+    );
     setVPlanFeatures(planFeaturesToToggles(effectiveFeatures));
     setPlanFeaturesCustomized(Boolean(eff.planFeatureOverrides && Object.keys(eff.planFeatureOverrides).length > 0));
     const mp = eff.meetingProvider ?? "zoom";
@@ -269,6 +282,7 @@ export default function AdminCompanySettingsPage({
     setCoachingModesCustomized(
       Boolean(ov.coachingSessionModesByRound && Object.keys(ov.coachingSessionModesByRound).length > 0),
     );
+    setVCoachingPlanSettings(resolveCoachingPlanSettings(eff.coachingPlanSettings ?? null));
   }
 
   function ensureOverride(key: OverridableKey) {
@@ -502,8 +516,12 @@ export default function AdminCompanySettingsPage({
         cleaned[String(i)] = vCoachingModes[String(i)] ?? buildDefaultCoachingSessionModes(vTotalSessions)[String(i)]!;
       }
       body.coachingSessionModesByRound = cleaned;
+      body.coachingPlanSettings = { ...vCoachingPlanSettings };
     } else if (data.override?.coachingSessionModesByRound) {
       body.clearCoachingSessionModes = true;
+    }
+    if (companyPlan !== "coaching_management_training" && data.override?.coachingPlanSettings) {
+      body.clearCoachingPlanSettings = true;
     }
 
     try {
@@ -1035,6 +1053,62 @@ export default function AdminCompanySettingsPage({
               </div>
             </section>
           ) : companyPlan === "coaching_management_training" ? (
+            <>
+            <section className="rounded-xl border border-teal-200 bg-teal-50/60 p-4">
+              <h3 className="text-base font-semibold text-teal-950">コーチング研修コンテンツの公開・共有</h3>
+              <p className="mt-2 text-sm leading-relaxed text-teal-900/90">
+                研修の進行に合わせて、クライアント向けタブの公開とパートナーへの共有を個別に制御できます。
+                未チェックの間は、マッチルームで該当タブがグレーアウト（クライアント）または非表示（パートナー）になります。
+              </p>
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <div className="rounded-lg border border-teal-200 bg-white p-4">
+                  <h4 className="text-sm font-semibold text-teal-950">クライアントに公開</h4>
+                  <ul className="mt-3 space-y-3">
+                    {COACHING_CLIENT_PUBLISH_OPTIONS.map(({ key, label, description }) => (
+                      <li key={key}>
+                        <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-800">
+                          <input
+                            type="checkbox"
+                            checked={vCoachingPlanSettings[key]}
+                            onChange={(e) =>
+                              setVCoachingPlanSettings((p) => ({ ...p, [key]: e.target.checked }))
+                            }
+                            className="mt-0.5 h-4 w-4 accent-teal-700"
+                          />
+                          <span>
+                            <span className="font-semibold">{label}</span>
+                            <span className="mt-0.5 block text-xs text-slate-600">{description}</span>
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-lg border border-teal-200 bg-white p-4">
+                  <h4 className="text-sm font-semibold text-teal-950">パートナーに共有</h4>
+                  <ul className="mt-3 space-y-3">
+                    {COACHING_PARTNER_SHARE_OPTIONS.map(({ key, label, description }) => (
+                      <li key={key}>
+                        <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-800">
+                          <input
+                            type="checkbox"
+                            checked={vCoachingPlanSettings[key]}
+                            onChange={(e) =>
+                              setVCoachingPlanSettings((p) => ({ ...p, [key]: e.target.checked }))
+                            }
+                            className="mt-0.5 h-4 w-4 accent-teal-700"
+                          />
+                          <span>
+                            <span className="font-semibold">{label}</span>
+                            <span className="mt-0.5 block text-xs text-slate-600">{description}</span>
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </section>
             <section className="rounded-xl border border-teal-200 bg-teal-50/60 p-4">
               <h3 className="text-base font-semibold text-teal-950">各回の 1on1 フォーム種別</h3>
               <p className="mt-2 text-sm leading-relaxed text-teal-900/90">
@@ -1086,6 +1160,7 @@ export default function AdminCompanySettingsPage({
                 <p className="mt-3 text-xs text-teal-900/75">企業ごとの設定として保存されます。</p>
               ) : null}
             </section>
+            </>
           ) : (
             <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
               導入プラン: {companyPlanLabel(companyPlan)} — 成果物の個別選択は個別伴走プランのみ利用できます。

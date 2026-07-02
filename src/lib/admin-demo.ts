@@ -269,6 +269,7 @@ export async function buildAdminDemoMatchPreview(matchId: string): Promise<Admin
   const planFeatures = resolvePlanFeatures(
     effective.companyPlan,
     effective.planFeatureOverrides,
+    effective.coachingPlanSettings,
   );
   const isCoaching = effective.companyPlan === "coaching_management_training";
   const modeCtx = coachingSessionModeContextFromEffective(effective);
