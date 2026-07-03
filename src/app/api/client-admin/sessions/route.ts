@@ -2,6 +2,10 @@ import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
 import { getUserById, isDeletedUser } from "@/lib/repositories/user-repository";
 import { listConfirmedSessionsForCompany } from "@/lib/repositories/confirmed-sessions-admin-repository";
+import {
+  ensureDefaultProgramForCompany,
+  listProgramsForCompany,
+} from "@/lib/repositories/program-repository";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +20,7 @@ export const dynamic = "force-dynamic";
  * 「自社（同じ companyId）のクライアント」のみ閲覧可。companyId が一致しないユーザーの予定は
  * `listConfirmedSessionsForCompany` 側で必ず除外される。
  */
-export async function GET() {
+export async function GET(request: Request) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
 
@@ -35,6 +39,15 @@ export async function GET() {
   }
 
   const companyId = (me as { companyId?: string | null }).companyId ?? null;
+  const programId = new URL(request.url).searchParams.get("programId")?.trim() || null;
+
+  async function loadForCompany(cid: string) {
+    await ensureDefaultProgramForCompany(cid);
+    const programs = await listProgramsForCompany(cid);
+    const sessions = await listConfirmedSessionsForCompany(cid, { programId });
+    return { sessions, companyId: cid, programs };
+  }
+
   // CLIENT_ADMIN / CLIENT_HR は所属企業必須。ADMIN / ADMIN_ASSISTANT は所属企業の概念がないため、
   // 全企業のセッションを admin 用 API 経由で見られる想定 → ここでは空配列を返す。
   if (me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR") {
@@ -42,12 +55,12 @@ export async function GET() {
       return jsonOk({
         sessions: [],
         companyId: null,
+        programs: [],
         message:
           "ご利用アカウントに所属企業が設定されていないため、この一覧は表示できません。サポート窓口またはご担当者までお問い合わせください。",
       });
     }
-    const sessions = await listConfirmedSessionsForCompany(companyId);
-    return jsonOk({ sessions, companyId });
+    return jsonOk(await loadForCompany(companyId));
   }
 
   // ADMIN / ADMIN_ASSISTANT がこのページを開いた場合は、companyId の有無で挙動を変える：
@@ -57,10 +70,10 @@ export async function GET() {
     return jsonOk({
       sessions: [],
       companyId: null,
+      programs: [],
       message:
         "このアカウントには所属企業が設定されていないため、この画面では一覧を試せません。全体の一覧はメニュー「1on1日程一覧」をご利用ください。",
     });
   }
-  const sessions = await listConfirmedSessionsForCompany(companyId);
-  return jsonOk({ sessions, companyId });
+  return jsonOk(await loadForCompany(companyId));
 }

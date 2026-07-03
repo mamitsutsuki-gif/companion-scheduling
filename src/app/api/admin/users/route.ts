@@ -8,6 +8,8 @@ import {
   getUserById,
   listAdminVisibleUsers,
   setUserCompany,
+  setUserEnrolledProgramIds,
+  syncUserEnrollmentsForCompany,
   updateUserAvailability,
   updateUserDisplayName,
   updateUserRole,
@@ -47,14 +49,16 @@ const patchSchema = z
     displayName: z.string().min(1).max(80).optional(),
     availabilitySlotIds: z.array(z.string().min(1).max(80)).max(64).optional(),
     companyId: z.string().trim().max(80).nullable().optional(),
+    enrolledProgramIds: z.array(z.string().min(1).max(80)).max(32).optional(),
   })
   .refine(
     (v) =>
       v.role !== undefined ||
       v.displayName !== undefined ||
       v.availabilitySlotIds !== undefined ||
-      v.companyId !== undefined,
-    "role / displayName / availabilitySlotIds / companyId のいずれかを指定してください。",
+      v.companyId !== undefined ||
+      v.enrolledProgramIds !== undefined,
+    "role / displayName / availabilitySlotIds / companyId / enrolledProgramIds のいずれかを指定してください。",
   );
 
 export async function PATCH(request: Request) {
@@ -134,11 +138,29 @@ export async function PATCH(request: Request) {
     if (!updated) return jsonError("企業ID の更新に失敗しました。", 400);
     resultUser = updated;
     if (trimmed) {
+      await syncUserEnrollmentsForCompany(parsed.data.userId, trimmed).catch(() => null);
       await ensureCoachingRoomForClient(parsed.data.userId).catch(() => null);
     }
     revalidatePath("/dashboard");
     revalidatePath("/admin/matches");
     revalidatePath("/admin/companies");
+  }
+
+  if (parsed.data.enrolledProgramIds !== undefined) {
+    const targetUser = await getUserById(parsed.data.userId);
+    const cid = (targetUser as { companyId?: string | null } | null)?.companyId ?? null;
+    if (!cid) {
+      return jsonError("所属企業が未設定のユーザーには参加プログラムを設定できません。", 400);
+    }
+    const { listProgramsForCompany } = await import("@/lib/repositories/program-repository");
+    const known = new Set((await listProgramsForCompany(cid)).map((p) => p.id));
+    const ids = parsed.data.enrolledProgramIds.filter((id) => known.has(id));
+    const updated = await setUserEnrolledProgramIds(parsed.data.userId, ids).catch(() => null);
+    if (!updated) return jsonError("参加プログラムの更新に失敗しました。", 400);
+    resultUser = updated;
+    await ensureCoachingRoomForClient(parsed.data.userId).catch(() => null);
+    revalidatePath("/dashboard");
+    revalidatePath("/admin/matches");
   }
 
   return jsonOk({ ok: true, user: resultUser });

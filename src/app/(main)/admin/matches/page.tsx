@@ -82,6 +82,10 @@ export default function AdminMatchesPage() {
   const [editingCompanyDraft, setEditingCompanyDraft] = useState<string>("");
   const [companySavingUserId, setCompanySavingUserId] = useState<string | null>(null);
   const [viewerRole, setViewerRole] = useState<string | null>(null);
+  const [matchPrograms, setMatchPrograms] = useState<
+    Array<{ id: string; name: string; plan: string }>
+  >([]);
+  const [matchProgramId, setMatchProgramId] = useState("");
 
   // URL の ?company= を初期値として反映（ブラウザのみ）
   useEffect(() => {
@@ -230,6 +234,7 @@ export default function AdminMatchesPage() {
       body: JSON.stringify({
         partnerId: fd.get("partnerId"),
         clientId: fd.get("clientId"),
+        programId: fd.get("programId"),
       }),
     });
     const data = await res.json().catch(() => null);
@@ -791,6 +796,24 @@ export default function AdminMatchesPage() {
                   required
                   className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-950 shadow-xs focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-400/25"
                   defaultValue=""
+                  onChange={async (e) => {
+                    const clientId = e.target.value;
+                    const client = users.find((u) => u.id === clientId);
+                    const cid = (client?.companyId ?? "").trim();
+                    if (!cid) {
+                      setMatchPrograms([]);
+                      setMatchProgramId("");
+                      return;
+                    }
+                    const res = await fetch(
+                      `/api/admin/companies/${encodeURIComponent(cid)}/programs`,
+                      { cache: "no-store" },
+                    );
+                    const json = await res.json().catch(() => null);
+                    const programs = Array.isArray(json?.programs) ? json.programs : [];
+                    setMatchPrograms(programs);
+                    setMatchProgramId(programs[0]?.id ?? "");
+                  }}
                 >
                   <option value="" disabled>
                     ユーザーを選択
@@ -805,6 +828,31 @@ export default function AdminMatchesPage() {
                   <p className="text-xs text-amber-800">該当するクライアントがいません。先に登録してください。</p>
                 ) : null}
               </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold text-zinc-900">導入プログラム</label>
+              <select
+                name="programId"
+                required
+                value={matchProgramId}
+                onChange={(e) => setMatchProgramId(e.target.value)}
+                className="w-full max-w-xl rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-950 shadow-xs focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-400/25"
+              >
+                <option value="" disabled>
+                  クライアントを選ぶとプログラムが表示されます
+                </option>
+                {matchPrograms.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              {matchPrograms.length === 0 ? (
+                <p className="text-xs text-amber-800">
+                  企業未割当、またはプログラムがありません。先に企業ページでプログラムを作成してください。
+                </p>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap items-center gap-4">

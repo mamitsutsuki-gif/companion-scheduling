@@ -261,6 +261,14 @@ export default async function DashboardPage({
                       クライアント企業: {(match.client as { companyName?: string | null }).companyName}
                     </p>
                   ) : null}
+                  {(match as { programName?: string | null; programPlanLabel?: string | null }).programName ? (
+                    <p className="mt-1 text-sm text-slate-600">
+                      プログラム: {(match as { programName: string }).programName}
+                      {(match as { programPlanLabel?: string | null }).programPlanLabel
+                        ? `（${(match as { programPlanLabel: string }).programPlanLabel}）`
+                        : ""}
+                    </p>
+                  ) : null}
                 </div>
                 <div
                   className={`flex flex-wrap items-center gap-3 ${isAdmin ? "justify-between" : "justify-end"}`}

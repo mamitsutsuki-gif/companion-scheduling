@@ -1,19 +1,22 @@
 import type { Role } from "@prisma/client";
-import { resolveCompanyPlan } from "@/lib/company-plan";
-import { getEffectiveAppSettings } from "@/lib/repositories/app-settings-repository";
-import { getUserById } from "@/lib/repositories/user-repository";
 import {
   assignPartnerToPendingMatch,
   createPendingCoachingMatchForClient,
-  findAnyMatchForClient,
+  findMatchForClientAndProgram,
   findPendingMatchForClient,
 } from "@/lib/repositories/match-repository";
+import {
+  ensureDefaultProgramForCompany,
+  listProgramsForCompany,
+} from "@/lib/repositories/program-repository";
+import { getUserById } from "@/lib/repositories/user-repository";
 
 export const PENDING_PARTNER_DISPLAY_NAME = "未決定";
 
 export type MatchPartnerPendingFields = {
   partnerPending?: boolean;
   partnerId?: string | null;
+  programId?: string | null;
 };
 
 export function isPartnerPendingMatch(match: MatchPartnerPendingFields): boolean {
@@ -21,45 +24,72 @@ export function isPartnerPendingMatch(match: MatchPartnerPendingFields): boolean
   return !String(match.partnerId ?? "").trim();
 }
 
-function isClientRole(role: string): boolean {
+function isClientRole(role: Role | string): boolean {
   return role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR";
 }
 
-/** コーチング研修クライアントに、パートナー未割当の研修ルームが無ければ作成する。 */
-export async function ensureCoachingRoomForClient(
-  clientId: string,
-): Promise<{ matchId: string; created: boolean } | null> {
-  const user = await getUserById(clientId);
-  if (!user || !isClientRole(user.role)) return null;
-
-  const companyId = String((user as { companyId?: string | null }).companyId ?? "").trim();
-  if (!companyId) return null;
-
-  const settings = await getAppSettingsRowForEnsure();
-  const plan = resolveCompanyPlan(companyId, settings.companies);
-  if (plan !== "coaching_management_training") return null;
-
-  const existing = await findAnyMatchForClient(clientId);
-  if (existing) return { matchId: existing.id, created: false };
-
-  const created = await createPendingCoachingMatchForClient(clientId);
-  if (!created.ok) return null;
-  return { matchId: created.matchId, created: true };
+function enrolledProgramIds(user: { enrolledProgramIds?: string[] } | null): string[] {
+  return Array.isArray(user?.enrolledProgramIds)
+    ? user!.enrolledProgramIds.filter((id) => typeof id === "string" && id.trim())
+    : [];
 }
 
-async function getAppSettingsRowForEnsure() {
-  const { getAppSettingsRow } = await import("@/lib/repositories/app-settings-repository");
-  return getAppSettingsRow();
+/** クライアントの参加プログラムに対し、コーチング研修の未割当ルームを確保する。 */
+export async function ensureCoachingRoomForClient(
+  clientId: string,
+): Promise<Array<{ matchId: string; programId: string; created: boolean }>> {
+  const user = await getUserById(clientId);
+  if (!user || !isClientRole(user.role)) return [];
+
+  const companyId = String((user as { companyId?: string | null }).companyId ?? "").trim();
+  if (!companyId) return [];
+
+  const programs = await listProgramsForCompany(companyId);
+  const coachingPrograms = programs.filter((p) => p.plan === "coaching_management_training");
+  if (coachingPrograms.length === 0) return [];
+
+  const enrolled = enrolledProgramIds(user as { enrolledProgramIds?: string[] });
+  const targets =
+    enrolled.length > 0
+      ? coachingPrograms.filter((p) => enrolled.includes(p.id))
+      : coachingPrograms;
+
+  const out: Array<{ matchId: string; programId: string; created: boolean }> = [];
+  for (const program of targets) {
+    const existing = await findMatchForClientAndProgram(clientId, program.id);
+    if (existing) {
+      out.push({ matchId: existing.id, programId: program.id, created: false });
+      continue;
+    }
+    const created = await createPendingCoachingMatchForClient(clientId, program.id);
+    if (created.ok) {
+      out.push({ matchId: created.matchId, programId: program.id, created: true });
+    }
+  }
+  return out;
 }
 
 /** 管理者がパートナーを割り当てる際、未割当ルームがあればそこに紐づける。 */
 export async function ensurePartnerAssignedForClient(
   clientId: string,
   partnerId: string,
+  programId?: string | null,
 ): Promise<{ matchId: string; wasPending: boolean } | null> {
-  const pending = await findPendingMatchForClient(clientId);
+  const pending = await findPendingMatchForClient(clientId, programId);
   if (!pending) return null;
   const result = await assignPartnerToPendingMatch(pending.id, partnerId);
   if (!result.ok) return null;
   return { matchId: pending.id, wasPending: true };
+}
+
+export async function resolveProgramIdsForClient(clientId: string): Promise<string[]> {
+  const user = await getUserById(clientId);
+  const companyId = String((user as { companyId?: string | null }).companyId ?? "").trim();
+  if (!companyId) return [];
+  const enrolled = enrolledProgramIds(user as { enrolledProgramIds?: string[] });
+  if (enrolled.length > 0) return enrolled;
+  const programs = await listProgramsForCompany(companyId);
+  if (programs.length > 0) return programs.map((p) => p.id);
+  const fallback = await ensureDefaultProgramForCompany(companyId);
+  return fallback ? [fallback.id] : [];
 }

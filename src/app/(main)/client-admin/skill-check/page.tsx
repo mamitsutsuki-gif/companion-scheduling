@@ -11,8 +11,16 @@ type ClientRow = {
   focusSkillCount: number;
 };
 
+type ProgramOption = {
+  id: string;
+  name: string;
+  planLabel?: string;
+};
+
 export default function ClientAdminSkillCheckPage() {
   const [clients, setClients] = useState<ClientRow[]>([]);
+  const [programs, setPrograms] = useState<ProgramOption[]>([]);
+  const [programId, setProgramId] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +30,8 @@ export default function ClientAdminSkillCheckPage() {
     setLoading(true);
     setError(null);
     setInfo(null);
-    const res = await fetch("/api/client-admin/skill-check", { cache: "no-store" });
+    const qs = programId ? `?programId=${encodeURIComponent(programId)}` : "";
+    const res = await fetch(`/api/client-admin/skill-check${qs}`, { cache: "no-store" });
     const data = await res.json().catch(() => null);
     setLoading(false);
     if (!res.ok) {
@@ -31,12 +40,13 @@ export default function ClientAdminSkillCheckPage() {
     }
     const list = Array.isArray(data?.clients) ? (data.clients as ClientRow[]) : [];
     setClients(list);
+    setPrograms(Array.isArray(data?.programs) ? data.programs : []);
     if (typeof data?.message === "string") setInfo(data.message);
     setSelectedId((prev) => {
       if (prev && list.some((c) => c.id === prev)) return prev;
       return list[0]?.id ?? null;
     });
-  }, []);
+  }, [programId]);
 
   useEffect(() => {
     void reload();
@@ -57,13 +67,32 @@ export default function ClientAdminSkillCheckPage() {
           自社メンバーのスキルチェックシートに、上司評価と重点育成スキルを入力できます。
           本人評価はメンバー本人がマッチルームから入力します。
         </p>
-        <button
-          type="button"
-          onClick={() => void reload()}
-          className="mt-4 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
-        >
-          再読込
-        </button>
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          {programs.length > 1 ? (
+            <label className="flex flex-col gap-1 text-sm text-slate-700">
+              <span className="font-medium">プログラム</span>
+              <select
+                value={programId}
+                onChange={(e) => setProgramId(e.target.value)}
+                className="min-w-[14rem] rounded-lg border border-slate-300 bg-white px-3 py-2"
+              >
+                <option value="">すべて（個別伴走）</option>
+                {programs.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => void reload()}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+          >
+            再読込
+          </button>
+        </div>
       </header>
 
       {error ? <p className="text-sm font-medium text-red-700">{error}</p> : null}

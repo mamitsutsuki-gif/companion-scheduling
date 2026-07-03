@@ -1,6 +1,8 @@
 "use client";
 
 import { AdminCompanyClientPartnerBriefingsSection } from "@/components/admin-company-client-partner-briefings-section";
+import { CompanyProgramsSection } from "@/components/company-programs-section";
+import { CompanyMemberEnrollments } from "@/components/company-member-enrollments";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 
@@ -169,6 +171,8 @@ export default function AdminCompanyDetailPage({
 
       {data ? (
         <>
+          {data.isRegistered ? <CompanyProgramsSection companyId={companyId} /> : null}
+          {data.isRegistered ? <CompanyMemberEnrollments companyId={companyId} /> : null}
           {data.summary ? (
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
               <h2 className="text-lg font-semibold text-slate-900">サマリ</h2>

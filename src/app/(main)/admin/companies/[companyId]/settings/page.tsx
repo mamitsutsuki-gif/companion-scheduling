@@ -2,6 +2,7 @@
 
 import { AdminCompanyClientPartnerBriefingsSection } from "@/components/admin-company-client-partner-briefings-section";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { use, useEffect, useMemo, useState } from "react";
 import type { CompanyPlan } from "@/lib/company-plan";
 import {
@@ -118,6 +119,12 @@ export default function AdminCompanySettingsPage({
   params: Promise<{ companyId: string }>;
 }) {
   const { companyId } = use(params);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const selectedProgramId = searchParams.get("programId") ?? "";
+  const [programs, setPrograms] = useState<
+    Array<{ id: string; name: string; plan: CompanyPlan }>
+  >([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -267,7 +274,10 @@ export default function AdminCompanySettingsPage({
       ovShare === true ? "share" : ovShare === false ? "no-share" : "default";
     setVShareFtaMode(initialMode);
     setInitialShareFtaMode(initialMode);
-    const companyPlan = resolveCompanyPlanFromApi(json, companyId);
+    const companyPlan =
+      (json.effective as { companyPlan?: CompanyPlan })?.companyPlan ??
+      (json as { program?: { plan?: CompanyPlan } }).program?.plan ??
+      resolveCompanyPlanFromApi(json, companyId);
     const effectiveFeatures = resolvePlanFeatures(
       companyPlan,
       eff.planFeatureOverrides ?? null,
@@ -289,10 +299,41 @@ export default function AdminCompanySettingsPage({
     setOverrideFlags((p) => (p[key] ? p : { ...p, [key]: true }));
   }
 
-  const companyPlan = useMemo(
-    () => (data ? resolveCompanyPlanFromApi(data, companyId) : ("workplace_activation" as CompanyPlan)),
-    [data, companyId],
+  const companyPlan = useMemo(() => {
+    if (!data) return "workplace_activation" as CompanyPlan;
+    return (
+      (data.effective as { companyPlan?: CompanyPlan })?.companyPlan ??
+      resolveCompanyPlanFromApi(data, companyId)
+    );
+  }, [data, companyId]);
+
+  const settingsApiUrl = useMemo(
+    () =>
+      selectedProgramId
+        ? `/api/admin/programs/${encodeURIComponent(selectedProgramId)}/settings`
+        : `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
+    [companyId, selectedProgramId],
   );
+
+  const selectedProgram = useMemo(
+    () => programs.find((p) => p.id === selectedProgramId) ?? null,
+    [programs, selectedProgramId],
+  );
+
+  async function reloadSettings() {
+    const reload = await fetch(settingsApiUrl, { cache: "no-store" });
+    const next = (await reload.json().catch(() => null)) as
+      | (ApiResponse & {
+          program?: { id: string; name: string; plan: CompanyPlan; companyId: string };
+        })
+      | null;
+    if (!next) return;
+    const adapted: ApiResponse =
+      next.program != null
+        ? { ...next, isRegistered: true, company: { id: companyId, name: next.program.name } }
+        : next;
+    applyApiResponse(adapted);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -300,12 +341,30 @@ export default function AdminCompanySettingsPage({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(
-          `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
+        const programsRes = await fetch(
+          `/api/admin/companies/${encodeURIComponent(companyId)}/programs`,
           { cache: "no-store" },
         );
+        const programsJson = await programsRes.json().catch(() => null);
+        if (cancelled) return;
+        const list = Array.isArray(programsJson?.programs) ? programsJson.programs : [];
+        setPrograms(list);
+
+        let programId = selectedProgramId;
+        if (!programId && list[0]?.id) {
+          router.replace(
+            `/admin/companies/${encodeURIComponent(companyId)}/settings?programId=${encodeURIComponent(list[0].id)}`,
+          );
+          return;
+        }
+
+        const settingsUrl = programId
+          ? `/api/admin/programs/${encodeURIComponent(programId)}/settings`
+          : `/api/admin/companies/${encodeURIComponent(companyId)}/settings`;
+
+        const res = await fetch(settingsUrl, { cache: "no-store" });
         const json = (await res.json().catch(() => null)) as
-          | (ApiResponse & { error?: string })
+          | (ApiResponse & { program?: { id: string; name: string; plan: CompanyPlan; companyId: string }; error?: string })
           | null;
         if (cancelled) return;
         if (!res.ok || !json) {
@@ -313,7 +372,15 @@ export default function AdminCompanySettingsPage({
           setLoading(false);
           return;
         }
-        applyApiResponse(json);
+        const adapted: ApiResponse =
+          json.program != null
+            ? {
+                ...json,
+                isRegistered: true,
+                company: { id: companyId, name: json.program.name },
+              }
+            : json;
+        applyApiResponse(adapted);
       } catch {
         if (!cancelled) setError("ネットワークエラーが発生しました。");
       } finally {
@@ -324,7 +391,7 @@ export default function AdminCompanySettingsPage({
     return () => {
       cancelled = true;
     };
-  }, [companyId]);
+  }, [companyId, selectedProgramId, router]);
 
   /** 上書き OFF に戻すとき、編集値を全体設定の値に戻す */
   function toggleOverride(key: OverridableKey, on: boolean) {
@@ -525,9 +592,7 @@ export default function AdminCompanySettingsPage({
     }
 
     try {
-      const res = await fetch(
-        `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
-        {
+      const res = await fetch(settingsApiUrl, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -540,13 +605,7 @@ export default function AdminCompanySettingsPage({
         setError(json?.error ?? "保存に失敗しました。");
       } else {
         setMessage("保存しました。");
-        // 再読込
-        const reload = await fetch(
-          `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
-          { cache: "no-store" },
-        );
-        const next = (await reload.json().catch(() => null)) as ApiResponse | null;
-        if (next) applyApiResponse(next);
+        await reloadSettings();
       }
     } catch {
       setError("ネットワークエラーが発生しました。");
@@ -556,28 +615,21 @@ export default function AdminCompanySettingsPage({
   }
 
   async function onClearAll() {
-    if (!confirm("この企業のすべての上書きを削除し、全項目を全体設定に戻します。よろしいですか？")) {
+    const targetLabel = selectedProgram ? `プログラム「${selectedProgram.name}」` : "この企業";
+    if (!confirm(`${targetLabel}のすべての上書きを削除し、全項目を上位設定に戻します。よろしいですか？`)) {
       return;
     }
     setSaving(true);
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch(
-        `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
-        { method: "DELETE" },
-      );
+      const res = await fetch(settingsApiUrl, { method: "DELETE" });
       const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
       if (!res.ok || !json?.ok) {
         setError(json?.error ?? "削除に失敗しました。");
       } else {
-        setMessage("すべての上書きを削除しました。全体設定に戻りました。");
-        const reload = await fetch(
-          `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
-          { cache: "no-store" },
-        );
-        const next = (await reload.json().catch(() => null)) as ApiResponse | null;
-        if (next) applyApiResponse(next);
+        setMessage("すべての上書きを削除しました。");
+        await reloadSettings();
       }
     } catch {
       setError("ネットワークエラーが発生しました。");
@@ -592,9 +644,7 @@ export default function AdminCompanySettingsPage({
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch(
-        `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
-        {
+      const res = await fetch(settingsApiUrl, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -608,12 +658,7 @@ export default function AdminCompanySettingsPage({
         setError(json?.error ?? "プロジェクト概要の保存に失敗しました。");
       } else {
         setMessage("プロジェクト概要を保存しました。");
-        const reload = await fetch(
-          `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
-          { cache: "no-store" },
-        );
-        const next = (await reload.json().catch(() => null)) as ApiResponse | null;
-        if (next) applyApiResponse(next);
+        await reloadSettings();
       }
     } catch {
       setError("ネットワークエラーが発生しました。");
@@ -628,9 +673,7 @@ export default function AdminCompanySettingsPage({
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch(
-        `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
-        {
+      const res = await fetch(settingsApiUrl, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ meetingProvider: vMeetingProvider }),
@@ -642,12 +685,7 @@ export default function AdminCompanySettingsPage({
       } else {
         setMessage("1on1 で使うオンライン会議の設定を保存しました。");
         setInitialMeetingProvider(vMeetingProvider);
-        const reload = await fetch(
-          `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
-          { cache: "no-store" },
-        );
-        const next = (await reload.json().catch(() => null)) as ApiResponse | null;
-        if (next) applyApiResponse(next);
+        await reloadSettings();
       }
     } catch {
       setError("ネットワークエラーが発生しました。");
@@ -672,9 +710,7 @@ export default function AdminCompanySettingsPage({
       // 現状の運用では「true / false」の二択しか保存されないため、
       // "default" を選んだ時は no-op（既存値を残す）でも問題は最小。
       // 将来 clearFields に shareFtaWithinCompany を追加することで完全に消せるようにする。
-      const res = await fetch(
-        `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
-        {
+      const res = await fetch(settingsApiUrl, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -688,12 +724,7 @@ export default function AdminCompanySettingsPage({
       } else {
         setMessage("自分FTA の社内共有設定を保存しました。");
         setInitialShareFtaMode(vShareFtaMode);
-        const reload = await fetch(
-          `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
-          { cache: "no-store" },
-        );
-        const next = (await reload.json().catch(() => null)) as ApiResponse | null;
-        if (next) applyApiResponse(next);
+        await reloadSettings();
       }
     } catch {
       setError("ネットワークエラーが発生しました。");
@@ -722,9 +753,7 @@ export default function AdminCompanySettingsPage({
       const body: Record<string, boolean> = {};
       if (which === "partner" || which === "both") body.clearPartnerProjectOverview = true;
       if (which === "client" || which === "both") body.clearClientProjectOverview = true;
-      const res = await fetch(
-        `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
-        {
+      const res = await fetch(settingsApiUrl, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -737,12 +766,7 @@ export default function AdminCompanySettingsPage({
         setMessage("プロジェクト概要を削除しました。");
         if (which === "partner" || which === "both") setVPartnerPo(emptyPartnerPo);
         if (which === "client" || which === "both") setVClientPo(emptyClientPo);
-        const reload = await fetch(
-          `/api/admin/companies/${encodeURIComponent(companyId)}/settings`,
-          { cache: "no-store" },
-        );
-        const next = (await reload.json().catch(() => null)) as ApiResponse | null;
-        if (next) applyApiResponse(next);
+        await reloadSettings();
       }
     } catch {
       setError("ネットワークエラーが発生しました。");
@@ -764,9 +788,39 @@ export default function AdminCompanySettingsPage({
           {headerTitle} ＞ アプリ設定
         </h1>
         <p className="mt-1 font-mono text-xs text-slate-500">企業ID: {companyId}</p>
+        {programs.length > 0 ? (
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-sm text-slate-700">
+              <span className="font-medium">設定対象プログラム</span>
+              <select
+                value={selectedProgramId}
+                onChange={(e) => {
+                  const pid = e.target.value;
+                  router.push(
+                    `/admin/companies/${encodeURIComponent(companyId)}/settings?programId=${encodeURIComponent(pid)}`,
+                  );
+                }}
+                className="min-w-[16rem] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                disabled={saving || loading}
+              >
+                {programs.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}（{companyPlanLabel(p.plan)}）
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selectedProgram ? (
+              <p className="text-xs text-slate-500">
+                プログラムID: <span className="font-mono">{selectedProgram.id}</span>
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          各項目は、チェックを入れるとこの企業だけ別の値で動作します。数値を変更すると自動的に上書きが有効になります。
-          チェックを外すと全体設定に戻ります。
+          {selectedProgramId
+            ? "選択中のプログラムだけ別の値で動作します。チェックを外すと企業・全体設定に戻ります。"
+            : "各項目は、チェックを入れるとこの企業だけ別の値で動作します。数値を変更すると自動的に上書きが有効になります。チェックを外すと全体設定に戻ります。"}
         </p>
         <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           補足: 「対応可能時間の選択肢」は、企業ごと上書きを一時停止中です（リリースまで無効化）。

@@ -199,15 +199,16 @@ export async function listEffectiveConfirmedSessionsForAdmin(): Promise<AdminCon
  */
 export async function listConfirmedSessionsForCompany(
   companyId: string,
+  opts?: { programId?: string | null },
 ): Promise<CompanyConfirmedSessionRow[]> {
   if (!companyId) return [];
+  const programId = (opts?.programId ?? "").trim() || null;
   const clients = await listClientsInCompany(companyId);
   const allowedClientIds = new Set(clients.map((c) => c.id));
   if (allowedClientIds.size === 0) return [];
   const all = await listEffectiveConfirmedSessionsForAdmin();
-  // 既に表示名は揃っているが、念のため client が同社か再チェックするため
-  // matches を取得して clientId をマッピング。
   const clientIdByMatch = new Map<string, string>();
+  const programIdByMatch = new Map<string, string | null>();
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
     if (db) {
@@ -215,15 +216,27 @@ export async function listConfirmedSessionsForCompany(
       for (const d of ms.docs) {
         const r = d.data() as Record<string, unknown>;
         clientIdByMatch.set(d.id, String(r.clientId ?? ""));
+        const pid = typeof r.programId === "string" ? r.programId.trim() : "";
+        programIdByMatch.set(d.id, pid || null);
       }
     }
   } else {
-    const rows = await prisma.match.findMany({ select: { id: true, clientId: true } });
-    for (const r of rows) clientIdByMatch.set(r.id, r.clientId);
+    const rows = await prisma.match.findMany({
+      select: { id: true, clientId: true, programId: true },
+    });
+    for (const r of rows) {
+      clientIdByMatch.set(r.id, r.clientId);
+      programIdByMatch.set(r.id, r.programId ?? null);
+    }
   }
 
   return all
-    .filter((row) => allowedClientIds.has(clientIdByMatch.get(row.matchId) ?? ""))
+    .filter((row) => {
+      const clientId = clientIdByMatch.get(row.matchId) ?? "";
+      if (!allowedClientIds.has(clientId)) return false;
+      if (!programId) return true;
+      return (programIdByMatch.get(row.matchId) ?? null) === programId;
+    })
     .map((row) => ({
       sessionNumber: row.sessionNumber,
       round: row.round,

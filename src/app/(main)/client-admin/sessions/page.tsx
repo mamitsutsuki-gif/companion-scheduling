@@ -25,8 +25,15 @@ function formatJa(iso: string) {
   }
 }
 
+type ProgramOption = {
+  id: string;
+  name: string;
+};
+
 export default function ClientAdminSessionsPage() {
   const [rows, setRows] = useState<Row[]>([]);
+  const [programs, setPrograms] = useState<ProgramOption[]>([]);
+  const [programId, setProgramId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -36,7 +43,8 @@ export default function ClientAdminSessionsPage() {
     setLoading(true);
     setError(null);
     setInfo(null);
-    const res = await fetch("/api/client-admin/sessions", { cache: "no-store" });
+    const qs = programId ? `?programId=${encodeURIComponent(programId)}` : "";
+    const res = await fetch(`/api/client-admin/sessions${qs}`, { cache: "no-store" });
     const data = await res.json().catch(() => null);
     setLoading(false);
     if (!res.ok) {
@@ -44,8 +52,9 @@ export default function ClientAdminSessionsPage() {
       return;
     }
     setRows(Array.isArray(data?.sessions) ? data.sessions : []);
+    setPrograms(Array.isArray(data?.programs) ? data.programs : []);
     if (typeof data?.message === "string") setInfo(data.message);
-  }, []);
+  }, [programId]);
 
   useEffect(() => {
     void reload();
@@ -81,7 +90,24 @@ export default function ClientAdminSessionsPage() {
           自社のメンバー（クライアント）の確定済みセッション日程を一覧で確認できます。
           プライバシー保護のため、対話パートナーの名前およびセッション内容は表示されません。
         </p>
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          {programs.length > 1 ? (
+            <label className="flex flex-col gap-1 text-sm text-slate-700">
+              <span className="font-medium">プログラム</span>
+              <select
+                value={programId}
+                onChange={(e) => setProgramId(e.target.value)}
+                className="min-w-[14rem] rounded-lg border border-slate-300 bg-white px-3 py-2"
+              >
+                <option value="">すべて</option>
+                {programs.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <button
             type="button"
             onClick={() => void reload()}

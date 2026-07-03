@@ -907,6 +907,8 @@ export async function deleteCompanyAppSettingsOverride(companyId: string): Promi
  */
 export type EffectiveAppSettings = AppSettingsRow & {
   effectiveCompanyId: string | null;
+  /** マッチ等から解決された導入プログラム ID。未設定時は null。 */
+  effectiveProgramId: string | null;
   overriddenFields: Array<keyof AppSettingsOverridableFields>;
   partnerProjectOverview: PartnerProjectOverview | null;
   clientProjectOverview: ClientProjectOverview | null;
@@ -929,15 +931,32 @@ export type EffectiveAppSettings = AppSettingsRow & {
 
 export async function getEffectiveAppSettings(opts: {
   companyId?: string | null;
+  programId?: string | null;
   global?: AppSettingsRow | null;
   override?: CompanyAppSettingsOverride | null;
+  programOverride?: import("@/lib/repositories/program-repository").ProgramAppSettingsOverride | null;
 } = {}): Promise<EffectiveAppSettings> {
   const global = opts.global ?? (await getAppSettingsRow());
-  const cid = sanitizeCompanyId(opts.companyId);
+  let cid = sanitizeCompanyId(opts.companyId);
+  let programId = (opts.programId ?? "").trim() || null;
+  let programPlan: CompanyPlan | null = null;
+
+  if (programId) {
+    const { getProgramById } = await import("@/lib/repositories/program-repository");
+    const program = await getProgramById(programId);
+    if (program) {
+      cid = program.companyId;
+      programPlan = program.plan;
+    } else {
+      programId = null;
+    }
+  }
+
   if (!cid) {
     return {
       ...global,
       effectiveCompanyId: null,
+      effectiveProgramId: null,
       overriddenFields: [],
       partnerProjectOverview: null,
       clientProjectOverview: null,
@@ -950,17 +969,32 @@ export async function getEffectiveAppSettings(opts: {
       coachingPlanSettings: resolveCoachingPlanSettings(null),
     };
   }
-  const override =
+  const companyOverride =
     opts.override !== undefined ? opts.override : await getCompanyAppSettingsOverride(cid);
-  if (!override) {
+  let programOverride = opts.programOverride;
+  if (programId && programOverride === undefined) {
+    const { getProgramAppSettingsOverride } = await import(
+      "@/lib/repositories/program-repository"
+    );
+    programOverride = await getProgramAppSettingsOverride(programId);
+  }
+
+  const companyO: Partial<CompanyAppSettingsOverride> = companyOverride ?? {};
+  const programO: Partial<
+    import("@/lib/repositories/program-repository").ProgramAppSettingsOverride
+  > = programOverride ?? {};
+  const hasAnyOverride = Boolean(companyOverride || programOverride);
+
+  if (!hasAnyOverride) {
     return {
       ...global,
       effectiveCompanyId: cid,
+      effectiveProgramId: programId,
       overriddenFields: [],
       partnerProjectOverview: null,
       clientProjectOverview: null,
       shareFtaWithinCompany: true,
-      companyPlan: resolveCompanyPlan(cid, global.companies),
+      companyPlan: programPlan ?? resolveCompanyPlan(cid, global.companies),
       planFeatureOverrides: null,
       meetingProvider: "zoom",
       coachingSessionModesByRound: null,
@@ -981,32 +1015,56 @@ export async function getEffectiveAppSettings(opts: {
     "allowWeekends",
   ];
   for (const k of keys) {
-    const v = override[k];
+    const v =
+      programO[k] !== undefined ? programO[k] : companyO[k];
     if (v !== undefined) {
       (merged as Record<string, unknown>)[k] = v;
       overridden.push(k);
     }
   }
   const partnerPO =
-    override.partnerProjectOverview !== undefined && override.partnerProjectOverview !== null
-      ? normalizePartnerProjectOverview(override.partnerProjectOverview)
-      : null;
+    programO.partnerProjectOverview !== undefined && programO.partnerProjectOverview !== null
+      ? normalizePartnerProjectOverview(programO.partnerProjectOverview)
+      : companyO.partnerProjectOverview !== undefined && companyO.partnerProjectOverview !== null
+        ? normalizePartnerProjectOverview(companyO.partnerProjectOverview)
+        : null;
   const clientPO =
-    override.clientProjectOverview !== undefined && override.clientProjectOverview !== null
-      ? normalizeClientProjectOverview(override.clientProjectOverview)
-      : null;
+    programO.clientProjectOverview !== undefined && programO.clientProjectOverview !== null
+      ? normalizeClientProjectOverview(programO.clientProjectOverview)
+      : companyO.clientProjectOverview !== undefined && companyO.clientProjectOverview !== null
+        ? normalizeClientProjectOverview(companyO.clientProjectOverview)
+        : null;
+  const shareFta =
+    programO.shareFtaWithinCompany !== undefined
+      ? programO.shareFtaWithinCompany
+      : companyO.shareFtaWithinCompany;
+  const planFeatures =
+    programO.planFeatureOverrides !== undefined
+      ? programO.planFeatureOverrides
+      : companyO.planFeatureOverrides;
+  const meeting =
+    programO.meetingProvider !== undefined ? programO.meetingProvider : companyO.meetingProvider;
+  const coachingModes =
+    programO.coachingSessionModesByRound !== undefined
+      ? programO.coachingSessionModesByRound
+      : companyO.coachingSessionModesByRound;
+  const coachingSettings =
+    programO.coachingPlanSettings !== undefined
+      ? programO.coachingPlanSettings
+      : companyO.coachingPlanSettings;
+
   return {
     ...merged,
     effectiveCompanyId: cid,
+    effectiveProgramId: programId,
     overriddenFields: overridden,
     partnerProjectOverview: partnerPO,
     clientProjectOverview: clientPO,
-    // 明示的に false が保存されている時のみ false（未設定 / true は true）。
-    shareFtaWithinCompany: override.shareFtaWithinCompany === false ? false : true,
-    companyPlan: resolveCompanyPlan(cid, global.companies),
-    planFeatureOverrides: override.planFeatureOverrides ?? null,
-    meetingProvider: normalizeMeetingProvider(override.meetingProvider),
-    coachingSessionModesByRound: override.coachingSessionModesByRound ?? null,
-    coachingPlanSettings: resolveCoachingPlanSettings(override.coachingPlanSettings ?? null),
+    shareFtaWithinCompany: shareFta === false ? false : true,
+    companyPlan: programPlan ?? resolveCompanyPlan(cid, global.companies),
+    planFeatureOverrides: planFeatures ?? null,
+    meetingProvider: normalizeMeetingProvider(meeting),
+    coachingSessionModesByRound: coachingModes ?? null,
+    coachingPlanSettings: resolveCoachingPlanSettings(coachingSettings ?? null),
   };
 }

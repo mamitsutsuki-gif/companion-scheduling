@@ -7,6 +7,7 @@ import { clearMatchAsAdmin, createMatchAsAdmin } from "@/lib/repositories/match-
 const postSchema = z.object({
   partnerId: z.string().min(1),
   clientId: z.string().min(1),
+  programId: z.string().min(1),
 });
 
 const deleteSchema = z.object({
@@ -23,7 +24,11 @@ export async function POST(request: Request) {
     return jsonError("入力内容が不正です。");
   }
 
-  const result = await createMatchAsAdmin(parsed.data.partnerId, parsed.data.clientId);
+  const result = await createMatchAsAdmin(
+    parsed.data.partnerId,
+    parsed.data.clientId,
+    parsed.data.programId,
+  );
   if (!result.ok) return jsonError(result.error, result.status ?? 400);
   await notifyNewMatchAssignment(result.matchId);
   return jsonOk({ ok: true, matchId: result.matchId });

@@ -243,6 +243,7 @@ model Match {
   id        String @id @default(cuid())
   partnerId String
   clientId  String
+  programId String?
   partner   User @relation("PartnerUser", fields: [partnerId], references: [id], onDelete: Cascade)
   client    User @relation("ClientUser", fields: [clientId], references: [id], onDelete: Cascade)
 

@@ -3,6 +3,8 @@ import { Role } from "@prisma/client";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { companyLabelFromRegistry } from "@/lib/company-display";
+import { companyPlanLabel } from "@/lib/company-plan";
+import { getProgramById } from "@/lib/repositories/program-repository";
 import { PENDING_PARTNER_DISPLAY_NAME } from "@/lib/match-partner-pending";
 
 type MatchUser = { id: string; displayName: string; email?: string; companyId?: string | null };
@@ -19,11 +21,53 @@ export type MatchRow = {
   id: string;
   partnerId: string;
   clientId: string;
+  programId: string | null;
+  programName: string | null;
+  programPlanLabel: string | null;
   partnerPending: boolean;
   createdAt: string;
   partner: MatchUser;
   client: MatchClientWithCompany;
 };
+
+function readProgramId(raw: Record<string, unknown>): string | null {
+  const id = typeof raw.programId === "string" ? raw.programId.trim() : "";
+  return id.length > 0 ? id : null;
+}
+
+async function programMeta(programId: string | null) {
+  if (!programId) return { programName: null as string | null, programPlanLabel: null as string | null };
+  const program = await getProgramById(programId);
+  if (!program) return { programName: null, programPlanLabel: null };
+  return { programName: program.name, programPlanLabel: companyPlanLabel(program.plan) };
+}
+
+export async function backfillMatchProgramId(matchId: string, programId: string) {
+  if (!isFirebaseDataBackend()) return;
+  const db = getFirebaseFirestoreClient();
+  if (!db) return;
+  await db.collection("matches").doc(matchId).set({ programId }, { merge: true });
+}
+
+export async function findMatchForClientAndProgram(
+  clientId: string,
+  programId: string,
+): Promise<{ id: string; partnerPending: boolean } | null> {
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return null;
+    const snap = await db.collection("matches").where("clientId", "==", clientId).get();
+    for (const doc of snap.docs) {
+      const raw = doc.data() as Record<string, unknown>;
+      const pid = readProgramId(raw);
+      if (pid === programId) {
+        return { id: doc.id, partnerPending: readPartnerPending(raw) };
+      }
+    }
+    return null;
+  }
+  return null;
+}
 
 function readPartnerPending(raw: Record<string, unknown>): boolean {
   if (raw.partnerPending === true) return true;
@@ -71,6 +115,7 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
       id: string;
       partnerId: string;
       clientId: string;
+      programId: string | null;
       partnerPending: boolean;
       createdAt: string;
     };
@@ -81,6 +126,7 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
           id: d.id,
           partnerId: String(raw.partnerId ?? ""),
           clientId: String(raw.clientId ?? ""),
+          programId: readProgramId(raw),
           partnerPending: readPartnerPending(raw),
           createdAt: String(raw.createdAt ?? new Date().toISOString()),
         };
@@ -95,6 +141,13 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
       docs.flatMap((d) => [String(d.partnerId ?? ""), String(d.clientId ?? "")]).filter(Boolean),
     );
     const settings = await getAppSettingsRow();
+    const programIds = [...new Set(docs.map((d) => d.programId).filter((id): id is string => Boolean(id)))];
+    const programCache = new Map<string, Awaited<ReturnType<typeof getProgramById>>>();
+    await Promise.all(
+      programIds.map(async (pid) => {
+        programCache.set(pid, await getProgramById(pid));
+      }),
+    );
 
     return docs
       .map((m) => {
@@ -108,10 +161,14 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
           ...clientRaw,
           companyName: companyLabelFromRegistry(clientRaw.companyId, settings.companies),
         };
+        const program = m.programId ? programCache.get(m.programId) : null;
         return {
           id: m.id,
           partnerId: m.partnerPending ? "" : partner.id,
           clientId: client.id,
+          programId: m.programId,
+          programName: program?.name ?? null,
+          programPlanLabel: program ? companyPlanLabel(program.plan) : null,
           partnerPending: m.partnerPending,
           createdAt: String(m.createdAt ?? new Date().toISOString()),
           partner,
@@ -164,8 +221,12 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
   }));
 }
 
-export async function createMatchAsAdmin(partnerId: string, clientId: string) {
-  const pending = await findPendingMatchForClient(clientId);
+export async function createMatchAsAdmin(
+  partnerId: string,
+  clientId: string,
+  programId: string,
+) {
+  const pending = await findPendingMatchForClient(clientId, programId);
   if (pending) {
     const assigned = await assignPartnerToPendingMatch(pending.id, partnerId);
     if (!assigned.ok) return assigned;
@@ -189,23 +250,27 @@ export async function createMatchAsAdmin(partnerId: string, clientId: string) {
         return { ok: false as const, error: "クライアント側のユーザーが不正です。" };
       }
     }
+    const program = await getProgramById(programId);
+    if (!program) return { ok: false as const, error: "プログラムが見つかりません。" };
+    const clientCompanyId = normalizeCompanyId(client.data()?.companyId);
+    if (!clientCompanyId || clientCompanyId !== program.companyId) {
+      return { ok: false as const, error: "クライアントの所属企業とプログラムが一致しません。" };
+    }
+
     const dup = await db
       .collection("matches")
       .where("partnerId", "==", partnerId)
       .where("clientId", "==", clientId)
+      .where("programId", "==", programId)
       .limit(1)
       .get();
     if (!dup.empty) return { ok: false as const, error: "この組み合わせのマッチは既に存在します。", status: 409 };
 
-    const existingClient = await db
-      .collection("matches")
-      .where("clientId", "==", clientId)
-      .limit(1)
-      .get();
-    if (!existingClient.empty) {
+    const existingForProgram = await findMatchForClientAndProgram(clientId, programId);
+    if (existingForProgram) {
       return {
         ok: false as const,
-        error: "このクライアントには既にルームがあります。未割当ルームへパートナーを割り当ててください。",
+        error: "このクライアントには同じプログラムのルームが既にあります。未割当ルームへパートナーを割り当ててください。",
         status: 409,
       };
     }
@@ -214,6 +279,7 @@ export async function createMatchAsAdmin(partnerId: string, clientId: string) {
     await ref.set({
       partnerId,
       clientId,
+      programId,
       createdAt: new Date().toISOString(),
     });
     return { ok: true as const, matchId: ref.id };
@@ -232,7 +298,9 @@ export async function createMatchAsAdmin(partnerId: string, clientId: string) {
   )
     return { ok: false as const, error: "クライアント側のユーザーが不正です。" };
   try {
-    const match = await prisma.match.create({ data: { partnerId, clientId } });
+    const match = await prisma.match.create({
+      data: { partnerId, clientId, programId: programId || null },
+    });
     return { ok: true as const, matchId: match.id };
   } catch {
     return { ok: false as const, error: "この組み合わせのマッチは既に存在します。", status: 409 };
@@ -253,10 +321,15 @@ export async function getMatchById(matchId: string) {
     const client = users.get(String(raw.clientId ?? ""));
     if (!client) return null;
     const partner = partnerFromDoc(raw, users);
+    const programId = readProgramId(raw);
+    const meta = await programMeta(programId);
     return {
       id: snap.id,
       partnerId: partnerPending ? "" : partner.id,
       clientId: client.id,
+      programId,
+      programName: meta.programName,
+      programPlanLabel: meta.programPlanLabel,
       partnerPending,
       partner,
       client,
@@ -290,14 +363,22 @@ export async function findAnyMatchForClient(clientId: string): Promise<{ id: str
   return row ? { id: row.id } : null;
 }
 
-export async function findPendingMatchForClient(clientId: string): Promise<{ id: string } | null> {
+export async function findPendingMatchForClient(
+  clientId: string,
+  programId?: string | null,
+): Promise<{ id: string } | null> {
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
     if (!db) return null;
     const snap = await db.collection("matches").where("clientId", "==", clientId).get();
     for (const doc of snap.docs) {
       const raw = doc.data() as Record<string, unknown>;
-      if (readPartnerPending(raw)) return { id: doc.id };
+      if (!readPartnerPending(raw)) continue;
+      if (programId) {
+        const pid = readProgramId(raw);
+        if (pid !== programId) continue;
+      }
+      return { id: doc.id };
     }
     return null;
   }
@@ -306,12 +387,18 @@ export async function findPendingMatchForClient(clientId: string): Promise<{ id:
 
 export async function createPendingCoachingMatchForClient(
   clientId: string,
+  programId: string,
 ): Promise<{ ok: true; matchId: string } | { ok: false; error: string }> {
   if (!isFirebaseDataBackend()) {
     return { ok: false, error: "この環境では未割当ルームを作成できません。" };
   }
   const db = getFirebaseFirestoreClient();
   if (!db) return { ok: false, error: "Firestore 未設定です。" };
+
+  const program = await getProgramById(programId);
+  if (!program || program.plan !== "coaching_management_training") {
+    return { ok: false, error: "コーチング研修プログラムが不正です。" };
+  }
 
   const client = await db.collection("users").doc(clientId).get();
   const role = client.data()?.role as string | undefined;
@@ -321,14 +408,19 @@ export async function createPendingCoachingMatchForClient(
   ) {
     return { ok: false, error: "クライアントユーザーが不正です。" };
   }
+  const clientCompanyId = normalizeCompanyId(client.data()?.companyId);
+  if (!clientCompanyId || clientCompanyId !== program.companyId) {
+    return { ok: false, error: "クライアントの所属企業とプログラムが一致しません。" };
+  }
 
-  const existing = await findAnyMatchForClient(clientId);
-  if (existing) return { ok: false, error: "既にルームが存在します。" };
+  const existing = await findMatchForClientAndProgram(clientId, programId);
+  if (existing) return { ok: false, error: "このプログラムのルームは既に存在します。" };
 
   const ref = db.collection("matches").doc();
   await ref.set({
     partnerId: "",
     clientId,
+    programId,
     partnerPending: true,
     createdAt: new Date().toISOString(),
   });

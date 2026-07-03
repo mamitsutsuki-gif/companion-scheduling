@@ -199,6 +199,11 @@ export default async function AdminUserDetailPage(ctx: RouteContext) {
                   <span className="text-slate-800">
                     パートナー: {m.partner.displayName}
                   </span>
+                  {(m as { programName?: string | null }).programName ? (
+                    <span className="text-slate-600">
+                      · {(m as { programName: string }).programName}
+                    </span>
+                  ) : null}
                   <span className="ml-auto font-mono text-xs text-slate-500">
                     {m.id}
                   </span>

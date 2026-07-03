@@ -9,6 +9,10 @@ import {
   firebaseAuthUserExistsByEmail,
 } from "@/lib/firebase-admin";
 import { deletePendingRegistrationsByEmail } from "@/lib/repositories/pending-registration-repository";
+import {
+  ensureDefaultProgramForCompany,
+  listProgramsForCompany,
+} from "@/lib/repositories/program-repository";
 
 type UserView = {
   id: string;
@@ -19,6 +23,7 @@ type UserView = {
   email: string;
   deletedAt?: string | null;
   companyId?: string | null;
+  enrolledProgramIds?: string[];
   createdAt?: Date | string;
   availabilitySlotIds: string[];
 };
@@ -55,6 +60,7 @@ function userFromDoc(id: string, data: Record<string, unknown>): UserView {
     email: String(data.email ?? "").toLowerCase(),
     deletedAt: typeof data.deletedAt === "string" ? data.deletedAt : null,
     companyId: normalizeCompanyId(data.companyId),
+    enrolledProgramIds: asStringArray(data.enrolledProgramIds),
     createdAt: typeof data.createdAt === "string" ? data.createdAt : new Date(),
     availabilitySlotIds: asStringArray(data.availabilitySlotIds),
   };
@@ -355,12 +361,20 @@ export async function setUserCompany(userId: string, companyId: string | null) {
     const db = getFirebaseFirestoreClient();
     if (!db) return null;
     const ref = db.collection("users").doc(userId);
-    await ref.set(
-      { companyId: companyId ?? null, updatedAt: new Date().toISOString() },
-      { merge: true },
-    );
+    const patch: Record<string, unknown> = {
+      companyId: companyId ?? null,
+      updatedAt: new Date().toISOString(),
+    };
+    if (!companyId) {
+      patch.enrolledProgramIds = [];
+    }
+    await ref.set(patch, { merge: true });
     const snap = await ref.get();
-    return snap.exists ? userFromDoc(snap.id, snap.data() as Record<string, unknown>) : null;
+    const user = snap.exists ? userFromDoc(snap.id, snap.data() as Record<string, unknown>) : null;
+    if (user && companyId) {
+      await syncUserEnrollmentsForCompany(userId, companyId);
+    }
+    return user;
   }
   try {
     const updated = await prisma.user.update({
@@ -834,4 +848,25 @@ export async function listAdminEmails() {
     select: { email: true },
   });
   return [...new Set(rows.map((r) => r.email.trim()).filter(Boolean))];
+}
+
+export async function setUserEnrolledProgramIds(userId: string, programIds: string[]) {
+  const ids = [...new Set(programIds.map((id) => id.trim()).filter(Boolean))].slice(0, 32);
+  if (!isFirebaseDataBackend()) return null;
+  const db = getFirebaseFirestoreClient();
+  if (!db) return null;
+  const ref = db.collection("users").doc(userId);
+  await ref.set({ enrolledProgramIds: ids, updatedAt: new Date().toISOString() }, { merge: true });
+  const snap = await ref.get();
+  return snap.exists ? userFromDoc(snap.id, snap.data() as Record<string, unknown>) : null;
+}
+
+/** 企業の全プログラムを参加対象としてユーザーに設定する。 */
+export async function syncUserEnrollmentsForCompany(userId: string, companyId: string) {
+  await ensureDefaultProgramForCompany(companyId);
+  const programs = await listProgramsForCompany(companyId);
+  return setUserEnrolledProgramIds(
+    userId,
+    programs.map((p) => p.id),
+  );
 }
