@@ -12,6 +12,7 @@ type ProgramRow = {
   id: string;
   name: string;
   plan: CompanyPlan;
+  createdAt?: string;
 };
 
 export function CompanyProgramsSection({ companyId }: { companyId: string }) {
@@ -20,6 +21,7 @@ export function CompanyProgramsSection({ companyId }: { companyId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [newPlan, setNewPlan] = useState<CompanyPlan>("individual_companion");
 
@@ -81,12 +83,52 @@ export function CompanyProgramsSection({ companyId }: { companyId: string }) {
     }
   }
 
+  async function onDelete(program: ProgramRow) {
+    if (
+      !confirm(
+        `プログラム「${program.name}」を削除します。マッチが紐づいている場合は削除できません。よろしいですか？`,
+      )
+    ) {
+      return;
+    }
+    setDeletingId(program.id);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/programs/${encodeURIComponent(program.id)}`, {
+        method: "DELETE",
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        setError(typeof json?.error === "string" ? json.error : "削除に失敗しました。");
+        return;
+      }
+      setMessage(`「${program.name}」を削除しました。`);
+      await reload();
+    } catch {
+      setError("ネットワークエラーが発生しました。");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  const duplicatePlanHint =
+    programs.length > 1 &&
+    new Set(programs.map((p) => p.plan)).size < programs.length;
+
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <h2 className="text-lg font-semibold text-slate-900">導入プログラム</h2>
       <p className="mt-1 text-sm text-slate-600">
         1企業内で複数プラン（コーチング研修・個別伴走など）を並行運用できます。設定・マッチはプログラム単位です。
       </p>
+      {duplicatePlanHint ? (
+        <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          同じプラン名のプログラムが複数あります。移行時の重複作成の可能性があります。
+          <strong className="font-semibold">マッチが紐づいている1件を残し</strong>
+          、余分な行は「削除」してください。
+        </p>
+      ) : null}
 
       {error ? (
         <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>
@@ -110,14 +152,37 @@ export function CompanyProgramsSection({ companyId }: { companyId: string }) {
                 <p className="font-semibold text-slate-900">{p.name}</p>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {companyPlanLabel(p.plan)} · ID: <span className="font-mono">{p.id}</span>
+                  {p.createdAt ? (
+                    <>
+                      {" "}
+                      · 作成:{" "}
+                      {new Intl.DateTimeFormat("ja-JP", {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }).format(new Date(p.createdAt))}
+                    </>
+                  ) : null}
                 </p>
               </div>
-              <Link
-                href={`/admin/companies/${encodeURIComponent(companyId)}/settings?programId=${encodeURIComponent(p.id)}`}
-                className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-900 no-underline hover:bg-indigo-100"
-              >
-                設定を編集 →
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href={`/admin/companies/${encodeURIComponent(companyId)}/settings?programId=${encodeURIComponent(p.id)}`}
+                  className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-900 no-underline hover:bg-indigo-100"
+                >
+                  設定を編集 →
+                </Link>
+                <button
+                  type="button"
+                  disabled={deletingId === p.id}
+                  onClick={() => void onDelete(p)}
+                  className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-900 hover:bg-rose-100 disabled:opacity-50"
+                >
+                  {deletingId === p.id ? "削除中…" : "削除"}
+                </button>
+              </div>
             </li>
           ))}
         </ul>

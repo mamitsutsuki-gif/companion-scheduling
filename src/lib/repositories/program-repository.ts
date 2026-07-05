@@ -44,6 +44,11 @@ export function newProgramId() {
   return `prog-${nanoid(10)}`;
 }
 
+/** 企業ごとの既定プログラム用 ID（並行リクエストでも1件に収束する）。 */
+export function defaultProgramDocId(companyId: string): string {
+  return sanitizeProgramId(`prog-default-${sanitizeCompanyId(companyId)}`);
+}
+
 function normalizeProgramRow(id: string, input: unknown): ProgramRow | null {
   if (!input || typeof input !== "object") return null;
   const raw = input as Record<string, unknown>;
@@ -114,20 +119,86 @@ export async function createProgram(input: {
 /** 企業にプログラムが無ければ、企業プランから既定プログラムを1件作成する。 */
 export async function ensureDefaultProgramForCompany(companyId: string): Promise<ProgramRow | null> {
   const cid = sanitizeCompanyId(companyId);
-  if (!cid) return null;
+  if (!cid || !isFirebaseDataBackend()) return null;
+  const db = getFirebaseFirestoreClient();
+  if (!db) return null;
+
   const existing = await listProgramsForCompany(cid);
-  if (existing.length > 0) return existing[0]!;
+  if (existing.length > 0) {
+    return [...existing].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]!;
+  }
 
   const settings = await getAppSettingsRow();
+  if (!settings.companies.some((c) => c.id === cid)) return null;
   const plan = resolveCompanyPlan(cid, settings.companies);
-  const program = await createProgram({ companyId: cid, plan });
-  if (!program) return null;
+  const id = defaultProgramDocId(cid);
+  const ref = db.collection("programs").doc(id);
+  const existingDoc = await ref.get();
+  if (existingDoc.exists) {
+    return normalizeProgramRow(existingDoc.id, existingDoc.data() ?? {});
+  }
+
+  const now = new Date().toISOString();
+  const row: ProgramRow = {
+    id,
+    companyId: cid,
+    plan,
+    name: companyPlanLabel(plan).trim().slice(0, 80),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  try {
+    await ref.create(row);
+  } catch {
+    const again = await ref.get();
+    if (again.exists) return normalizeProgramRow(again.id, again.data() ?? {});
+    const listed = await listProgramsForCompany(cid);
+    if (listed.length > 0) {
+      return [...listed].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]!;
+    }
+    return null;
+  }
 
   const companyOverride = await getCompanyAppSettingsOverride(cid);
   if (companyOverride) {
-    await copyCompanySettingsToProgram(cid, program.id, companyOverride);
+    await copyCompanySettingsToProgram(cid, id, companyOverride);
   }
-  return program;
+  return row;
+}
+
+export async function countMatchesForProgram(programId: string): Promise<number> {
+  const pid = sanitizeProgramId(programId);
+  if (!pid || !isFirebaseDataBackend()) return 0;
+  const db = getFirebaseFirestoreClient();
+  if (!db) return 0;
+  const snap = await db.collection("matches").where("programId", "==", pid).get();
+  return snap.size;
+}
+
+export async function deleteProgram(
+  programId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const pid = sanitizeProgramId(programId);
+  if (!pid || !isFirebaseDataBackend()) {
+    return { ok: false, error: "プログラムが見つかりません。" };
+  }
+  const program = await getProgramById(pid);
+  if (!program) return { ok: false, error: "プログラムが見つかりません。" };
+
+  const matchCount = await countMatchesForProgram(pid);
+  if (matchCount > 0) {
+    return {
+      ok: false,
+      error: `このプログラムに紐づくマッチが ${matchCount} 件あるため削除できません。`,
+    };
+  }
+
+  const db = getFirebaseFirestoreClient();
+  if (!db) return { ok: false, error: "Firestore 未設定です。" };
+  await db.collection("programs").doc(pid).delete().catch(() => undefined);
+  await deleteProgramAppSettingsOverride(pid);
+  return { ok: true };
 }
 
 async function copyCompanySettingsToProgram(
