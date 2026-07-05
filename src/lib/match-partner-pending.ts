@@ -6,6 +6,7 @@ import {
   findPendingMatchForClient,
 } from "@/lib/repositories/match-repository";
 import {
+  dedupeProgramsByPlan,
   ensureDefaultProgramForCompany,
   listProgramsForCompany,
 } from "@/lib/repositories/program-repository";
@@ -45,14 +46,14 @@ export async function ensureCoachingRoomForClient(
   if (!companyId) return [];
 
   const programs = await listProgramsForCompany(companyId);
-  const coachingPrograms = programs.filter((p) => p.plan === "coaching_management_training");
+  let coachingPrograms = programs.filter((p) => p.plan === "coaching_management_training");
   if (coachingPrograms.length === 0) return [];
 
   const enrolled = enrolledProgramIds(user as { enrolledProgramIds?: string[] });
-  const targets =
-    enrolled.length > 0
-      ? coachingPrograms.filter((p) => enrolled.includes(p.id))
-      : coachingPrograms;
+  if (enrolled.length > 0) {
+    coachingPrograms = coachingPrograms.filter((p) => enrolled.includes(p.id));
+  }
+  const targets = dedupeProgramsByPlan(coachingPrograms);
 
   const out: Array<{ matchId: string; programId: string; created: boolean }> = [];
   for (const program of targets) {
@@ -89,7 +90,7 @@ export async function resolveProgramIdsForClient(clientId: string): Promise<stri
   const enrolled = enrolledProgramIds(user as { enrolledProgramIds?: string[] });
   if (enrolled.length > 0) return enrolled;
   const programs = await listProgramsForCompany(companyId);
-  if (programs.length > 0) return programs.map((p) => p.id);
+  if (programs.length > 0) return dedupeProgramsByPlan(programs).map((p) => p.id);
   const fallback = await ensureDefaultProgramForCompany(companyId);
   return fallback ? [fallback.id] : [];
 }

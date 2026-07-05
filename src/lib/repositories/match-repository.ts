@@ -57,12 +57,20 @@ export async function findMatchForClientAndProgram(
     const db = getFirebaseFirestoreClient();
     if (!db) return null;
     const snap = await db.collection("matches").where("clientId", "==", clientId).get();
+    let legacy: { id: string; partnerPending: boolean } | null = null;
     for (const doc of snap.docs) {
       const raw = doc.data() as Record<string, unknown>;
       const pid = readProgramId(raw);
       if (pid === programId) {
         return { id: doc.id, partnerPending: readPartnerPending(raw) };
       }
+      if (!pid && !legacy) {
+        legacy = { id: doc.id, partnerPending: readPartnerPending(raw) };
+      }
+    }
+    if (legacy) {
+      await backfillMatchProgramId(legacy.id, programId);
+      return legacy;
     }
     return null;
   }

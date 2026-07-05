@@ -116,6 +116,24 @@ export async function createProgram(input: {
   return row;
 }
 
+export function dedupeProgramsByPlan(programs: ProgramRow[]): ProgramRow[] {
+  const byPlan = new Map<CompanyPlan, ProgramRow>();
+  for (const p of [...programs].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
+    if (!byPlan.has(p.plan)) byPlan.set(p.plan, p);
+  }
+  return [...byPlan.values()];
+}
+
+/** 同一プランが複数あるときは最古の1件を正とする。 */
+export function pickCanonicalProgram(
+  programs: ProgramRow[],
+  plan?: CompanyPlan,
+): ProgramRow | null {
+  const list = plan ? programs.filter((p) => p.plan === plan) : programs;
+  if (list.length === 0) return null;
+  return [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]!;
+}
+
 /** 企業にプログラムが無ければ、企業プランから既定プログラムを1件作成する。 */
 export async function ensureDefaultProgramForCompany(companyId: string): Promise<ProgramRow | null> {
   const cid = sanitizeCompanyId(companyId);
@@ -186,16 +204,25 @@ export async function deleteProgram(
   const program = await getProgramById(pid);
   if (!program) return { ok: false, error: "プログラムが見つかりません。" };
 
-  const matchCount = await countMatchesForProgram(pid);
-  if (matchCount > 0) {
-    return {
-      ok: false,
-      error: `このプログラムに紐づくマッチが ${matchCount} 件あるため削除できません。`,
-    };
-  }
-
   const db = getFirebaseFirestoreClient();
   if (!db) return { ok: false, error: "Firestore 未設定です。" };
+
+  const matchSnap = await db.collection("matches").where("programId", "==", pid).get();
+  for (const doc of matchSnap.docs) {
+    const raw = doc.data() as Record<string, unknown>;
+    const partnerPending =
+      raw.partnerPending === true || !String(raw.partnerId ?? "").trim();
+    if (!partnerPending) {
+      return {
+        ok: false,
+        error: "パートナー割当済みのマッチがあるため、このプログラムは削除できません。",
+      };
+    }
+  }
+
+  for (const doc of matchSnap.docs) {
+    await doc.ref.delete().catch(() => undefined);
+  }
   await db.collection("programs").doc(pid).delete().catch(() => undefined);
   await deleteProgramAppSettingsOverride(pid);
   return { ok: true };

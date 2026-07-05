@@ -10,6 +10,7 @@ import {
 } from "@/lib/firebase-admin";
 import { deletePendingRegistrationsByEmail } from "@/lib/repositories/pending-registration-repository";
 import {
+  dedupeProgramsByPlan,
   ensureDefaultProgramForCompany,
   listProgramsForCompany,
 } from "@/lib/repositories/program-repository";
@@ -867,6 +868,6 @@ export async function syncUserEnrollmentsForCompany(userId: string, companyId: s
   const programs = await listProgramsForCompany(companyId);
   return setUserEnrolledProgramIds(
     userId,
-    programs.map((p) => p.id),
+    dedupeProgramsByPlan(programs).map((p) => p.id),
   );
 }

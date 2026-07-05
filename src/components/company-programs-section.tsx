@@ -86,7 +86,7 @@ export function CompanyProgramsSection({ companyId }: { companyId: string }) {
   async function onDelete(program: ProgramRow) {
     if (
       !confirm(
-        `プログラム「${program.name}」を削除します。マッチが紐づいている場合は削除できません。よろしいですか？`,
+        `プログラム「${program.name}」を削除します。未割当（パートナー未決定）のマッチだけ紐づいている場合は、マッチも一緒に削除されます。よろしいですか？`,
       )
     ) {
       return;
