@@ -18,6 +18,7 @@ const postSchema = z.object({
     "workplace_activation",
     "individual_companion",
     "coaching_management_training",
+    "monthly_session",
   ]),
   name: z.string().trim().min(1).max(80).optional(),
 });

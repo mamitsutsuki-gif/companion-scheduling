@@ -10,6 +10,7 @@ import { TodayFocusCard } from "@/components/today-focus-card";
 import { AwaitingAssignment } from "@/components/awaiting-assignment";
 import { OnboardingModal } from "@/components/onboarding-modal";
 import { AdminStaleUsersPanel } from "@/components/admin-stale-users-panel";
+import { MonthlySessionEntrance } from "@/components/monthly-session-entrance";
 import { DashboardCompanyFilter } from "./company-filter";
 
 function withHonorificSan(name: string) {
@@ -185,6 +186,8 @@ export default async function DashboardPage({
         とする。マッチ未割当のメンバーには上の「アサイン待ち」表示だけにして、
         押せない情報を並べないようにする。
       */}
+      <MonthlySessionEntrance />
+
       {(!isAdmin && allMatches.length === 0) ? null : (
       <section className="space-y-5">
         {showFta ? (

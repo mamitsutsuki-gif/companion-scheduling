@@ -5,7 +5,8 @@
 export type CompanyPlan =
   | "workplace_activation"
   | "individual_companion"
-  | "coaching_management_training";
+  | "coaching_management_training"
+  | "monthly_session";
 
 export const DEFAULT_COMPANY_PLAN: CompanyPlan = "workplace_activation";
 
@@ -13,6 +14,7 @@ export const COMPANY_PLAN_OPTIONS: Array<{ value: CompanyPlan; label: string }> 
   { value: "workplace_activation", label: "職場活性プラン" },
   { value: "individual_companion", label: "個別伴走プラン" },
   { value: "coaching_management_training", label: "コーチングマネジメント研修" },
+  { value: "monthly_session", label: "月額プラン（セッション申し込み）" },
 ];
 
 export function companyPlanLabel(plan: CompanyPlan | null | undefined): string {
@@ -25,7 +27,8 @@ export function normalizeCompanyPlan(input: unknown): CompanyPlan {
   if (
     input === "workplace_activation" ||
     input === "individual_companion" ||
-    input === "coaching_management_training"
+    input === "coaching_management_training" ||
+    input === "monthly_session"
   ) {
     return input;
   }
@@ -56,6 +59,8 @@ export type PlanFeatures = {
   configurableSessionQuestions: boolean;
   /** プラン機能が未実装のプレースホルダ表示 */
   planComingSoon: boolean;
+  /** 月額プラン: マッチなしのセッション申し込み */
+  monthlySessionBooking: boolean;
 };
 
 /** 個別伴走プランで企業ごとに ON/OFF できる成果物タブ */
@@ -214,6 +219,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         coachingOneOnOneFormat: false,
         configurableSessionQuestions: true,
         planComingSoon: false,
+        monthlySessionBooking: false,
       };
     case "coaching_management_training":
       return {
@@ -234,6 +240,28 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         coachingOneOnOneFormat: false,
         configurableSessionQuestions: false,
         planComingSoon: false,
+        monthlySessionBooking: false,
+      };
+    case "monthly_session":
+      return {
+        overview: false,
+        clientInfo: false,
+        chat: false,
+        schedule: false,
+        fta: false,
+        sessions: false,
+        skillCheck: false,
+        pdca: false,
+        reflection: false,
+        lifelineChart: false,
+        summaryReport: false,
+        coachingRoleplay: false,
+        coachingQuestions: false,
+        coachingIcebreaker: false,
+        coachingOneOnOneFormat: false,
+        configurableSessionQuestions: false,
+        planComingSoon: false,
+        monthlySessionBooking: true,
       };
     case "workplace_activation":
     default:
@@ -255,6 +283,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         coachingOneOnOneFormat: false,
         configurableSessionQuestions: false,
         planComingSoon: false,
+        monthlySessionBooking: false,
       };
   }
 }

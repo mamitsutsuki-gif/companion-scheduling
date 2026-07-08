@@ -496,6 +496,12 @@ export default function AdminAppSettingsPage() {
             >
               企業ページへ →
             </Link>
+            <Link
+              href="/admin/monthly-session"
+              className="rounded-lg border border-indigo-300 bg-white px-4 py-2 text-center text-sm font-semibold text-indigo-900 no-underline hover:bg-indigo-50"
+            >
+              セッション申し込み設定 →
+            </Link>
           </div>
         </div>
       </section>

@@ -7,6 +7,7 @@ const companyPlanSchema = z.enum([
   "workplace_activation",
   "individual_companion",
   "coaching_management_training",
+  "monthly_session",
 ]);
 
 const availabilityOptionSchema = z.object({

@@ -1,6 +1,7 @@
 "use client";
 
 import { AdminCompanyClientPartnerBriefingsSection } from "@/components/admin-company-client-partner-briefings-section";
+import { MonthlyProgramLimitEditor } from "@/components/monthly-program-limit-editor";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { use, useEffect, useMemo, useState } from "react";
@@ -863,6 +864,9 @@ export default function AdminCompanySettingsPage({
 
       {data && data.isRegistered ? (
         <>
+          {selectedProgram?.plan === "monthly_session" && selectedProgramId ? (
+            <MonthlyProgramLimitEditor programId={selectedProgramId} />
+          ) : null}
           <section className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-5 shadow-sm sm:p-8">
             <h2 className="text-lg font-semibold text-indigo-950">プロジェクト概要（マッチルーム表示用）</h2>
             <p className="mt-2 text-sm text-indigo-900/90">
