@@ -288,6 +288,7 @@ export async function addAvailabilitySlots(
   return { ok: true, created };
 }
 
+/** 未予約の空き枠のみ削除（予約時に枠ドキュメントは既に消えている）。 */
 export async function deleteAvailabilitySlot(
   partnerId: string,
   slotId: string,
@@ -297,7 +298,12 @@ export async function deleteAvailabilitySlot(
   if (!db) return { ok: false, error: "Firestore 未設定です。" };
   const ref = db.collection(COL.availability).doc(slotId);
   const snap = await ref.get();
-  if (!snap.exists) return { ok: false, error: "枠が見つかりません。" };
+  if (!snap.exists) {
+    return {
+      ok: false,
+      error: "枠が見つかりません。すでに予約されたか、取り下げ済みの可能性があります。",
+    };
+  }
   if (String((snap.data() as Record<string, unknown>).partnerId ?? "") !== partnerId) {
     return { ok: false, error: "権限がありません。" };
   }

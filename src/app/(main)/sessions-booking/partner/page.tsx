@@ -133,8 +133,17 @@ export default function MonthlySessionPartnerPage() {
     await reload();
   }
 
-  async function removeSlot(id: string) {
+  async function withdrawSlot(id: string, label: string) {
+    if (
+      !confirm(
+        `${label}\n\nこの空き枠を取り下げますか？\nクライアントからまだ予約されていない枠のみ取り下げできます。`,
+      )
+    ) {
+      return;
+    }
     setSaving(true);
+    setError(null);
+    setMessage(null);
     const res = await fetch("/api/monthly-session/partner", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -143,9 +152,10 @@ export default function MonthlySessionPartnerPage() {
     setSaving(false);
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      setError(typeof data?.error === "string" ? data.error : "削除に失敗しました。");
+      setError(typeof data?.error === "string" ? data.error : "取り下げに失敗しました。");
       return;
     }
+    setMessage("空き枠を取り下げました。");
     await reload();
   }
 
@@ -306,23 +316,37 @@ export default function MonthlySessionPartnerPage() {
         >
           選択した枠を追加
         </button>
-        <ul className="mt-4 max-h-64 space-y-2 overflow-y-auto text-sm">
-          {availability.map((s) => (
-            <li
-              key={s.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2"
-            >
-              <span>{formatSlotJa(s.startAt, s.endAt)}</span>
-              <button
-                type="button"
-                className="text-rose-700 hover:underline"
-                onClick={() => void removeSlot(s.id)}
-              >
-                削除
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-5">
+          <h3 className="text-sm font-semibold text-slate-800">登録済みの空き枠</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            クライアントに予約される前であれば「取り下げ」できます。予約済みの枠はこの一覧から消え、セッション一覧で確認できます。
+          </p>
+          {availability.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-500">現在、取り下げ可能な空き枠はありません。</p>
+          ) : (
+            <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto text-sm">
+              {availability.map((s) => {
+                const label = formatSlotJa(s.startAt, s.endAt);
+                return (
+                  <li
+                    key={s.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2"
+                  >
+                    <span>{label}</span>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      className="rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-800 hover:bg-rose-100 disabled:opacity-50"
+                      onClick={() => void withdrawSlot(s.id, label)}
+                    >
+                      取り下げ
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
