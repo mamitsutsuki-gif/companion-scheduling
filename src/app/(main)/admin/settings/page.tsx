@@ -6,7 +6,12 @@ import {
   DEFAULT_AVAILABILITY_OPTIONS,
   type AvailabilitySlotOption,
 } from "@/lib/availability";
-import { COMPANY_PLAN_OPTIONS, DEFAULT_COMPANY_PLAN, type CompanyPlan } from "@/lib/company-plan";
+import {
+  COMPANY_PLAN_OPTIONS,
+  DEFAULT_COMPANY_PLAN,
+  normalizeCompanyPlan,
+  type CompanyPlan,
+} from "@/lib/company-plan";
 
 type UserRow = {
   id: string;
@@ -199,13 +204,7 @@ export default function AdminAppSettingsPage() {
               const o = v as Record<string, unknown>;
               const id = typeof o.id === "string" ? o.id : "";
               const name = typeof o.name === "string" ? o.name : "";
-              const planRaw = typeof o.plan === "string" ? o.plan : DEFAULT_COMPANY_PLAN;
-              const plan =
-                planRaw === "individual_companion" ||
-                planRaw === "coaching_management_training" ||
-                planRaw === "workplace_activation"
-                  ? planRaw
-                  : DEFAULT_COMPANY_PLAN;
+              const plan = normalizeCompanyPlan(o.plan);
               if (!id || !name) return null;
               return { id, name, plan };
             })
@@ -256,13 +255,7 @@ export default function AdminAppSettingsPage() {
       const cur = next[index];
       if (!cur) return prev;
       if (field === "plan") {
-        const plan =
-          value === "individual_companion" ||
-          value === "coaching_management_training" ||
-          value === "workplace_activation"
-            ? value
-            : DEFAULT_COMPANY_PLAN;
-        next[index] = { ...cur, plan };
+        next[index] = { ...cur, plan: normalizeCompanyPlan(value) };
         return next;
       }
       const v = field === "id" ? slugifyCompanyId(value) : value;
