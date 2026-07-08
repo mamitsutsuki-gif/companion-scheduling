@@ -2,6 +2,15 @@ import { z } from "zod";
 import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
 import { getAppSettingsRow, upsertAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import {
+  createProgram,
+  listProgramsForCompany,
+} from "@/lib/repositories/program-repository";
+import {
+  getUserById,
+  listClientsInCompany,
+  setUserEnrolledProgramIds,
+} from "@/lib/repositories/user-repository";
 
 const companyPlanSchema = z.enum([
   "workplace_activation",
@@ -111,6 +120,48 @@ export async function PATCH(request: Request) {
     allowWeekends: parsed.data.allowWeekends,
     companies: parsed.data.companies,
   });
+
+  // アプリ設定で月額プランを選んだ企業に、月額プログラムが無ければ作成する
+  // （既存プログラムがある企業では ensureDefault が何もしないため）
+  if (parsed.data.companies) {
+    for (const company of parsed.data.companies) {
+      if (company.plan !== "monthly_session") continue;
+      try {
+        const programs = await listProgramsForCompany(company.id);
+        let monthly = programs.find((p) => p.plan === "monthly_session") ?? null;
+        if (!monthly) {
+          monthly = await createProgram({
+            companyId: company.id,
+            plan: "monthly_session",
+          });
+        }
+        if (!monthly) continue;
+        const clients = await listClientsInCompany(company.id);
+        await Promise.all(
+          clients.map(async (c) => {
+            const u = await getUserById(c.id);
+            const current = Array.isArray(
+              (u as { enrolledProgramIds?: string[] } | null)?.enrolledProgramIds,
+            )
+              ? ((u as { enrolledProgramIds?: string[] }).enrolledProgramIds ?? [])
+              : [];
+            if (current.includes(monthly!.id)) return;
+            if (current.length === 0) {
+              const all = await listProgramsForCompany(company.id);
+              await setUserEnrolledProgramIds(
+                c.id,
+                all.map((p) => p.id),
+              );
+              return;
+            }
+            await setUserEnrolledProgramIds(c.id, [...current, monthly!.id]);
+          }),
+        );
+      } catch {
+        // プログラム作成・参加登録の失敗は設定保存自体は成功とする
+      }
+    }
+  }
 
   return jsonOk({ ok: true, settings: row });
 }
