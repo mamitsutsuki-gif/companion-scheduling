@@ -5,9 +5,11 @@
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
 import {
   DEFAULT_MONTHLY_RECEPTION,
+  MONTHLY_LIMIT_EXCEEDED_MESSAGE,
   MONTHLY_SLOT_MINUTES,
   addMinutesIso,
   earliestBookableAt,
+  isClientBookingMonthOpen,
   isMonthlyServiceType,
   normalizeMonthlyReception,
   normalizeMonthlyServiceTypes,
@@ -421,6 +423,8 @@ export async function listOpenSlotsForService(opts: {
     const slots = await listAvailabilityForPartner(partnerId, { fromIso: minStart });
     for (const s of slots) {
       if (s.startAt < fromIso || s.startAt > toIso) continue;
+      // クライアントは枠の属する月が始まってから予約可能
+      if (!isClientBookingMonthOpen(s.startAt)) continue;
       if (!slotMap.has(s.startAt)) slotMap.set(s.startAt, new Set());
       slotMap.get(s.startAt)!.add(partnerId);
     }
@@ -485,6 +489,13 @@ export async function createMonthlyBooking(input: {
   if (input.startAt < earliestBookableAt().toISOString()) {
     return { ok: false, error: "予約は48時間後以降の枠のみ可能です。" };
   }
+  if (!isClientBookingMonthOpen(input.startAt)) {
+    return {
+      ok: false,
+      error:
+        "この月の予約は、該当月の1日（日本時間）になってからお申し込みいただけます。",
+    };
+  }
 
   const slots = await listAvailabilityForPartner(input.partnerId, {
     fromIso: input.startAt,
@@ -505,7 +516,7 @@ export async function createMonthlyBooking(input: {
       tokyoMonthKey(input.startAt),
     );
     if (used >= limit) {
-      return { ok: false, error: `今月の予約上限（${limit}回）に達しています。` };
+      return { ok: false, error: MONTHLY_LIMIT_EXCEEDED_MESSAGE };
     }
   }
 

@@ -173,6 +173,11 @@ export default function MonthlySessionPartnerPage() {
         <p className="mt-2 text-sm text-slate-600">
           プロフィール・対応種別・空き時間（{MONTHLY_SLOT_MINUTES}分・48時間後以降）を登録してください。
         </p>
+        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-700">
+          <li>毎月27日ごろ: 翌月1日〜15日の空き枠を登録</li>
+          <li>毎月12日ごろ: 当月15日〜月末の空き枠を登録</li>
+          <li>クライアントは毎月1日（日本時間）から当月の予約が可能になります</li>
+        </ul>
         <Link href="/dashboard" className="mt-4 inline-block text-sm text-indigo-800 hover:underline">
           ← ホームに戻る
         </Link>

@@ -76,8 +76,80 @@ export function normalizeMonthlyReception(input: unknown): MonthlyReceptionSetti
   };
 }
 
+/** 企業の月額上限に達したときのクライアント向け文言 */
+export const MONTHLY_LIMIT_EXCEEDED_MESSAGE =
+  "月毎の上限を超過しました。大変申し訳ございませんが、今月はご予約ができません。企業のご担当者（人事担当者様）へご連絡ください";
+
 export function earliestBookableAt(now = new Date()): Date {
   return new Date(now.getTime() + MONTHLY_BOOKING_LEAD_HOURS * 60 * 60 * 1000);
+}
+
+/** Asia/Tokyo の年月日パーツ */
+export function tokyoYmdParts(now = new Date()): {
+  year: number;
+  month: number;
+  day: number;
+  ymd: string;
+  monthKey: string;
+} {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const y = parts.find((p) => p.type === "year")?.value ?? "1970";
+  const m = parts.find((p) => p.type === "month")?.value ?? "01";
+  const d = parts.find((p) => p.type === "day")?.value ?? "01";
+  return {
+    year: Number(y),
+    month: Number(m),
+    day: Number(d),
+    ymd: `${y}-${m}-${d}`,
+    monthKey: `${y}-${m}`,
+  };
+}
+
+/**
+ * クライアントは「枠が属する月」が日本時間で既に始まっているときだけ予約できる
+ *（毎月1日 0:00 JST からその月の枠がオープン）。加えて 48 時間前ルールも別途適用。
+ */
+export function isClientBookingMonthOpen(startAtIso: string, now = new Date()): boolean {
+  const slotMonth = tokyoMonthKey(startAtIso);
+  const { monthKey: currentMonth } = tokyoYmdParts(now);
+  return slotMonth <= currentMonth;
+}
+
+/** パートナー予定登録リマインド対象日（JST） */
+export type MonthlyPartnerReminderKind = "mid_month" | "month_end";
+
+export function resolveMonthlyPartnerReminder(
+  now = new Date(),
+): { kind: MonthlyPartnerReminderKind; ymd: string } | null {
+  const { day, ymd } = tokyoYmdParts(now);
+  if (day === 12) return { kind: "mid_month", ymd };
+  if (day === 27) return { kind: "month_end", ymd };
+  return null;
+}
+
+/** リマインド対象の登録期間ラベル（メール本文用） */
+export function monthlyPartnerReminderWindowLabel(
+  kind: MonthlyPartnerReminderKind,
+  now = new Date(),
+): { periodLabel: string; monthLabel: string } {
+  const { year, month } = tokyoYmdParts(now);
+  if (kind === "mid_month") {
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    return {
+      monthLabel: `${year}年${month}月`,
+      periodLabel: `${month}月15日〜${month}月${lastDay}日（月末）`,
+    };
+  }
+  const next = month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
+  return {
+    monthLabel: `${next.year}年${next.month}月`,
+    periodLabel: `${next.month}月1日〜${next.month}月15日`,
+  };
 }
 
 export function canCancelBooking(startAtIso: string, now = new Date()): boolean {

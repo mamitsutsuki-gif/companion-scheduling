@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  MONTHLY_LIMIT_EXCEEDED_MESSAGE,
   MONTHLY_SERVICE_LABELS,
   type MonthlyServiceType,
   canCancelBooking,
@@ -131,6 +132,11 @@ export default function MonthlySessionClientPage() {
     await reload();
   }
 
+  const limitReached =
+    enrollment != null &&
+    enrollment.monthlyLimit > 0 &&
+    enrollment.usedThisMonth >= enrollment.monthlyLimit;
+
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 sm:gap-8">
       <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
@@ -140,6 +146,7 @@ export default function MonthlySessionClientPage() {
         <h1 className="mt-2 text-xl font-semibold text-slate-900 sm:text-2xl">セッション申し込み</h1>
         <p className="mt-2 text-sm text-slate-600">
           希望のセッション種別を選び、空き枠からパートナーを選んで予約できます（30分・48時間後以降）。
+          各月の予約は、その月の1日（日本時間）からお申し込みいただけます。
         </p>
         {enrollment ? (
           <p className="mt-3 text-sm text-slate-700">
@@ -148,6 +155,11 @@ export default function MonthlySessionClientPage() {
               {enrollment.usedThisMonth}
               {enrollment.monthlyLimit > 0 ? ` / ${enrollment.monthlyLimit}` : ""} 回
             </strong>
+          </p>
+        ) : null}
+        {limitReached ? (
+          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            {MONTHLY_LIMIT_EXCEEDED_MESSAGE}
           </p>
         ) : null}
         <Link href="/dashboard" className="mt-4 inline-block text-sm text-indigo-800 hover:underline">
@@ -160,6 +172,8 @@ export default function MonthlySessionClientPage() {
         <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>
       ) : null}
 
+      {!limitReached ? (
+        <>
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">1. 種別を選ぶ</h2>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -266,6 +280,8 @@ export default function MonthlySessionClientPage() {
             {saving ? "予約中…" : "この内容で予約する"}
           </button>
         </section>
+      ) : null}
+        </>
       ) : null}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

@@ -1,0 +1,37 @@
+name: cron-monthly-partner-reminder
+
+# 毎日 01:00 JST（= 前日 16:00 UTC）に実行し、
+# 日本時間の 12日 / 27日のみ予定登録リマインドメールを送る。
+on:
+  schedule:
+    - cron: "0 16 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping-cron:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST /api/cron/monthly-partner-reminder
+        env:
+          CRON_URL: https://companion-scheduling--motive-iji-cloud-1e300.asia-east1.hosted.app/api/cron/monthly-partner-reminder
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret is not set in this repository."
+            exit 1
+          fi
+          STATUS=$(curl -s -o response.txt -w "%{http_code}" \
+            -X POST "$CRON_URL" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            --max-time 120)
+          echo "HTTP $STATUS"
+          cat response.txt || true
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::cron call failed with HTTP $STATUS"
+            exit 1
+          fi
