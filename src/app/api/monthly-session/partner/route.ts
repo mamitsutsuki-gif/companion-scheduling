@@ -37,35 +37,40 @@ export async function GET() {
   const gate = await requireEligiblePartner();
   if ("error" in gate) return gate.error;
 
-  const [profile, availability, bookings, zoom] = await Promise.all([
-    getMonthlyPartnerProfile(gate.me.id),
-    listAvailabilityForPartner(gate.me.id),
-    listBookingsForPartner(gate.me.id, { statuses: ["confirmed", "cancelled"] }),
-    getPartnerZoomProfile(gate.me.id),
-  ]);
-  const enriched = await Promise.all(
-    bookings
-      .slice()
-      .sort((a, b) => a.startAt.localeCompare(b.startAt))
-      .map((b) => enrichBookingForDisplay(b)),
-  );
-  const meeting = resolveMeetingSnapshotFromProfile("zoom", zoom);
+  try {
+    const [profile, availability, bookings, zoom] = await Promise.all([
+      getMonthlyPartnerProfile(gate.me.id),
+      listAvailabilityForPartner(gate.me.id),
+      listBookingsForPartner(gate.me.id, { statuses: ["confirmed", "cancelled"] }),
+      getPartnerZoomProfile(gate.me.id),
+    ]);
+    const enriched = await Promise.all(
+      bookings
+        .slice()
+        .sort((a, b) => a.startAt.localeCompare(b.startAt))
+        .map((b) => enrichBookingForDisplay(b)),
+    );
+    const meeting = resolveMeetingSnapshotFromProfile("zoom", zoom);
 
-  return jsonOk({
-    profile: profile ?? {
-      partnerId: gate.me.id,
-      fullName: gate.me.displayName,
-      career: "",
-      bio: "",
-      services: [],
-      updatedAt: null,
-    },
-    availability,
-    bookings: enriched,
-    meetingConfigured: Boolean(meeting?.joinUrl || zoom?.googleMeetUrl),
-    serviceTypes: MONTHLY_SERVICE_TYPES,
-    earliestBookableAt: earliestBookableAt().toISOString(),
-  });
+    return jsonOk({
+      profile: profile ?? {
+        partnerId: gate.me.id,
+        fullName: gate.me.displayName,
+        career: "",
+        bio: "",
+        services: [],
+        updatedAt: null,
+      },
+      availability,
+      bookings: enriched,
+      meetingConfigured: Boolean(meeting?.joinUrl || zoom?.googleMeetUrl),
+      serviceTypes: MONTHLY_SERVICE_TYPES,
+      earliestBookableAt: earliestBookableAt().toISOString(),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "読込に失敗しました。";
+    return jsonError(msg, 500);
+  }
 }
 
 const patchSchema = z.object({

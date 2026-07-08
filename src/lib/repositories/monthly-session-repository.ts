@@ -210,21 +210,25 @@ export async function listAvailabilityForPartner(
   if (!isFirebaseDataBackend()) return [];
   const db = getFirebaseFirestoreClient();
   if (!db) return [];
-  const snap = await db.collection(COL.availability).where("partnerId", "==", partnerId).get();
-  const from = opts?.fromIso ?? earliestBookableAt().toISOString();
-  return snap.docs
-    .map((d) => {
-      const raw = d.data() as Record<string, unknown>;
-      return {
-        id: d.id,
-        partnerId: String(raw.partnerId ?? ""),
-        startAt: String(raw.startAt ?? ""),
-        endAt: String(raw.endAt ?? ""),
-        createdAt: String(raw.createdAt ?? ""),
-      };
-    })
-    .filter((s) => s.startAt >= from)
-    .sort((a, b) => a.startAt.localeCompare(b.startAt));
+  try {
+    const snap = await db.collection(COL.availability).where("partnerId", "==", partnerId).get();
+    const from = opts?.fromIso ?? earliestBookableAt().toISOString();
+    return snap.docs
+      .map((d) => {
+        const raw = d.data() as Record<string, unknown>;
+        return {
+          id: d.id,
+          partnerId: String(raw.partnerId ?? ""),
+          startAt: String(raw.startAt ?? ""),
+          endAt: String(raw.endAt ?? ""),
+          createdAt: String(raw.createdAt ?? ""),
+        };
+      })
+      .filter((s) => s.startAt >= from)
+      .sort((a, b) => a.startAt.localeCompare(b.startAt));
+  } catch {
+    return [];
+  }
 }
 
 export async function addAvailabilitySlots(
@@ -325,12 +329,16 @@ export async function listBookingsForPartner(
   if (!isFirebaseDataBackend()) return [];
   const db = getFirebaseFirestoreClient();
   if (!db) return [];
-  const snap = await db.collection(COL.bookings).where("partnerId", "==", partnerId).get();
-  const statuses = new Set(opts?.statuses ?? ["confirmed", "cancelled", "completed"]);
-  return snap.docs
-    .map((d) => normalizeBooking(d.id, d.data() as Record<string, unknown>))
-    .filter((b): b is MonthlyBooking => b !== null && statuses.has(b.status))
-    .sort((a, b) => a.startAt.localeCompare(b.startAt));
+  try {
+    const snap = await db.collection(COL.bookings).where("partnerId", "==", partnerId).get();
+    const statuses = new Set(opts?.statuses ?? ["confirmed", "cancelled", "completed"]);
+    return snap.docs
+      .map((d) => normalizeBooking(d.id, d.data() as Record<string, unknown>))
+      .filter((b): b is MonthlyBooking => b !== null && statuses.has(b.status))
+      .sort((a, b) => a.startAt.localeCompare(b.startAt));
+  } catch {
+    return [];
+  }
 }
 
 export async function listBookingsForClient(
@@ -612,12 +620,25 @@ export async function resolveMonthlyProgramForClient(clientId: string): Promise<
   const monthly = programs.filter((p) => p.plan === "monthly_session");
   if (monthly.length === 0) return null;
   const enrolled = Array.isArray((user as { enrolledProgramIds?: string[] }).enrolledProgramIds)
-    ? ((user as { enrolledProgramIds?: string[] }).enrolledProgramIds ?? [])
+    ? ((user as { enrolledProgramIds?: string[] }).enrolledProgramIds ?? []).filter(
+        (id) => typeof id === "string" && id.trim(),
+      )
     : [];
-  const target =
-    enrolled.length > 0
-      ? monthly.find((p) => enrolled.includes(p.id)) ?? null
-      : monthly[0] ?? null;
+
+  // enrolled 未設定 → 企業の月額プログラムに参加とみなす（既存運用と同じ）
+  // enrolled あり → 明示的に月額を含む場合のみ
+  let target = enrolled.length === 0 ? (monthly[0] ?? null) : null;
+  if (!target && enrolled.length > 0) {
+    target = monthly.find((p) => enrolled.includes(p.id)) ?? null;
+  }
+  // レガシー: enrolled はあるが月額が無く、企業に月額プログラムが1つだけある場合は自動補完参加
+  if (!target && monthly.length === 1) {
+    target = monthly[0]!;
+    const { setUserEnrolledProgramIds } = await import("@/lib/repositories/user-repository");
+    await setUserEnrolledProgramIds(clientId, [...new Set([...enrolled, target.id])]).catch(
+      () => null,
+    );
+  }
   if (!target) return null;
   const settings = await getMonthlyGlobalSettings();
   const monthlyLimit = settings.monthlyLimitsByProgramId[target.id] ?? 0;

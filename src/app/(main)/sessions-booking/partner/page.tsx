@@ -66,21 +66,27 @@ export default function MonthlySessionPartnerPage() {
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const res = await fetch("/api/monthly-session/partner", { cache: "no-store" });
-    const data = await res.json().catch(() => null);
-    setLoading(false);
-    if (!res.ok) {
-      setError(typeof data?.error === "string" ? data.error : "取得に失敗しました。");
-      return;
+    try {
+      const res = await fetch("/api/monthly-session/partner", { cache: "no-store" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(typeof data?.error === "string" ? data.error : "取得に失敗しました。");
+        setLoading(false);
+        return;
+      }
+      setProfile({
+        fullName: data?.profile?.fullName ?? "",
+        career: data?.profile?.career ?? "",
+        bio: data?.profile?.bio ?? "",
+        services: Array.isArray(data?.profile?.services) ? data.profile.services : [],
+      });
+      setAvailability(Array.isArray(data?.availability) ? data.availability : []);
+      setBookings(Array.isArray(data?.bookings) ? data.bookings : []);
+    } catch {
+      setError("ネットワークエラーが発生しました。再読み込みしてください。");
+    } finally {
+      setLoading(false);
     }
-    setProfile({
-      fullName: data?.profile?.fullName ?? "",
-      career: data?.profile?.career ?? "",
-      bio: data?.profile?.bio ?? "",
-      services: Array.isArray(data?.profile?.services) ? data.profile.services : [],
-    });
-    setAvailability(Array.isArray(data?.availability) ? data.availability : []);
-    setBookings(Array.isArray(data?.bookings) ? data.bookings : []);
   }, []);
 
   useEffect(() => {
@@ -172,12 +178,25 @@ export default function MonthlySessionPartnerPage() {
         </Link>
       </header>
 
-      {error ? <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p> : null}
+      {error ? (
+        <div className="rounded-lg bg-rose-50 px-3 py-3 text-sm text-rose-800">
+          <p>{error}</p>
+          <button
+            type="button"
+            className="mt-2 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-rose-900"
+            onClick={() => void reload()}
+          >
+            再読み込み
+          </button>
+        </div>
+      ) : null}
       {message ? (
         <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>
       ) : null}
       {loading ? <p className="text-sm text-slate-600">読込中…</p> : null}
 
+      {!loading ? (
+      <>
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">プロフィール</h2>
         <div className="mt-4 space-y-3">
@@ -344,6 +363,8 @@ export default function MonthlySessionPartnerPage() {
           </ul>
         )}
       </section>
+      </>
+      ) : null}
     </div>
   );
 }

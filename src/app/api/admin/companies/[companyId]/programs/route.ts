@@ -8,6 +8,11 @@ import {
   ensureDefaultProgramForCompany,
   listProgramsForCompany,
 } from "@/lib/repositories/program-repository";
+import {
+  listClientsInCompany,
+  setUserEnrolledProgramIds,
+  getUserById,
+} from "@/lib/repositories/user-repository";
 
 export const dynamic = "force-dynamic";
 
@@ -58,5 +63,32 @@ export async function POST(request: Request, ctx: RouteContext) {
     name: parsed.data.name,
   });
   if (!program) return jsonError("プログラムの作成に失敗しました。", 500);
+
+  // 既存クライアントに新プログラムを参加対象として追加（特に monthly_session）
+  try {
+    const clients = await listClientsInCompany(cid);
+    await Promise.all(
+      clients.map(async (c) => {
+        const u = await getUserById(c.id);
+        const current = Array.isArray((u as { enrolledProgramIds?: string[] } | null)?.enrolledProgramIds)
+          ? ((u as { enrolledProgramIds?: string[] }).enrolledProgramIds ?? [])
+          : [];
+        if (current.includes(program.id)) return;
+        // enrolled 未設定 → 企業の全プログラム（新含む）をセット
+        if (current.length === 0) {
+          const all = await listProgramsForCompany(cid);
+          await setUserEnrolledProgramIds(
+            c.id,
+            all.map((p) => p.id),
+          );
+          return;
+        }
+        await setUserEnrolledProgramIds(c.id, [...current, program.id]);
+      }),
+    );
+  } catch {
+    // enroll 失敗してもプログラム自体は作成済みとする
+  }
+
   return jsonOk({ ok: true, program });
 }
