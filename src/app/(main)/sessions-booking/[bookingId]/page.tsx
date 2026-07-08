@@ -35,6 +35,11 @@ export default function MonthlyBookingDetailPage({
   } | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [meeting, setMeeting] = useState<{ joinUrl: string; provider: string } | null>(null);
+  const [calendar, setCalendar] = useState<{
+    icsContent: string | null;
+    googleCalendarUrl: string | null;
+    outlookCalendarUrl: string | null;
+  } | null>(null);
   const [chatActive, setChatActive] = useState(false);
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +60,7 @@ export default function MonthlyBookingDetailPage({
     setBooking(data.booking);
     setMessages(Array.isArray(data.messages) ? data.messages : []);
     setMeeting(data.meeting ?? null);
+    setCalendar(data.calendar ?? null);
     setChatActive(Boolean(data.chatActive));
   }, [bookingId]);
 
@@ -120,6 +126,56 @@ export default function MonthlyBookingDetailPage({
             ) : (
               <p className="text-amber-800">会議リンクはパートナーの Zoom / Meet 設定から取得します。</p>
             )}
+            {booking.status === "confirmed" &&
+            (calendar?.googleCalendarUrl || calendar?.outlookCalendarUrl || calendar?.icsContent) ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {calendar.googleCalendarUrl ? (
+                  <a
+                    href={calendar.googleCalendarUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-900 no-underline hover:bg-emerald-100"
+                  >
+                    Googleカレンダーに追加
+                  </a>
+                ) : null}
+                {calendar.outlookCalendarUrl ? (
+                  <a
+                    href={calendar.outlookCalendarUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-900 no-underline hover:bg-emerald-100"
+                  >
+                    Outlookカレンダーに追加
+                  </a>
+                ) : null}
+                {calendar.icsContent ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        const blob = new Blob([calendar.icsContent!], {
+                          type: "text/calendar;charset=utf-8",
+                        });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `session-${booking.id}.ics`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        setTimeout(() => URL.revokeObjectURL(url), 1500);
+                      } catch {
+                        /* noop */
+                      }
+                    }}
+                    className="rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-100"
+                  >
+                    .ics をダウンロード
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             {booking.status === "confirmed" && canCancelBooking(booking.startAt) ? (
               <button
                 type="button"

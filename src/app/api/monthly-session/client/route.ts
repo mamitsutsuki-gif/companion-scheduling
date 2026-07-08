@@ -16,6 +16,7 @@ import {
   isMonthlyServiceType,
   tokyoMonthKey,
 } from "@/lib/monthly-session";
+import { notifyMonthlyBookingConfirmed } from "@/lib/notify-monthly-session";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +93,11 @@ export async function POST(request: Request) {
   });
   if (!result.ok) return jsonError(result.error, 400);
   const booking = await enrichBookingForDisplay(result.booking);
+  // 確定メール（.ics / カレンダー追加リンク）。失敗しても予約自体は成功とする
+  await notifyMonthlyBookingConfirmed({
+    booking: result.booking,
+    appOrigin: new URL(request.url).origin,
+  });
   return jsonOk({ ok: true, booking });
 }
 

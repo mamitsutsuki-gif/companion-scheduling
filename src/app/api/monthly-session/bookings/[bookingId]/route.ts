@@ -9,10 +9,10 @@ import {
   getBookingById,
   listMonthlyMessages,
 } from "@/lib/repositories/monthly-session-repository";
-import { isChatActiveForBooking } from "@/lib/monthly-session";
-import { getPartnerZoomProfile } from "@/lib/repositories/zoom-repository";
-import { resolveMeetingSnapshotFromProfile } from "@/lib/meeting-provider";
-import { getEffectiveAppSettings } from "@/lib/repositories/app-settings-repository";
+import { isChatActiveForBooking, MONTHLY_SERVICE_LABELS } from "@/lib/monthly-session";
+import { resolveMonthlyMeetingSnapshot } from "@/lib/notify-monthly-session";
+import { buildIcsEvent } from "@/lib/ics";
+import { buildGoogleCalendarLink, buildOutlookCalendarLink } from "@/lib/calendar-links";
 
 export const dynamic = "force-dynamic";
 
@@ -37,13 +37,11 @@ export async function GET(_req: Request, ctx: RouteContext) {
   const gate = await accessBooking(bookingId);
   if ("error" in gate) return gate.error;
 
-  const [display, messages, profile, effective] = await Promise.all([
+  const [display, messages, meeting] = await Promise.all([
     enrichBookingForDisplay(gate.booking),
     listMonthlyMessages(bookingId),
-    getPartnerZoomProfile(gate.booking.partnerId),
-    getEffectiveAppSettings({ companyId: gate.booking.companyId }),
+    resolveMonthlyMeetingSnapshot(gate.booking.companyId, gate.booking.partnerId),
   ]);
-  const meeting = resolveMeetingSnapshotFromProfile(effective.meetingProvider, profile);
   const chatActive =
     gate.isAdmin || isChatActiveForBooking(gate.booking.startAt, gate.booking.endAt);
 
@@ -55,6 +53,45 @@ export async function GET(_req: Request, ctx: RouteContext) {
     }
   }
 
+  const start = new Date(gate.booking.startAt);
+  const end = new Date(gate.booking.endAt);
+  const serviceLabel =
+    MONTHLY_SERVICE_LABELS[gate.booking.serviceType] ?? "セッション";
+  const eventTitle = `モチベイジ セッション申し込み（${serviceLabel}・${display.clientDisplayName}さん）`;
+  const eventDetails =
+    `種別: ${serviceLabel}\nクライアント: ${display.clientDisplayName}さん\nパートナー: ${display.partnerDisplayName}さん\n` +
+    (meeting?.joinUrl ? `会議: ${meeting.joinUrl}\n` : "") +
+    `ご予約が確定しました。`;
+  const icsContent =
+    !Number.isNaN(start.valueOf()) && !Number.isNaN(end.valueOf())
+      ? buildIcsEvent({
+          uid: `monthly-${gate.booking.id}@companion-scheduling`,
+          start,
+          end,
+          title: eventTitle,
+          description: eventDetails,
+          location: meeting?.joinUrl,
+        })
+      : null;
+  const googleCalendarUrl = icsContent
+    ? buildGoogleCalendarLink({
+        title: eventTitle,
+        start,
+        end,
+        details: eventDetails,
+        location: meeting?.joinUrl,
+      })
+    : null;
+  const outlookCalendarUrl = icsContent
+    ? buildOutlookCalendarLink({
+        title: eventTitle,
+        start,
+        end,
+        details: eventDetails,
+        location: meeting?.joinUrl,
+      })
+    : null;
+
   return jsonOk({
     booking: display,
     messages: messages.map((m) => ({
@@ -63,6 +100,11 @@ export async function GET(_req: Request, ctx: RouteContext) {
     })),
     meeting,
     chatActive,
+    calendar: {
+      icsContent,
+      googleCalendarUrl,
+      outlookCalendarUrl,
+    },
   });
 }
 
