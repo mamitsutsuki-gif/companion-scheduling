@@ -52,6 +52,7 @@ export async function backfillMatchProgramId(matchId: string, programId: string)
 export async function findMatchForClientAndProgram(
   clientId: string,
   programId: string,
+  opts?: { allowLegacyBackfill?: boolean },
 ): Promise<{ id: string; partnerPending: boolean } | null> {
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
@@ -64,11 +65,17 @@ export async function findMatchForClientAndProgram(
       if (pid === programId) {
         return { id: doc.id, partnerPending: readPartnerPending(raw) };
       }
-      if (!pid && !legacy) {
-        legacy = { id: doc.id, partnerPending: readPartnerPending(raw) };
+      // 割当済みのレガシーマッチは他プランへ付け替えない（特にコーチング研修への漏洩防止）
+      if (!pid && !legacy && readPartnerPending(raw)) {
+        legacy = { id: doc.id, partnerPending: true };
       }
     }
-    if (legacy) {
+    if (legacy && opts?.allowLegacyBackfill !== false) {
+      const program = await getProgramById(programId);
+      // コーチング研修へ既存マッチを書き換えることは禁止（他プランの割当済みペアを汚染しない）
+      if (program?.plan === "coaching_management_training") {
+        return null;
+      }
       await backfillMatchProgramId(legacy.id, programId);
       return legacy;
     }
@@ -421,7 +428,9 @@ export async function createPendingCoachingMatchForClient(
     return { ok: false, error: "クライアントの所属企業とプログラムが一致しません。" };
   }
 
-  const existing = await findMatchForClientAndProgram(clientId, programId);
+  const existing = await findMatchForClientAndProgram(clientId, programId, {
+    allowLegacyBackfill: false,
+  });
   if (existing) return { ok: false, error: "このプログラムのルームは既に存在します。" };
 
   const ref = db.collection("matches").doc();
@@ -473,6 +482,33 @@ export async function assignPartnerToPendingMatch(
     partnerPending: false,
   });
   return { ok: true };
+}
+
+/**
+ * 参加対象外の「未割当コーチング研修ルーム」だけを削除する。
+ * パートナー割当済みマッチは絶対に消さない。
+ */
+export async function deleteOrphanPendingCoachingMatchesForClient(
+  clientId: string,
+  allowedCoachingProgramIds: Set<string>,
+): Promise<number> {
+  if (!isFirebaseDataBackend()) return 0;
+  const db = getFirebaseFirestoreClient();
+  if (!db) return 0;
+  const snap = await db.collection("matches").where("clientId", "==", clientId).get();
+  let deleted = 0;
+  for (const doc of snap.docs) {
+    const raw = doc.data() as Record<string, unknown>;
+    if (!readPartnerPending(raw)) continue;
+    const pid = readProgramId(raw);
+    if (!pid) continue;
+    const program = await getProgramById(pid);
+    if (!program || program.plan !== "coaching_management_training") continue;
+    if (allowedCoachingProgramIds.has(pid)) continue;
+    const result = await clearMatchAsAdmin(doc.id);
+    if (result.ok) deleted += 1;
+  }
+  return deleted;
 }
 
 export async function clearMatchAsAdmin(matchId: string) {

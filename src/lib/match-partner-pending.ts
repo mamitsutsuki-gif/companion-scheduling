@@ -1,10 +1,13 @@
 import type { Role } from "@prisma/client";
+import { resolveCompanyPlan } from "@/lib/company-plan";
 import {
   assignPartnerToPendingMatch,
   createPendingCoachingMatchForClient,
+  deleteOrphanPendingCoachingMatchesForClient,
   findMatchForClientAndProgram,
   findPendingMatchForClient,
 } from "@/lib/repositories/match-repository";
+import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import {
   dedupeProgramsByPlan,
   ensureDefaultProgramForCompany,
@@ -35,7 +38,15 @@ function enrolledProgramIds(user: { enrolledProgramIds?: string[] } | null): str
     : [];
 }
 
-/** クライアントの参加プログラムに対し、コーチング研修の未割当ルームを確保する。 */
+/**
+ * コーチングマネジメント研修の未割当ルームを確保する。
+ *
+ * 隔離ルール（他プランへ漏らさない）:
+ * - 企業に研修プログラムが無い → 何もしない
+ * - 参加プログラムが明示されている → その中の研修のみ
+ * - 参加未設定 → 企業レジストリのプランが `coaching_management_training` のときだけ作成
+ *   （個別伴走・職場活性企業が誤って研修プログラムを持っていてもルームを作らない）
+ */
 export async function ensureCoachingRoomForClient(
   clientId: string,
 ): Promise<Array<{ matchId: string; programId: string; created: boolean }>> {
@@ -52,12 +63,29 @@ export async function ensureCoachingRoomForClient(
   const enrolled = enrolledProgramIds(user as { enrolledProgramIds?: string[] });
   if (enrolled.length > 0) {
     coachingPrograms = coachingPrograms.filter((p) => enrolled.includes(p.id));
+  } else {
+    const settings = await getAppSettingsRow();
+    const registryPlan = resolveCompanyPlan(companyId, settings.companies);
+    if (registryPlan !== "coaching_management_training") {
+      // 他プラン企業に残った未割当研修ルームを掃除（割当済みは触らない）
+      await deleteOrphanPendingCoachingMatchesForClient(clientId, new Set()).catch(() => 0);
+      return [];
+    }
   }
+  if (coachingPrograms.length === 0) {
+    await deleteOrphanPendingCoachingMatchesForClient(clientId, new Set()).catch(() => 0);
+    return [];
+  }
+
   const targets = dedupeProgramsByPlan(coachingPrograms);
+  const allowed = new Set(targets.map((p) => p.id));
+  await deleteOrphanPendingCoachingMatchesForClient(clientId, allowed).catch(() => 0);
 
   const out: Array<{ matchId: string; programId: string; created: boolean }> = [];
   for (const program of targets) {
-    const existing = await findMatchForClientAndProgram(clientId, program.id);
+    const existing = await findMatchForClientAndProgram(clientId, program.id, {
+      allowLegacyBackfill: false,
+    });
     if (existing) {
       out.push({ matchId: existing.id, programId: program.id, created: false });
       continue;
@@ -83,14 +111,26 @@ export async function ensurePartnerAssignedForClient(
   return { matchId: pending.id, wasPending: true };
 }
 
+/**
+ * クライアントが参加対象のプログラム ID。
+ * 未設定時は企業レジストリプランのプログラムのみ（コーチングを他プラン企業に勝手に含めない）。
+ */
 export async function resolveProgramIdsForClient(clientId: string): Promise<string[]> {
   const user = await getUserById(clientId);
   const companyId = String((user as { companyId?: string | null }).companyId ?? "").trim();
   if (!companyId) return [];
   const enrolled = enrolledProgramIds(user as { enrolledProgramIds?: string[] });
   if (enrolled.length > 0) return enrolled;
+
   const programs = await listProgramsForCompany(companyId);
-  if (programs.length > 0) return dedupeProgramsByPlan(programs).map((p) => p.id);
-  const fallback = await ensureDefaultProgramForCompany(companyId);
-  return fallback ? [fallback.id] : [];
+  if (programs.length === 0) {
+    const fallback = await ensureDefaultProgramForCompany(companyId);
+    return fallback ? [fallback.id] : [];
+  }
+  const settings = await getAppSettingsRow();
+  const registryPlan = resolveCompanyPlan(companyId, settings.companies);
+  const forRegistry = programs.filter((p) => p.plan === registryPlan);
+  const chosen = forRegistry.length > 0 ? forRegistry : programs.filter((p) => p.plan !== "coaching_management_training");
+  const list = chosen.length > 0 ? chosen : programs;
+  return dedupeProgramsByPlan(list).map((p) => p.id);
 }

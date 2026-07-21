@@ -1002,7 +1002,7 @@ export default function AdminMatchesPage() {
             <table className="min-w-full border-collapse bg-white text-left text-sm">
               <thead className="bg-slate-50/90">
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-3 pr-3 font-semibold">
+                  <th className="whitespace-nowrap py-2 pr-2 font-semibold">
                     <input
                       type="checkbox"
                       aria-label="表示中のマッチをすべて選択"
@@ -1022,13 +1022,11 @@ export default function AdminMatchesPage() {
                       }}
                     />
                   </th>
-                  <th className="py-3 pr-4 font-semibold">登録日時</th>
-                  <th className="py-3 pr-4 font-semibold">クライアント</th>
-                  <th className="py-3 pr-4 font-semibold">メール（管理用）</th>
-                  <th className="py-3 pr-4 font-semibold">クライアント企業</th>
-                  <th className="py-3 pr-4 font-semibold">パートナー</th>
-                  <th className="py-3 pr-4 font-semibold">メール（管理用）</th>
-                  <th className="py-3 font-semibold">操作</th>
+                  <th className="whitespace-nowrap py-2 pr-3 font-semibold">登録日時</th>
+                  <th className="whitespace-nowrap py-2 pr-3 font-semibold">クライアント</th>
+                  <th className="whitespace-nowrap py-2 pr-3 font-semibold">企業</th>
+                  <th className="whitespace-nowrap py-2 pr-3 font-semibold">パートナー</th>
+                  <th className="whitespace-nowrap py-2 font-semibold">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -1040,7 +1038,7 @@ export default function AdminMatchesPage() {
                       focusedMatchId === row.id ? "bg-amber-100/70 ring-2 ring-amber-400" : ""
                     }`}
                   >
-                    <td className="py-3 pr-3 align-top">
+                    <td className="whitespace-nowrap py-2 pr-2 align-middle">
                       <input
                         type="checkbox"
                         checked={selectedMatchIds.includes(row.id)}
@@ -1048,46 +1046,56 @@ export default function AdminMatchesPage() {
                         aria-label={`${row.client.displayName}-${row.partner.displayName}を選択`}
                       />
                     </td>
-                    <td className="whitespace-nowrap py-3 pr-4 align-top text-zinc-600">
+                    <td className="whitespace-nowrap py-2 pr-3 align-middle text-xs text-zinc-600">
                       {formatJa(row.createdAt)}
                     </td>
-                    <td className="py-3 pr-4 align-top font-medium text-zinc-950">
+                    <td className="max-w-[14rem] py-2 pr-3 align-middle">
                       <Link
                         href={`/admin/users/${encodeURIComponent(row.client.id)}`}
-                        className="text-indigo-900 no-underline hover:underline"
+                        className="font-medium text-indigo-900 no-underline hover:underline"
                         title={`${row.client.displayName} さんの状況（自分FTA・参加マッチ）`}
                       >
                         {withHonorificSan(row.client.displayName)}
                       </Link>
+                      {row.client.email ? (
+                        <p className="truncate text-[11px] text-zinc-500" title={row.client.email}>
+                          {row.client.email}
+                        </p>
+                      ) : null}
                     </td>
-                    <td className="py-3 pr-4 align-top text-xs text-zinc-500">{row.client.email}</td>
-                    <td className="py-3 pr-4 align-top text-sm text-zinc-700">
+                    <td className="max-w-[10rem] truncate py-2 pr-3 align-middle text-sm text-zinc-700">
                       {row.client.companyName?.trim() ? row.client.companyName : "—"}
                     </td>
-                    <td className="py-3 pr-4 align-top font-medium text-zinc-950">
+                    <td className="max-w-[14rem] py-2 pr-3 align-middle">
                       <Link
                         href={`/admin/users/${encodeURIComponent(row.partner.id)}`}
-                        className="text-indigo-900 no-underline hover:underline"
+                        className="font-medium text-indigo-900 no-underline hover:underline"
                         title={`${row.partner.displayName} さんの状況（参加マッチ）`}
                       >
                         {withHonorificSan(row.partner.displayName)}
                       </Link>
+                      {row.partner.email ? (
+                        <p className="truncate text-[11px] text-zinc-500" title={row.partner.email}>
+                          {row.partner.email}
+                        </p>
+                      ) : null}
                     </td>
-                    <td className="py-3 pr-4 align-top text-xs text-zinc-500">{row.partner.email}</td>
-                    <td className="py-3 align-top">
-                      <div className="flex flex-wrap gap-2">
+                    <td className="whitespace-nowrap py-2 align-middle">
+                      <div className="flex flex-nowrap items-center gap-1.5">
                         <Link
                           href={`/match/${row.id}`}
-                          className="inline-flex rounded-lg bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white no-underline shadow-sm hover:bg-indigo-800"
+                          className="inline-flex shrink-0 rounded-md bg-indigo-700 px-2.5 py-1 text-xs font-semibold text-white no-underline hover:bg-indigo-800"
                         >
                           ルームを開く
                         </Link>
                         <button
                           type="button"
-                          onClick={() => void onClearMatch(row.id, row.partner.displayName, row.client.displayName)}
-                          className="inline-flex rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-100"
+                          onClick={() =>
+                            void onClearMatch(row.id, row.partner.displayName, row.client.displayName)
+                          }
+                          className="inline-flex shrink-0 rounded-md border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800 hover:bg-red-100"
                         >
-                          マッチをクリア
+                          クリア
                         </button>
                       </div>
                     </td>

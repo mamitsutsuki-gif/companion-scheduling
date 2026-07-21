@@ -62,7 +62,13 @@ export function CompanyMemberEnrollments({ companyId }: { companyId: string }) {
   async function toggleProgram(userId: string, programId: string, on: boolean) {
     const user = clientMembers.find((m) => m.id === userId);
     if (!user) return;
-    const current = new Set(user.enrolledProgramIds ?? programs.map((p) => p.id));
+    const baseline =
+      user.enrolledProgramIds && user.enrolledProgramIds.length > 0
+        ? user.enrolledProgramIds
+        : programs
+            .filter((p) => p.plan !== "coaching_management_training")
+            .map((p) => p.id);
+    const current = new Set(baseline);
     if (on) current.add(programId);
     else current.delete(programId);
     const nextIds = programs.map((p) => p.id).filter((id) => current.has(id));
@@ -89,9 +95,12 @@ export function CompanyMemberEnrollments({ companyId }: { companyId: string }) {
     }
   }
 
-  function isEnrolled(user: MemberRow, programId: string) {
+  function isEnrolled(user: MemberRow, programId: string, plan: CompanyPlan) {
     const enrolled = user.enrolledProgramIds;
-    if (!enrolled || enrolled.length === 0) return true;
+    if (!enrolled || enrolled.length === 0) {
+      // 未設定時はコーチング研修以外を参加扱い（研修は明示チェックが必要）
+      return plan !== "coaching_management_training";
+    }
     return enrolled.includes(programId);
   }
 
@@ -101,7 +110,8 @@ export function CompanyMemberEnrollments({ companyId }: { companyId: string }) {
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <h2 className="text-lg font-semibold text-slate-900">メンバーの参加プログラム</h2>
       <p className="mt-1 text-sm text-slate-600">
-        クライアント系ユーザーが参加するプログラムを個別に設定します。未チェックのプログラムにはコーチングルームは自動作成されません。
+        クライアント系ユーザーが参加するプログラムを個別に設定します。
+        コーチングマネジメント研修はチェックしたメンバーだけに未割当ルームが自動作成されます（他プラン企業への漏洩防止）。
       </p>
 
       {error ? (
@@ -142,7 +152,7 @@ export function CompanyMemberEnrollments({ companyId }: { companyId: string }) {
                     <td key={p.id} className="px-3 py-2 text-center">
                       <input
                         type="checkbox"
-                        checked={isEnrolled(m, p.id)}
+                        checked={isEnrolled(m, p.id, p.plan)}
                         disabled={savingUserId === m.id}
                         onChange={(e) => void toggleProgram(m.id, p.id, e.target.checked)}
                         aria-label={`${m.displayName} — ${p.name}`}

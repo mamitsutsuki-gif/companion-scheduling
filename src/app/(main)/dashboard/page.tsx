@@ -42,9 +42,18 @@ export default async function DashboardPage({
     getAppSettingsRow(),
   ]);
   const showFta = shouldShowGlobalFta(me.role);
-  const roomSectionTitle = isClientMember ? "セッション・研修ルーム" : "担当ペア";
+  const hasCoachingMatch = allMatches.some(
+    (m) =>
+      (m as { programPlanLabel?: string | null }).programPlanLabel ===
+        "コーチングマネジメント研修" ||
+      String((m as { programName?: string | null }).programName ?? "").includes("コーチング"),
+  );
+  const roomSectionTitle =
+    isClientMember && hasCoachingMatch ? "セッション・研修ルーム" : isClientMember ? "セッションルーム" : "担当ペア";
   const roomSectionDescription = isClientMember
-    ? "研修ルームで準備やセッションを進めます。"
+    ? hasCoachingMatch
+      ? "研修ルームで準備やセッションを進めます。"
+      : "各ルームでメッセージと日程を管理します。"
     : "各ペアのルームでメッセージと日程を管理します。";
 
   // 管理者・管理者アシスタントだけが企業フィルタを使える。それ以外は全件のままで挙動を変えない。

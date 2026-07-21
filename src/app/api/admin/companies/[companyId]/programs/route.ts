@@ -92,8 +92,11 @@ export async function POST(request: Request, ctx: RouteContext) {
   if (!created.ok) return jsonError(created.error, 409);
   const program = created.program;
 
-  // 既存クライアントに新プログラムを参加対象として追加（特に monthly_session）
+  // 新プログラムを参加対象に追加。
+  // 未設定クライアントは「企業レジストリプラン + 今回追加分」のみ（他プランを勝手に全部含めない）。
   try {
+    const { resolveCompanyPlan } = await import("@/lib/company-plan");
+    const registryPlan = resolveCompanyPlan(cid, settings.companies);
     const clients = await listClientsInCompany(cid);
     await Promise.all(
       clients.map(async (c) => {
@@ -104,10 +107,10 @@ export async function POST(request: Request, ctx: RouteContext) {
         if (current.includes(program.id)) return;
         if (current.length === 0) {
           const all = await listProgramsForCompany(cid);
-          await setUserEnrolledProgramIds(
-            c.id,
-            all.map((p) => p.id),
-          );
+          const ids = all
+            .filter((p) => p.plan === registryPlan || p.id === program.id)
+            .map((p) => p.id);
+          await setUserEnrolledProgramIds(c.id, ids.length > 0 ? ids : [program.id]);
           return;
         }
         await setUserEnrolledProgramIds(c.id, [...current, program.id]);

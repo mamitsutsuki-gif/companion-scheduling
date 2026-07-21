@@ -862,12 +862,22 @@ export async function setUserEnrolledProgramIds(userId: string, programIds: stri
   return snap.exists ? userFromDoc(snap.id, snap.data() as Record<string, unknown>) : null;
 }
 
-/** 企業の全プログラムを参加対象としてユーザーに設定する。 */
+/** 企業の既定プラン（レジストリ）のプログラムだけを参加対象にする。他プランは明示参加が必要。 */
 export async function syncUserEnrollmentsForCompany(userId: string, companyId: string) {
   await ensureDefaultProgramForCompany(companyId);
   const programs = await listProgramsForCompany(companyId);
+  const { getAppSettingsRow } = await import("@/lib/repositories/app-settings-repository");
+  const { resolveCompanyPlan } = await import("@/lib/company-plan");
+  const settings = await getAppSettingsRow();
+  const registryPlan = resolveCompanyPlan(companyId, settings.companies);
+  const forRegistry = programs.filter((p) => p.plan === registryPlan);
+  const chosen =
+    forRegistry.length > 0
+      ? forRegistry
+      : programs.filter((p) => p.plan !== "coaching_management_training");
+  const list = chosen.length > 0 ? chosen : programs;
   return setUserEnrolledProgramIds(
     userId,
-    dedupeProgramsByPlan(programs).map((p) => p.id),
+    dedupeProgramsByPlan(list).map((p) => p.id),
   );
 }
