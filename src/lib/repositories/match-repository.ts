@@ -170,7 +170,16 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
       }),
     );
 
-    return docs
+    // 上司ルームは個別伴走プログラムのときだけ一覧に残す（読み取り側の防御）
+    const visibleDocs = docs.filter((m) => {
+      if (input.role !== "CLIENT_ADMIN") return true;
+      if (m.partnerPending || m.partnerId !== input.userId) return true;
+      if (m.clientId === input.userId) return true;
+      const program = m.programId ? programCache.get(m.programId) : null;
+      return program?.plan === "individual_companion";
+    });
+
+    return visibleDocs
       .map((m) => {
         const raw = { partnerId: m.partnerId, partnerPending: m.partnerPending };
         const partner = partnerFromDoc(raw, users);
@@ -235,16 +244,29 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
       client: { select: { id: true, displayName: true, companyId: true } },
     },
   });
-  return rows.map((r) => ({
-    ...r,
-    client: {
-      ...r.client,
-      companyName: companyLabelFromRegistry(
-        (r.client as { companyId?: string | null }).companyId,
-        settings.companies,
-      ),
-    },
-  }));
+
+  const mapped = [];
+  for (const r of rows) {
+    if (
+      input.role === "CLIENT_ADMIN" &&
+      r.partnerId === input.userId &&
+      r.clientId !== input.userId
+    ) {
+      const program = r.programId ? await getProgramById(r.programId) : null;
+      if (program?.plan !== "individual_companion") continue;
+    }
+    mapped.push({
+      ...r,
+      client: {
+        ...r.client,
+        companyName: companyLabelFromRegistry(
+          (r.client as { companyId?: string | null }).companyId,
+          settings.companies,
+        ),
+      },
+    });
+  }
+  return mapped;
 }
 
 function validateSupervisorPartnerPair(input: {

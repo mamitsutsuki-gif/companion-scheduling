@@ -153,26 +153,33 @@ export function pickCanonicalProgram(
   return [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]!;
 }
 
-/** 企業にプログラムが無ければ、企業プランから既定プログラムを1件作成する。 */
+/** 企業にプログラムが無ければ、企業レジストリのプランから既定プログラムを1件作成する。
+ * 既に他プランのプログラムだけある場合は、レジストリプランのプログラムを優先し、
+ * 無ければ新規作成する（別プランの最古プログラムへフォールバックしない）。
+ */
 export async function ensureDefaultProgramForCompany(companyId: string): Promise<ProgramRow | null> {
   const cid = sanitizeCompanyId(companyId);
   if (!cid || !isFirebaseDataBackend()) return null;
   const db = getFirebaseFirestoreClient();
   if (!db) return null;
 
-  const existing = await listProgramsForCompany(cid);
-  if (existing.length > 0) {
-    return [...existing].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]!;
-  }
-
   const settings = await getAppSettingsRow();
   if (!settings.companies.some((c) => c.id === cid)) return null;
   const plan = resolveCompanyPlan(cid, settings.companies);
+
+  const existing = await listProgramsForCompany(cid);
+  const preferred = pickCanonicalProgram(existing, plan);
+  if (preferred) return preferred;
+
   const id = defaultProgramDocId(cid);
   const ref = db.collection("programs").doc(id);
   const existingDoc = await ref.get();
   if (existingDoc.exists) {
-    return normalizeProgramRow(existingDoc.id, existingDoc.data() ?? {});
+    const row = normalizeProgramRow(existingDoc.id, existingDoc.data() ?? {});
+    if (row && row.plan === plan) return row;
+    // 既定ドキュメントが別プランなら、新しい ID でレジストリプラン用を作成する
+    const created = await createProgram({ companyId: cid, plan });
+    return created.ok ? created.program : null;
   }
 
   const now = new Date().toISOString();
@@ -189,12 +196,12 @@ export async function ensureDefaultProgramForCompany(companyId: string): Promise
     await ref.create(row);
   } catch {
     const again = await ref.get();
-    if (again.exists) return normalizeProgramRow(again.id, again.data() ?? {});
-    const listed = await listProgramsForCompany(cid);
-    if (listed.length > 0) {
-      return [...listed].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]!;
+    if (again.exists) {
+      const normalized = normalizeProgramRow(again.id, again.data() ?? {});
+      if (normalized && normalized.plan === plan) return normalized;
     }
-    return null;
+    const created = await createProgram({ companyId: cid, plan });
+    return created.ok ? created.program : pickCanonicalProgram(await listProgramsForCompany(cid), plan);
   }
 
   const companyOverride = await getCompanyAppSettingsOverride(cid);
@@ -202,6 +209,17 @@ export async function ensureDefaultProgramForCompany(companyId: string): Promise
     await copyCompanySettingsToProgram(cid, id, companyOverride);
   }
   return row;
+}
+
+/** 企業に指定プランのプログラムがあれば返す（無ければ null。勝手に別プランへ落とさない） */
+export async function findProgramForCompanyPlan(
+  companyId: string,
+  plan: CompanyPlan,
+): Promise<ProgramRow | null> {
+  const cid = sanitizeCompanyId(companyId);
+  if (!cid) return null;
+  const programs = await listProgramsForCompany(cid);
+  return pickCanonicalProgram(programs, plan);
 }
 
 export async function countMatchesForProgram(programId: string): Promise<number> {

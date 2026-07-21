@@ -1,5 +1,7 @@
 import type { Role } from "@prisma/client";
 import { getMatchById } from "@/lib/repositories/match-repository";
+import { getProgramById } from "@/lib/repositories/program-repository";
+import { isIndividualCompanionSupervisorMatch } from "@/lib/individual-companion-match";
 
 export async function getMatchIfAllowed(matchId: string, actor: { id: string; role: Role }) {
   const match = await getMatchById(matchId);
@@ -11,8 +13,23 @@ export async function getMatchIfAllowed(matchId: string, actor: { id: string; ro
   if (actor.role === "ADMIN" || actor.role === "ADMIN_ASSISTANT") return { match };
 
   if (actor.role === "PARTNER" && match.partnerId === actor.id) return { match };
-  // 個別伴走: CLIENT_ADMIN が上司として partnerId に入っている場合
-  if (actor.role === "CLIENT_ADMIN" && match.partnerId === actor.id) return { match };
+
+  // 個別伴走のみ: CLIENT_ADMIN が上司として partnerId に入っている場合
+  if (actor.role === "CLIENT_ADMIN" && match.partnerId === actor.id) {
+    const program = match.programId ? await getProgramById(match.programId) : null;
+    if (
+      isIndividualCompanionSupervisorMatch({
+        actorRole: actor.role,
+        actorId: actor.id,
+        partnerId: match.partnerId,
+        programPlan: program?.plan ?? null,
+      })
+    ) {
+      return { match };
+    }
+    return { error: "forbidden" as const };
+  }
+
   if (
     (actor.role === "CLIENT" ||
       actor.role === "CLIENT_ADMIN" ||

@@ -1,12 +1,12 @@
 import type { Role } from "@prisma/client";
+import { resolvePlanFeatures } from "@/lib/company-plan";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
+import { getEffectiveAppSettings } from "@/lib/repositories/app-settings-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
+import { findProgramForCompanyPlan, getProgramById } from "@/lib/repositories/program-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
 import { isClientAdminLike } from "@/lib/role-aliases";
-import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
-import { resolveCompanyPlan } from "@/lib/company-plan";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
-import { getProgramById } from "@/lib/repositories/program-repository";
 import { prisma } from "@/lib/prisma";
 
 export type SkillCheckAccess = {
@@ -56,6 +56,20 @@ export async function isPairedIndividualCompanionSupervisor(
   return false;
 }
 
+function skillCheckEnabledFromEffective(effective: {
+  companyPlan: string;
+  planFeatureOverrides: Parameters<typeof resolvePlanFeatures>[1];
+  coachingPlanSettings: Parameters<typeof resolvePlanFeatures>[2];
+}): boolean {
+  if (effective.companyPlan !== "individual_companion") return false;
+  const features = resolvePlanFeatures(
+    "individual_companion",
+    effective.planFeatureOverrides,
+    effective.coachingPlanSettings,
+  );
+  return features.skillCheck;
+}
+
 export async function resolveSkillCheckAccessForMatch(
   matchId: string,
   actor: { id: string; role: Role },
@@ -64,7 +78,7 @@ export async function resolveSkillCheckAccessForMatch(
   if (!match) return { error: "not_found" };
 
   const effective = await getEffectiveAppSettingsForMatch(matchId);
-  if (effective.companyPlan !== "individual_companion") {
+  if (!skillCheckEnabledFromEffective(effective)) {
     return { error: "plan_disabled" };
   }
 
@@ -163,9 +177,14 @@ export async function resolveSkillCheckAccessForUser(
   const companyId = ((target as { companyId?: string | null }).companyId ?? "").trim();
   if (!companyId) return { error: "forbidden" };
 
-  const settings = await getAppSettingsRow();
-  const plan = resolveCompanyPlan(companyId, settings.companies);
-  if (plan !== "individual_companion") return { error: "plan_disabled" };
+  // 企業レジストリの代表プランではなく、個別伴走プログラムの有無 + 機能フラグで判定
+  const icProgram = await findProgramForCompanyPlan(companyId, "individual_companion");
+  if (!icProgram) return { error: "plan_disabled" };
+  const effective = await getEffectiveAppSettings({
+    companyId,
+    programId: icProgram.id,
+  });
+  if (!skillCheckEnabledFromEffective(effective)) return { error: "plan_disabled" };
 
   if (actor.role === "ADMIN") {
     return {

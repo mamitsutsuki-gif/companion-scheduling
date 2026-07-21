@@ -30,7 +30,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
   const { matchId } = await ctx.params;
-  const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role });
+  const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role }, { feature: "summaryReport" });
   if ("error" in access) return jsonError("権限がありません。", 403);
 
   const [
@@ -84,7 +84,7 @@ export async function PUT(request: Request, ctx: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
   const { matchId } = await ctx.params;
-  const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role });
+  const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role }, { feature: "summaryReport" });
   if ("error" in access) return jsonError("権限がありません。", 403);
   if (!access.canEditAdminSummary && !access.canEditCoach) {
     return jsonError("編集権限がありません。", 403);

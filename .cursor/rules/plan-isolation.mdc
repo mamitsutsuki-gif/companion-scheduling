@@ -1,0 +1,14 @@
+---
+description: プラン分離とテスト範囲（共用層 vs プラン専用層）
+alwaysApply: true
+---
+
+# プラン分離
+
+詳細は `docs/PLAN_ISOLATION.md`。
+
+- プラン専用機能の変更は、そのプランのゲート（program.plan / planFeatures）内に閉じる
+- マッチ入場・一覧・チャット・日程など共用層を触るときは、他プランへの影響を意識しスモーク対象を広げる
+- プラン判定の正本はマッチの `programId`。企業レジストリの代表プランだけに依存しない
+- 個別伴走の成果物 ON/OFF は UI だけでなく API でも `planFeatureOverrides` を見る
+- 上司マッチ（CLIENT_ADMIN を partner）は個別伴走のみ。読み取り・書き込みの両方でプランを確認する

@@ -1,6 +1,10 @@
 /**
  * 「マッチID」「ユーザーID」から、その文脈に効く実効的なアプリ設定
  * （= グローバル設定 + 企業/プログラム上書き）を取得するための薄いヘルパー群。
+ *
+ * プラン判定の正本は「マッチの programId → そのプログラムの plan」。
+ * programId が無いレガシーマッチだけ、企業レジストリプランのプログラムへ安全に寄せる
+ * （別プランの最古プログラムへは落とさない）。
  */
 import {
   getEffectiveAppSettings,
@@ -12,8 +16,10 @@ import {
 } from "@/lib/repositories/program-repository";
 import { getMatchById, backfillMatchProgramId } from "@/lib/repositories/match-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
+import { resolveCompanyPlan } from "@/lib/company-plan";
+import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 
-/** マッチに紐付くプログラム（または企業の既定プログラム）から実効設定を得る。 */
+/** マッチに紐付くプログラム（または企業レジストリプランのプログラム）から実効設定を得る。 */
 export async function getEffectiveAppSettingsForMatch(
   matchId: string,
 ): Promise<EffectiveAppSettings> {
@@ -25,17 +31,22 @@ export async function getEffectiveAppSettingsForMatch(
 
   let programId = match.programId ?? null;
   if (!programId && companyId) {
+    // レジストリプランのプログラムのみ採用。別プランへフォールバックしない。
     const fallback = await ensureDefaultProgramForCompany(companyId);
-    programId = fallback?.id ?? null;
-    if (programId) {
-      await backfillMatchProgramId(matchId, programId).catch(() => undefined);
+    if (fallback) {
+      const settings = await getAppSettingsRow();
+      const registryPlan = resolveCompanyPlan(companyId, settings.companies);
+      if (fallback.plan === registryPlan) {
+        programId = fallback.id;
+        await backfillMatchProgramId(matchId, programId).catch(() => undefined);
+      }
     }
   }
 
   return getEffectiveAppSettings({ companyId, programId });
 }
 
-/** 任意ユーザーの企業ID から実効設定を得る（プログラム未指定 = 企業既定）。 */
+/** 任意ユーザーの企業ID から実効設定を得る（プログラム未指定 = 企業レジストリプランのプログラム）。 */
 export async function getEffectiveAppSettingsForUser(
   userId: string,
   programId?: string | null,
@@ -45,7 +56,13 @@ export async function getEffectiveAppSettingsForUser(
   let resolvedProgramId = programId ?? null;
   if (!resolvedProgramId && companyId) {
     const fallback = await ensureDefaultProgramForCompany(companyId);
-    resolvedProgramId = fallback?.id ?? null;
+    if (fallback) {
+      const settings = await getAppSettingsRow();
+      const registryPlan = resolveCompanyPlan(companyId, settings.companies);
+      if (fallback.plan === registryPlan) {
+        resolvedProgramId = fallback.id;
+      }
+    }
   }
   return getEffectiveAppSettings({ companyId, programId: resolvedProgramId });
 }

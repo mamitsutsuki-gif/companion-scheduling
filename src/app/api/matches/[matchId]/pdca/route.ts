@@ -34,7 +34,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
   const { matchId } = await ctx.params;
-  const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role });
+  const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role }, { feature: "pdca" });
   if ("error" in access) {
     if (access.error === "not_found") return jsonError("マッチが見つかりません。", 404);
     if (access.error === "plan_disabled") return jsonError("このプランでは利用できません。", 403);
@@ -61,7 +61,7 @@ export async function PUT(request: Request, ctx: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
   const { matchId } = await ctx.params;
-  const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role });
+  const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role }, { feature: "pdca" });
   if ("error" in access) return jsonError("権限がありません。", 403);
 
   const body = await request.json().catch(() => null);
@@ -150,7 +150,7 @@ export async function DELETE(request: Request, ctx: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
   const { matchId } = await ctx.params;
-  const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role });
+  const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role }, { feature: "pdca" });
   if ("error" in access || !access.canEditClient) return jsonError("削除権限がありません。", 403);
   const url = new URL(request.url);
   const entryId = url.searchParams.get("entryId") ?? "";

@@ -30,8 +30,11 @@ export async function GET(_req: Request, ctx: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
   const { matchId } = await ctx.params;
-  const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role });
-  if ("error" in access) return jsonError("権限がありません。", 403);
+  const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role }, { feature: "lifelineChart" });
+  if ("error" in access) {
+    if (access.error === "plan_disabled") return jsonError("このプランでは利用できません。", 403);
+    return jsonError("権限がありません。", 403);
+  }
   const raw = await getLifelineChart(access.targetUserId, access.companyId);
   const chart = filterLifelineForViewer(raw, access.lifelineViewMode);
   return jsonOk({
@@ -48,8 +51,12 @@ export async function PUT(request: Request, ctx: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
   const { matchId } = await ctx.params;
-  const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role });
-  if ("error" in access || !access.canEditClient) return jsonError("編集権限がありません。", 403);
+  const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role }, { feature: "lifelineChart" });
+  if ("error" in access) {
+    if (access.error === "plan_disabled") return jsonError("このプランでは利用できません。", 403);
+    return jsonError("編集権限がありません。", 403);
+  }
+  if (!access.canEditClient) return jsonError("編集権限がありません。", 403);
   const parsed = putSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容を確認してください。", 400);
   const events = parsed.data.events

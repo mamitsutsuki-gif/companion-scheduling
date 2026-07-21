@@ -4,6 +4,8 @@ import { maskedFtaChartForViewer } from "@/lib/fta";
 import { getFtaByUserId } from "@/lib/repositories/fta-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
 import { readSession } from "@/lib/session";
+import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
+import { shouldUseClientFta } from "@/lib/company-plan";
 
 type RouteContext = { params: Promise<{ matchId: string }> };
 export const dynamic = "force-dynamic";
@@ -18,7 +20,16 @@ export async function GET(_request: Request, context: RouteContext) {
   const match = await getMatchById(matchId);
   if (!match) return jsonError("見つかりません。", 404);
 
+  const effective = await getEffectiveAppSettingsForMatch(matchId);
+  if (!shouldUseClientFta(effective.companyPlan, effective.planFeatureOverrides)) {
+    return jsonError("このプランでは自分FTAは利用できません。", 403);
+  }
+
   if (session.role === "PARTNER") {
+    const chart = maskedFtaChartForViewer(await getFtaByUserId(match.clientId));
+    return jsonOk({ targetRole: "CLIENT", targetName: match.client.displayName, chart });
+  }
+  if (session.role === "CLIENT_ADMIN" && match.partnerId === session.sub) {
     const chart = maskedFtaChartForViewer(await getFtaByUserId(match.clientId));
     return jsonOk({ targetRole: "CLIENT", targetName: match.client.displayName, chart });
   }

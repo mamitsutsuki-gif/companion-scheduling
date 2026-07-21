@@ -16,3 +16,15 @@ export function canBeMatchPartnerForPlan(
 export function isIndividualCompanionSupervisorRole(role: string | null | undefined): boolean {
   return role === "CLIENT_ADMIN";
 }
+
+/** 読み取り側: CLIENT_ADMIN が partnerId のマッチを上司ルームとして認めるか */
+export function isIndividualCompanionSupervisorMatch(input: {
+  actorRole: string | null | undefined;
+  actorId: string;
+  partnerId: string;
+  programPlan: CompanyPlan | null | undefined;
+}): boolean {
+  if (input.actorRole !== "CLIENT_ADMIN") return false;
+  if (!input.partnerId || input.partnerId !== input.actorId) return false;
+  return input.programPlan === "individual_companion";
+}

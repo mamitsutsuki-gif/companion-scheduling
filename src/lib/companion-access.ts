@@ -1,8 +1,12 @@
 import type { Role } from "@prisma/client";
-import { resolveCompanyPlan } from "@/lib/company-plan";
+import {
+  resolvePlanFeatures,
+  type IndividualCompanionFeatureKey,
+} from "@/lib/company-plan";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
-import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
+import { getEffectiveAppSettings } from "@/lib/repositories/app-settings-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
+import { findProgramForCompanyPlan } from "@/lib/repositories/program-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
 import { isClientAdminLike, isAnyAdmin } from "@/lib/role-aliases";
 
@@ -18,21 +22,11 @@ export type CompanionSheetAccess = {
   lifelineViewMode: LifelineViewMode;
 };
 
-async function planForCompany(companyId: string) {
-  const settings = await getAppSettingsRow();
-  return resolveCompanyPlan(companyId, settings.companies);
-}
-
-async function planForMatch(matchId: string) {
-  const effective = await getEffectiveAppSettingsForMatch(matchId);
-  return effective.companyPlan;
-}
-
 function accessForActor(
   targetUserId: string,
   companyId: string,
   actor: { id: string; role: Role },
-  opts: { isClient: boolean; isPartnerOnMatch?: boolean },
+  opts: { isClient: boolean; isPartnerOnMatch?: boolean; isSupervisorOnMatch?: boolean },
 ): CompanionSheetAccess | null {
   if (actor.role === "ADMIN") {
     return {
@@ -67,6 +61,18 @@ function accessForActor(
       lifelineViewMode: "manager",
     };
   }
+  // 個別伴走の上司マッチ（CLIENT_ADMIN が partnerId）
+  if (opts.isSupervisorOnMatch && actor.role === "CLIENT_ADMIN") {
+    return {
+      targetUserId,
+      companyId,
+      canView: true,
+      canEditClient: false,
+      canEditCoach: true,
+      canEditAdminSummary: false,
+      lifelineViewMode: "manager",
+    };
+  }
   if (opts.isClient && actor.id === targetUserId) {
     return {
       targetUserId,
@@ -84,10 +90,20 @@ function accessForActor(
 export async function resolveCompanionAccessForMatch(
   matchId: string,
   actor: { id: string; role: Role },
+  opts?: { feature?: IndividualCompanionFeatureKey },
 ): Promise<{ error: "not_found" | "forbidden" | "plan_disabled" } | CompanionSheetAccess> {
   const match = await getMatchById(matchId);
   if (!match) return { error: "not_found" };
-  if ((await planForMatch(matchId)) !== "individual_companion") return { error: "plan_disabled" };
+
+  const effective = await getEffectiveAppSettingsForMatch(matchId);
+  if (effective.companyPlan !== "individual_companion") return { error: "plan_disabled" };
+
+  const features = resolvePlanFeatures(
+    effective.companyPlan,
+    effective.planFeatureOverrides,
+    effective.coachingPlanSettings,
+  );
+  if (opts?.feature && !features[opts.feature]) return { error: "plan_disabled" };
 
   const client = await getUserById(match.clientId);
   if (!client) return { error: "not_found" };
@@ -97,6 +113,7 @@ export async function resolveCompanionAccessForMatch(
   const base = accessForActor(match.clientId, companyId, actor, {
     isClient: true,
     isPartnerOnMatch: actor.role === "PARTNER" && match.partnerId === actor.id,
+    isSupervisorOnMatch: actor.role === "CLIENT_ADMIN" && match.partnerId === actor.id,
   });
   if (base) return base;
 
@@ -122,12 +139,28 @@ export async function resolveCompanionAccessForMatch(
 export async function resolveCompanionAccessForUser(
   targetUserId: string,
   actor: { id: string; role: Role },
+  opts?: { feature?: IndividualCompanionFeatureKey },
 ): Promise<{ error: "not_found" | "forbidden" | "plan_disabled" } | CompanionSheetAccess> {
   const target = await getUserById(targetUserId);
   if (!target || (target as { deletedAt?: Date | null }).deletedAt) return { error: "not_found" };
   const companyId = ((target as { companyId?: string | null }).companyId ?? "").trim();
   if (!companyId) return { error: "forbidden" };
-  if ((await planForCompany(companyId)) !== "individual_companion") return { error: "plan_disabled" };
+
+  // 企業レジストリの代表プランではなく、個別伴走プログラムの有無で判定する
+  const icProgram = await findProgramForCompanyPlan(companyId, "individual_companion");
+  if (!icProgram) return { error: "plan_disabled" };
+
+  const effective = await getEffectiveAppSettings({
+    companyId,
+    programId: icProgram.id,
+  });
+  const features = resolvePlanFeatures(
+    effective.companyPlan,
+    effective.planFeatureOverrides,
+    effective.coachingPlanSettings,
+  );
+  if (effective.companyPlan !== "individual_companion") return { error: "plan_disabled" };
+  if (opts?.feature && !features[opts.feature]) return { error: "plan_disabled" };
 
   const base = accessForActor(targetUserId, companyId, actor, {
     isClient: target.role === "CLIENT",
