@@ -392,6 +392,13 @@ export async function createMatchAsAdmin(
     programPlan: program.plan,
   });
   if (!pair.ok) return { ok: false as const, error: pair.error };
+  const existingSameProgram = await prisma.match.findFirst({
+    where: { partnerId, clientId, programId: programId || null },
+    select: { id: true },
+  });
+  if (existingSameProgram) {
+    return { ok: false as const, error: "この組み合わせのマッチは既に存在します。", status: 409 };
+  }
   try {
     const match = await prisma.match.create({
       data: { partnerId, clientId, programId: programId || null },
@@ -566,6 +573,7 @@ export async function assignPartnerToPendingMatch(
     .collection("matches")
     .where("partnerId", "==", partnerId)
     .where("clientId", "==", clientId)
+    .where("programId", "==", programId)
     .limit(1)
     .get();
   if (!dup.empty) {
@@ -635,20 +643,30 @@ export async function clearMatchAsAdmin(matchId: string) {
   }
 }
 
-export async function hasMatchBetween(partnerId: string, clientId: string) {
+export async function hasMatchBetween(
+  partnerId: string,
+  clientId: string,
+  programId?: string | null,
+) {
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
     if (!db) return false;
-    const snap = await db
+    let query = db
       .collection("matches")
       .where("partnerId", "==", partnerId)
-      .where("clientId", "==", clientId)
-      .limit(1)
-      .get();
+      .where("clientId", "==", clientId);
+    if (programId) {
+      query = query.where("programId", "==", programId);
+    }
+    const snap = await query.limit(1).get();
     return !snap.empty;
   }
   const row = await prisma.match.findFirst({
-    where: { partnerId, clientId },
+    where: {
+      partnerId,
+      clientId,
+      ...(programId ? { programId } : {}),
+    },
     select: { id: true },
   });
   return Boolean(row);

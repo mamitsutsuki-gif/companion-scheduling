@@ -622,7 +622,17 @@ export async function createMonthlyMessage(
   return { ok: true, message };
 }
 
-/** クライアントが月額プログラムに参加しているか */
+/** クライアントが月額プログラムに参加しているか（複数プラン企業向けに厳密）
+ *
+ * 許可条件:
+ * 1. enrolledProgramIds に月額プログラムが含まれる → そのプログラム
+ * 2. enrolled 未設定 かつ 企業レジストリの代表プランが monthly_session → 月額プログラム
+ *
+ * 不可:
+ * - 他プランにだけ登録されている（月額を含まない）
+ * - enrolled 未設定だが企業代表プランが月額以外（別プラン企業に月額プログラムが同居しているだけ）
+ * - 勝手に enrolled を書き換えない
+ */
 export async function resolveMonthlyProgramForClient(clientId: string): Promise<{
   companyId: string;
   programId: string;
@@ -636,26 +646,25 @@ export async function resolveMonthlyProgramForClient(clientId: string): Promise<
   const programs = await listProgramsForCompany(companyId);
   const monthly = programs.filter((p) => p.plan === "monthly_session");
   if (monthly.length === 0) return null;
+
   const enrolled = Array.isArray((user as { enrolledProgramIds?: string[] }).enrolledProgramIds)
     ? ((user as { enrolledProgramIds?: string[] }).enrolledProgramIds ?? []).filter(
         (id) => typeof id === "string" && id.trim(),
       )
     : [];
 
-  // enrolled 未設定 → 企業の月額プログラムに参加とみなす（既存運用と同じ）
-  // enrolled あり → 明示的に月額を含む場合のみ
-  let target = enrolled.length === 0 ? (monthly[0] ?? null) : null;
-  if (!target && enrolled.length > 0) {
-    target = monthly.find((p) => enrolled.includes(p.id)) ?? null;
+  let target = enrolled.length > 0 ? (monthly.find((p) => enrolled.includes(p.id)) ?? null) : null;
+
+  if (!target && enrolled.length === 0) {
+    const settingsRow = await getAppSettingsRow();
+    const { resolveCompanyPlan } = await import("@/lib/company-plan");
+    const { pickCanonicalProgram } = await import("@/lib/repositories/program-repository");
+    const registryPlan = resolveCompanyPlan(companyId, settingsRow.companies);
+    if (registryPlan === "monthly_session") {
+      target = pickCanonicalProgram(monthly, "monthly_session") ?? monthly[0] ?? null;
+    }
   }
-  // レガシー: enrolled はあるが月額が無く、企業に月額プログラムが1つだけある場合は自動補完参加
-  if (!target && monthly.length === 1) {
-    target = monthly[0]!;
-    const { setUserEnrolledProgramIds } = await import("@/lib/repositories/user-repository");
-    await setUserEnrolledProgramIds(clientId, [...new Set([...enrolled, target.id])]).catch(
-      () => null,
-    );
-  }
+
   if (!target) return null;
   const settings = await getMonthlyGlobalSettings();
   const monthlyLimit = settings.monthlyLimitsByProgramId[target.id] ?? 0;

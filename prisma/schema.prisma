@@ -254,7 +254,8 @@ model Match {
 
   createdAt DateTime @default(now())
 
-  @@unique([partnerId, clientId])
+  /// 同一パートナー×クライアントでも、プログラム（プラン）が違えば別マッチとして許可する
+  @@unique([partnerId, clientId, programId])
 }
 
 model Message {
