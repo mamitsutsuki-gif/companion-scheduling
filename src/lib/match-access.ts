@@ -11,6 +11,8 @@ export async function getMatchIfAllowed(matchId: string, actor: { id: string; ro
   if (actor.role === "ADMIN" || actor.role === "ADMIN_ASSISTANT") return { match };
 
   if (actor.role === "PARTNER" && match.partnerId === actor.id) return { match };
+  // 個別伴走: CLIENT_ADMIN が上司として partnerId に入っている場合
+  if (actor.role === "CLIENT_ADMIN" && match.partnerId === actor.id) return { match };
   if (
     (actor.role === "CLIENT" ||
       actor.role === "CLIENT_ADMIN" ||

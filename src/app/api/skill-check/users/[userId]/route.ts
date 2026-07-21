@@ -8,13 +8,34 @@ import {
   upsertSkillCheckProfile,
 } from "@/lib/repositories/skill-check-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
-import { normalizeSkillCheckProfile, type SkillCheckPhase, type SkillScore } from "@/lib/skill-check";
+import {
+  normalizeCompanySkillDefinitions,
+  normalizeSkillCheckProfile,
+  resolveEffectiveSkillDefinitions,
+  type SkillCheckPhase,
+  type SkillScore,
+} from "@/lib/skill-check";
 
 export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ userId: string }> };
 
 const scoreSchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.null()]);
+
+const skillDefSchema = z.object({
+  id: z.string().max(80),
+  name: z.string().max(120),
+  kind: z.enum(["common", "company"]).optional(),
+  criteria: z
+    .object({
+      score1: z.string().max(500).optional(),
+      score2: z.string().max(500).optional(),
+      score3: z.string().max(500).optional(),
+      score4: z.string().max(500).optional(),
+      score5: z.string().max(500).optional(),
+    })
+    .optional(),
+});
 
 const putSchema = z.object({
   phase: z.enum(["baseline", "current"]),
@@ -28,6 +49,7 @@ const putSchema = z.object({
     )
     .optional(),
   focusSkillIds: z.array(z.string().max(80)).max(8).optional(),
+  skillDefinitions: z.array(skillDefSchema).max(32).optional(),
 });
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -44,7 +66,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return jsonError("権限がありません。", 403);
   }
 
-  const [skills, profile, client] = await Promise.all([
+  const [companySkills, profile, client] = await Promise.all([
     getCompanySkillDefinitions(access.companyId),
     getSkillCheckProfile(access.targetUserId),
     getUserById(access.targetUserId),
@@ -59,13 +81,14 @@ export async function GET(_request: Request, context: RouteContext) {
     });
 
   return jsonOk({
-    skills,
+    skills: resolveEffectiveSkillDefinitions(normalizedProfile, companySkills),
     profile: normalizedProfile,
     targetName: client?.displayName ?? "",
     permissions: {
       canEditSelf: access.canEditSelf,
       canEditManager: access.canEditManager,
       canEditFocusSkills: access.canEditFocusSkills,
+      canEditSkillDefinitions: access.canEditSkillDefinitions,
     },
   });
 }
@@ -110,6 +133,17 @@ export async function PUT(request: Request, context: RouteContext) {
   if (parsed.data.focusSkillIds !== undefined && !access.canEditFocusSkills) {
     return jsonError("重点スキルの編集権限がありません。", 403);
   }
+  if (parsed.data.skillDefinitions !== undefined && !access.canEditSkillDefinitions) {
+    return jsonError("スキル項目の編集権限がありません。", 403);
+  }
+
+  const skillDefinitions =
+    parsed.data.skillDefinitions !== undefined
+      ? normalizeCompanySkillDefinitions(parsed.data.skillDefinitions)
+      : undefined;
+  if (parsed.data.skillDefinitions !== undefined && (!skillDefinitions || skillDefinitions.length === 0)) {
+    return jsonError("スキル項目を1つ以上入力してください。", 400);
+  }
 
   const profile = await upsertSkillCheckProfile({
     userId: access.targetUserId,
@@ -117,6 +151,7 @@ export async function PUT(request: Request, context: RouteContext) {
     phase,
     assessments,
     focusSkillIds: parsed.data.focusSkillIds,
+    skillDefinitions,
   });
 
   return jsonOk({ profile });

@@ -5,6 +5,7 @@ import { resolveCompanionAccessForMatch } from "@/lib/companion-access";
 import { getReflectionSheet, upsertReflectionSheet } from "@/lib/repositories/companion-repository";
 import { getSkillCheckProfile } from "@/lib/repositories/skill-check-repository";
 import { getCompanySkillDefinitions } from "@/lib/repositories/skill-check-repository";
+import { resolveEffectiveSkillDefinitions } from "@/lib/skill-check";
 import { getPdcaStore } from "@/lib/repositories/companion-repository";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
     if (access.error === "plan_disabled") return jsonError("このプランでは利用できません。", 403);
     return jsonError("権限がありません。", 403);
   }
-  const [sheet, skillProfile, skills, pdca] = await Promise.all([
+  const [sheet, skillProfile, companySkills, pdca] = await Promise.all([
     getReflectionSheet(access.targetUserId, access.companyId),
     getSkillCheckProfile(access.targetUserId),
     getCompanySkillDefinitions(access.companyId),
@@ -40,7 +41,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
   return jsonOk({
     sheet,
     skillProfile,
-    skills,
+    skills: resolveEffectiveSkillDefinitions(skillProfile, companySkills),
     pdcaEntries: pdca.entries.slice(0, 20),
     permissions: { canEditClient: access.canEditClient },
   });

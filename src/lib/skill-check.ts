@@ -28,6 +28,8 @@ export type SkillCheckProfile = {
   baseline: Record<string, SkillAssessmentEntry>;
   current: Record<string, SkillAssessmentEntry>;
   focusSkillIds: string[];
+  /** 手入力で編集したスキル項目。未設定時は企業共通定義を使う */
+  skillDefinitions: SkillDefinition[] | null;
   updatedAt: string;
 };
 
@@ -150,14 +152,27 @@ export function normalizeSkillCheckProfile(userId: string, companyId: string, in
     .map((v) => trimText(v, 80))
     .filter((v) => v.length > 0)
     .slice(0, 8);
+  const custom = normalizeCompanySkillDefinitions(raw.skillDefinitions);
   return {
     userId,
     companyId,
     baseline: normalizeAssessmentMap(raw.baseline),
     current: normalizeAssessmentMap(raw.current),
     focusSkillIds,
+    skillDefinitions: custom.length > 0 ? custom.map((s) => ({ ...s, kind: "company" as const })) : null,
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
   };
+}
+
+/** プロフィール固有の項目があればそれを優先、なければ企業共通定義 */
+export function resolveEffectiveSkillDefinitions(
+  profile: SkillCheckProfile | null | undefined,
+  companySkills: SkillDefinition[],
+): SkillDefinition[] {
+  if (profile?.skillDefinitions && profile.skillDefinitions.length > 0) {
+    return profile.skillDefinitions;
+  }
+  return companySkills;
 }
 
 export function criteriaLabel(criteria: SkillCriteria, score: SkillScore): string {

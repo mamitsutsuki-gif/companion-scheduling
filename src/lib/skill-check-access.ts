@@ -5,6 +5,9 @@ import { getUserById } from "@/lib/repositories/user-repository";
 import { isClientAdminLike } from "@/lib/role-aliases";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { resolveCompanyPlan } from "@/lib/company-plan";
+import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
+import { getProgramById } from "@/lib/repositories/program-repository";
+import { prisma } from "@/lib/prisma";
 
 export type SkillCheckAccess = {
   targetUserId: string;
@@ -13,7 +16,45 @@ export type SkillCheckAccess = {
   canEditSelf: boolean;
   canEditManager: boolean;
   canEditFocusSkills: boolean;
+  /** スキル項目名の手入力編集（本人 / ペア上司 / 管理者） */
+  canEditSkillDefinitions: boolean;
 };
+
+/** 個別伴走で、actor が client の上司（partnerId）としてペアになっているか */
+export async function isPairedIndividualCompanionSupervisor(
+  supervisorId: string,
+  clientId: string,
+): Promise<boolean> {
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return false;
+    const snap = await db
+      .collection("matches")
+      .where("partnerId", "==", supervisorId)
+      .where("clientId", "==", clientId)
+      .limit(10)
+      .get();
+    for (const doc of snap.docs) {
+      const raw = doc.data() as Record<string, unknown>;
+      const programId = typeof raw.programId === "string" ? raw.programId : "";
+      if (!programId) continue;
+      const program = await getProgramById(programId);
+      if (program?.plan === "individual_companion") return true;
+    }
+    return false;
+  }
+  const rows = await prisma.match.findMany({
+    where: { partnerId: supervisorId, clientId },
+    select: { programId: true },
+    take: 10,
+  });
+  for (const row of rows) {
+    if (!row.programId) continue;
+    const program = await getProgramById(row.programId);
+    if (program?.plan === "individual_companion") return true;
+  }
+  return false;
+}
 
 export async function resolveSkillCheckAccessForMatch(
   matchId: string,
@@ -42,6 +83,7 @@ export async function resolveSkillCheckAccessForMatch(
       canEditSelf: true,
       canEditManager: true,
       canEditFocusSkills: true,
+      canEditSkillDefinitions: true,
     };
   }
   if (actor.role === "ADMIN_ASSISTANT") {
@@ -52,6 +94,7 @@ export async function resolveSkillCheckAccessForMatch(
       canEditSelf: false,
       canEditManager: false,
       canEditFocusSkills: false,
+      canEditSkillDefinitions: false,
     };
   }
   if (actor.role === "PARTNER" && match.partnerId === actor.id) {
@@ -62,6 +105,19 @@ export async function resolveSkillCheckAccessForMatch(
       canEditSelf: false,
       canEditManager: false,
       canEditFocusSkills: false,
+      canEditSkillDefinitions: false,
+    };
+  }
+  // 個別伴走の上司マッチ（CLIENT_ADMIN が partnerId）
+  if (actor.role === "CLIENT_ADMIN" && match.partnerId === actor.id) {
+    return {
+      targetUserId,
+      companyId,
+      canView: true,
+      canEditSelf: false,
+      canEditManager: true,
+      canEditFocusSkills: true,
+      canEditSkillDefinitions: true,
     };
   }
   if (actor.id === match.clientId) {
@@ -72,6 +128,7 @@ export async function resolveSkillCheckAccessForMatch(
       canEditSelf: true,
       canEditManager: false,
       canEditFocusSkills: true,
+      canEditSkillDefinitions: true,
     };
   }
 
@@ -79,6 +136,7 @@ export async function resolveSkillCheckAccessForMatch(
     const actorUser = await getUserById(actor.id);
     const actorCompanyId = ((actorUser as { companyId?: string | null } | null)?.companyId ?? "").trim();
     if (actorCompanyId && actorCompanyId === companyId) {
+      const paired = await isPairedIndividualCompanionSupervisor(actor.id, targetUserId);
       return {
         targetUserId,
         companyId,
@@ -86,6 +144,7 @@ export async function resolveSkillCheckAccessForMatch(
         canEditSelf: false,
         canEditManager: true,
         canEditFocusSkills: true,
+        canEditSkillDefinitions: paired,
       };
     }
   }
@@ -116,6 +175,7 @@ export async function resolveSkillCheckAccessForUser(
       canEditSelf: true,
       canEditManager: true,
       canEditFocusSkills: true,
+      canEditSkillDefinitions: true,
     };
   }
   if (actor.role === "ADMIN_ASSISTANT") {
@@ -126,6 +186,7 @@ export async function resolveSkillCheckAccessForUser(
       canEditSelf: false,
       canEditManager: false,
       canEditFocusSkills: false,
+      canEditSkillDefinitions: false,
     };
   }
   if (actor.id === targetUserId && target.role === "CLIENT") {
@@ -136,12 +197,14 @@ export async function resolveSkillCheckAccessForUser(
       canEditSelf: true,
       canEditManager: false,
       canEditFocusSkills: true,
+      canEditSkillDefinitions: true,
     };
   }
   if (isClientAdminLike(actor.role)) {
     const actorUser = await getUserById(actor.id);
     const actorCompanyId = ((actorUser as { companyId?: string | null } | null)?.companyId ?? "").trim();
     if (actorCompanyId && actorCompanyId === companyId && target.role === "CLIENT") {
+      const paired = await isPairedIndividualCompanionSupervisor(actor.id, targetUserId);
       return {
         targetUserId,
         companyId,
@@ -149,6 +212,7 @@ export async function resolveSkillCheckAccessForUser(
         canEditSelf: false,
         canEditManager: true,
         canEditFocusSkills: true,
+        canEditSkillDefinitions: paired,
       };
     }
   }

@@ -5,7 +5,7 @@ import {
   getCompanySkillDefinitions,
   getSkillCheckProfile,
 } from "@/lib/repositories/skill-check-repository";
-import { normalizeSkillCheckProfile } from "@/lib/skill-check";
+import { normalizeSkillCheckProfile, resolveEffectiveSkillDefinitions } from "@/lib/skill-check";
 
 export const dynamic = "force-dynamic";
 
@@ -22,13 +22,14 @@ export async function GET() {
     }
     return jsonError("取得できません。", 403);
   }
-  const [skills, profile] = await Promise.all([
+  const [companySkills, profile] = await Promise.all([
     getCompanySkillDefinitions(access.companyId),
     getSkillCheckProfile(access.targetUserId),
   ]);
   const normalized =
     profile ??
     normalizeSkillCheckProfile(access.targetUserId, access.companyId, {});
+  const skills = resolveEffectiveSkillDefinitions(normalized, companySkills);
   const focusSkillOptions = skills.filter((s) => normalized.focusSkillIds.includes(s.id));
   return jsonOk({
     skills,

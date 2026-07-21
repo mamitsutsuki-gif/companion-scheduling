@@ -10,6 +10,7 @@ import {
 } from "@/lib/repositories/companion-repository";
 import { normalizePdcaEntry, pdcaSkillCounts } from "@/lib/companion-pdca";
 import { getCompanySkillDefinitions, getSkillCheckProfile } from "@/lib/repositories/skill-check-repository";
+import { resolveEffectiveSkillDefinitions } from "@/lib/skill-check";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
     if (access.error === "plan_disabled") return jsonError("このプランでは利用できません。", 403);
     return jsonError("権限がありません。", 403);
   }
-  const [store, skills, skillProfile] = await Promise.all([
+  const [store, companySkills, skillProfile] = await Promise.all([
     getPdcaStore(access.targetUserId, access.companyId),
     getCompanySkillDefinitions(access.companyId),
     getSkillCheckProfile(access.targetUserId),
@@ -47,7 +48,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
   return jsonOk({
     store,
     skillCounts: pdcaSkillCounts(store.entries),
-    skills,
+    skills: resolveEffectiveSkillDefinitions(skillProfile, companySkills),
     focusSkillIds: skillProfile?.focusSkillIds ?? [],
     permissions: {
       canEditClient: access.canEditClient,

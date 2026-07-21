@@ -6,6 +6,8 @@ import { companyLabelFromRegistry } from "@/lib/company-display";
 import { companyPlanLabel } from "@/lib/company-plan";
 import { getProgramById } from "@/lib/repositories/program-repository";
 import { PENDING_PARTNER_DISPLAY_NAME } from "@/lib/match-partner-pending";
+import { canBeMatchPartnerForPlan } from "@/lib/individual-companion-match";
+import type { CompanyPlan } from "@/lib/company-plan";
 
 type MatchUser = { id: string; displayName: string; email?: string; companyId?: string | null };
 
@@ -149,6 +151,10 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
       .filter((m) => {
         if (input.role === "ADMIN" || input.role === "ADMIN_ASSISTANT") return true;
         if (input.role === "PARTNER") return !m.partnerPending && m.partnerId === input.userId;
+        // 個別伴走: CLIENT_ADMIN が上司として partnerId に入っているルームも自分の一覧に出す
+        if (input.role === "CLIENT_ADMIN" && !m.partnerPending && m.partnerId === input.userId) {
+          return true;
+        }
         return m.clientId === input.userId;
       });
 
@@ -215,7 +221,12 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
     }));
   }
 
-  const where = input.role === "PARTNER" ? { partnerId: input.userId } : { clientId: input.userId };
+  const where =
+    input.role === "PARTNER"
+      ? { partnerId: input.userId }
+      : input.role === "CLIENT_ADMIN"
+        ? { OR: [{ clientId: input.userId }, { partnerId: input.userId }] }
+        : { clientId: input.userId };
   const rows = await prisma.match.findMany({
     where,
     orderBy: { createdAt: "desc" },
@@ -236,6 +247,33 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
   }));
 }
 
+function validateSupervisorPartnerPair(input: {
+  partnerRole: string | undefined;
+  partnerCompanyId: string | null;
+  clientRole: string | undefined;
+  clientCompanyId: string | null;
+  programPlan: CompanyPlan;
+}): { ok: true } | { ok: false; error: string } {
+  if (!canBeMatchPartnerForPlan(input.partnerRole, input.programPlan)) {
+    if (input.programPlan === "individual_companion") {
+      return {
+        ok: false,
+        error: "パートナー側は PARTNER、または個別伴走の上司（CLIENT_ADMIN）を指定してください。",
+      };
+    }
+    return { ok: false, error: "パートナー側のユーザーが不正です。" };
+  }
+  if (input.partnerRole === "CLIENT_ADMIN") {
+    if (input.clientRole !== "CLIENT") {
+      return { ok: false, error: "上司マッチでは部下側は CLIENT を指定してください。" };
+    }
+    if (!input.partnerCompanyId || !input.clientCompanyId || input.partnerCompanyId !== input.clientCompanyId) {
+      return { ok: false, error: "上司と部下は同じ企業に所属している必要があります。" };
+    }
+  }
+  return { ok: true };
+}
+
 export async function createMatchAsAdmin(
   partnerId: string,
   clientId: string,
@@ -253,9 +291,8 @@ export async function createMatchAsAdmin(
     if (!db) return { ok: false as const, error: "Firestore 未設定です。" };
     const partner = await db.collection("users").doc(partnerId).get();
     const client = await db.collection("users").doc(clientId).get();
-    if (!partner.exists || (partner.data()?.role as string) !== "PARTNER") {
-      return { ok: false as const, error: "パートナー側のユーザーが不正です。" };
-    }
+    const program = await getProgramById(programId);
+    if (!program) return { ok: false as const, error: "プログラムが見つかりません。" };
     {
       const r = client.data()?.role as string | undefined;
       if (
@@ -265,9 +302,20 @@ export async function createMatchAsAdmin(
         return { ok: false as const, error: "クライアント側のユーザーが不正です。" };
       }
     }
-    const program = await getProgramById(programId);
-    if (!program) return { ok: false as const, error: "プログラムが見つかりません。" };
+    if (!partner.exists) {
+      return { ok: false as const, error: "パートナー側のユーザーが不正です。" };
+    }
+    const partnerRole = partner.data()?.role as string | undefined;
+    const partnerCompanyId = normalizeCompanyId(partner.data()?.companyId);
     const clientCompanyId = normalizeCompanyId(client.data()?.companyId);
+    const pair = validateSupervisorPartnerPair({
+      partnerRole,
+      partnerCompanyId,
+      clientRole: client.data()?.role as string | undefined,
+      clientCompanyId,
+      programPlan: program.plan,
+    });
+    if (!pair.ok) return { ok: false as const, error: pair.error };
     if (!clientCompanyId || clientCompanyId !== program.companyId) {
       return { ok: false as const, error: "クライアントの所属企業とプログラムが一致しません。" };
     }
@@ -300,11 +348,13 @@ export async function createMatchAsAdmin(
     return { ok: true as const, matchId: ref.id };
   }
 
+  const program = await getProgramById(programId);
+  if (!program) return { ok: false as const, error: "プログラムが見つかりません。" };
   const [partner, client] = await prisma.$transaction([
     prisma.user.findUnique({ where: { id: partnerId } }),
     prisma.user.findUnique({ where: { id: clientId } }),
   ]);
-  if (!partner || partner.role !== "PARTNER") return { ok: false as const, error: "パートナー側のユーザーが不正です。" };
+  if (!partner) return { ok: false as const, error: "パートナー側のユーザーが不正です。" };
   if (
     !client ||
     (client.role !== "CLIENT" &&
@@ -312,6 +362,14 @@ export async function createMatchAsAdmin(
       client.role !== "CLIENT_HR")
   )
     return { ok: false as const, error: "クライアント側のユーザーが不正です。" };
+  const pair = validateSupervisorPartnerPair({
+    partnerRole: partner.role,
+    partnerCompanyId: normalizeCompanyId((partner as { companyId?: string | null }).companyId),
+    clientRole: client.role,
+    clientCompanyId: normalizeCompanyId((client as { companyId?: string | null }).companyId),
+    programPlan: program.plan,
+  });
+  if (!pair.ok) return { ok: false as const, error: pair.error };
   try {
     const match = await prisma.match.create({
       data: { partnerId, clientId, programId: programId || null },
@@ -455,7 +513,7 @@ export async function assignPartnerToPendingMatch(
   if (!db) return { ok: false, error: "Firestore 未設定です。" };
 
   const partner = await db.collection("users").doc(partnerId).get();
-  if (!partner.exists || (partner.data()?.role as string) !== "PARTNER") {
+  if (!partner.exists) {
     return { ok: false, error: "パートナー側のユーザーが不正です。" };
   }
 
@@ -467,10 +525,25 @@ export async function assignPartnerToPendingMatch(
     return { ok: false, error: "このルームは既にパートナーが割り当てられています。", status: 409 };
   }
 
+  const programId = readProgramId(raw);
+  const program = programId ? await getProgramById(programId) : null;
+  if (!program) return { ok: false, error: "プログラムが見つかりません。" };
+
+  const clientId = String(raw.clientId ?? "");
+  const client = await db.collection("users").doc(clientId).get();
+  const pair = validateSupervisorPartnerPair({
+    partnerRole: partner.data()?.role as string | undefined,
+    partnerCompanyId: normalizeCompanyId(partner.data()?.companyId),
+    clientRole: client.data()?.role as string | undefined,
+    clientCompanyId: normalizeCompanyId(client.data()?.companyId),
+    programPlan: program.plan,
+  });
+  if (!pair.ok) return { ok: false, error: pair.error };
+
   const dup = await db
     .collection("matches")
     .where("partnerId", "==", partnerId)
-    .where("clientId", "==", String(raw.clientId ?? ""))
+    .where("clientId", "==", clientId)
     .limit(1)
     .get();
   if (!dup.empty) {

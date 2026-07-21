@@ -10,6 +10,7 @@ import {
   upsertSummaryReportDoc,
 } from "@/lib/repositories/companion-repository";
 import { getSkillCheckProfile, getCompanySkillDefinitions } from "@/lib/repositories/skill-check-repository";
+import { resolveEffectiveSkillDefinitions } from "@/lib/skill-check";
 import { getFtaByUserId } from "@/lib/repositories/fta-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
 import { filterLifelineForViewer } from "@/lib/companion-lifeline";
@@ -53,7 +54,8 @@ export async function GET(_req: Request, ctx: RouteContext) {
   ]);
 
   const lifeline = filterLifelineForViewer(lifelineRaw, access.lifelineViewMode);
-  const skillName = new Map(skills.map((s) => [s.id, s.name]));
+  const effectiveSkills = resolveEffectiveSkillDefinitions(skillProfile, skills);
+  const skillName = new Map(effectiveSkills.map((s) => [s.id, s.name]));
 
   return jsonOk({
     targetName: target?.displayName ?? "",

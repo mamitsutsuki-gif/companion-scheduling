@@ -86,6 +86,8 @@ export default function AdminMatchesPage() {
     Array<{ id: string; name: string; plan: string }>
   >([]);
   const [matchProgramId, setMatchProgramId] = useState("");
+  const [matchClientId, setMatchClientId] = useState("");
+  const [matchPartnerId, setMatchPartnerId] = useState("");
 
   // URL の ?company= を初期値として反映（ブラウザのみ）
   useEffect(() => {
@@ -164,15 +166,39 @@ export default function AdminMatchesPage() {
     (u) => u.role === "CLIENT" || u.role === "CLIENT_ADMIN" || u.role === "CLIENT_HR",
   );
 
+  const selectedMatchProgram = useMemo(
+    () => matchPrograms.find((p) => p.id === matchProgramId) ?? null,
+    [matchPrograms, matchProgramId],
+  );
+  const isIndividualCompanionMatch = selectedMatchProgram?.plan === "individual_companion";
+  const selectedMatchClient = useMemo(
+    () => users.find((u) => u.id === matchClientId) ?? null,
+    [users, matchClientId],
+  );
+
+  /** 個別伴走のみ: 同じ企業の CLIENT_ADMIN を上司（partner側）候補に含める */
+  const partnerCandidates = useMemo(() => {
+    if (!isIndividualCompanionMatch) return partners;
+    const companyId = (selectedMatchClient?.companyId ?? "").trim();
+    const supervisors = users.filter(
+      (u) =>
+        u.role === "CLIENT_ADMIN" &&
+        Boolean(companyId) &&
+        (u.companyId ?? "").trim() === companyId &&
+        u.id !== matchClientId,
+    );
+    return [...partners, ...supervisors];
+  }, [isIndividualCompanionMatch, partners, users, selectedMatchClient, matchClientId]);
+
   const filteredPartners = useMemo(() => {
     const q = partnerFilter.trim().toLowerCase();
-    if (!q) return partners;
-    return partners.filter(
+    if (!q) return partnerCandidates;
+    return partnerCandidates.filter(
       (p) =>
         p.displayName.toLowerCase().includes(q) ||
         p.email.toLowerCase().includes(q),
     );
-  }, [partners, partnerFilter]);
+  }, [partnerCandidates, partnerFilter]);
 
   const filteredClients = useMemo(() => {
     const q = clientFilter.trim().toLowerCase();
@@ -741,7 +767,7 @@ export default function AdminMatchesPage() {
         </p>
         <h1 className="mt-2 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">マッチ管理</h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          登録済みのパートナーとクライアントを 1対1 で紐づけます。アプリ画面上では連絡先は非公開のまま運用されます。一覧のメール列は運用確認用のみです。
+          登録済みのパートナーとクライアントを 1対1 で紐づけます。個別伴走プランでは、同じ企業のクライアント管理者を上司として部下（CLIENT）とマッチできます。アプリ画面上では連絡先は非公開のまま運用されます。
         </p>
       </header>
 
@@ -754,7 +780,9 @@ export default function AdminMatchesPage() {
           <form className="mt-8 space-y-6" onSubmit={onSubmit}>
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-3">
-                <label className="block text-sm font-semibold text-zinc-900">パートナー</label>
+                <label className="block text-sm font-semibold text-zinc-900">
+                  {isIndividualCompanionMatch ? "パートナー / 上司（CLIENT_ADMIN）" : "パートナー"}
+                </label>
                 <input
                   type="search"
                   value={partnerFilter}
@@ -765,20 +793,32 @@ export default function AdminMatchesPage() {
                 <select
                   name="partnerId"
                   required
+                  value={matchPartnerId}
+                  onChange={(e) => setMatchPartnerId(e.target.value)}
                   className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-950 shadow-xs focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-400/25"
-                  defaultValue=""
                 >
                   <option value="" disabled>
                     ユーザーを選択
                   </option>
                   {filteredPartners.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.displayName}（{p.email}）
+                      {p.role === "CLIENT_ADMIN"
+                        ? `${p.displayName}（上司・CLIENT_ADMIN / ${p.email}）`
+                        : `${p.displayName}（${p.email}）`}
                     </option>
                   ))}
                 </select>
+                {isIndividualCompanionMatch ? (
+                  <p className="text-xs text-slate-600">
+                    個別伴走では、同じ企業のクライアント管理者を上司としてマッチできます。
+                  </p>
+                ) : null}
                 {filteredPartners.length === 0 ? (
-                  <p className="text-xs text-amber-800">該当するパートナーがいません。先に登録してください。</p>
+                  <p className="text-xs text-amber-800">
+                    {isIndividualCompanionMatch
+                      ? "該当するパートナー / 上司がいません。"
+                      : "該当するパートナーがいません。先に登録してください。"}
+                  </p>
                 ) : null}
               </div>
 
@@ -794,10 +834,12 @@ export default function AdminMatchesPage() {
                 <select
                   name="clientId"
                   required
+                  value={matchClientId}
                   className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-950 shadow-xs focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-400/25"
-                  defaultValue=""
                   onChange={async (e) => {
                     const clientId = e.target.value;
+                    setMatchClientId(clientId);
+                    setMatchPartnerId("");
                     const client = users.find((u) => u.id === clientId);
                     const cid = (client?.companyId ?? "").trim();
                     if (!cid) {
@@ -836,7 +878,10 @@ export default function AdminMatchesPage() {
                 name="programId"
                 required
                 value={matchProgramId}
-                onChange={(e) => setMatchProgramId(e.target.value)}
+                onChange={(e) => {
+                  setMatchProgramId(e.target.value);
+                  setMatchPartnerId("");
+                }}
                 className="w-full max-w-xl rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-950 shadow-xs focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-400/25"
               >
                 <option value="" disabled>
@@ -845,6 +890,7 @@ export default function AdminMatchesPage() {
                 {matchPrograms.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
+                    {p.plan === "individual_companion" ? "（個別伴走）" : ""}
                   </option>
                 ))}
               </select>

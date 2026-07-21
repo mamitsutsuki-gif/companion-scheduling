@@ -4,6 +4,7 @@ import {
   mergeSkillDefinitions,
   normalizeCompanySkillDefinitions,
   normalizeSkillCheckProfile,
+  resolveEffectiveSkillDefinitions,
   type SkillCheckPhase,
   type SkillCheckProfile,
   type SkillDefinition,
@@ -20,6 +21,14 @@ export async function getCompanySkillDefinitions(companyId: string): Promise<Ski
   const override = await getCompanyAppSettingsOverride(companyId);
   const companySkills = normalizeCompanySkillDefinitions(override?.skillCheckCompanySkills);
   return mergeSkillDefinitions(companySkills);
+}
+
+export async function getEffectiveSkillDefinitionsForUser(userId: string, companyId: string): Promise<SkillDefinition[]> {
+  const [companySkills, profile] = await Promise.all([
+    getCompanySkillDefinitions(companyId),
+    getSkillCheckProfile(userId),
+  ]);
+  return resolveEffectiveSkillDefinitions(profile, companySkills);
 }
 
 export async function getSkillCheckProfile(userId: string): Promise<SkillCheckProfile | null> {
@@ -44,6 +53,7 @@ export async function upsertSkillCheckProfile(input: {
   phase: SkillCheckPhase;
   assessments: Record<string, { selfScore?: SkillScore | null; managerScore?: SkillScore | null }>;
   focusSkillIds?: string[];
+  skillDefinitions?: SkillDefinition[] | null;
 }): Promise<SkillCheckProfile> {
   const existing =
     (await getSkillCheckProfile(input.userId)) ??
@@ -59,11 +69,15 @@ export async function upsertSkillCheckProfile(input: {
     };
   }
 
+  const nextSkillDefinitions =
+    input.skillDefinitions !== undefined ? input.skillDefinitions : existing.skillDefinitions;
+
   const profile = normalizeSkillCheckProfile(input.userId, input.companyId, {
     ...existing,
     companyId: input.companyId,
     [phaseKey]: nextPhase,
     focusSkillIds: input.focusSkillIds ?? existing.focusSkillIds,
+    skillDefinitions: nextSkillDefinitions,
     updatedAt: new Date().toISOString(),
   });
 
