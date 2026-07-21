@@ -67,10 +67,12 @@ export async function POST(request: Request) {
       message: result.error,
     });
   }
+  const { ok: _ok, ...rest } = result;
+  void _ok;
   return jsonOk({
     ok: true,
     company: { id: company.id, name: company.name },
     consolidated: true,
-    ...result,
+    ...rest,
   });
 }
