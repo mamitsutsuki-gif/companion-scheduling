@@ -130,10 +130,11 @@ export async function PATCH(request: Request) {
         const programs = await listProgramsForCompany(company.id);
         let monthly = programs.find((p) => p.plan === "monthly_session") ?? null;
         if (!monthly) {
-          monthly = await createProgram({
+          const created = await createProgram({
             companyId: company.id,
             plan: "monthly_session",
           });
+          monthly = created.ok ? created.program : null;
         }
         if (!monthly) continue;
         const clients = await listClientsInCompany(company.id);

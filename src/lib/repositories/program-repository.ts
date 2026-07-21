@@ -90,30 +90,49 @@ export async function getProgramById(programId: string): Promise<ProgramRow | nu
   return normalizeProgramRow(snap.id, snap.data() ?? {});
 }
 
+/**
+ * 企業にプログラムを1件追加する。
+ * **同一プランは1企業につき1つまで**（個別伴走を2つ、など不可）。
+ * 別プランの同居（個別伴走 + コーチング研修）は可。
+ */
 export async function createProgram(input: {
   companyId: string;
   plan: CompanyPlan;
   name?: string;
-}): Promise<ProgramRow | null> {
+}): Promise<{ ok: true; program: ProgramRow } | { ok: false; error: string }> {
   const cid = sanitizeCompanyId(input.companyId);
-  if (!cid || !isFirebaseDataBackend()) return null;
+  if (!cid || !isFirebaseDataBackend()) {
+    return { ok: false, error: "プログラムを作成できません。" };
+  }
   const db = getFirebaseFirestoreClient();
-  if (!db) return null;
+  if (!db) return { ok: false, error: "Firestore 未設定です。" };
   const settings = await getAppSettingsRow();
-  if (!settings.companies.some((c) => c.id === cid)) return null;
+  if (!settings.companies.some((c) => c.id === cid)) {
+    return { ok: false, error: "登録されていない企業IDです。" };
+  }
+
+  const plan = normalizeCompanyPlan(input.plan);
+  const existing = await listProgramsForCompany(cid);
+  const samePlan = existing.find((p) => p.plan === plan);
+  if (samePlan) {
+    return {
+      ok: false,
+      error: `この企業には既に「${companyPlanLabel(plan)}」のプログラムがあります（1企業・1プランにつき1つまで）。別プランの追加のみ可能です。`,
+    };
+  }
 
   const id = newProgramId();
   const now = new Date().toISOString();
   const row: ProgramRow = {
     id,
     companyId: cid,
-    plan: input.plan,
-    name: (input.name ?? companyPlanLabel(input.plan)).trim().slice(0, 80),
+    plan,
+    name: (input.name ?? companyPlanLabel(plan)).trim().slice(0, 80),
     createdAt: now,
     updatedAt: now,
   };
   await db.collection("programs").doc(id).set(row);
-  return row;
+  return { ok: true, program: row };
 }
 
 export function dedupeProgramsByPlan(programs: ProgramRow[]): ProgramRow[] {
@@ -215,7 +234,8 @@ export async function deleteProgram(
     if (!partnerPending) {
       return {
         ok: false,
-        error: "パートナー割当済みのマッチがあるため、このプログラムは削除できません。",
+        error:
+          "パートナー割当済みのマッチがあるため、このプログラムは削除できません。同一プランの重複がある場合は「重複を統合」で正本へ移してから削除してください。",
       };
     }
   }
@@ -223,9 +243,207 @@ export async function deleteProgram(
   for (const doc of matchSnap.docs) {
     await doc.ref.delete().catch(() => undefined);
   }
+
+  // 参加対象から削除 ID を除去（同じプランの正本があれば差し替え）
+  await remappedEnrollmentsAfterProgramRemoval(program).catch(() => undefined);
+
   await db.collection("programs").doc(pid).delete().catch(() => undefined);
   await deleteProgramAppSettingsOverride(pid);
   return { ok: true };
+}
+
+async function remappedEnrollmentsAfterProgramRemoval(removed: ProgramRow): Promise<void> {
+  const { listClientsInCompany, setUserEnrolledProgramIds, getUserById } = await import(
+    "@/lib/repositories/user-repository"
+  );
+  const siblings = await listProgramsForCompany(removed.companyId);
+  const canonical =
+    pickCanonicalProgram(
+      siblings.filter((p) => p.id !== removed.id && p.plan === removed.plan),
+      removed.plan,
+    ) ?? null;
+  const clients = await listClientsInCompany(removed.companyId);
+  for (const c of clients) {
+    const u = await getUserById(c.id);
+    const current = Array.isArray((u as { enrolledProgramIds?: string[] } | null)?.enrolledProgramIds)
+      ? ((u as { enrolledProgramIds?: string[] }).enrolledProgramIds ?? [])
+      : [];
+    if (!current.includes(removed.id)) continue;
+    const next = current
+      .filter((id) => id !== removed.id)
+      .concat(canonical && !current.includes(canonical.id) ? [canonical.id] : []);
+    await setUserEnrolledProgramIds(c.id, [...new Set(next)]);
+  }
+}
+
+export type ProgramUsageStats = {
+  programId: string;
+  matchCount: number;
+  assignedMatchCount: number;
+  pendingMatchCount: number;
+};
+
+/** プログラムごとのマッチ件数（割当済 / 未割当） */
+export async function getProgramUsageStats(programId: string): Promise<ProgramUsageStats> {
+  const empty: ProgramUsageStats = {
+    programId,
+    matchCount: 0,
+    assignedMatchCount: 0,
+    pendingMatchCount: 0,
+  };
+  const pid = sanitizeProgramId(programId);
+  if (!pid || !isFirebaseDataBackend()) return { ...empty, programId: pid };
+  const db = getFirebaseFirestoreClient();
+  if (!db) return { ...empty, programId: pid };
+  const snap = await db.collection("matches").where("programId", "==", pid).get();
+  let assigned = 0;
+  let pending = 0;
+  for (const doc of snap.docs) {
+    const raw = doc.data() as Record<string, unknown>;
+    const partnerPending =
+      raw.partnerPending === true || !String(raw.partnerId ?? "").trim();
+    if (partnerPending) pending += 1;
+    else assigned += 1;
+  }
+  return {
+    programId: pid,
+    matchCount: snap.size,
+    assignedMatchCount: assigned,
+    pendingMatchCount: pending,
+  };
+}
+
+/**
+ * 同一プランの重複プログラムを、最古の1件（正本）へ統合する。
+ * - マッチの programId を正本へ付け替え（クライアント・パートナー関係は維持）
+ * - enrolledProgramIds の重複 ID を正本へ置換
+ * - 余分なプログラム文書と設定を削除
+ * - 月額上限キーがあれば正本へ寄せる
+ *
+ * 企業単位・明示実行のみ。全社一括は行わない（実クライアント企業の安全のため）。
+ */
+export async function consolidateDuplicateProgramsForCompany(companyId: string): Promise<
+  | {
+      ok: true;
+      consolidatedPlans: CompanyPlan[];
+      keptProgramIds: string[];
+      removedProgramIds: string[];
+      matchesReassigned: number;
+      enrollmentsUpdated: number;
+    }
+  | { ok: false; error: string }
+> {
+  const cid = sanitizeCompanyId(companyId);
+  if (!cid || !isFirebaseDataBackend()) {
+    return { ok: false, error: "企業が見つかりません。" };
+  }
+  const db = getFirebaseFirestoreClient();
+  if (!db) return { ok: false, error: "Firestore 未設定です。" };
+
+  const programs = await listProgramsForCompany(cid);
+  const byPlan = new Map<CompanyPlan, ProgramRow[]>();
+  for (const p of programs) {
+    const list = byPlan.get(p.plan) ?? [];
+    list.push(p);
+    byPlan.set(p.plan, list);
+  }
+
+  const consolidatedPlans: CompanyPlan[] = [];
+  const keptProgramIds: string[] = [];
+  const removedProgramIds: string[] = [];
+  let matchesReassigned = 0;
+  let enrollmentsUpdated = 0;
+
+  const idRemap = new Map<string, string>();
+
+  for (const [plan, list] of byPlan) {
+    if (list.length <= 1) {
+      if (list[0]) keptProgramIds.push(list[0].id);
+      continue;
+    }
+    const sorted = [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const canonical = sorted[0]!;
+    const dupes = sorted.slice(1);
+    consolidatedPlans.push(plan);
+    keptProgramIds.push(canonical.id);
+
+    for (const d of dupes) {
+      idRemap.set(d.id, canonical.id);
+      const matchSnap = await db.collection("matches").where("programId", "==", d.id).get();
+      for (const doc of matchSnap.docs) {
+        await doc.ref.set(
+          { programId: canonical.id, updatedAt: new Date().toISOString() },
+          { merge: true },
+        );
+        matchesReassigned += 1;
+      }
+      removedProgramIds.push(d.id);
+    }
+  }
+
+  if (consolidatedPlans.length === 0) {
+    return { ok: false, error: "同一プランの重複プログラムはありません。" };
+  }
+
+  const { listClientsInCompany, setUserEnrolledProgramIds, getUserById } = await import(
+    "@/lib/repositories/user-repository"
+  );
+  const clients = await listClientsInCompany(cid);
+  for (const c of clients) {
+    const u = await getUserById(c.id);
+    const current = Array.isArray((u as { enrolledProgramIds?: string[] } | null)?.enrolledProgramIds)
+      ? ((u as { enrolledProgramIds?: string[] }).enrolledProgramIds ?? [])
+      : [];
+    if (current.length === 0) continue;
+    let changed = false;
+    const next: string[] = [];
+    for (const id of current) {
+      const mapped = idRemap.get(id) ?? id;
+      if (mapped !== id) changed = true;
+      if (!next.includes(mapped)) next.push(mapped);
+    }
+    if (changed) {
+      await setUserEnrolledProgramIds(c.id, next);
+      enrollmentsUpdated += 1;
+    }
+  }
+
+  // 月額上限: 重複 programId の値を正本へ寄せる
+  try {
+    const { getMonthlyGlobalSettings, upsertMonthlyGlobalSettings } = await import(
+      "@/lib/repositories/monthly-session-repository"
+    );
+    const settings = await getMonthlyGlobalSettings();
+    const limits = { ...settings.monthlyLimitsByProgramId };
+    let limitsChanged = false;
+    for (const [fromId, toId] of idRemap) {
+      if (limits[fromId] === undefined) continue;
+      if (limits[toId] === undefined || limits[toId] === 0) {
+        limits[toId] = limits[fromId]!;
+      }
+      delete limits[fromId];
+      limitsChanged = true;
+    }
+    if (limitsChanged) {
+      await upsertMonthlyGlobalSettings({ monthlyLimitsByProgramId: limits });
+    }
+  } catch {
+    // 月額設定が無くても統合自体は続行
+  }
+
+  for (const removedId of removedProgramIds) {
+    await deleteProgramAppSettingsOverride(removedId);
+    await db.collection("programs").doc(removedId).delete().catch(() => undefined);
+  }
+
+  return {
+    ok: true,
+    consolidatedPlans,
+    keptProgramIds: [...new Set(keptProgramIds)],
+    removedProgramIds,
+    matchesReassigned,
+    enrollmentsUpdated,
+  };
 }
 
 async function copyCompanySettingsToProgram(

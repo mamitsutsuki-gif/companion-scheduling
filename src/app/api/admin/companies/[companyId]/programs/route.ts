@@ -4,8 +4,10 @@ import { jsonError, jsonOk } from "@/lib/json";
 import { normalizeCompanyPlan, type CompanyPlan } from "@/lib/company-plan";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import {
+  consolidateDuplicateProgramsForCompany,
   createProgram,
   ensureDefaultProgramForCompany,
+  getProgramUsageStats,
   listProgramsForCompany,
 } from "@/lib/repositories/program-repository";
 import {
@@ -28,6 +30,10 @@ const postSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
 });
 
+const actionSchema = z.object({
+  action: z.literal("consolidate_duplicates"),
+});
+
 export async function GET(_req: Request, ctx: RouteContext) {
   const session = await readSession();
   if (!session || (session.role !== "ADMIN" && session.role !== "ADMIN_ASSISTANT")) {
@@ -39,7 +45,18 @@ export async function GET(_req: Request, ctx: RouteContext) {
 
   await ensureDefaultProgramForCompany(cid);
   const programs = await listProgramsForCompany(cid);
-  return jsonOk({ programs });
+  const withUsage = await Promise.all(
+    programs.map(async (p) => {
+      const usage = await getProgramUsageStats(p.id);
+      return { ...p, ...usage };
+    }),
+  );
+  const planCounts = new Map<string, number>();
+  for (const p of programs) {
+    planCounts.set(p.plan, (planCounts.get(p.plan) ?? 0) + 1);
+  }
+  const hasDuplicatePlans = [...planCounts.values()].some((n) => n > 1);
+  return jsonOk({ programs: withUsage, hasDuplicatePlans });
 }
 
 export async function POST(request: Request, ctx: RouteContext) {
@@ -54,15 +71,26 @@ export async function POST(request: Request, ctx: RouteContext) {
     return jsonError("登録されていない企業IDです。", 400);
   }
 
-  const parsed = postSchema.safeParse(await request.json().catch(() => null));
+  const body = await request.json().catch(() => null);
+  const asAction = actionSchema.safeParse(body);
+  if (asAction.success) {
+    const result = await consolidateDuplicateProgramsForCompany(cid);
+    if (!result.ok) return jsonError(result.error, 400);
+    const { ok: _ok, ...rest } = result;
+    void _ok;
+    return jsonOk({ ok: true, ...rest });
+  }
+
+  const parsed = postSchema.safeParse(body);
   if (!parsed.success) return jsonError("入力内容が不正です。");
 
-  const program = await createProgram({
+  const created = await createProgram({
     companyId: cid,
     plan: normalizeCompanyPlan(parsed.data.plan) as CompanyPlan,
     name: parsed.data.name,
   });
-  if (!program) return jsonError("プログラムの作成に失敗しました。", 500);
+  if (!created.ok) return jsonError(created.error, 409);
+  const program = created.program;
 
   // 既存クライアントに新プログラムを参加対象として追加（特に monthly_session）
   try {
@@ -74,7 +102,6 @@ export async function POST(request: Request, ctx: RouteContext) {
           ? ((u as { enrolledProgramIds?: string[] }).enrolledProgramIds ?? [])
           : [];
         if (current.includes(program.id)) return;
-        // enrolled 未設定 → 企業の全プログラム（新含む）をセット
         if (current.length === 0) {
           const all = await listProgramsForCompany(cid);
           await setUserEnrolledProgramIds(
