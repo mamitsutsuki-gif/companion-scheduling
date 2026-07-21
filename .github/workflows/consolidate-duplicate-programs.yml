@@ -1,0 +1,54 @@
+name: consolidate-duplicate-programs
+
+# 企業1件の同一プラン重複プログラムを統合する（手動実行のみ）
+on:
+  workflow_dispatch:
+    inputs:
+      company_id:
+        description: "企業ID（例: company-mr2y8ov7）"
+        required: true
+        type: string
+      dry_run:
+        description: "true なら書き込まずプレビューのみ"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+
+jobs:
+  consolidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: POST /api/cron/consolidate-duplicate-programs
+        env:
+          CRON_URL: https://companion-scheduling--motive-iji-cloud-1e300.asia-east1.hosted.app/api/cron/consolidate-duplicate-programs
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          COMPANY_ID: ${{ inputs.company_id }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret is not set."
+            exit 1
+          fi
+          BODY=$(jq -n --arg id "$COMPANY_ID" --argjson dry "$([ "$DRY_RUN" = true ] && echo true || echo false)" \
+            '{companyId:$id, dryRun:$dry}')
+          echo "Request body: $BODY"
+          STATUS=$(curl -s -o response.txt -w "%{http_code}" \
+            -X POST "$CRON_URL" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            -d "$BODY" \
+            --max-time 120)
+          echo "HTTP $STATUS"
+          cat response.txt || true
+          echo
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::consolidate call failed with HTTP $STATUS"
+            exit 1
+          fi
