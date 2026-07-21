@@ -61,16 +61,17 @@ async function main() {
     },
   });
 
-  await prisma.match.upsert({
-    where: {
-      partnerId_clientId: { partnerId: partner.id, clientId: client.id },
-    },
-    update: {},
-    create: {
-      partnerId: partner.id,
-      clientId: client.id,
-    },
+  const existingMatch = await prisma.match.findFirst({
+    where: { partnerId: partner.id, clientId: client.id },
   });
+  if (!existingMatch) {
+    await prisma.match.create({
+      data: {
+        partnerId: partner.id,
+        clientId: client.id,
+      },
+    });
+  }
 
   // eslint-disable-next-line no-console
   console.log("Seed OK. accounts (password demo12345):");
