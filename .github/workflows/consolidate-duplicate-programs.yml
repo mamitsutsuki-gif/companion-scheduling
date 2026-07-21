@@ -5,13 +5,22 @@ on:
   workflow_dispatch:
     inputs:
       company_id:
-        description: "企業ID（例: company-mr2y8ov7）"
-        required: true
+        description: "企業ID（例: company-mr2y8ov7）。scan_all=true のときは不要"
+        required: false
+        default: "-"
         type: string
       dry_run:
-        description: "true なら書き込まずプレビューのみ"
+        description: "true なら書き込まずプレビューのみ（scan_all 時は常に読み取り）"
         required: true
         default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      scan_all:
+        description: "true なら全企業の重複一覧のみ（書き込みなし）"
+        required: true
+        default: "false"
         type: choice
         options:
           - "true"
@@ -31,20 +40,25 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           COMPANY_ID: ${{ inputs.company_id }}
           DRY_RUN: ${{ inputs.dry_run }}
+          SCAN_ALL: ${{ inputs.scan_all }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
             echo "::error::CRON_SECRET secret is not set."
             exit 1
           fi
-          BODY=$(jq -n --arg id "$COMPANY_ID" --argjson dry "$([ "$DRY_RUN" = true ] && echo true || echo false)" \
-            '{companyId:$id, dryRun:$dry}')
+          if [ "$SCAN_ALL" = "true" ]; then
+            BODY='{"scanAll":true}'
+          else
+            BODY=$(jq -n --arg id "$COMPANY_ID" --argjson dry "$([ "$DRY_RUN" = true ] && echo true || echo false)" \
+              '{companyId:$id, dryRun:$dry}')
+          fi
           echo "Request body: $BODY"
           STATUS=$(curl -s -o response.txt -w "%{http_code}" \
             -X POST "$CRON_URL" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H "Content-Type: application/json" \
             -d "$BODY" \
-            --max-time 120)
+            --max-time 180)
           echo "HTTP $STATUS"
           cat response.txt || true
           echo

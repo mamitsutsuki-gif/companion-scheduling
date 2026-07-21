@@ -6,9 +6,11 @@ import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 export const dynamic = "force-dynamic";
 
 const schema = z.object({
-  companyId: z.string().trim().min(1).max(60),
+  companyId: z.string().trim().min(1).max(60).optional(),
   /** true のとき書き込まずプレビューのみ */
   dryRun: z.boolean().optional(),
+  /** true のとき全企業の重複だけ一覧（書き込みなし） */
+  scanAll: z.boolean().optional(),
 });
 
 /**
@@ -16,6 +18,8 @@ const schema = z.object({
  * Authorization: Bearer CRON_SECRET
  *
  * 例: { "companyId": "company-mr2y8ov7" }
+ * プレビュー: { "companyId": "company-mr2y8ov7", "dryRun": true }
+ * 全社スキャン: { "scanAll": true }
  */
 export async function POST(request: Request) {
   const secret = process.env.CRON_SECRET?.trim();
@@ -27,10 +31,63 @@ export async function POST(request: Request) {
   if (bearer !== secret && q !== secret) return jsonError("認証に失敗しました。", 401);
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return jsonError("companyId を指定してください。", 400);
+  if (!parsed.success) return jsonError("入力が不正です。", 400);
 
-  const cid = parsed.data.companyId;
   const settings = await getAppSettingsRow();
+
+  if (parsed.data.scanAll) {
+    const { listProgramsForCompany, getProgramUsageStats } = await import(
+      "@/lib/repositories/program-repository"
+    );
+    const duplicates: Array<{
+      companyId: string;
+      companyName: string;
+      plan: string;
+      programs: Array<{
+        id: string;
+        name: string;
+        createdAt: string;
+        assignedMatchCount: number;
+        pendingMatchCount: number;
+      }>;
+    }> = [];
+    for (const company of settings.companies) {
+      const programs = await listProgramsForCompany(company.id);
+      const byPlan = new Map<string, typeof programs>();
+      for (const p of programs) {
+        const list = byPlan.get(p.plan) ?? [];
+        list.push(p);
+        byPlan.set(p.plan, list);
+      }
+      for (const [plan, list] of byPlan) {
+        if (list.length <= 1) continue;
+        const sorted = [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        const withUsage = await Promise.all(
+          sorted.map(async (p) => {
+            const usage = await getProgramUsageStats(p.id);
+            return {
+              id: p.id,
+              name: p.name,
+              createdAt: p.createdAt,
+              assignedMatchCount: usage.assignedMatchCount,
+              pendingMatchCount: usage.pendingMatchCount,
+            };
+          }),
+        );
+        duplicates.push({
+          companyId: company.id,
+          companyName: company.name,
+          plan,
+          programs: withUsage,
+        });
+      }
+    }
+    return jsonOk({ ok: true, scanAll: true, duplicateGroups: duplicates });
+  }
+
+  const cid = parsed.data.companyId?.trim() ?? "";
+  if (!cid) return jsonError("companyId を指定してください（または scanAll: true）。", 400);
+
   const company = settings.companies.find((c) => c.id === cid);
   if (!company) return jsonError("登録されていない企業IDです。", 404);
 
