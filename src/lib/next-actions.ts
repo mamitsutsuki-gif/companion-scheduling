@@ -238,16 +238,12 @@ export function computeMatchActions(
     }
   }
 
-  // ----- 3. パートナー: 次回 (＝未提示の最も若い回) の候補提示 -----
-  // 進行中のラウンドがあるときは「次の回の候補を送れ」と出さない（誤誘導防止）。
-  // 例: 第 1 回がクライアント回答待ちなのに、第 2 回の候補送信を促してしまうバグを防ぐ。
-  if (isPartner && active.length === 0) {
-    // 候補がまだ「一度も提示されていない」最も小さい session を探す
+  // ----- 3. パートナー: 未提示の回の候補提示 -----
+  // 他の回が進行中でも、まだ一度も提示されていない回があれば促す
+  if (isPartner) {
     const knownSessions = new Set(negs.map((n) => Math.max(1, Number(n.sessionNumber) || 1)));
     const totalSessions = Math.max(
-      // sessionPlan の長さがそのまま totalSessions
       sessionPlan.length,
-      // 念のため negotiations から推測（古いマッチ向けフォールバック）
       ...negs.map((n) => n.sessionNumber),
       1,
     );
@@ -258,21 +254,18 @@ export function computeMatchActions(
         break;
       }
     }
-    // 提示済みのものがすべて CONFIRMED である場合、次回提示が必要
     if (needPropose !== null) {
-      // 「初回 (need===1)」だけは初回ラベルを付け、severity も warn にして強調する。
-      // 2 回目以降は淡々と todo として並べる。
       const isFirst = needPropose === 1;
       items.push({
         kind: "PROPOSE_SLOTS",
         message: isFirst
-          ? `${clientLabel(match)} に第 1 回（初回）の候補日を送ってください。`
-          : `${clientLabel(match)} に第 ${needPropose} 回の候補日を送ってください。`,
+          ? `${clientLabel(match)} に第 1 回（初回）の候補日を送ってください。複数回をまとめて送ることもできます。`
+          : `${clientLabel(match)} に第 ${needPropose} 回の候補日を送ってください。複数回をまとめて送ることもできます。`,
         href: `/match/${match.matchId}#schedule`,
         ctaLabel: "候補日を送る",
-        severity: isFirst ? "warn" : "todo",
+        severity: isFirst && active.length === 0 ? "warn" : "todo",
         matchId: match.matchId,
-        weight: isFirst ? 100 : 70,
+        weight: isFirst && active.length === 0 ? 100 : 55,
       });
     }
   }

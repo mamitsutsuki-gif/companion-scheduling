@@ -42,6 +42,7 @@ export function ScheduleClientVoteForm({
   timezone,
   responseDeadline,
   submitting,
+  sessionNumber,
   onSubmitSelected,
   onRequestAlternative,
 }: {
@@ -50,6 +51,8 @@ export function ScheduleClientVoteForm({
   timezone: string;
   responseDeadline?: string | null;
   submitting: boolean;
+  /** 何回目の候補か（複数同時調整時の見分け用） */
+  sessionNumber?: number;
   onSubmitSelected: (selectedSlotIds: string[]) => void | Promise<void>;
   onRequestAlternative: () => void | Promise<void>;
 }) {
@@ -111,7 +114,11 @@ export function ScheduleClientVoteForm({
       className="app-surface-indigo scroll-mt-24 space-y-5 rounded-2xl px-5 py-5"
     >
       <div>
-        <h3 className="text-xl font-semibold text-indigo-900">次回セッションの日程調整</h3>
+        <h3 className="text-xl font-semibold text-indigo-900">
+          {sessionNumber != null
+            ? `第${sessionNumber}回セッションの日程調整`
+            : "次回セッションの日程調整"}
+        </h3>
         <div className="mt-3 rounded-lg border border-indigo-200 bg-white/80 px-4 py-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">担当パートナー</p>
           <p className="mt-1 text-lg font-semibold text-slate-900">{partnerName}</p>

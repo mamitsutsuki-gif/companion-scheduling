@@ -114,7 +114,6 @@ function findPendingVotes(
           sessionNumber: n.sessionNumber,
           href: `/match/${m.matchId}#schedule`,
         });
-        break;
       }
     }
   }

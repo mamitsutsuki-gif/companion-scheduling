@@ -120,6 +120,19 @@ export async function findLatestNegotiation(matchId: string) {
   return rows[0] ?? null;
 }
 
+/** 指定セッション（何回目）の最新ラウンドのみ（createdAt 降順の先頭） */
+export async function findLatestNegotiationForSession(matchId: string, sessionNumber: number) {
+  const sn = Math.max(1, sessionNumber);
+  const rows = await listNegotiationsForMatch(matchId);
+  const forSession = rows.filter((n) => Math.max(1, n.sessionNumber ?? 1) === sn);
+  return forSession[0] ?? null;
+}
+
+/** 同じ回に新しい候補を出せない進行中ステータス */
+export function blocksNewProposalForSession(status: string | null | undefined): boolean {
+  return status === "AWAITING_CLIENT_RESPONSE" || status === "AWAITING_PARTNER_CONFIRM";
+}
+
 export async function createNegotiationRound(input: {
   matchId: string;
   sessionNumber: number;

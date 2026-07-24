@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   generateSlotsFromTimeRanges,
   MAX_PROPOSAL_SLOTS,
@@ -34,17 +34,44 @@ export function ScheduleProposeForm({
   totalSessions,
   submitting,
   justSent,
+  blockedSessionNumbers = [],
+  defaultSessionNumbers,
   onSubmit,
 }: {
   scheduleSettings: SlotWindowSettings;
   totalSessions: number;
   submitting: boolean;
   justSent: boolean;
-  onSubmit: (payload: { sessionNumber: number; timeRanges: TimeRangeInput[] }) => void | Promise<void>;
+  /** 進行中で新規提案できない回 */
+  blockedSessionNumbers?: number[];
+  /** 初期選択する回（未確定・未提案の先頭など） */
+  defaultSessionNumbers?: number[];
+  onSubmit: (payload: { sessionNumbers: number[]; timeRanges: TimeRangeInput[] }) => void | Promise<void>;
 }) {
+  const blocked = useMemo(() => new Set(blockedSessionNumbers), [blockedSessionNumbers]);
+  const allSessions = useMemo(
+    () => Array.from({ length: Math.max(1, totalSessions) }, (_, i) => i + 1),
+    [totalSessions],
+  );
+
+  const initialSelected = useMemo(() => {
+    const preferred = (defaultSessionNumbers ?? []).filter((n) => !blocked.has(n));
+    if (preferred.length > 0) return preferred;
+    const firstOpen = allSessions.find((n) => !blocked.has(n));
+    return firstOpen ? [firstOpen] : [];
+  }, [defaultSessionNumbers, blocked, allSessions]);
+
   const [ranges, setRanges] = useState<RangeRow[]>([emptyRange(), emptyRange()]);
-  const [sessionNumber, setSessionNumber] = useState(1);
+  const [sessionNumbers, setSessionNumbers] = useState<number[]>(initialSelected);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSessionNumbers((prev) => {
+      const next = prev.filter((n) => !blocked.has(n));
+      if (next.length > 0) return next;
+      return initialSelected;
+    });
+  }, [blocked, initialSelected]);
 
   const slotPickerStepText = slotStartPickerStepLabel(
     slotStartPickerStepMinutes(scheduleSettings.slotDurationMinutes),
@@ -61,6 +88,13 @@ export function ScheduleProposeForm({
     }
   }, [ranges, scheduleSettings]);
 
+  function toggleSession(n: number) {
+    if (blocked.has(n)) return;
+    setSessionNumbers((prev) =>
+      prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n].sort((a, b) => a - b),
+    );
+  }
+
   function addRange() {
     setRanges((prev) => [...prev, emptyRange()]);
   }
@@ -76,6 +110,11 @@ export function ScheduleProposeForm({
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    const selected = sessionNumbers.filter((n) => !blocked.has(n));
+    if (selected.length === 0) {
+      setError("対象の回を1つ以上選んでください。進行中の回は選べません。");
+      return;
+    }
     const valid = ranges.filter((r) => r.dateYmd && r.startTime && r.endTime);
     if (valid.length === 0) {
       setError("対応可能な時間帯を1件以上入力してください。");
@@ -96,7 +135,7 @@ export function ScheduleProposeForm({
       return;
     }
     await onSubmit({
-      sessionNumber,
+      sessionNumbers: selected,
       timeRanges: valid.map(({ dateYmd, startTime, endTime }) => ({ dateYmd, startTime, endTime })),
     });
   }
@@ -112,22 +151,43 @@ export function ScheduleProposeForm({
       <div>
         <h3 className="text-xl font-semibold">対応可能な時間帯を登録する</h3>
         <p className="mt-1 text-sm text-slate-600">
-          日付ごとに対応可能な時間帯を入力すると、セッション時間（{scheduleSettings.slotDurationMinutes}分）に応じて候補日時が自動生成されます（{slotPickerStepText}刻み）。
+          日付ごとに対応可能な時間帯を入力すると、セッション時間（{scheduleSettings.slotDurationMinutes}
+          分）に応じて候補日時が自動生成されます（{slotPickerStepText}刻み）。
+          <span className="font-medium text-slate-800">
+            複数回を選ぶと、同じ候補を第1回・第2回…へまとめて送れます。
+          </span>
         </p>
-        <label className="mt-3 block max-w-xs text-base font-medium text-slate-800">
-          何回目の日程調整か
-          <select
-            value={sessionNumber}
-            onChange={(e) => setSessionNumber(Number(e.target.value))}
-            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-base"
-          >
-            {Array.from({ length: Math.max(1, totalSessions) }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                {n} 回目
-              </option>
-            ))}
-          </select>
-        </label>
+        <fieldset className="mt-3">
+          <legend className="text-base font-medium text-slate-800">対象の回（複数選択可）</legend>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {allSessions.map((n) => {
+              const isBlocked = blocked.has(n);
+              const checked = sessionNumbers.includes(n);
+              return (
+                <label
+                  key={n}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm ${
+                    isBlocked
+                      ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                      : checked
+                        ? "border-indigo-400 bg-indigo-50 font-semibold text-indigo-950"
+                        : "cursor-pointer border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="rounded border-slate-300"
+                    checked={checked}
+                    disabled={isBlocked}
+                    onChange={() => toggleSession(n)}
+                  />
+                  第{n}回
+                  {isBlocked ? <span className="text-[10px] font-normal">（調整中）</span> : null}
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
       </div>
 
       <div className="space-y-3">
@@ -192,7 +252,10 @@ export function ScheduleProposeForm({
 
       {preview.count > 0 ? (
         <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 px-4 py-3 text-sm text-indigo-950">
-          <p className="font-semibold">この内容で {preview.count} 件の候補日時が生成されます。</p>
+          <p className="font-semibold">
+            この内容で {preview.count} 件の候補日時が、選択中の{" "}
+            {sessionNumbers.filter((n) => !blocked.has(n)).length || 0} 回分に送られます。
+          </p>
           {preview.count < MIN_PROPOSAL_SLOTS_WARNING ? (
             <p className="mt-2 text-amber-900">
               候補日時が少ないため、再調整になる可能性があります。可能であれば別日程も追加してください。
@@ -214,10 +277,12 @@ export function ScheduleProposeForm({
           disabled={submitting || preview.count === 0}
           className="app-btn-primary rounded-lg px-4 py-2.5 text-base disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {submitting ? "送信中…" : `候補日時を提示する（${preview.count}件）`}
+          {submitting
+            ? "送信中…"
+            : `候補日時を提示する（${preview.count}件 × ${sessionNumbers.filter((n) => !blocked.has(n)).length || 0}回）`}
         </button>
         <p className="text-xs text-slate-500">
-          → クライアントにメールとアプリ通知が届き、日程調整タブで回答待ちになります。
+          → クライアントにメールとアプリ通知が届き、日程調整タブで回ごとに回答できます。
         </p>
       </div>
     </form>

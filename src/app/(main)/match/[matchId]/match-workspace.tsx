@@ -650,9 +650,13 @@ function computeMatchBanner(args: {
 
   if (active) {
     const sn = active.sessionNumber ?? 1;
+    const more =
+      activeNegotiations.length > 1
+        ? `（ほか ${activeNegotiations.length - 1} 回分も調整中）`
+        : "";
     if (active.status === "AWAITING_CLIENT_RESPONSE" && isClientSide) {
       return {
-        message: `あなたの番です — 第 ${sn} 回の候補日に ◯× で回答してください。`,
+        message: `あなたの番です — 第 ${sn} 回の候補日に ◯× で回答してください。${more}`,
         severity: "todo",
         ctaLabel: "回答する",
         ctaTab: "schedule",
@@ -660,7 +664,7 @@ function computeMatchBanner(args: {
     }
     if (active.status === "AWAITING_CLIENT_RESPONSE" && isPartner) {
       return {
-        message: `クライアントの回答待ち — 第 ${sn} 回の候補日への ◯× を待っています。`,
+        message: `クライアントの回答待ち — 第 ${sn} 回の候補日への ◯× を待っています。${more}`,
         severity: "info",
         ctaLabel: "状況を確認",
         ctaTab: "schedule",
@@ -668,7 +672,7 @@ function computeMatchBanner(args: {
     }
     if (active.status === "NEEDS_NEW_PROPOSAL" && isPartner) {
       return {
-        message: `あなたの番です — 第 ${sn} 回はすべて × でした。新しい候補日を送ってください。`,
+        message: `あなたの番です — 第 ${sn} 回はすべて × でした。新しい候補日を送ってください。${more}`,
         severity: "warn",
         ctaLabel: "候補日を送る",
         ctaTab: "schedule",
@@ -676,7 +680,7 @@ function computeMatchBanner(args: {
     }
     if (active.status === "NEEDS_NEW_PROPOSAL" && isClientSide) {
       return {
-        message: `パートナーが新しい候補日を準備中 — 第 ${sn} 回の候補日が再送されるのをお待ちください。`,
+        message: `パートナーが新しい候補日を準備中 — 第 ${sn} 回の候補日が再送されるのをお待ちください。${more}`,
         severity: "info",
         ctaLabel: "状況を確認",
         ctaTab: "schedule",
@@ -684,7 +688,7 @@ function computeMatchBanner(args: {
     }
     if (active.status === "AWAITING_PARTNER_CONFIRM" && isPartner) {
       return {
-        message: `あなたの番です — 第 ${sn} 回の日程を ◯ から決定してください。`,
+        message: `あなたの番です — 第 ${sn} 回の日程を ◯ から決定してください。${more}`,
         severity: "todo",
         ctaLabel: "日程を決定する",
         ctaTab: "schedule",
@@ -693,7 +697,7 @@ function computeMatchBanner(args: {
     }
     if (active.status === "AWAITING_PARTNER_CONFIRM" && isClientSide) {
       return {
-        message: `パートナーが日程を決定中 — 第 ${sn} 回の確定をお待ちください。`,
+        message: `パートナーが日程を決定中 — 第 ${sn} 回の確定をお待ちください。${more}`,
         severity: "info",
       };
     }
@@ -743,8 +747,8 @@ function computeMatchBanner(args: {
   }
 
   // パートナーで、まだ候補が出ていない session があれば「候補を送る」
-  // （進行中の調整があるときは誤誘導になるため出さない）
-  if (isPartner && activeNegotiations.length === 0) {
+  // 他の回が進行中でも、未提案の回があれば促す（複数回まとめて調整できるようにする）
+  if (isPartner) {
     const known = new Set(negotiations.map((n) => Math.max(1, n.sessionNumber ?? 1)));
     let need: number | null = null;
     for (let i = 1; i <= Math.max(totalSessions, 1); i++) {
@@ -753,7 +757,7 @@ function computeMatchBanner(args: {
         break;
       }
     }
-    if (need !== null) {
+    if (need !== null && activeNegotiations.length === 0) {
       return {
         message:
           need === 1
@@ -763,6 +767,9 @@ function computeMatchBanner(args: {
         ctaLabel: "候補日を送る",
         ctaTab: "schedule",
       };
+    }
+    if (need !== null && activeNegotiations.length > 0) {
+      // 進行中があるときはそちらを優先表示（上の active 分岐で既に return 済み）
     }
   }
 
@@ -826,7 +833,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     null,
   );
   const [clientBriefingLoading, setClientBriefingLoading] = useState(false);
-  const [confirmSlotId, setConfirmSlotId] = useState("");
   const [partnerPending, setPartnerPending] = useState(false);
 
   const goTab = useCallback((tab: MatchTab) => {
@@ -1202,17 +1208,43 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     }).length;
   }, [messages, chatLastReadAt, me]);
 
-  /** 未確定の最新ラウンド。確定のみ残っていれば `null`。 */
-  const activeNegotiation = useMemo(
+  /** 未確定の調整中ラウンド（複数回を同時に開ける） */
+  const openNegotiations = useMemo(
     () =>
-      negotiations.find((n) => n.status !== "CONFIRMED" && n.status !== "SUPERSEDED") ??
-      null,
+      negotiations
+        .filter((n) => n.status !== "CONFIRMED" && n.status !== "SUPERSEDED")
+        .sort((a, b) => (a.sessionNumber ?? 1) - (b.sessionNumber ?? 1) || b.round - a.round),
     [negotiations],
   );
 
-  useEffect(() => {
-    setConfirmSlotId("");
-  }, [activeNegotiation?.id, activeNegotiation?.status]);
+  /** バナー等の代表（いちばん若い回の進行中） */
+  const activeNegotiation = openNegotiations[0] ?? null;
+
+  const blockedProposeSessions = useMemo(() => {
+    const blocked = new Set<number>();
+    for (const n of openNegotiations) {
+      if (n.status === "AWAITING_CLIENT_RESPONSE" || n.status === "AWAITING_PARTNER_CONFIRM") {
+        blocked.add(Math.max(1, n.sessionNumber ?? 1));
+      }
+    }
+    return [...blocked];
+  }, [openNegotiations]);
+
+  const defaultProposeSessions = useMemo(() => {
+    const knownOpenOrConfirmed = new Set<number>();
+    for (const n of negotiations) {
+      const sn = Math.max(1, n.sessionNumber ?? 1);
+      if (n.status === "CONFIRMED" || n.status === "AWAITING_CLIENT_RESPONSE" || n.status === "AWAITING_PARTNER_CONFIRM") {
+        knownOpenOrConfirmed.add(sn);
+      }
+    }
+    const picks: number[] = [];
+    for (let i = 1; i <= Math.max(1, scheduleSettings.totalSessions); i++) {
+      if (!knownOpenOrConfirmed.has(i) && !blockedProposeSessions.includes(i)) picks.push(i);
+      if (picks.length >= 4) break;
+    }
+    return picks.length > 0 ? picks : undefined;
+  }, [negotiations, scheduleSettings.totalSessions, blockedProposeSessions]);
 
   const sessionPlans = useMemo(() => {
     const total = Math.max(1, scheduleSettings.totalSessions);
@@ -1268,44 +1300,42 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     await load();
   }
 
-  async function onVoteSelected(selectedSlotIds: string[]) {
-    if (!activeNegotiation || activeNegotiation.status !== "AWAITING_CLIENT_RESPONSE") return;
-    const res = await fetch(
-      `/api/matches/${matchId}/negotiations/${activeNegotiation.id}/vote`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selectedSlotIds }),
-      },
-    );
+  async function onVoteSelected(negotiation: NegotiationRow, selectedSlotIds: string[]) {
+    if (negotiation.status !== "AWAITING_CLIENT_RESPONSE") return;
+    const res = await fetch(`/api/matches/${matchId}/negotiations/${negotiation.id}/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selectedSlotIds }),
+    });
     const json = await res.json().catch(() => null);
     if (!res.ok) {
       setError(json?.error ?? "回答送信に失敗しました。");
       return;
     }
-    setNotice("選択した日時で回答を送信しました。");
+    setNotice(`第${Math.max(1, negotiation.sessionNumber ?? 1)}回の回答を送信しました。`);
     await load();
   }
 
-  async function onRequestAlternative() {
-    if (!activeNegotiation || activeNegotiation.status !== "AWAITING_CLIENT_RESPONSE") return;
-    const res = await fetch(
-      `/api/matches/${matchId}/negotiations/${activeNegotiation.id}/vote`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selectedSlotIds: [] }),
-      },
-    );
+  async function onRequestAlternative(negotiation: NegotiationRow) {
+    if (negotiation.status !== "AWAITING_CLIENT_RESPONSE") return;
+    const res = await fetch(`/api/matches/${matchId}/negotiations/${negotiation.id}/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selectedSlotIds: [] }),
+    });
     const json = await res.json().catch(() => null);
     if (!res.ok) {
       setError(json?.error ?? "送信に失敗しました。");
       return;
     }
+    setNotice(`第${Math.max(1, negotiation.sessionNumber ?? 1)}回について別候補を希望しました。`);
     await load();
   }
 
-  async function onProposeTimeRanges(payload: { sessionNumber: number; timeRanges: TimeRangeInput[] }) {
+  async function onProposeTimeRanges(payload: {
+    sessionNumbers: number[];
+    timeRanges: TimeRangeInput[];
+  }) {
     if (me?.role !== "PARTNER") return;
     if (proposeSubmitting) return;
     setProposeSubmitting(true);
@@ -1322,18 +1352,25 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       setError(json?.error ?? "提案に失敗しました。");
       return;
     }
+    const sessions = Array.isArray(json?.sessionNumbers)
+      ? (json.sessionNumbers as number[])
+      : payload.sessionNumbers;
     setProposeJustSent(true);
-    setNotice(`候補日時（${json?.slotCount ?? ""}件）を提示しました。`);
+    setNotice(
+      sessions.length > 1
+        ? `第${sessions.join("・")}回の候補日時（各${json?.slotCount ?? ""}件）をまとめて提示しました。`
+        : `第${sessions[0] ?? ""}回の候補日時（${json?.slotCount ?? ""}件）を提示しました。`,
+    );
     window.setTimeout(() => setProposeJustSent(false), 6000);
     await load();
   }
 
-  async function onConfirm(e: FormEvent<HTMLFormElement>) {
+  async function onConfirm(negotiation: NegotiationRow, e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!activeNegotiation || activeNegotiation.status !== "AWAITING_PARTNER_CONFIRM") return;
+    if (negotiation.status !== "AWAITING_PARTNER_CONFIRM") return;
     const fd = new FormData(e.currentTarget);
     const slotId = String(fd.get("slotId"));
-    const chosen = activeNegotiation.slots.find((s) => s.id === slotId);
+    const chosen = negotiation.slots.find((s) => s.id === slotId);
     if (!chosen || chosen.clientVote !== "YES") {
       setError("選択した候補はクライアントが希望していません。");
       return;
@@ -1351,20 +1388,17 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         ).toISOString();
       }
     }
-    const res = await fetch(
-      `/api/matches/${matchId}/negotiations/${activeNegotiation.id}/confirm`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      },
-    );
+    const res = await fetch(`/api/matches/${matchId}/negotiations/${negotiation.id}/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
     const json = await res.json().catch(() => null);
     if (!res.ok) {
       setError(json?.error ?? "確定処理に失敗しました。");
       return;
     }
-    setNotice("日程を確定しました。関係者へメール（.ics 添付）で通知しました。");
+    setNotice(`第${Math.max(1, negotiation.sessionNumber ?? 1)}回の日程を確定しました。関係者へメール（.ics 添付）で通知しました。`);
     await load();
   }
 
@@ -1433,7 +1467,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     return Boolean(latestConfirmed?.rescheduleRequestedAt);
   }
 
-  function getRescheduleEligibility(slot: SlotRow | null) {
+  function getRescheduleEligibility(sessionNumber: number, slot: SlotRow | null) {
     if (
       me?.role !== "PARTNER" &&
       me?.role !== "CLIENT" &&
@@ -1441,7 +1475,12 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       me?.role !== "CLIENT_HR"
     )
       return { can: false, reason: "パートナー・クライアントのみ利用できます。" };
-    if (activeNegotiation) return { can: false, reason: "調整中のラウンドがあるため、完了後に変更希望を送れます。" };
+    const sessionOpen = openNegotiations.some(
+      (n) => Math.max(1, n.sessionNumber ?? 1) === sessionNumber,
+    );
+    if (sessionOpen) {
+      return { can: false, reason: "この回は調整中のため、完了後に変更希望を送れます。" };
+    }
     if (!slot) return { can: false, reason: "未確定のため送信できません。" };
     const diff = msUntilStart(slot.startAt);
     if (!Number.isFinite(diff)) return { can: false, reason: "日時が不正のため送信できません。" };
@@ -2105,7 +2144,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <div className="space-y-1">
           <h2 className="text-2xl font-semibold text-indigo-900">日程調整</h2>
           <p className="text-base text-indigo-800">
-            担当パートナーが候補日時を提示し、クライアントが回答、担当パートナーが日程を確定する流れです。
+            担当パートナーが候補日時を提示し、クライアントが回答、担当パートナーが日程を確定する流れです。第1回〜複数回分をまとめて提案し、回ごとに回答・確定できます。
           </p>
         </div>
         <div className="app-surface-indigo space-y-3 rounded-2xl px-5 py-4">
@@ -2114,7 +2153,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           </div>
           <ul className="space-y-2 text-base">
             {sessionPlans.map((row) => {
-              const eligibility = getRescheduleEligibility(row.slot);
+              const eligibility = getRescheduleEligibility(row.index, row.slot);
               const apiRow = sessionRows.find((r) => r.sessionNumber === row.index);
               const isRescheduling = isReschedulingSession(row.index);
               const zoomUrl = apiRow?.zoomUrl ?? null;
@@ -2219,91 +2258,102 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             totalSessions={scheduleSettings.totalSessions}
             submitting={proposeSubmitting}
             justSent={proposeJustSent}
+            blockedSessionNumbers={blockedProposeSessions}
+            defaultSessionNumbers={defaultProposeSessions}
             onSubmit={onProposeTimeRanges}
           />
         ) : null}
 
-        {activeNegotiation?.status === "NEEDS_NEW_PROPOSAL" && me.role === "PARTNER" ? (
+        {openNegotiations.some((n) => n.status === "NEEDS_NEW_PROPOSAL") && me.role === "PARTNER" ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-            クライアントから別候補の希望がありました。上のフォームから、新しい時間帯を再提示してください。
+            クライアントから別候補の希望がありました（
+            {openNegotiations
+              .filter((n) => n.status === "NEEDS_NEW_PROPOSAL")
+              .map((n) => `第${Math.max(1, n.sessionNumber ?? 1)}回`)
+              .join("・")}
+            ）。上のフォームで対象の回を選び、新しい時間帯を再提示してください。
           </div>
         ) : null}
 
-        {activeNegotiation && activeNegotiation.status === "AWAITING_CLIENT_RESPONSE" && isClientRole(me.role) ? (
-          <ScheduleClientVoteForm
-            partnerName={availability?.partner.displayName ?? "担当パートナー"}
-            slots={activeNegotiation.slots}
-            timezone={scheduleSettings.timezone}
-            responseDeadline={activeNegotiation.responseDeadline}
-            submitting={false}
-            onSubmitSelected={onVoteSelected}
-            onRequestAlternative={onRequestAlternative}
-          />
-        ) : null}
+        {isClientRole(me.role)
+          ? openNegotiations
+              .filter((n) => n.status === "AWAITING_CLIENT_RESPONSE")
+              .map((n) => (
+                <div key={n.id} id={`session-vote-${Math.max(1, n.sessionNumber ?? 1)}`}>
+                  <ScheduleClientVoteForm
+                    partnerName={availability?.partner.displayName ?? "担当パートナー"}
+                    slots={n.slots}
+                    timezone={scheduleSettings.timezone}
+                    responseDeadline={n.responseDeadline}
+                    submitting={false}
+                    sessionNumber={Math.max(1, n.sessionNumber ?? 1)}
+                    onSubmitSelected={(ids) => void onVoteSelected(n, ids)}
+                    onRequestAlternative={() => void onRequestAlternative(n)}
+                  />
+                </div>
+              ))
+          : null}
 
-        {activeNegotiation && activeNegotiation.status === "AWAITING_PARTNER_CONFIRM" && me.role === "PARTNER" ? (
-          <form
-            id="partner-confirm-section"
-            onSubmit={onConfirm}
-            className="space-y-3 rounded-2xl border border-amber-200 bg-white px-5 py-4"
-          >
-            <h3 className="text-xl font-semibold text-amber-900">日程を確定する</h3>
-            <p className="text-base text-amber-800">
-              クライアントが参加可能と回答した日時の中から、1件を選んで日程を確定してください。
-            </p>
-            <select
-              name="slotId"
-              required
-              value={confirmSlotId}
-              onChange={(e) => setConfirmSlotId(e.target.value)}
-              className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-amber-900"
-            >
-              <option disabled value="">
-                時間を選択
-              </option>
-              {activeNegotiation.slots
-                .filter((s) => s.clientVote === "YES")
-                .map((slot) => (
-                  <option key={slot.id} value={slot.id}>
-                    {formatJa(slot.startAt, scheduleSettings.timezone)} 〜{" "}
-                    {formatJa(slot.endAt, scheduleSettings.timezone)}
-                  </option>
-                ))}
-            </select>
-            {confirmSlotId ? (
-              <label className="block text-sm text-amber-950">
-                開始時刻の微調整（任意・5分刻み）
-                <p className="mt-1 text-xs font-normal text-amber-900/85">
-                  クライアントから「8:20 なら平気」などの希望があった場合、同じ日付の中で開始時刻だけ変更できます。
-                </p>
-                <input
-                  key={confirmSlotId}
-                  name="adjustStartTime"
-                  type="time"
-                  step={300}
-                  defaultValue={formatTimeHmInZone(
-                    new Date(
-                      activeNegotiation.slots.find((s) => s.id === confirmSlotId)!.startAt,
-                    ),
-                    scheduleSettings.timezone,
-                  )}
-                  className="mt-2 w-full max-w-xs rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm"
-                />
-              </label>
-            ) : null}
-            <div className="space-y-2">
-              <button
-                type="submit"
-                className="app-btn-amber rounded-lg px-4 py-2.5 text-base"
-              >
-                日程を確定する
-              </button>
-              <p className="text-xs text-amber-900/80">
-                → 双方に Zoom 入りの確定メールが届きます。確定後の変更は「日程変更依頼」から。
-              </p>
-            </div>
-          </form>
-        ) : null}
+        {me.role === "PARTNER"
+          ? openNegotiations
+              .filter((n) => n.status === "AWAITING_PARTNER_CONFIRM")
+              .map((n) => {
+                const sn = Math.max(1, n.sessionNumber ?? 1);
+                return (
+                  <form
+                    key={n.id}
+                    id={sn === (activeNegotiation?.sessionNumber ?? 0) ? "partner-confirm-section" : `partner-confirm-${sn}`}
+                    onSubmit={(e) => void onConfirm(n, e)}
+                    className="space-y-3 rounded-2xl border border-amber-200 bg-white px-5 py-4"
+                  >
+                    <h3 className="text-xl font-semibold text-amber-900">
+                      第{sn}回の日程を確定する
+                    </h3>
+                    <p className="text-base text-amber-800">
+                      クライアントが参加可能と回答した日時の中から、1件を選んで日程を確定してください。
+                    </p>
+                    <select
+                      name="slotId"
+                      required
+                      defaultValue=""
+                      className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-amber-900"
+                    >
+                      <option disabled value="">
+                        時間を選択
+                      </option>
+                      {n.slots
+                        .filter((s) => s.clientVote === "YES")
+                        .map((slot) => (
+                          <option key={slot.id} value={slot.id}>
+                            {formatJa(slot.startAt, scheduleSettings.timezone)} 〜{" "}
+                            {formatJa(slot.endAt, scheduleSettings.timezone)}
+                          </option>
+                        ))}
+                    </select>
+                    <label className="block text-sm text-amber-950">
+                      開始時刻の微調整（任意・5分刻み）
+                      <p className="mt-1 text-xs font-normal text-amber-900/85">
+                        クライアントから希望があった場合、同じ日付の中で開始時刻だけ変更できます。選択後に調整してください。
+                      </p>
+                      <input
+                        name="adjustStartTime"
+                        type="time"
+                        step={300}
+                        className="mt-2 w-full max-w-xs rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <div className="space-y-2">
+                      <button type="submit" className="app-btn-amber rounded-lg px-4 py-2.5 text-base">
+                        第{sn}回の日程を確定する
+                      </button>
+                      <p className="text-xs text-amber-900/80">
+                        → 双方に Zoom 入りの確定メールが届きます。確定後の変更は「日程変更依頼」から。
+                      </p>
+                    </div>
+                  </form>
+                );
+              })
+          : null}
 
         <div className="space-y-3">
           <h3 className="text-lg font-semibold text-slate-900">すべての調整ログ</h3>

@@ -55,9 +55,21 @@ export async function POST(request: Request, context: RouteContext) {
   const requestedSession = parsed.data.sessionNumber;
 
   const negotiations = await listNegotiationsForMatch(matchId);
-  const active = negotiations.find((n) => n.status !== "CONFIRMED" && n.status !== "SUPERSEDED");
-  if (active) {
-    return jsonError("すでに調整中のラウンドがあります。現在の調整を進めてください。", 409);
+  if (requestedSession) {
+    const sessionOpen = negotiations.find(
+      (n) =>
+        Math.max(1, n.sessionNumber ?? 1) === requestedSession &&
+        n.status !== "CONFIRMED" &&
+        n.status !== "SUPERSEDED",
+    );
+    if (sessionOpen) {
+      return jsonError("この回はすでに調整中です。現在の調整を進めてください。", 409);
+    }
+  } else {
+    const active = negotiations.find((n) => n.status !== "CONFIRMED" && n.status !== "SUPERSEDED");
+    if (active) {
+      return jsonError("すでに調整中のラウンドがあります。現在の調整を進めてください。", 409);
+    }
   }
 
   const now = new Date();
