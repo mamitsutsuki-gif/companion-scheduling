@@ -123,6 +123,7 @@ type ScheduleSettingsPayload = {
   allowWeekends: boolean;
   effectiveCompanyId: string | null;
   effectiveCompanyName: string | null;
+  effectiveProgramId: string | null;
   overriddenFields: string[];
   companyPlan: CompanyPlan;
   planFeatures: PlanFeatures;
@@ -789,6 +790,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     allowWeekends: false,
     effectiveCompanyId: null,
     effectiveCompanyName: null,
+    effectiveProgramId: null,
     overriddenFields: [],
     companyPlan: DEFAULT_COMPANY_PLAN,
     planFeatures: DEFAULT_PLAN_FEATURES,
@@ -941,6 +943,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           typeof sJson.effectiveCompanyId === "string" ? sJson.effectiveCompanyId : null,
         effectiveCompanyName:
           typeof sJson.effectiveCompanyName === "string" ? sJson.effectiveCompanyName : null,
+        effectiveProgramId:
+          typeof sJson.effectiveProgramId === "string" ? sJson.effectiveProgramId : null,
         overriddenFields: Array.isArray(sJson.overriddenFields)
           ? (sJson.overriddenFields as unknown[]).map((x) => String(x))
           : [],
@@ -1586,8 +1590,12 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 )}
                 {scheduleSettings.effectiveCompanyId ? (
                   <Link
-                    href={`/admin/companies/${encodeURIComponent(scheduleSettings.effectiveCompanyId)}/settings`}
-                    title="管理者専用：この企業の設定編集ページへ"
+                    href={
+                      scheduleSettings.effectiveProgramId
+                        ? `/admin/companies/${encodeURIComponent(scheduleSettings.effectiveCompanyId)}/settings?programId=${encodeURIComponent(scheduleSettings.effectiveProgramId)}`
+                        : `/admin/companies/${encodeURIComponent(scheduleSettings.effectiveCompanyId)}/settings`
+                    }
+                    title="管理者専用：このマッチのプログラム設定編集ページへ"
                     className="inline-flex items-center gap-1 rounded-full border border-indigo-300 bg-white px-2 py-1 text-[11px] font-semibold text-indigo-800 no-underline hover:bg-indigo-50"
                   >
                     ⚙ 設定を編集（管理者）
@@ -2403,12 +2411,15 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       ) : null}
 
       {activeTab === "fta" && me && canShowFtaTab(me, scheduleSettings) ? (
-        me.role === "CLIENT" && scheduleSettings.companyPlan === "individual_companion" ? (
+        me.role === "CLIENT" && scheduleSettings.planFeatures.fta ? (
           <section className="space-y-4 rounded-3xl border border-indigo-100 bg-indigo-50/30 px-3 py-5 sm:px-6 sm:py-8">
             <div className="space-y-1">
               <h2 className="text-2xl font-semibold text-indigo-900">自分FTA</h2>
               <p className="text-base text-indigo-800">
-                中心のありたい姿(A)から要素(B)・アクション(C)を整理します。スキルチェックで選んだ重点スキルと紐づけできます。
+                中心のありたい姿(A)から要素(B)・アクション(C)を整理します。
+                {scheduleSettings.planFeatures.skillCheck
+                  ? "スキルチェックで選んだ重点スキルと紐づけできます。"
+                  : null}
               </p>
             </div>
             <FtaEditor

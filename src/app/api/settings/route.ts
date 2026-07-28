@@ -26,6 +26,8 @@ export async function GET(request: Request) {
     : await getAppSettings();
   const effectiveCompanyId =
     "effectiveCompanyId" in s ? (s as { effectiveCompanyId: string | null }).effectiveCompanyId : null;
+  const effectiveProgramId =
+    "effectiveProgramId" in s ? (s as { effectiveProgramId: string | null }).effectiveProgramId : null;
   const overriddenFields =
     "overriddenFields" in s
       ? (s as { overriddenFields: string[] }).overriddenFields
@@ -59,6 +61,7 @@ export async function GET(request: Request) {
     allowWeekends: s.allowWeekends,
     effectiveCompanyId,
     effectiveCompanyName,
+    effectiveProgramId,
     overriddenFields,
     companyPlan,
     planFeatures,

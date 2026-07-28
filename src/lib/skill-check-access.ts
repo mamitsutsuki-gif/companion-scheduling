@@ -151,6 +151,8 @@ export async function resolveSkillCheckAccessForMatch(
     const actorCompanyId = ((actorUser as { companyId?: string | null } | null)?.companyId ?? "").trim();
     if (actorCompanyId && actorCompanyId === companyId) {
       const paired = await isPairedIndividualCompanionSupervisor(actor.id, targetUserId);
+      // 個別伴走: マッチした上司のみ評価・重点スキル編集可（担当外は不可）
+      if (!paired) return { error: "forbidden" };
       return {
         targetUserId,
         companyId,
@@ -158,7 +160,7 @@ export async function resolveSkillCheckAccessForMatch(
         canEditSelf: false,
         canEditManager: true,
         canEditFocusSkills: true,
-        canEditSkillDefinitions: paired,
+        canEditSkillDefinitions: true,
       };
     }
   }
@@ -224,6 +226,8 @@ export async function resolveSkillCheckAccessForUser(
     const actorCompanyId = ((actorUser as { companyId?: string | null } | null)?.companyId ?? "").trim();
     if (actorCompanyId && actorCompanyId === companyId && target.role === "CLIENT") {
       const paired = await isPairedIndividualCompanionSupervisor(actor.id, targetUserId);
+      // マッチした上司のみ（同企業でも担当外は評価不可）
+      if (!paired) return { error: "forbidden" };
       return {
         targetUserId,
         companyId,
@@ -231,7 +235,7 @@ export async function resolveSkillCheckAccessForUser(
         canEditSelf: false,
         canEditManager: true,
         canEditFocusSkills: true,
-        canEditSkillDefinitions: paired,
+        canEditSkillDefinitions: true,
       };
     }
   }

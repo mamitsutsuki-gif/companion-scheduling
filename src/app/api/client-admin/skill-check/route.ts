@@ -7,11 +7,13 @@ import {
   ensureDefaultProgramForCompany,
   listProgramsForCompany,
 } from "@/lib/repositories/program-repository";
+import { isPairedIndividualCompanionSupervisor } from "@/lib/skill-check-access";
 
 export const dynamic = "force-dynamic";
 
 /**
  * クライアント管理者向け：自社メンバー（CLIENT）のスキルチェック対象一覧。
+ * 個別伴走では「マッチした上司」に紐づく受講者のみ返す。
  */
 export async function GET(request: Request) {
   const session = await readSession();
@@ -77,6 +79,12 @@ export async function GET(request: Request) {
       return enrolled.some((id) => companionIds.has(id));
     });
   }
+
+  // マッチした上司（partnerId）に紐づく受講者のみ
+  const pairedFlags = await Promise.all(
+    clients.map((c) => isPairedIndividualCompanionSupervisor(session.sub, c.id)),
+  );
+  clients = clients.filter((_, i) => pairedFlags[i]);
 
   const rows = await Promise.all(
     clients.map(async (c) => {

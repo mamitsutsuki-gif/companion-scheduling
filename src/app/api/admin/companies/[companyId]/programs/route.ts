@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
-import { normalizeCompanyPlan, type CompanyPlan } from "@/lib/company-plan";
+import { normalizeCompanyPlan, resolveCompanyPlan, type CompanyPlan } from "@/lib/company-plan";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import {
   consolidateDuplicateProgramsForCompany,
@@ -9,6 +9,7 @@ import {
   ensureDefaultProgramForCompany,
   getProgramUsageStats,
   listProgramsForCompany,
+  pickCanonicalProgram,
 } from "@/lib/repositories/program-repository";
 import {
   listClientsInCompany,
@@ -45,6 +46,9 @@ export async function GET(_req: Request, ctx: RouteContext) {
 
   await ensureDefaultProgramForCompany(cid);
   const programs = await listProgramsForCompany(cid);
+  const settings = await getAppSettingsRow();
+  const registryPlan = resolveCompanyPlan(cid, settings.companies);
+  const preferredProgram = pickCanonicalProgram(programs, registryPlan);
   const withUsage = await Promise.all(
     programs.map(async (p) => {
       const usage = await getProgramUsageStats(p.id);
@@ -56,7 +60,12 @@ export async function GET(_req: Request, ctx: RouteContext) {
     planCounts.set(p.plan, (planCounts.get(p.plan) ?? 0) + 1);
   }
   const hasDuplicatePlans = [...planCounts.values()].some((n) => n > 1);
-  return jsonOk({ programs: withUsage, hasDuplicatePlans });
+  return jsonOk({
+    programs: withUsage,
+    hasDuplicatePlans,
+    registryPlan,
+    preferredProgramId: preferredProgram?.id ?? null,
+  });
 }
 
 export async function POST(request: Request, ctx: RouteContext) {

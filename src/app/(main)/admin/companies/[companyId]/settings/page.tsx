@@ -352,11 +352,23 @@ export default function AdminCompanySettingsPage({
         setPrograms(list);
 
         let programId = selectedProgramId;
-        if (!programId && list[0]?.id) {
-          router.replace(
-            `/admin/companies/${encodeURIComponent(companyId)}/settings?programId=${encodeURIComponent(list[0].id)}`,
-          );
-          return;
+        if (!programId && list.length > 0) {
+          // 名前順の先頭ではなく、企業レジストリの代表プランのプログラムを優先
+          // （複数プラン同居時に別プランへ誤編集して「設定が反映されない」のを防ぐ）
+          const preferredId =
+            typeof programsJson?.preferredProgramId === "string"
+              ? programsJson.preferredProgramId
+              : "";
+          const fallbackId =
+            (preferredId && list.some((p: { id: string }) => p.id === preferredId)
+              ? preferredId
+              : null) ?? list[0]?.id;
+          if (fallbackId) {
+            router.replace(
+              `/admin/companies/${encodeURIComponent(companyId)}/settings?programId=${encodeURIComponent(fallbackId)}`,
+            );
+            return;
+          }
         }
 
         const settingsUrl = programId
@@ -820,7 +832,7 @@ export default function AdminCompanySettingsPage({
         ) : null}
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600 sm:text-base">
           {selectedProgramId
-            ? "選択中のプログラムだけ別の値で動作します。チェックを外すと企業・全体設定に戻ります。"
+            ? "選択中のプログラムに紐づくマッチだけに反映されます。別プランのプログラムを編集しても、他プランのマッチルームには効きません。チェックを外すと企業・全体設定に戻ります。"
             : "各項目は、チェックを入れるとこの企業だけ別の値で動作します。数値を変更すると自動的に上書きが有効になります。チェックを外すと全体設定に戻ります。"}
         </p>
         <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
