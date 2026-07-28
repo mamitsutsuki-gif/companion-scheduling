@@ -12,10 +12,12 @@ export type SessionPlanRow = {
   startAt: string | null;
   endAt: string | null;
   negotiationId: string | null;
-  /** 確定時にスナップショットされた Zoom URL（無ければ null） */
+  /** 確定時にスナップショットされた会議 URL（無ければ null） */
   zoomUrl: string | null;
   zoomMeetingId: string | null;
   zoomPass: string | null;
+  /** 確定時の会議プロバイダ（無ければ URL から推定） */
+  meetingProvider: "zoom" | "google_meet" | null;
 };
 
 type RawNeg = {
@@ -28,7 +30,20 @@ type RawNeg = {
   confirmedZoomUrl: string | null;
   confirmedZoomMeetingId: string | null;
   confirmedZoomPass: string | null;
+  confirmedMeetingProvider: "zoom" | "google_meet" | null;
 };
+
+function inferMeetingProvider(
+  provider: unknown,
+  joinUrl: string | null,
+): "zoom" | "google_meet" | null {
+  if (provider === "google_meet" || provider === "zoom") return provider;
+  if (!joinUrl) return null;
+  const lower = joinUrl.toLowerCase();
+  if (lower.includes("meet.google.com")) return "google_meet";
+  if (lower.includes("zoom.us") || lower.includes("zoom.com")) return "zoom";
+  return null;
+}
 
 async function loadConfirmedNegotiationsForMatch(matchId: string): Promise<RawNeg[]> {
   if (isFirebaseDataBackend()) {
@@ -42,6 +57,7 @@ async function loadConfirmedNegotiationsForMatch(matchId: string): Promise<RawNe
     return snap.docs.map((d) => {
       const raw = d.data() as Record<string, unknown>;
       const slots = Array.isArray(raw.slots) ? (raw.slots as Record<string, unknown>[]) : [];
+      const confirmedZoomUrl = typeof raw.confirmedZoomUrl === "string" ? raw.confirmedZoomUrl : null;
       return {
         id: d.id,
         matchId: String(raw.matchId ?? matchId),
@@ -53,10 +69,11 @@ async function loadConfirmedNegotiationsForMatch(matchId: string): Promise<RawNe
           endAt: String(s.endAt ?? ""),
           isConfirmed: Boolean(s.isConfirmed),
         })),
-        confirmedZoomUrl: typeof raw.confirmedZoomUrl === "string" ? raw.confirmedZoomUrl : null,
+        confirmedZoomUrl,
         confirmedZoomMeetingId:
           typeof raw.confirmedZoomMeetingId === "string" ? raw.confirmedZoomMeetingId : null,
         confirmedZoomPass: typeof raw.confirmedZoomPass === "string" ? raw.confirmedZoomPass : null,
+        confirmedMeetingProvider: inferMeetingProvider(raw.confirmedMeetingProvider, confirmedZoomUrl),
       };
     });
   }
@@ -69,7 +86,9 @@ async function loadConfirmedNegotiationsForMatch(matchId: string): Promise<RawNe
       confirmedZoomUrl?: string | null;
       confirmedZoomMeetingId?: string | null;
       confirmedZoomPass?: string | null;
+      confirmedMeetingProvider?: string | null;
     };
+    const confirmedZoomUrl = ext.confirmedZoomUrl ?? null;
     return {
       id: n.id,
       matchId: n.matchId,
@@ -81,9 +100,10 @@ async function loadConfirmedNegotiationsForMatch(matchId: string): Promise<RawNe
         endAt: s.endAt.toISOString(),
         isConfirmed: s.isConfirmed,
       })),
-      confirmedZoomUrl: ext.confirmedZoomUrl ?? null,
+      confirmedZoomUrl,
       confirmedZoomMeetingId: ext.confirmedZoomMeetingId ?? null,
       confirmedZoomPass: ext.confirmedZoomPass ?? null,
+      confirmedMeetingProvider: inferMeetingProvider(ext.confirmedMeetingProvider, confirmedZoomUrl),
     };
   });
 }
@@ -118,20 +138,19 @@ export async function listSessionPlanForMatch(matchId: string): Promise<SessionP
       zoomUrl: found?.confirmedZoomUrl ?? null,
       zoomMeetingId: found?.confirmedZoomMeetingId ?? null,
       zoomPass: found?.confirmedZoomPass ?? null,
+      meetingProvider: found?.confirmedMeetingProvider ?? null,
     } satisfies SessionPlanRow;
   });
 }
 
 /**
  * セッション一覧の中から、ユーザーが「開く」ことを許可される回を判定。
- * - 過去（end <= now）: 全員許可
- * - 開始済みかつ未終了: 全員許可
- * - 未来: その回が「次回実施分（最も近い未来かつ確定済み）」のみ許可
- * - 未確定: 不可
+ * - 過去（end <= now）: 許可
+ * - 開始済みかつ未終了（実施中）: 許可
+ * - 未来・未確定: 不可
  */
 export function determineOpenableSessions(plan: SessionPlanRow[], now = new Date()): Set<number> {
   const openable = new Set<number>();
-  let nextUpcoming: SessionPlanRow | null = null;
 
   for (const row of plan) {
     if (!row.confirmed || !row.startAt || !row.endAt) continue;
@@ -141,10 +160,7 @@ export function determineOpenableSessions(plan: SessionPlanRow[], now = new Date
       openable.add(row.sessionNumber);
     } else if (start <= now && now < end) {
       openable.add(row.sessionNumber);
-    } else if (start > now) {
-      if (!nextUpcoming || new Date(nextUpcoming.startAt!) > start) nextUpcoming = row;
     }
   }
-  if (nextUpcoming) openable.add(nextUpcoming.sessionNumber);
   return openable;
 }

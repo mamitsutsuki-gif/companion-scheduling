@@ -1598,6 +1598,11 @@ function SectionCard({
           {partial ? (
             <p className="mt-1 text-xs text-amber-700">※ このセクションは一部のみ上書き中です。</p>
           ) : null}
+          {allOff ? (
+            <p className="mt-1 text-xs text-slate-500">
+              上書きオフのため編集できません。「この企業で上書きする」をオンにすると変更できます。
+            </p>
+          ) : null}
         </div>
         <label className="flex items-center gap-2 text-sm font-medium text-slate-800">
           <input
@@ -1609,7 +1614,9 @@ function SectionCard({
           この企業で上書きする
         </label>
       </div>
-      <div>{children}</div>
+      <fieldset disabled={allOff} className="space-y-3 disabled:opacity-60">
+        {children}
+      </fieldset>
     </section>
   );
 }

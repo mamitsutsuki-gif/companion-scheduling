@@ -2,6 +2,7 @@ import { getAppSettings } from "@/lib/app-settings";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { companyLabelFromRegistry } from "@/lib/company-display";
 import { resolvePlanFeatures, resolveCoachingPlanSettings, type CompanyPlan } from "@/lib/company-plan";
+import { normalizeMeetingProvider } from "@/lib/meeting-provider-shared";
 import { jsonOk } from "@/lib/json";
 
 /**
@@ -51,6 +52,10 @@ export async function GET(request: Request) {
     planFeatureOverrides,
     coachingPlanSettingsOverrides,
   );
+  const meetingProvider =
+    "meetingProvider" in s
+      ? normalizeMeetingProvider((s as { meetingProvider?: unknown }).meetingProvider)
+      : "zoom";
   return jsonOk({
     slotDurationMinutes: s.slotDurationMinutes,
     totalSessions: s.totalSessions,
@@ -66,5 +71,6 @@ export async function GET(request: Request) {
     companyPlan,
     planFeatures,
     coachingPlanSettings,
+    meetingProvider,
   });
 }

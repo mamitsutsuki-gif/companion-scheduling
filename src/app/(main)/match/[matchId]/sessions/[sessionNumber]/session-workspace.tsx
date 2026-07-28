@@ -489,12 +489,16 @@ export function SessionWorkspace({
         </section>
       ) : null}
 
-      {!isCoachingRoleplay && (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR" || role === "ADMIN" || role === "ADMIN_ASSISTANT") ? (
+      {!isCoachingRoleplay && (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR" || role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT") ? (
         <section className="space-y-4 rounded-3xl border border-indigo-100 bg-white p-4 shadow-sm sm:p-6">
           <header>
             <h2 className="text-xl font-semibold text-indigo-900">クライアント振り返り</h2>
             {role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
               <p className="text-sm text-zinc-600">管理者として閲覧しています（編集不可）。</p>
+            ) : role === "PARTNER" ? (
+              <p className="text-sm text-zinc-600">
+                クライアントが提出した振り返りです（閲覧のみ）。パートナー変更希望は管理者のみ確認します。
+              </p>
             ) : (
               <p className="text-sm text-zinc-600">
                 回答内容は担当パートナーにも表示されます。提出後も「上書き保存」で内容を更新できます。
@@ -512,7 +516,7 @@ export function SessionWorkspace({
             </div>
           ) : null}
 
-          {!isAbandoned && (role === "ADMIN" || role === "ADMIN_ASSISTANT") && !detail.feedback ? (
+          {!isAbandoned && (role === "ADMIN" || role === "ADMIN_ASSISTANT" || role === "PARTNER") && !detail.feedback ? (
             <p className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-sm text-zinc-600">
               まだクライアントの振り返りは提出されていません。
             </p>
@@ -520,6 +524,10 @@ export function SessionWorkspace({
 
           {!isAbandoned && (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR") ? (
             <form onSubmit={onSubmitFeedback} className="space-y-5">
+              <p className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-sm text-indigo-950">
+                <span className="font-semibold text-red-600">*</span>{" "}
+                は必須項目です。未入力の項目があると、提出時にどの項目かをお知らせします。
+              </p>
               <label className="block space-y-1 text-base font-medium text-zinc-900">
                 1. 今回の1on1でどのような気づきがありましたか？ <span className="text-red-600">*</span>
                 <textarea
@@ -553,9 +561,16 @@ export function SessionWorkspace({
                   className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
                 />
               </label>
-              <fieldset className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3">
+              <fieldset
+                className={`space-y-3 rounded-2xl border px-4 py-3 ${
+                  satisfactionScore === ""
+                    ? "border-amber-300 bg-amber-50/50"
+                    : "border-indigo-200 bg-indigo-50/40"
+                }`}
+              >
                 <legend className="px-1 text-base font-semibold text-indigo-950">
                   4. 今回の1on1に対する満足度（1〜10） <span className="text-red-600">*</span>
+                  <span className="ml-2 text-xs font-normal text-zinc-600">必須・タップで選択</span>
                 </legend>
                 <div className="flex flex-wrap gap-2">
                   {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
@@ -592,10 +607,17 @@ export function SessionWorkspace({
                 </label>
               </fieldset>
 
-              <fieldset className="space-y-2 rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3">
+              <fieldset
+                className={`space-y-2 rounded-2xl border px-4 py-3 ${
+                  partnerChange === ""
+                    ? "border-amber-300 bg-amber-50/50"
+                    : "border-indigo-200 bg-indigo-50/40"
+                }`}
+              >
                 <legend className="px-1 text-base font-semibold text-indigo-950">
                   6. 今後の1on1について、対話パートナーを変更したいと思いますか？{" "}
                   <span className="text-red-600">*</span>
+                  <span className="ml-2 text-xs font-normal text-zinc-600">必須・選択</span>
                 </legend>
                 <p className="text-xs text-indigo-900/85">
                   ※ より有意義に1on1セッションを受けていただくための確認項目です。
@@ -624,7 +646,8 @@ export function SessionWorkspace({
               </fieldset>
 
               <label className="block space-y-1 text-base font-medium text-zinc-900">
-                7. その他、何かございましたらご自由にご記載ください。
+                7. その他、何かございましたらご自由にご記載ください。{" "}
+                <span className="text-xs font-normal text-zinc-500">（任意）</span>
                 <textarea
                   value={other}
                   onChange={(e) => setOther(e.target.value)}
@@ -691,18 +714,20 @@ export function SessionWorkspace({
                   value={detail.feedback.satisfactionScore != null ? String(detail.feedback.satisfactionScore) : ""}
                 />
                 <ReadOnlyItem label="5. その理由" value={detail.feedback.answers.satisfactionReason} />
-                <ReadOnlyItem
-                  label="6. パートナー変更希望"
-                  value={
-                    detail.feedback.partnerChange === "continue"
-                      ? "続けたい"
-                      : detail.feedback.partnerChange === "undecided"
-                        ? "状況による"
-                        : detail.feedback.partnerChange === "want_change"
-                          ? "変更希望"
-                          : ""
-                  }
-                />
+                {role !== "PARTNER" ? (
+                  <ReadOnlyItem
+                    label="6. パートナー変更希望"
+                    value={
+                      detail.feedback.partnerChange === "continue"
+                        ? "続けたい"
+                        : detail.feedback.partnerChange === "undecided"
+                          ? "状況による"
+                          : detail.feedback.partnerChange === "want_change"
+                            ? "変更希望"
+                            : ""
+                    }
+                  />
+                ) : null}
                 <ReadOnlyItem label="7. その他" value={detail.feedback.answers.other} />
                 {detail.clientExtraQuestions.map((q, i) => (
                   <ReadOnlyItem

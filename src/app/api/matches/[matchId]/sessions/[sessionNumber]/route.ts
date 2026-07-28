@@ -1,7 +1,10 @@
 import { readSession } from "@/lib/session";
 import { getMatchIfAllowed } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
-import { listSessionPlanForMatch } from "@/lib/repositories/match-sessions-repository";
+import {
+  determineOpenableSessions,
+  listSessionPlanForMatch,
+} from "@/lib/repositories/match-sessions-repository";
 import { getSessionFeedback } from "@/lib/repositories/session-feedback-repository";
 import { getSessionReport } from "@/lib/repositories/session-report-repository";
 import { getSessionAbandonment } from "@/lib/repositories/session-abandonment-repository";
@@ -28,7 +31,6 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const plan = await listSessionPlanForMatch(matchId);
-  // 詳細ページは「全ての回」を最初から開けるので、plan に該当回が無くても empty plan を返す。
   const target =
     plan.find((p) => p.sessionNumber === n) ?? {
       matchId,
@@ -41,7 +43,15 @@ export async function GET(_request: Request, context: RouteContext) {
       zoomUrl: null,
       zoomMeetingId: null,
       zoomPass: null,
+      meetingProvider: null,
     };
+
+  const openableSet = determineOpenableSessions(plan);
+  const adminBypass = session.role === "ADMIN" || session.role === "ADMIN_ASSISTANT";
+  const openable = adminBypass || openableSet.has(n);
+  if (!openable) {
+    return jsonError("この回はまだ開けません。開始時刻以降に再度お試しください。", 403);
+  }
 
   // この match のクライアント企業に効く実効設定で、ガイドライン・追加質問を返す。
   const settings = await getEffectiveAppSettingsForMatch(matchId);
@@ -64,12 +74,20 @@ export async function GET(_request: Request, context: RouteContext) {
 
   // Visibility:
   // - CLIENT: own feedback only (cannot read partner report)
-  // - PARTNER: own report only
+  // - PARTNER / 上司マッチ: client feedback + own report（所感はクライアント非公開）
   // - ADMIN / ADMIN_ASSISTANT: both
   const includeFeedback =
-    session.role === "ADMIN" || session.role === "ADMIN_ASSISTANT" || session.role === "CLIENT";
+    session.role === "ADMIN" ||
+    session.role === "ADMIN_ASSISTANT" ||
+    session.role === "CLIENT" ||
+    session.role === "PARTNER" ||
+    session.role === "CLIENT_ADMIN" ||
+    session.role === "CLIENT_HR";
   const includeReport =
-    session.role === "ADMIN" || session.role === "ADMIN_ASSISTANT" || session.role === "PARTNER";
+    session.role === "ADMIN" ||
+    session.role === "ADMIN_ASSISTANT" ||
+    session.role === "PARTNER" ||
+    (session.role === "CLIENT_ADMIN" && gate.match.partnerId === session.sub);
 
   return jsonOk({
     matchId,

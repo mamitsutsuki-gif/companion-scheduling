@@ -1,7 +1,10 @@
 import { readSession } from "@/lib/session";
 import { getMatchIfAllowed } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
-import { listSessionPlanForMatch } from "@/lib/repositories/match-sessions-repository";
+import {
+  determineOpenableSessions,
+  listSessionPlanForMatch,
+} from "@/lib/repositories/match-sessions-repository";
 import { listSessionFeedbacksForMatch } from "@/lib/repositories/session-feedback-repository";
 import { listSessionReportsForMatch } from "@/lib/repositories/session-report-repository";
 import { listSessionAbandonmentsForMatch } from "@/lib/repositories/session-abandonment-repository";
@@ -38,9 +41,10 @@ export async function GET(_request: Request, context: RouteContext) {
   const fbSet = new Set(feedbacks.map((f) => f.sessionNumber));
   const rpSet = new Set(reports.map((r) => r.sessionNumber));
   const abMap = new Map(abandonments.map((a) => [a.sessionNumber, a]));
+  const openable = determineOpenableSessions(plan);
+  // 管理者はサポートのため全回を開ける
+  const adminBypass = session.role === "ADMIN" || session.role === "ADMIN_ASSISTANT";
 
-  // 詳細ボタンは「最初から全て押せる」要件のため、openable は全 true で返す。
-  // フロントで「予定 / 実施済 / 未実施・消化」のバッジを表示する。
   const rows = plan.map((row) => {
     const ab = abMap.get(row.sessionNumber) ?? null;
     const roleplaySession =
@@ -57,7 +61,7 @@ export async function GET(_request: Request, context: RouteContext) {
         : rpSet.has(row.sessionNumber);
     return {
       ...row,
-      openable: true,
+      openable: adminBypass || openable.has(row.sessionNumber),
       isRoleplaySession: isCoachingRoleplaySession(modeCtx, row.sessionNumber),
       hasClientFeedback,
       hasPartnerReport,

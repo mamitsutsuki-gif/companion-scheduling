@@ -27,6 +27,11 @@ import {
   type PlanFeatures,
 } from "@/lib/company-plan";
 import {
+  meetingProviderLabel,
+  normalizeMeetingProvider,
+  type MeetingProvider,
+} from "@/lib/meeting-provider-shared";
+import {
   formatTimeHmInZone,
   zonedWallClockToUtc,
   calendarDateInTimeZone,
@@ -128,6 +133,7 @@ type ScheduleSettingsPayload = {
   companyPlan: CompanyPlan;
   planFeatures: PlanFeatures;
   coachingPlanSettings: CoachingPlanSettings;
+  meetingProvider: MeetingProvider;
 };
 
 const DEFAULT_COACHING_PLAN_SETTINGS = resolveCoachingPlanSettings(null);
@@ -285,7 +291,20 @@ type SessionPlanApiRow = {
   zoomUrl?: string | null;
   zoomMeetingId?: string | null;
   zoomPass?: string | null;
+  meetingProvider?: MeetingProvider | null;
 };
+
+function resolveSessionMeetingProvider(row: {
+  meetingProvider?: MeetingProvider | string | null;
+  zoomUrl?: string | null;
+}): MeetingProvider {
+  if (row.meetingProvider === "google_meet" || row.meetingProvider === "zoom") {
+    return row.meetingProvider;
+  }
+  const url = (row.zoomUrl ?? "").toLowerCase();
+  if (url.includes("meet.google.com")) return "google_meet";
+  return normalizeMeetingProvider(row.meetingProvider);
+}
 
 type PartnerOverviewRow = {
   companyName: string;
@@ -795,6 +814,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     companyPlan: DEFAULT_COMPANY_PLAN,
     planFeatures: DEFAULT_PLAN_FEATURES,
     coachingPlanSettings: DEFAULT_COACHING_PLAN_SETTINGS,
+    meetingProvider: "zoom",
   });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -962,6 +982,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           sJson.coachingPlanSettings && typeof sJson.coachingPlanSettings === "object"
             ? resolveCoachingPlanSettings(sJson.coachingPlanSettings as Record<string, boolean>)
             : DEFAULT_COACHING_PLAN_SETTINGS,
+        meetingProvider: normalizeMeetingProvider(sJson.meetingProvider),
       });
     }
 
@@ -2197,18 +2218,24 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Link
-                        href={`/match/${matchId}/sessions/${row.index}`}
-                        className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-900 no-underline shadow-sm transition hover:bg-indigo-100"
-                      >
-                        {scheduleSettings.companyPlan === "coaching_management_training"
-                          ? "ロールプレイ評価を開く"
-                          : me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR"
-                            ? "振り返りを開く"
-                            : me.role === "PARTNER"
-                              ? "レポートを開く"
-                              : "詳細を開く"}
-                      </Link>
+                      {apiRow?.openable || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (
+                        <Link
+                          href={`/match/${matchId}/sessions/${row.index}`}
+                          className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-900 no-underline shadow-sm transition hover:bg-indigo-100"
+                        >
+                          {scheduleSettings.companyPlan === "coaching_management_training"
+                            ? "ロールプレイ評価を開く"
+                            : me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR"
+                              ? "振り返りを開く"
+                              : me.role === "PARTNER"
+                                ? "レポートを開く"
+                                : "詳細を開く"}
+                        </Link>
+                      ) : (
+                        <span className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-500">
+                          まだ開けません
+                        </span>
+                      )}
                       {isRescheduling ? (
                         <span className="rounded-md border border-amber-300 bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-900">
                           再調整中
@@ -2234,11 +2261,25 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                           rel="noopener noreferrer"
                           className="text-indigo-700 underline underline-offset-2"
                         >
-                          Zoom: {zoomUrl}
+                          {meetingProviderLabel(resolveSessionMeetingProvider({
+                            meetingProvider: apiRow?.meetingProvider,
+                            zoomUrl,
+                          }))}
+                          : {zoomUrl}
                         </a>
                       ) : null}
-                      {zoomMeetingId ? <span className="ml-2">ID: {zoomMeetingId}</span> : null}
-                      {zoomPass ? <span className="ml-2">パス: {zoomPass}</span> : null}
+                      {resolveSessionMeetingProvider({
+                        meetingProvider: apiRow?.meetingProvider,
+                        zoomUrl,
+                      }) === "zoom" && zoomMeetingId ? (
+                        <span className="ml-2">ID: {zoomMeetingId}</span>
+                      ) : null}
+                      {resolveSessionMeetingProvider({
+                        meetingProvider: apiRow?.meetingProvider,
+                        zoomUrl,
+                      }) === "zoom" && zoomPass ? (
+                        <span className="ml-2">パス: {zoomPass}</span>
+                      ) : null}
                     </p>
                   ) : null}
                   {!eligibility.can && !isRescheduling ? (
@@ -2355,7 +2396,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                         第{sn}回の日程を確定する
                       </button>
                       <p className="text-xs text-amber-900/80">
-                        → 双方に Zoom 入りの確定メールが届きます。確定後の変更は「日程変更依頼」から。
+                        → 双方に {meetingProviderLabel(scheduleSettings.meetingProvider)}{" "}
+                        入りの確定メールが届きます。確定後の変更は「日程変更依頼」から。
                       </p>
                     </div>
                   </form>
@@ -2479,7 +2521,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               を開けます。
               <br />
               <span className="text-sm">
-                未来の回は開けません。直近で実施予定の回だけ、セッション中に開くことができます。
+                未来の回は開けません。開始時刻を過ぎた回（実施中・終了後）だけ開けます。
               </span>
             </p>
           </div>
@@ -2567,11 +2609,15 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                             rel="noopener noreferrer"
                             className="text-indigo-800 underline underline-offset-2"
                           >
-                            Zoom: {row.zoomUrl}
+                            {meetingProviderLabel(resolveSessionMeetingProvider(row))}: {row.zoomUrl}
                           </a>
                         ) : null}
-                        {row.zoomMeetingId ? <span className="ml-2">ID: {row.zoomMeetingId}</span> : null}
-                        {row.zoomPass ? <span className="ml-2">パス: {row.zoomPass}</span> : null}
+                        {resolveSessionMeetingProvider(row) === "zoom" && row.zoomMeetingId ? (
+                          <span className="ml-2">ID: {row.zoomMeetingId}</span>
+                        ) : null}
+                        {resolveSessionMeetingProvider(row) === "zoom" && row.zoomPass ? (
+                          <span className="ml-2">パス: {row.zoomPass}</span>
+                        ) : null}
                       </p>
                     ) : null}
                     <div className="mt-1 flex flex-wrap gap-1.5 text-xs">

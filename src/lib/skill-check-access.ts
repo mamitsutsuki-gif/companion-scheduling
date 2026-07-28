@@ -16,7 +16,7 @@ export type SkillCheckAccess = {
   canEditSelf: boolean;
   canEditManager: boolean;
   canEditFocusSkills: boolean;
-  /** スキル項目名の手入力編集（本人 / ペア上司 / 管理者） */
+  /** スキル項目名の手入力編集（本人 / 同社上司 / 管理者） */
   canEditSkillDefinitions: boolean;
 };
 
@@ -151,15 +151,14 @@ export async function resolveSkillCheckAccessForMatch(
     const actorCompanyId = ((actorUser as { companyId?: string | null } | null)?.companyId ?? "").trim();
     if (actorCompanyId && actorCompanyId === companyId) {
       const paired = await isPairedIndividualCompanionSupervisor(actor.id, targetUserId);
-      // 個別伴走: マッチした上司のみ評価・重点スキル編集可（担当外は不可）
-      if (!paired) return { error: "forbidden" };
+      // 評価・重点スキルはマッチした上司のみ。スキル項目名は同社上司も編集可。
       return {
         targetUserId,
         companyId,
         canView: true,
         canEditSelf: false,
-        canEditManager: true,
-        canEditFocusSkills: true,
+        canEditManager: paired,
+        canEditFocusSkills: paired,
         canEditSkillDefinitions: true,
       };
     }
@@ -226,8 +225,18 @@ export async function resolveSkillCheckAccessForUser(
     const actorCompanyId = ((actorUser as { companyId?: string | null } | null)?.companyId ?? "").trim();
     if (actorCompanyId && actorCompanyId === companyId && target.role === "CLIENT") {
       const paired = await isPairedIndividualCompanionSupervisor(actor.id, targetUserId);
-      // マッチした上司のみ（同企業でも担当外は評価不可）
-      if (!paired) return { error: "forbidden" };
+      // 評価はマッチ上司のみ。スキル項目名は同社上司（CLIENT_ADMIN/HR）も編集可。
+      if (!paired) {
+        return {
+          targetUserId,
+          companyId,
+          canView: true,
+          canEditSelf: false,
+          canEditManager: false,
+          canEditFocusSkills: false,
+          canEditSkillDefinitions: true,
+        };
+      }
       return {
         targetUserId,
         companyId,
