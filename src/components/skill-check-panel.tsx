@@ -256,7 +256,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
           </span>
         </div>
         <p className="mt-2 text-sm text-indigo-900/90">
-          本人・上司・コーチの共有計画です。自分FTAのアクションを置き換えるものではなく、重点行動を三者が確認するための記載欄です。
+          本人・上司・パートナーの共有計画です。自分FTAのアクションを置き換えるものではなく、重点行動を三者が確認するための記載欄です。
         </p>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <div className="space-y-3 rounded-xl border border-white bg-white/90 p-4 shadow-xs">

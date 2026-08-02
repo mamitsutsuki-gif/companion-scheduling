@@ -93,7 +93,7 @@ export async function PUT(request: Request, ctx: RouteContext) {
     return jsonError("権限がありません。", 403);
   }
   if (!access.canEditCoach) {
-    return jsonError("育成機会の編集権限がありません（上司・コーチ・管理者が編集できます）。", 403);
+    return jsonError("育成機会の編集権限がありません（上司・パートナー・管理者が編集できます）。", 403);
   }
 
   const body = await request.json().catch(() => null);

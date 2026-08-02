@@ -19,7 +19,7 @@ export type BusinessProblemStepDef = {
   fields: BusinessProblemFieldDef[];
   tips: string[];
   pitfalls: string[];
-  coachQuestions: string[];
+  partnerQuestions: string[];
   examples: { goodA: string; goodB: string; bad: string; badFix: string };
 };
 
@@ -28,7 +28,6 @@ export type BusinessProblemSheet = {
   companyId: string;
   /** STEP id → fieldKey → value */
   stepValues: Record<string, Record<string, string>>;
-  coachComment: string;
   updatedAt: string;
 };
 
@@ -90,7 +89,7 @@ export const BUSINESS_PROBLEM_STEPS: BusinessProblemStepDef[] = [
       "ありたい姿・現状が抽象的で定量Gapにならない",
       "環境変化の記述が薄く、取り組みの必要性が伝わらない"
     ],
-    "coachQuestions": [
+    "partnerQuestions": [
       "Gapは数値で説明できるか",
       "ありたい姿は組織の期待水準と整合しているか",
       "現状は事実か解釈か"
@@ -148,7 +147,7 @@ export const BUSINESS_PROBLEM_STEPS: BusinessProblemStepDef[] = [
       "原因分析に飛ぶ（モデルが合っていない等）",
       "層別切り口が曖昧でMECEになっていない"
     ],
-    "coachQuestions": [
+    "partnerQuestions": [
       "その切り口はMECEか",
       "論拠は客観データか",
       "原因分析と混同していないか"
@@ -211,7 +210,7 @@ export const BUSINESS_PROBLEM_STEPS: BusinessProblemStepDef[] = [
       "STEP1と同じ目標を繰り返す",
       "貢献度を書かない、または根拠がない"
     ],
-    "coachQuestions": [
+    "partnerQuestions": [
       "この目標はSTEP2の問題点へのものか",
       "達成/未達を数値で判定できるか",
       "貢献度の計算根拠はあるか"
@@ -270,7 +269,7 @@ export const BUSINESS_PROBLEM_STEPS: BusinessProblemStepDef[] = [
       "優先度がついていない",
       "STEP1の問題から原因分析を始める"
     ],
-    "coachQuestions": [
+    "partnerQuestions": [
       "問題と原因を混同していないか",
       "真因は再発防止に使えるか",
       "事実で裏付けられているか"
@@ -323,7 +322,7 @@ export const BUSINESS_PROBLEM_STEPS: BusinessProblemStepDef[] = [
       "対策が1つだけ",
       "実行計画が月単位の箇条書きのみで粗い"
     ],
-    "coachQuestions": [
+    "partnerQuestions": [
       "なぜその対策を選ぶのか",
       "他の案は検討したか",
       "計画は担当・期限まで具体か"
@@ -376,7 +375,7 @@ export const BUSINESS_PROBLEM_STEPS: BusinessProblemStepDef[] = [
       "「スムーズな連携を心がけた」だけ",
       "会議体・頻度が不明"
     ],
-    "coachQuestions": [
+    "partnerQuestions": [
       "誰を巻き込む必要があるか",
       "遅延の原因は何か",
       "本人が判断したことは何か"
@@ -429,7 +428,7 @@ export const BUSINESS_PROBLEM_STEPS: BusinessProblemStepDef[] = [
       "実行計画の実施チェックのみ",
       "STEP1/3との対比がない"
     ],
-    "coachQuestions": [
+    "partnerQuestions": [
       "STEP3目標に届いたか",
       "真因は解消されたか",
       "次の同様場面で再現できるか"
@@ -477,7 +476,7 @@ export const BUSINESS_PROBLEM_STEPS: BusinessProblemStepDef[] = [
       "抽象的な取り組み方針のみ",
       "日程・担当がない"
     ],
-    "coachQuestions": [
+    "partnerQuestions": [
       "誰がいつ何をどう実施するか",
       "他部署で役立つか",
       "次の6か月のテーマに接続できるか"
@@ -529,7 +528,6 @@ export function normalizeBusinessProblemSheet(
     userId,
     companyId,
     stepValues: base,
-    coachComment: trimText(raw.coachComment, BUSINESS_PROBLEM_TEXT_MAX),
     updatedAt:
       typeof raw.updatedAt === "string" && raw.updatedAt.trim()
         ? raw.updatedAt

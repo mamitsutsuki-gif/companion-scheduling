@@ -8,7 +8,7 @@ import {
   type BusinessProblemStepDef,
 } from "@/lib/companion-business-problem";
 
-type Permissions = { canEditClient: boolean; canEditCoach: boolean };
+type Permissions = { canEditClient: boolean; canEditPartner: boolean };
 type FillCount = { stepId: number; filled: number; total: number };
 
 const emptySheet = (): BusinessProblemSheet => ({
@@ -17,7 +17,6 @@ const emptySheet = (): BusinessProblemSheet => ({
   stepValues: Object.fromEntries(
     BUSINESS_PROBLEM_STEPS.map((s) => [String(s.id), Object.fromEntries(s.fields.map((f) => [f.key, ""]))]),
   ),
-  coachComment: "",
   updatedAt: "",
 });
 
@@ -29,7 +28,7 @@ export function BusinessProblemPanel({ matchId }: { matchId: string }) {
   const [sheet, setSheet] = useState<BusinessProblemSheet>(emptySheet);
   const [steps, setSteps] = useState<BusinessProblemStepDef[]>(BUSINESS_PROBLEM_STEPS);
   const [fillCounts, setFillCounts] = useState<FillCount[]>([]);
-  const [perms, setPerms] = useState<Permissions>({ canEditClient: false, canEditCoach: false });
+  const [perms, setPerms] = useState<Permissions>({ canEditClient: false, canEditPartner: false });
   const [activeStepId, setActiveStepId] = useState(1);
   const [exampleTab, setExampleTab] = useState<"goodA" | "goodB" | "bad">("goodA");
 
@@ -49,7 +48,7 @@ export function BusinessProblemPanel({ matchId }: { matchId: string }) {
     setPerms(
       (json as { permissions?: Permissions }).permissions ?? {
         canEditClient: false,
-        canEditCoach: false,
+        canEditPartner: false,
       },
     );
   }, [matchId]);
@@ -62,7 +61,7 @@ export function BusinessProblemPanel({ matchId }: { matchId: string }) {
     () => steps.find((s) => s.id === activeStepId) ?? steps[0],
     [steps, activeStepId],
   );
-  const canEditFields = perms.canEditClient || perms.canEditCoach;
+  const canEditFields = perms.canEditClient || perms.canEditPartner;
   const theme = (sheet.stepValues["1"]?.theme ?? "").trim();
 
   function setField(stepId: number, key: string, value: string) {
@@ -84,13 +83,10 @@ export function BusinessProblemPanel({ matchId }: { matchId: string }) {
     setSaving(true);
     setError(null);
     setNotice(null);
-    const body: Record<string, unknown> = {};
-    if (canEditFields) body.stepValues = sheet.stepValues;
-    if (perms.canEditCoach) body.coachComment = sheet.coachComment;
     const res = await fetch(`/api/matches/${matchId}/business-problem`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ stepValues: sheet.stepValues }),
     });
     const json = await res.json().catch(() => null);
     setSaving(false);
@@ -138,7 +134,7 @@ export function BusinessProblemPanel({ matchId }: { matchId: string }) {
         </p>
       ) : null}
 
-      {!canEditFields && !perms.canEditCoach ? (
+      {!canEditFields ? (
         <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
           閲覧のみです。
         </p>
@@ -256,11 +252,11 @@ export function BusinessProblemPanel({ matchId }: { matchId: string }) {
               </div>
             </div>
 
-            {step.coachQuestions.length > 0 ? (
+            {step.partnerQuestions.length > 0 ? (
               <div>
-                <h4 className="text-sm font-semibold text-slate-800">コーチ向け問い</h4>
+                <h4 className="text-sm font-semibold text-slate-800">パートナー向け問い</h4>
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
-                  {step.coachQuestions.map((t) => (
+                  {step.partnerQuestions.map((t) => (
                     <li key={t}>{t}</li>
                   ))}
                 </ul>
@@ -298,25 +294,7 @@ export function BusinessProblemPanel({ matchId }: { matchId: string }) {
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <label className="block space-y-1 text-sm">
-          <span className="font-medium text-slate-800">コーチコメント</span>
-          <textarea
-            value={sheet.coachComment}
-            disabled={!perms.canEditCoach}
-            rows={3}
-            maxLength={BUSINESS_PROBLEM_TEXT_MAX}
-            onChange={(e) => {
-              setSheet((prev) => ({ ...prev, coachComment: e.target.value.slice(0, BUSINESS_PROBLEM_TEXT_MAX) }));
-              setNotice(null);
-            }}
-            placeholder={perms.canEditCoach ? "フィードバックを記入" : "コーチが記入します"}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
-          />
-        </label>
-      </div>
-
-      {canEditFields || perms.canEditCoach ? (
+      {canEditFields ? (
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"

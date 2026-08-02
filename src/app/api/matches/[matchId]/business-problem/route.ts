@@ -19,7 +19,6 @@ type RouteContext = { params: Promise<{ matchId: string }> };
 
 const putSchema = z.object({
   stepValues: z.record(z.string(), z.record(z.string(), z.string().max(BUSINESS_PROBLEM_TEXT_MAX))).optional(),
-  coachComment: z.string().max(BUSINESS_PROBLEM_TEXT_MAX).optional(),
 });
 
 export async function GET(_req: Request, ctx: RouteContext) {
@@ -44,7 +43,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
     fillCounts: businessProblemStepFillCounts(sheet),
     permissions: {
       canEditClient: access.canEditClient,
-      canEditCoach: access.canEditCoach,
+      canEditPartner: access.canEditCoach,
     },
   });
 }
@@ -71,26 +70,9 @@ export async function PUT(request: Request, ctx: RouteContext) {
   const parsed = putSchema.safeParse(body?.sheet ?? body);
   if (!parsed.success) return jsonError("入力内容を確認してください。", 400);
 
-  const current = await getBusinessProblemSheet(access.targetUserId, access.companyId);
-  const patch: {
-    stepValues?: typeof parsed.data.stepValues;
-    coachComment?: string;
-  } = {};
-
-  if (parsed.data.stepValues !== undefined) {
-    if (!canEditFields) return jsonError("編集権限がありません。", 403);
-    patch.stepValues = parsed.data.stepValues;
-  }
-  if (parsed.data.coachComment !== undefined) {
-    if (!access.canEditCoach) {
-      return jsonError("コーチコメントの編集権限がありません。", 403);
-    }
-    patch.coachComment = parsed.data.coachComment;
-  } else {
-    patch.coachComment = current.coachComment;
-  }
-
-  const sheet = await upsertBusinessProblemSheet(access.targetUserId, access.companyId, patch);
+  const sheet = await upsertBusinessProblemSheet(access.targetUserId, access.companyId, {
+    stepValues: parsed.data.stepValues,
+  });
   return jsonOk({
     sheet,
     steps: BUSINESS_PROBLEM_STEPS,
@@ -98,7 +80,7 @@ export async function PUT(request: Request, ctx: RouteContext) {
     fillCounts: businessProblemStepFillCounts(sheet),
     permissions: {
       canEditClient: access.canEditClient,
-      canEditCoach: access.canEditCoach,
+      canEditPartner: access.canEditCoach,
     },
   });
 }
