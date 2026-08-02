@@ -15,6 +15,7 @@ export async function getMatchIfAllowed(matchId: string, actor: { id: string; ro
   if (actor.role === "PARTNER" && match.partnerId === actor.id) return { match };
 
   // 個別伴走のみ: CLIENT_ADMIN が上司として partnerId に入っている場合
+  // programId 欠落のレガシーも許可（CLIENT_ADMIN を partner に置けるのは IC のみ）
   if (actor.role === "CLIENT_ADMIN" && match.partnerId === actor.id) {
     const program = match.programId ? await getProgramById(match.programId) : null;
     if (

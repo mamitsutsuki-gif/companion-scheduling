@@ -933,7 +933,15 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     setError(null);
     const roomRes = await fetch(`/api/matches/${encodeURIComponent(matchId)}`, { cache: "no-store" });
     const roomJson = await roomRes.json().catch(() => null);
-    const pending = roomRes.ok && roomJson?.partnerPending === true;
+    if (!roomRes.ok) {
+      // /api/me は取れるようにして「読込中…」無限ループを防ぐ
+      const meRes = await fetch("/api/me", { cache: "no-store" });
+      const meJson = await meRes.json().catch(() => null);
+      if (meRes.ok && meJson?.user) setMe(meJson.user);
+      setError(roomJson?.error ?? "このマッチを開けません。");
+      return;
+    }
+    const pending = roomJson?.partnerPending === true;
     setPartnerPending(pending);
 
     const [mRes, gRes, nRes, sRes] = await Promise.all([
@@ -947,9 +955,19 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     const nJson = await nRes.json().catch(() => null);
     const sJson = await sRes.json().catch(() => null);
 
-    if (!mRes.ok) return setError(mJson?.error ?? "ユーザー情報が取得できません。");
-    if (!gRes.ok) return setError(gJson?.error ?? "チャットを読込めませんでした。");
-    if (!nRes.ok) return setError(nJson?.error ?? "日程情報を読込めませんでした。");
+    if (mRes.ok && mJson?.user) setMe(mJson.user);
+    if (!mRes.ok) {
+      setError(mJson?.error ?? "ユーザー情報が取得できません。");
+      return;
+    }
+    if (!gRes.ok) {
+      setError(gJson?.error ?? "チャットを読込めませんでした。");
+      return;
+    }
+    if (!nRes.ok) {
+      setError(nJson?.error ?? "日程情報を読込めませんでした。");
+      return;
+    }
 
     if (sRes.ok && typeof sJson?.slotDurationMinutes === "number") {
       setScheduleSettings({
@@ -986,7 +1004,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       });
     }
 
-    setMe(mJson.user);
     setMessages(
       ((gJson.messages ?? []) as RawMessageApi[]).map((m) => ({
         ...m,
@@ -1018,10 +1035,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     ]);
     const ftaJson = await ftaRes.json().catch(() => null);
     const skillJson = await skillRes.json().catch(() => null);
-    if (ftaRes.ok && ftaJson?.chart) {
-      setMyFtaChart(ftaJson.chart as FtaChart);
-      setMyFtaDirty(false);
-    }
+    // 入力中の内容をサーバの空チャートで上書きしない
+    setMyFtaDirty((dirty) => {
+      if (!dirty && ftaRes.ok && ftaJson?.chart) {
+        setMyFtaChart(ftaJson.chart as FtaChart);
+      }
+      return dirty;
+    });
     if (skillRes.ok && Array.isArray(skillJson?.focusSkillOptions)) {
       setFtaFocusSkillOptions(skillJson.focusSkillOptions);
     }
@@ -1083,7 +1103,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       const res = await fetch("/api/fta/me", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chart: myFtaChart }),
+        body: JSON.stringify({ chart: myFtaChart, matchId }),
       });
       const data = await res.json().catch(() => null);
       setMyFtaSaving(false);
@@ -1097,7 +1117,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       void loadClientFta();
     }, 2000);
     return () => window.clearTimeout(id);
-  }, [myFtaChart, myFtaDirty, myFtaSaving, loadClientFta]);
+  }, [myFtaChart, myFtaDirty, myFtaSaving, loadClientFta, matchId]);
 
   useEffect(() => {
     if (activeTab !== "overview") return;
@@ -1534,6 +1554,18 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   }
 
   if (!me) {
+    if (error) {
+      return (
+        <div className="mx-auto max-w-xl px-6 py-10">
+          <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+            {error}
+          </p>
+          <Link href="/dashboard" className="mt-4 inline-block text-sm font-semibold text-indigo-700">
+            ← ダッシュボードへ戻る
+          </Link>
+        </div>
+      );
+    }
     return (
       <div className="px-6 py-10 text-sm text-slate-600">
         読込中…

@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 /**
  * クライアント管理者向け：自社メンバー（CLIENT）のスキルチェック対象一覧。
  * 個別伴走では「マッチした上司」に紐づく受講者のみ返す。
+ * （enrolledProgramIds の有無に関わらず、ペア済みなら一覧に出す）
  */
 export async function GET(request: Request) {
   const session = await readSession();
@@ -64,27 +65,23 @@ export async function GET(request: Request) {
   }
 
   const members = await listClientsInCompany(companyId);
-  let clients = members.filter((u) => u.role === "CLIENT");
+  const clientsAll = members.filter((u) => u.role === "CLIENT");
+
+  // 先にマッチした上司ペアを判定（enrollment より優先）
+  const pairedFlags = await Promise.all(
+    clientsAll.map((c) => isPairedIndividualCompanionSupervisor(session.sub, c.id)),
+  );
+  let clients = clientsAll.filter((_, i) => pairedFlags[i]);
+
+  // programId 指定時は、そのプログラムに明示登録されている受講者だけに絞る
+  // （未設定 enrolled は残す＝レガシー）
   if (programId) {
     clients = clients.filter((c) => {
       const enrolled = (c as { enrolledProgramIds?: string[] }).enrolledProgramIds;
       if (!enrolled || enrolled.length === 0) return true;
       return enrolled.includes(programId);
     });
-  } else {
-    const companionIds = new Set(companionPrograms.map((p) => p.id));
-    clients = clients.filter((c) => {
-      const enrolled = (c as { enrolledProgramIds?: string[] }).enrolledProgramIds;
-      if (!enrolled || enrolled.length === 0) return true;
-      return enrolled.some((id) => companionIds.has(id));
-    });
   }
-
-  // マッチした上司（partnerId）に紐づく受講者のみ
-  const pairedFlags = await Promise.all(
-    clients.map((c) => isPairedIndividualCompanionSupervisor(session.sub, c.id)),
-  );
-  clients = clients.filter((_, i) => pairedFlags[i]);
 
   const rows = await Promise.all(
     clients.map(async (c) => {

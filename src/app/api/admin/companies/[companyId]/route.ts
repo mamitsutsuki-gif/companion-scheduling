@@ -9,6 +9,11 @@ import { listMatchesForRole } from "@/lib/repositories/match-repository";
 import { listEffectiveConfirmedSessionsForAdmin } from "@/lib/repositories/confirmed-sessions-admin-repository";
 import { listSessionReportsForMatch } from "@/lib/repositories/session-report-repository";
 import { listPartnerInvoicesByPartner } from "@/lib/repositories/partner-invoice-repository";
+import {
+  ensureDefaultProgramForCompany,
+  getProgramAppSettingsOverride,
+} from "@/lib/repositories/program-repository";
+import { resolveCompanyPlan } from "@/lib/company-plan";
 
 export const dynamic = "force-dynamic";
 
@@ -16,13 +21,8 @@ type RouteContext = { params: Promise<{ companyId: string }> };
 
 /**
  * 管理者用：特定企業の詳細を返す。
- * - 企業の登録情報（name 等）
- * - 当該企業の登録クライアントが含まれるペア一覧
- * - グローバル設定 + 企業上書きをマージした「実効設定」
- * - 上書きされているフィールドの一覧
- * - 上書き本体（書き込まれている生の値）
- *
- * Tier2（企業ページ）に表示するデータをまとめて返すので、ページ側はこれ 1 本で済む。
+ * 実効設定は「企業レジストリの代表プランのプログラム」上書きを優先して表示する
+ * （設定画面の保存先がプログラム単位のため）。
  */
 export async function GET(_req: Request, ctx: RouteContext) {
   const session = await readSession();
@@ -33,13 +33,17 @@ export async function GET(_req: Request, ctx: RouteContext) {
   const companyId = (companyIdRaw ?? "").trim();
   if (!companyId) return jsonError("企業IDが指定されていません。", 400);
 
-  const [settings, matches, override] = await Promise.all([
+  const [settings, matches, companyOverride] = await Promise.all([
     getAppSettingsRow(),
     listMatchesForRole({ role: "ADMIN", userId: session.sub }),
     getCompanyAppSettingsOverride(companyId),
   ]);
 
   const registered = settings.companies.find((c) => c.id === companyId) ?? null;
+  const preferredProgram = registered ? await ensureDefaultProgramForCompany(companyId) : null;
+  const programOverride = preferredProgram
+    ? await getProgramAppSettingsOverride(preferredProgram.id)
+    : null;
 
   const pairs = (matches as Array<{
     id: string;
@@ -62,15 +66,12 @@ export async function GET(_req: Request, ctx: RouteContext) {
 
   const effective = await getEffectiveAppSettings({
     companyId,
+    programId: preferredProgram?.id ?? null,
     global: settings,
-    override,
+    override: companyOverride,
+    programOverride,
   });
 
-  // ── サマリ集計 ──────────────────────────────────────────────────────────
-  // 1. 終了済みセッション（startAt が既に過ぎたもの）×（この企業のペア）に対し、
-  //    パートナーレポートが提出されているかをチェック。
-  // 2. 同じペアのパートナーが提出した請求書のうち、未承認（SUBMITTED）または
-  //    差戻し対応中（RETURNED）のものをカウント。
   const nowMs = Date.now();
   const pairIds = new Set(pairs.map((p) => p.id));
   const partnerIds = [...new Set(pairs.map((p) => p.partner.id))];
@@ -81,7 +82,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
     const endMs = Date.parse(c.endAt);
     return Number.isFinite(endMs) && endMs <= nowMs;
   });
-  const submittedReportSet = new Set<string>(); // `${matchId}:${sessionNumber}`
+  const submittedReportSet = new Set<string>();
   await Promise.all(
     [...pairIds].map(async (mid) => {
       const reports = await listSessionReportsForMatch(mid);
@@ -109,9 +110,22 @@ export async function GET(_req: Request, ctx: RouteContext) {
     }),
   );
 
+  const displayOverride = programOverride ?? companyOverride;
+  const registryPlan = registered
+    ? resolveCompanyPlan(companyId, settings.companies)
+    : null;
+
   return jsonOk({
     company: registered ? { id: registered.id, name: registered.name } : null,
     isRegistered: Boolean(registered),
+    preferredProgram: preferredProgram
+      ? {
+          id: preferredProgram.id,
+          name: preferredProgram.name,
+          plan: preferredProgram.plan,
+        }
+      : null,
+    registryPlan,
     pairs,
     pairCount: pairs.length,
     summary: {
@@ -136,19 +150,21 @@ export async function GET(_req: Request, ctx: RouteContext) {
       slotLatestHour: effective.slotLatestHour,
       allowWeekends: effective.allowWeekends,
       overriddenFields: effective.overriddenFields,
+      effectiveProgramId: effective.effectiveProgramId,
     },
-    override: override
+    override: displayOverride
       ? {
-          slotDurationMinutes: override.slotDurationMinutes,
-          totalSessions: override.totalSessions,
-          timezone: override.timezone,
-          availabilitySlotOptions: override.availabilitySlotOptions,
-          partnerExtraQuestionsByRound: override.partnerExtraQuestionsByRound,
-          sessionGuidelinesByRound: override.sessionGuidelinesByRound,
-          slotEarliestHour: override.slotEarliestHour,
-          slotLatestHour: override.slotLatestHour,
-          allowWeekends: override.allowWeekends,
-          updatedAt: override.updatedAt,
+          slotDurationMinutes: displayOverride.slotDurationMinutes,
+          totalSessions: displayOverride.totalSessions,
+          timezone: displayOverride.timezone,
+          availabilitySlotOptions: displayOverride.availabilitySlotOptions,
+          partnerExtraQuestionsByRound: displayOverride.partnerExtraQuestionsByRound,
+          sessionGuidelinesByRound: displayOverride.sessionGuidelinesByRound,
+          slotEarliestHour: displayOverride.slotEarliestHour,
+          slotLatestHour: displayOverride.slotLatestHour,
+          allowWeekends: displayOverride.allowWeekends,
+          updatedAt: displayOverride.updatedAt,
+          source: programOverride ? "program" : "company",
         }
       : null,
     global: {

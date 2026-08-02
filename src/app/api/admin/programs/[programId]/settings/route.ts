@@ -12,7 +12,7 @@ import {
   getProgramById,
   upsertProgramAppSettingsOverride,
 } from "@/lib/repositories/program-repository";
-import { normalizePlanFeatureOverrides, normalizeCoachingPlanSettingsOverrides } from "@/lib/company-plan";
+import { normalizePlanFeatureOverrides, normalizeCoachingPlanSettingsOverrides, resolveCompanyPlan } from "@/lib/company-plan";
 import { normalizeCoachingSessionModesByRound } from "@/lib/coaching-session-mode";
 
 export const dynamic = "force-dynamic";
@@ -181,7 +181,36 @@ export async function PATCH(request: Request, ctx: RouteContext) {
       : undefined,
   });
 
+  // 代表プランのプログラムへ保存したときは企業上書きにもミラーし、
+  // 企業詳細（programId 無し）の実効値表示と整合させる
   const settings = await getAppSettingsRow();
+  const registryPlan = resolveCompanyPlan(program.companyId, settings.companies);
+  if (program.plan === registryPlan) {
+    const { upsertCompanyAppSettingsOverride } = await import(
+      "@/lib/repositories/app-settings-repository"
+    );
+    await upsertCompanyAppSettingsOverride(program.companyId, {
+      ...rest,
+      meetingProvider: rest.meetingProvider,
+      planFeatureOverrides: rest.planFeatureOverrides
+        ? normalizePlanFeatureOverrides(rest.planFeatureOverrides)
+        : undefined,
+      clearFields,
+      clearPartnerProjectOverview: clearPartnerProjectOverview === true,
+      clearClientProjectOverview: clearClientProjectOverview === true,
+      clearPlanFeatureOverrides: clearPlanFeatureOverrides === true,
+      clearMeetingProvider: clearMeetingProvider === true,
+      clearCoachingSessionModes: clearCoachingSessionModes === true,
+      coachingSessionModesByRound: rest.coachingSessionModesByRound
+        ? normalizeCoachingSessionModesByRound(rest.coachingSessionModesByRound)
+        : undefined,
+      clearCoachingPlanSettings: clearCoachingPlanSettings === true,
+      coachingPlanSettings: rest.coachingPlanSettings
+        ? normalizeCoachingPlanSettingsOverrides(rest.coachingPlanSettings)
+        : undefined,
+    }).catch(() => null);
+  }
+
   const effective = await getEffectiveAppSettings({
     companyId: program.companyId,
     programId,

@@ -52,12 +52,13 @@ type CompanySummary = {
 type ApiResponse = {
   company: { id: string; name: string } | null;
   isRegistered: boolean;
+  preferredProgram?: { id: string; name: string; plan: string } | null;
   pairs: Pair[];
   pairCount: number;
   summary?: CompanySummary;
   effective: EffectiveSnapshot;
   override:
-    | (Partial<SettingsSnapshot> & { updatedAt?: string })
+    | (Partial<SettingsSnapshot> & { updatedAt?: string; source?: "program" | "company" })
     | null;
   global: SettingsSnapshot;
 };
@@ -351,8 +352,12 @@ export default function AdminCompanyDetailPage({
 
             <p className="mt-3 text-xs text-slate-500">
               {data.override?.updatedAt
-                ? `企業上書きの最終更新: ${new Date(data.override.updatedAt).toLocaleString("ja-JP")}`
-                : "企業上書きはまだ設定されていません（全項目とも全体設定を使用）。"}
+                ? `${data.override.source === "program" ? "プログラム" : "企業"}上書きの最終更新: ${new Date(data.override.updatedAt).toLocaleString("ja-JP")}${
+                    data.preferredProgram
+                      ? `（${data.preferredProgram.name}）`
+                      : ""
+                  }`
+                : "上書きはまだ設定されていません（全項目とも全体設定を使用）。設定は「アプリ設定」からプログラム単位で保存します。"}
             </p>
           </section>
         </>

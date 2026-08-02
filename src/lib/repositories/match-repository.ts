@@ -171,12 +171,14 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
     );
 
     // 上司ルームは個別伴走プログラムのときだけ一覧に残す（読み取り側の防御）
+    // programId 欠落のレガシー上司マッチも残す
     const visibleDocs = docs.filter((m) => {
       if (input.role !== "CLIENT_ADMIN") return true;
       if (m.partnerPending || m.partnerId !== input.userId) return true;
       if (m.clientId === input.userId) return true;
-      const program = m.programId ? programCache.get(m.programId) : null;
-      return program?.plan === "individual_companion";
+      if (!m.programId) return true;
+      const program = programCache.get(m.programId);
+      return !program || program.plan === "individual_companion";
     });
 
     return visibleDocs
@@ -463,6 +465,22 @@ export async function findAnyMatchForClient(clientId: string): Promise<{ id: str
     select: { id: true },
   });
   return row ? { id: row.id } : null;
+}
+
+/** クライアントが参加しているマッチ ID 一覧（新しい順ではないが上限内で返す） */
+export async function listMatchIdsForClient(clientId: string, limit = 20): Promise<string[]> {
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return [];
+    const snap = await db.collection("matches").where("clientId", "==", clientId).get();
+    return snap.docs.slice(0, Math.max(1, limit)).map((d) => d.id);
+  }
+  const rows = await prisma.match.findMany({
+    where: { clientId },
+    select: { id: true },
+    take: Math.max(1, limit),
+  });
+  return rows.map((r) => r.id);
 }
 
 export async function findPendingMatchForClient(

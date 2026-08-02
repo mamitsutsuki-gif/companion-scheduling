@@ -26,5 +26,7 @@ export function isIndividualCompanionSupervisorMatch(input: {
 }): boolean {
   if (input.actorRole !== "CLIENT_ADMIN") return false;
   if (!input.partnerId || input.partnerId !== input.actorId) return false;
-  return input.programPlan === "individual_companion";
+  // CLIENT_ADMIN を partner に置けるのは個別伴走のみ。programId 欠落のレガシーも許可する。
+  if (input.programPlan != null && input.programPlan !== "individual_companion") return false;
+  return true;
 }

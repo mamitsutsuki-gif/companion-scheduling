@@ -37,9 +37,10 @@ export async function isPairedIndividualCompanionSupervisor(
     for (const doc of snap.docs) {
       const raw = doc.data() as Record<string, unknown>;
       const programId = typeof raw.programId === "string" ? raw.programId : "";
-      if (!programId) continue;
+      // programId 欠落のレガシー: CLIENT_ADMIN が partner のマッチは個別伴走として扱う
+      if (!programId) return true;
       const program = await getProgramById(programId);
-      if (program?.plan === "individual_companion") return true;
+      if (!program || program.plan === "individual_companion") return true;
     }
     return false;
   }
@@ -49,9 +50,9 @@ export async function isPairedIndividualCompanionSupervisor(
     take: 10,
   });
   for (const row of rows) {
-    if (!row.programId) continue;
+    if (!row.programId) return true;
     const program = await getProgramById(row.programId);
-    if (program?.plan === "individual_companion") return true;
+    if (!program || program.plan === "individual_companion") return true;
   }
   return false;
 }
