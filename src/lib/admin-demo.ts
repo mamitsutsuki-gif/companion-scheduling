@@ -98,6 +98,7 @@ function matchRoomTabs(planFeatures: PlanFeatures, role: DemoRole | "ADMIN"): st
   if (planFeatures.lifelineChart) tabs.push("ライフラインチャート");
   if (planFeatures.fta && (role === "PARTNER" || role === "CLIENT")) tabs.push("自分FTA");
   if (planFeatures.developmentOpportunity) tabs.push("育成機会");
+  if (planFeatures.businessProblem) tabs.push("業務課題");
   if (planFeatures.pdca) tabs.push("PDCA");
   if (planFeatures.reflection) tabs.push("振り返り");
   if (planFeatures.summaryReport) tabs.push("サマリーレポート");

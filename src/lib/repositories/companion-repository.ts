@@ -8,6 +8,10 @@ import {
   normalizeDevelopmentOpportunitySheet,
   type DevelopmentOpportunitySheet,
 } from "@/lib/companion-development-opportunity";
+import {
+  normalizeBusinessProblemSheet,
+  type BusinessProblemSheet,
+} from "@/lib/companion-business-problem";
 import { nanoid } from "nanoid";
 
 const PDCA_COL = "companionPdca";
@@ -15,6 +19,7 @@ const REFLECTION_COL = "companionReflection";
 const LIFELINE_COL = "companionLifeline";
 const SUMMARY_COL = "companionSummaryReports";
 const DEVELOPMENT_OPPORTUNITY_COL = "companionDevelopmentOpportunity";
+const BUSINESS_PROBLEM_COL = "companionBusinessProblem";
 
 const PRISMA_TABLE_BY_COL: Record<string, string> = {
   [PDCA_COL]: "userCompanionPdca",
@@ -22,6 +27,7 @@ const PRISMA_TABLE_BY_COL: Record<string, string> = {
   [LIFELINE_COL]: "userCompanionLifeline",
   [SUMMARY_COL]: "userCompanionSummaryReport",
   [DEVELOPMENT_OPPORTUNITY_COL]: "userCompanionDevelopmentOpportunity",
+  [BUSINESS_PROBLEM_COL]: "userCompanionBusinessProblem",
 };
 
 async function readJsonDoc<T>(
@@ -211,5 +217,39 @@ export async function upsertDevelopmentOpportunitySheet(
     updatedAt: new Date().toISOString(),
   });
   await writeJsonDoc(DEVELOPMENT_OPPORTUNITY_COL, userId, companyId, next);
+  return next;
+}
+
+export async function getBusinessProblemSheet(
+  userId: string,
+  companyId: string,
+): Promise<BusinessProblemSheet> {
+  return readJsonDoc(
+    BUSINESS_PROBLEM_COL,
+    userId,
+    () => normalizeBusinessProblemSheet(userId, companyId, {}),
+    (d) => normalizeBusinessProblemSheet(userId, companyId, d),
+  );
+}
+
+export async function upsertBusinessProblemSheet(
+  userId: string,
+  companyId: string,
+  patch: Partial<BusinessProblemSheet>,
+): Promise<BusinessProblemSheet> {
+  const current = await getBusinessProblemSheet(userId, companyId);
+  const mergedSteps = { ...current.stepValues };
+  if (patch.stepValues) {
+    for (const [sid, fields] of Object.entries(patch.stepValues)) {
+      mergedSteps[sid] = { ...(mergedSteps[sid] ?? {}), ...fields };
+    }
+  }
+  const next = normalizeBusinessProblemSheet(userId, companyId, {
+    ...current,
+    ...patch,
+    stepValues: mergedSteps,
+    updatedAt: new Date().toISOString(),
+  });
+  await writeJsonDoc(BUSINESS_PROBLEM_COL, userId, companyId, next);
   return next;
 }

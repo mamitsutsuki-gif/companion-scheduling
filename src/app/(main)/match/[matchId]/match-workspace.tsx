@@ -10,6 +10,7 @@ import { FtaEditor, FtaViewer } from "@/components/fta-chart";
 import { SkillCheckPanel } from "@/components/skill-check-panel";
 import { PdcaPanel } from "@/components/pdca-panel";
 import { DevelopmentOpportunityPanel } from "@/components/development-opportunity-panel";
+import { BusinessProblemPanel } from "@/components/business-problem-panel";
 import { ReflectionPanel } from "@/components/reflection-panel";
 import { LifelinePanel } from "@/components/lifeline-panel";
 import { SummaryReportPanel } from "@/components/summary-report-panel";
@@ -150,6 +151,7 @@ type MatchTab =
   | "clientInfo"
   | "skillCheck"
   | "developmentOpportunity"
+  | "businessProblem"
   | "pdca"
   | "reflection"
   | "summaryReport"
@@ -167,6 +169,7 @@ const TAB_HASH_MAP: Record<string, MatchTab> = {
   "client-info": "clientInfo",
   "skill-check": "skillCheck",
   "development-opportunity": "developmentOpportunity",
+  "business-problem": "businessProblem",
   pdca: "pdca",
   reflection: "reflection",
   "summary-report": "summaryReport",
@@ -190,6 +193,7 @@ function hashFromTab(tab: MatchTab): string {
   if (tab === "clientInfo") return "client-info";
   if (tab === "skillCheck") return "skill-check";
   if (tab === "developmentOpportunity") return "development-opportunity";
+  if (tab === "businessProblem") return "business-problem";
   if (tab === "summaryReport") return "summary-report";
   if (tab === "lifelineChart") return "lifeline-chart";
   if (tab === "coachingQuestions") return "questions";
@@ -1949,6 +1953,21 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 育成機会
               </button>
             ) : null}
+            {scheduleSettings.planFeatures.businessProblem ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "businessProblem"}
+                onClick={() => goTab("businessProblem")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "businessProblem"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                業務課題
+              </button>
+            ) : null}
             {scheduleSettings.planFeatures.pdca ? (
               <button
                 type="button"
@@ -2709,6 +2728,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
       {activeTab === "developmentOpportunity" && scheduleSettings.planFeatures.developmentOpportunity ? (
         <DevelopmentOpportunityPanel matchId={matchId} />
+      ) : null}
+
+      {activeTab === "businessProblem" && scheduleSettings.planFeatures.businessProblem ? (
+        <BusinessProblemPanel matchId={matchId} />
       ) : null}
 
       {activeTab === "pdca" && scheduleSettings.planFeatures.pdca ? (

@@ -49,6 +49,8 @@ export type PlanFeatures = {
   summaryReport: boolean;
   /** 育成機会・挑戦役割（上司が任せる仕事・権限・支援を記録） */
   developmentOpportunity: boolean;
+  /** 業務課題実践（問題解決8ステップ） */
+  businessProblem: boolean;
   /** コーチングマネジメント研修: ロールプレイング・フィードバック */
   coachingRoleplay: boolean;
   /** コーチングマネジメント研修: 質問リスト（4象限） */
@@ -73,7 +75,8 @@ export type IndividualCompanionFeatureKey =
   | "reflection"
   | "lifelineChart"
   | "summaryReport"
-  | "developmentOpportunity";
+  | "developmentOpportunity"
+  | "businessProblem";
 
 export const INDIVIDUAL_COMPANION_FEATURE_OPTIONS: Array<{
   key: IndividualCompanionFeatureKey;
@@ -81,6 +84,7 @@ export const INDIVIDUAL_COMPANION_FEATURE_OPTIONS: Array<{
 }> = [
   { key: "fta", label: "自分FTA" },
   { key: "developmentOpportunity", label: "育成機会" },
+  { key: "businessProblem", label: "業務課題" },
   { key: "skillCheck", label: "スキルチェック" },
   { key: "lifelineChart", label: "ライフラインチャート" },
   { key: "pdca", label: "PDCAシート" },
@@ -218,6 +222,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         lifelineChart: true,
         summaryReport: true,
         developmentOpportunity: true,
+        businessProblem: true,
         coachingRoleplay: false,
         coachingQuestions: false,
         coachingIcebreaker: false,
@@ -240,6 +245,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         lifelineChart: false,
         summaryReport: false,
         developmentOpportunity: false,
+        businessProblem: false,
         coachingRoleplay: false,
         coachingQuestions: false,
         coachingIcebreaker: true,
@@ -262,6 +268,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         lifelineChart: false,
         summaryReport: false,
         developmentOpportunity: false,
+        businessProblem: false,
         coachingRoleplay: false,
         coachingQuestions: false,
         coachingIcebreaker: false,
@@ -285,6 +292,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         lifelineChart: false,
         summaryReport: false,
         developmentOpportunity: false,
+        businessProblem: false,
         coachingRoleplay: false,
         coachingQuestions: false,
         coachingIcebreaker: false,
