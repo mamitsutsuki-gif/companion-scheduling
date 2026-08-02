@@ -47,6 +47,8 @@ export type PlanFeatures = {
   reflection: boolean;
   lifelineChart: boolean;
   summaryReport: boolean;
+  /** 育成機会・挑戦役割（上司が任せる仕事・権限・支援を記録） */
+  developmentOpportunity: boolean;
   /** コーチングマネジメント研修: ロールプレイング・フィードバック */
   coachingRoleplay: boolean;
   /** コーチングマネジメント研修: 質問リスト（4象限） */
@@ -70,13 +72,15 @@ export type IndividualCompanionFeatureKey =
   | "pdca"
   | "reflection"
   | "lifelineChart"
-  | "summaryReport";
+  | "summaryReport"
+  | "developmentOpportunity";
 
 export const INDIVIDUAL_COMPANION_FEATURE_OPTIONS: Array<{
   key: IndividualCompanionFeatureKey;
   label: string;
 }> = [
   { key: "fta", label: "自分FTA" },
+  { key: "developmentOpportunity", label: "育成機会" },
   { key: "skillCheck", label: "スキルチェック" },
   { key: "lifelineChart", label: "ライフラインチャート" },
   { key: "pdca", label: "PDCAシート" },
@@ -213,6 +217,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         reflection: true,
         lifelineChart: true,
         summaryReport: true,
+        developmentOpportunity: true,
         coachingRoleplay: false,
         coachingQuestions: false,
         coachingIcebreaker: false,
@@ -234,6 +239,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         reflection: false,
         lifelineChart: false,
         summaryReport: false,
+        developmentOpportunity: false,
         coachingRoleplay: false,
         coachingQuestions: false,
         coachingIcebreaker: true,
@@ -255,6 +261,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         reflection: false,
         lifelineChart: false,
         summaryReport: false,
+        developmentOpportunity: false,
         coachingRoleplay: false,
         coachingQuestions: false,
         coachingIcebreaker: false,
@@ -277,6 +284,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         reflection: false,
         lifelineChart: false,
         summaryReport: false,
+        developmentOpportunity: false,
         coachingRoleplay: false,
         coachingQuestions: false,
         coachingIcebreaker: false,

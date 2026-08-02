@@ -88,6 +88,7 @@ model User {
   companionReflection   UserCompanionReflection?
   companionLifeline     UserCompanionLifeline?
   companionSummary      UserCompanionSummaryReport?
+  companionDevelopmentOpportunity UserCompanionDevelopmentOpportunity?
   coachingIcebreaker    UserCoachingIcebreaker?
   coachingQuestions     UserCoachingQuestions?
 
@@ -161,6 +162,16 @@ model UserCompanionLifeline {
 }
 
 model UserCompanionSummaryReport {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String
+  data      Json
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model UserCompanionDevelopmentOpportunity {
   id        String   @id @default(cuid())
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

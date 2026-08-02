@@ -4,12 +4,25 @@ import { normalizePdcaStore, type PdcaEntry, type PdcaStore } from "@/lib/compan
 import { normalizeReflectionSheet, type ReflectionSheet } from "@/lib/companion-reflection";
 import { normalizeLifelineChart, type LifelineChart } from "@/lib/companion-lifeline";
 import { normalizeSummaryReportDoc, type SummaryReportDoc } from "@/lib/companion-summary";
+import {
+  normalizeDevelopmentOpportunitySheet,
+  type DevelopmentOpportunitySheet,
+} from "@/lib/companion-development-opportunity";
 import { nanoid } from "nanoid";
 
 const PDCA_COL = "companionPdca";
 const REFLECTION_COL = "companionReflection";
 const LIFELINE_COL = "companionLifeline";
 const SUMMARY_COL = "companionSummaryReports";
+const DEVELOPMENT_OPPORTUNITY_COL = "companionDevelopmentOpportunity";
+
+const PRISMA_TABLE_BY_COL: Record<string, string> = {
+  [PDCA_COL]: "userCompanionPdca",
+  [REFLECTION_COL]: "userCompanionReflection",
+  [LIFELINE_COL]: "userCompanionLifeline",
+  [SUMMARY_COL]: "userCompanionSummaryReport",
+  [DEVELOPMENT_OPPORTUNITY_COL]: "userCompanionDevelopmentOpportunity",
+};
 
 async function readJsonDoc<T>(
   collection: string,
@@ -24,13 +37,8 @@ async function readJsonDoc<T>(
     if (!snap.exists) return fallback();
     return normalize(snap.data() ?? {});
   }
-  const table = collection === PDCA_COL
-    ? "userCompanionPdca"
-    : collection === REFLECTION_COL
-      ? "userCompanionReflection"
-      : collection === LIFELINE_COL
-        ? "userCompanionLifeline"
-        : "userCompanionSummaryReport";
+  const table = PRISMA_TABLE_BY_COL[collection];
+  if (!table) return fallback();
   const row = await (prisma as any)[table]?.findUnique?.({ where: { userId } }).catch(() => null);
   if (!row) return fallback();
   return normalize(row.data);
@@ -43,13 +51,8 @@ async function writeJsonDoc(collection: string, userId: string, companyId: strin
     await db.collection(collection).doc(userId).set({ ...((data as object) ?? {}), userId, companyId }, { merge: true });
     return;
   }
-  const table = collection === PDCA_COL
-    ? "userCompanionPdca"
-    : collection === REFLECTION_COL
-      ? "userCompanionReflection"
-      : collection === LIFELINE_COL
-        ? "userCompanionLifeline"
-        : "userCompanionSummaryReport";
+  const table = PRISMA_TABLE_BY_COL[collection];
+  if (!table) return;
   const delegate = (prisma as any)[table];
   if (!delegate?.upsert) return;
   await delegate.upsert({
@@ -175,5 +178,38 @@ export async function upsertSummaryReportDoc(
     updatedBy,
   );
   await writeJsonDoc(SUMMARY_COL, userId, companyId, next);
+  return next;
+}
+
+export async function getDevelopmentOpportunitySheet(
+  userId: string,
+  companyId: string,
+): Promise<DevelopmentOpportunitySheet> {
+  return readJsonDoc(
+    DEVELOPMENT_OPPORTUNITY_COL,
+    userId,
+    () => normalizeDevelopmentOpportunitySheet(userId, companyId, {}),
+    (d) => normalizeDevelopmentOpportunitySheet(userId, companyId, d),
+  );
+}
+
+export async function upsertDevelopmentOpportunitySheet(
+  userId: string,
+  companyId: string,
+  patch: Partial<DevelopmentOpportunitySheet>,
+): Promise<DevelopmentOpportunitySheet> {
+  const current = await getDevelopmentOpportunitySheet(userId, companyId);
+  const next = normalizeDevelopmentOpportunitySheet(userId, companyId, {
+    ...current,
+    ...patch,
+    requiredChecks: patch.requiredChecks
+      ? { ...current.requiredChecks, ...patch.requiredChecks }
+      : current.requiredChecks,
+    recommendedChecks: patch.recommendedChecks
+      ? { ...current.recommendedChecks, ...patch.recommendedChecks }
+      : current.recommendedChecks,
+    updatedAt: new Date().toISOString(),
+  });
+  await writeJsonDoc(DEVELOPMENT_OPPORTUNITY_COL, userId, companyId, next);
   return next;
 }

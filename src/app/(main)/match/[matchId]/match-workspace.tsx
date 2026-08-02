@@ -9,6 +9,7 @@ import { PartnerChatTemplates } from "@/components/partner-chat-templates";
 import { FtaEditor, FtaViewer } from "@/components/fta-chart";
 import { SkillCheckPanel } from "@/components/skill-check-panel";
 import { PdcaPanel } from "@/components/pdca-panel";
+import { DevelopmentOpportunityPanel } from "@/components/development-opportunity-panel";
 import { ReflectionPanel } from "@/components/reflection-panel";
 import { LifelinePanel } from "@/components/lifeline-panel";
 import { SummaryReportPanel } from "@/components/summary-report-panel";
@@ -148,6 +149,7 @@ type MatchTab =
   | "overview"
   | "clientInfo"
   | "skillCheck"
+  | "developmentOpportunity"
   | "pdca"
   | "reflection"
   | "summaryReport"
@@ -164,6 +166,7 @@ const TAB_HASH_MAP: Record<string, MatchTab> = {
   overview: "overview",
   "client-info": "clientInfo",
   "skill-check": "skillCheck",
+  "development-opportunity": "developmentOpportunity",
   pdca: "pdca",
   reflection: "reflection",
   "summary-report": "summaryReport",
@@ -186,6 +189,7 @@ function tabFromHash(hash: string): MatchTab | null {
 function hashFromTab(tab: MatchTab): string {
   if (tab === "clientInfo") return "client-info";
   if (tab === "skillCheck") return "skill-check";
+  if (tab === "developmentOpportunity") return "development-opportunity";
   if (tab === "summaryReport") return "summary-report";
   if (tab === "lifelineChart") return "lifeline-chart";
   if (tab === "coachingQuestions") return "questions";
@@ -1930,6 +1934,21 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 {ftaTabLabel(me, scheduleSettings)}
               </button>
             ) : null}
+            {scheduleSettings.planFeatures.developmentOpportunity ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "developmentOpportunity"}
+                onClick={() => goTab("developmentOpportunity")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "developmentOpportunity"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                育成機会
+              </button>
+            ) : null}
             {scheduleSettings.planFeatures.pdca ? (
               <button
                 type="button"
@@ -2686,6 +2705,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
       {activeTab === "skillCheck" && scheduleSettings.planFeatures.skillCheck ? (
         <SkillCheckPanel matchId={matchId} />
+      ) : null}
+
+      {activeTab === "developmentOpportunity" && scheduleSettings.planFeatures.developmentOpportunity ? (
+        <DevelopmentOpportunityPanel matchId={matchId} />
       ) : null}
 
       {activeTab === "pdca" && scheduleSettings.planFeatures.pdca ? (
