@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   criteriaLabel,
   scoreGap,
+  SKILL_CHECK_AGREEMENT_TEXT_MAX,
   type SkillAssessmentEntry,
   type SkillCheckPhase,
   type SkillCheckProfile,
@@ -60,6 +61,10 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
   });
   const [draft, setDraft] = useState<Record<string, SkillAssessmentEntry>>({});
   const [focusSkillIds, setFocusSkillIds] = useState<string[]>([]);
+  const [clientValuesText, setClientValuesText] = useState("");
+  const [clientSixMonthGoalText, setClientSixMonthGoalText] = useState("");
+  const [managerCurrentRoleText, setManagerCurrentRoleText] = useState("");
+  const [managerNextRoleText, setManagerNextRoleText] = useState("");
   const [editingSkills, setEditingSkills] = useState(false);
   const [skillDraft, setSkillDraft] = useState<SkillDefinition[]>([]);
 
@@ -94,6 +99,10 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
       if (p) {
         setFocusSkillIds(p.focusSkillIds ?? []);
         setDraft(p.baseline ?? {});
+        setClientValuesText(p.clientValuesText ?? "");
+        setClientSixMonthGoalText(p.clientSixMonthGoalText ?? "");
+        setManagerCurrentRoleText(p.managerCurrentRoleText ?? "");
+        setManagerNextRoleText(p.managerNextRoleText ?? "");
       }
     } catch {
       setError("ネットワークエラーが発生しました。");
@@ -188,6 +197,14 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
           criteria: s.criteria,
         }));
       }
+      if (permissions.canEditSelf) {
+        body.clientValuesText = clientValuesText;
+        body.clientSixMonthGoalText = clientSixMonthGoalText;
+      }
+      if (permissions.canEditManager) {
+        body.managerCurrentRoleText = managerCurrentRoleText;
+        body.managerNextRoleText = managerNextRoleText;
+      }
 
       const res = await fetch(apiPath, {
         method: "PUT",
@@ -224,8 +241,85 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
         <h2 className="text-2xl font-semibold text-slate-900">スキルチェックシート</h2>
         <p className="mt-2 text-sm text-slate-600">
           {targetName ? `${targetName} さんの` : ""}
-          スキル評価を記録し、重点育成テーマを決めます。後続の自分FTA・PDCA・振り返り・総括レポートと連動します。
+          スキル評価・重点育成テーマに加え、成長・挑戦合意（大切にしたいこと／目指す状態／期待役割）を記録します。後続の自分FTA・PDCA・振り返り・総括レポートと連動します。
         </p>
+      </div>
+
+      <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 sm:p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-lg font-semibold text-indigo-950">成長・挑戦合意</h3>
+          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-800">
+            必須コア
+          </span>
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+            追加
+          </span>
+        </div>
+        <p className="mt-2 text-sm text-indigo-900/90">
+          本人・上司・コーチの共有計画です。自分FTAのアクションを置き換えるものではなく、重点行動を三者が確認するための記載欄です。
+        </p>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="space-y-3 rounded-xl border border-white bg-white/90 p-4 shadow-xs">
+            <h4 className="text-sm font-semibold text-slate-900">本人入力</h4>
+            <label className="block space-y-1 text-sm">
+              <span className="font-medium text-slate-800">大切にしたいこと</span>
+              <textarea
+                value={clientValuesText}
+                onChange={(e) => setClientValuesText(e.target.value.slice(0, SKILL_CHECK_AGREEMENT_TEXT_MAX))}
+                disabled={!permissions.canEditSelf}
+                rows={3}
+                maxLength={SKILL_CHECK_AGREEMENT_TEXT_MAX}
+                placeholder="例：チームの信頼を築きながら、自分の強みを活かしたい"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500"
+              />
+            </label>
+            <label className="block space-y-1 text-sm">
+              <span className="font-medium text-slate-800">6か月後の目指す状態</span>
+              <textarea
+                value={clientSixMonthGoalText}
+                onChange={(e) =>
+                  setClientSixMonthGoalText(e.target.value.slice(0, SKILL_CHECK_AGREEMENT_TEXT_MAX))
+                }
+                disabled={!permissions.canEditSelf}
+                rows={3}
+                maxLength={SKILL_CHECK_AGREEMENT_TEXT_MAX}
+                placeholder="例：部下に任せながら、部門横断の課題を自分から提案できる状態"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500"
+              />
+            </label>
+          </div>
+          <div className="space-y-3 rounded-xl border border-white bg-white/90 p-4 shadow-xs">
+            <h4 className="text-sm font-semibold text-slate-900">上司入力</h4>
+            <label className="block space-y-1 text-sm">
+              <span className="font-medium text-slate-800">現在期待される役割</span>
+              <textarea
+                value={managerCurrentRoleText}
+                onChange={(e) =>
+                  setManagerCurrentRoleText(e.target.value.slice(0, SKILL_CHECK_AGREEMENT_TEXT_MAX))
+                }
+                disabled={!permissions.canEditManager}
+                rows={3}
+                maxLength={SKILL_CHECK_AGREEMENT_TEXT_MAX}
+                placeholder="例：チームリーダーとしての日常管理と後輩育成"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500"
+              />
+            </label>
+            <label className="block space-y-1 text-sm">
+              <span className="font-medium text-slate-800">次に期待される役割</span>
+              <textarea
+                value={managerNextRoleText}
+                onChange={(e) =>
+                  setManagerNextRoleText(e.target.value.slice(0, SKILL_CHECK_AGREEMENT_TEXT_MAX))
+                }
+                disabled={!permissions.canEditManager}
+                rows={3}
+                maxLength={SKILL_CHECK_AGREEMENT_TEXT_MAX}
+                placeholder="例：小規模プロジェクトのリード、関係部署との調整"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500"
+              />
+            </label>
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">

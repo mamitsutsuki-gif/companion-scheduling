@@ -12,6 +12,7 @@ import {
   normalizeCompanySkillDefinitions,
   normalizeSkillCheckProfile,
   resolveEffectiveSkillDefinitions,
+  SKILL_CHECK_AGREEMENT_TEXT_MAX,
   type SkillCheckPhase,
   type SkillScore,
 } from "@/lib/skill-check";
@@ -37,6 +38,8 @@ const skillDefSchema = z.object({
     .optional(),
 });
 
+const agreementText = z.string().max(SKILL_CHECK_AGREEMENT_TEXT_MAX);
+
 const putSchema = z.object({
   phase: z.enum(["baseline", "current"]),
   assessments: z
@@ -50,6 +53,10 @@ const putSchema = z.object({
     .optional(),
   focusSkillIds: z.array(z.string().max(80)).max(8).optional(),
   skillDefinitions: z.array(skillDefSchema).max(32).optional(),
+  clientValuesText: agreementText.optional(),
+  clientSixMonthGoalText: agreementText.optional(),
+  managerCurrentRoleText: agreementText.optional(),
+  managerNextRoleText: agreementText.optional(),
 });
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -136,6 +143,19 @@ export async function PUT(request: Request, context: RouteContext) {
   if (parsed.data.skillDefinitions !== undefined && !access.canEditSkillDefinitions) {
     return jsonError("スキル項目の編集権限がありません。", 403);
   }
+  if (
+    (parsed.data.clientValuesText !== undefined || parsed.data.clientSixMonthGoalText !== undefined) &&
+    !access.canEditSelf
+  ) {
+    return jsonError("本人の成長・挑戦合意の編集権限がありません。", 403);
+  }
+  if (
+    (parsed.data.managerCurrentRoleText !== undefined ||
+      parsed.data.managerNextRoleText !== undefined) &&
+    !access.canEditManager
+  ) {
+    return jsonError("上司の成長・挑戦合意の編集権限がありません。", 403);
+  }
 
   const skillDefinitions =
     parsed.data.skillDefinitions !== undefined
@@ -152,6 +172,10 @@ export async function PUT(request: Request, context: RouteContext) {
     assessments,
     focusSkillIds: parsed.data.focusSkillIds,
     skillDefinitions,
+    clientValuesText: parsed.data.clientValuesText,
+    clientSixMonthGoalText: parsed.data.clientSixMonthGoalText,
+    managerCurrentRoleText: parsed.data.managerCurrentRoleText,
+    managerNextRoleText: parsed.data.managerNextRoleText,
   });
 
   return jsonOk({ profile });

@@ -30,8 +30,19 @@ export type SkillCheckProfile = {
   focusSkillIds: string[];
   /** 手入力で編集したスキル項目。未設定時は企業共通定義を使う */
   skillDefinitions: SkillDefinition[] | null;
+  /** 成長・挑戦合意: 本人が大切にしたいこと */
+  clientValuesText: string;
+  /** 成長・挑戦合意: 本人の6か月後の目指す状態 */
+  clientSixMonthGoalText: string;
+  /** 成長・挑戦合意: 上司が書く現在期待される役割 */
+  managerCurrentRoleText: string;
+  /** 成長・挑戦合意: 上司が書く次に期待される役割 */
+  managerNextRoleText: string;
   updatedAt: string;
 };
+
+/** 成長・挑戦合意テキストの最大文字数 */
+export const SKILL_CHECK_AGREEMENT_TEXT_MAX = 2000;
 
 const DEFAULT_CRITERIA: SkillCriteria = {
   score1: "これから伸ばしたい段階",
@@ -160,6 +171,10 @@ export function normalizeSkillCheckProfile(userId: string, companyId: string, in
     current: normalizeAssessmentMap(raw.current),
     focusSkillIds,
     skillDefinitions: custom.length > 0 ? custom.map((s) => ({ ...s, kind: "company" as const })) : null,
+    clientValuesText: trimText(raw.clientValuesText, SKILL_CHECK_AGREEMENT_TEXT_MAX),
+    clientSixMonthGoalText: trimText(raw.clientSixMonthGoalText, SKILL_CHECK_AGREEMENT_TEXT_MAX),
+    managerCurrentRoleText: trimText(raw.managerCurrentRoleText, SKILL_CHECK_AGREEMENT_TEXT_MAX),
+    managerNextRoleText: trimText(raw.managerNextRoleText, SKILL_CHECK_AGREEMENT_TEXT_MAX),
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
   };
 }

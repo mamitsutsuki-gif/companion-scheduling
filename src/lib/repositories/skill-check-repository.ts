@@ -54,6 +54,10 @@ export async function upsertSkillCheckProfile(input: {
   assessments: Record<string, { selfScore?: SkillScore | null; managerScore?: SkillScore | null }>;
   focusSkillIds?: string[];
   skillDefinitions?: SkillDefinition[] | null;
+  clientValuesText?: string;
+  clientSixMonthGoalText?: string;
+  managerCurrentRoleText?: string;
+  managerNextRoleText?: string;
 }): Promise<SkillCheckProfile> {
   const existing =
     (await getSkillCheckProfile(input.userId)) ??
@@ -78,6 +82,20 @@ export async function upsertSkillCheckProfile(input: {
     [phaseKey]: nextPhase,
     focusSkillIds: input.focusSkillIds ?? existing.focusSkillIds,
     skillDefinitions: nextSkillDefinitions,
+    clientValuesText:
+      input.clientValuesText !== undefined ? input.clientValuesText : existing.clientValuesText,
+    clientSixMonthGoalText:
+      input.clientSixMonthGoalText !== undefined
+        ? input.clientSixMonthGoalText
+        : existing.clientSixMonthGoalText,
+    managerCurrentRoleText:
+      input.managerCurrentRoleText !== undefined
+        ? input.managerCurrentRoleText
+        : existing.managerCurrentRoleText,
+    managerNextRoleText:
+      input.managerNextRoleText !== undefined
+        ? input.managerNextRoleText
+        : existing.managerNextRoleText,
     updatedAt: new Date().toISOString(),
   });
 
