@@ -19,6 +19,8 @@ export type CompanionSheetAccess = {
   canView: boolean;
   canEditClient: boolean;
   canEditCoach: boolean;
+  /** 機会創出など、上司（CLIENT_ADMIN/HR）専用の編集。PARTNER は false */
+  canEditSupervisor: boolean;
   canEditAdminSummary: boolean;
   lifelineViewMode: LifelineViewMode;
 };
@@ -36,6 +38,7 @@ function accessForActor(
       canView: true,
       canEditClient: true,
       canEditCoach: true,
+      canEditSupervisor: true,
       canEditAdminSummary: true,
       lifelineViewMode: "full",
     };
@@ -47,6 +50,7 @@ function accessForActor(
       canView: true,
       canEditClient: false,
       canEditCoach: false,
+      canEditSupervisor: false,
       canEditAdminSummary: false,
       lifelineViewMode: "full",
     };
@@ -58,6 +62,7 @@ function accessForActor(
       canView: true,
       canEditClient: false,
       canEditCoach: true,
+      canEditSupervisor: false,
       canEditAdminSummary: false,
       lifelineViewMode: "manager",
     };
@@ -70,6 +75,7 @@ function accessForActor(
       canView: true,
       canEditClient: false,
       canEditCoach: true,
+      canEditSupervisor: true,
       canEditAdminSummary: false,
       lifelineViewMode: "manager",
     };
@@ -81,6 +87,7 @@ function accessForActor(
       canView: true,
       canEditClient: true,
       canEditCoach: false,
+      canEditSupervisor: false,
       canEditAdminSummary: false,
       lifelineViewMode: "self",
     };
@@ -132,6 +139,7 @@ export async function resolveCompanionAccessForMatch(
         canView: true,
         canEditClient: false,
         canEditCoach: false,
+        canEditSupervisor: false,
         canEditAdminSummary: false,
         lifelineViewMode: "manager",
       };
@@ -182,6 +190,7 @@ export async function resolveCompanionAccessForUser(
         canView: true,
         canEditClient: false,
         canEditCoach: false,
+        canEditSupervisor: false,
         canEditAdminSummary: false,
         lifelineViewMode: "manager",
       };

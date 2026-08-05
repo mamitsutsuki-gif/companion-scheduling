@@ -102,7 +102,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
     .flatMap((el) => el.actions.map((a) => a.text.trim()))
     .filter(Boolean)
     .slice(0, 12);
-  return jsonOk(payload(sheet, access.canEditCoach, { focusSkillNames, ftaActionHints }));
+  return jsonOk(payload(sheet, access.canEditSupervisor, { focusSkillNames, ftaActionHints }));
 }
 
 export async function PUT(request: Request, ctx: RouteContext) {
@@ -119,8 +119,8 @@ export async function PUT(request: Request, ctx: RouteContext) {
     if (access.error === "plan_disabled") return jsonError("このプランでは利用できません。", 403);
     return jsonError("権限がありません。", 403);
   }
-  if (!access.canEditCoach) {
-    return jsonError("育成機会の編集権限がありません（上司・パートナー・管理者が編集できます）。", 403);
+  if (!access.canEditSupervisor) {
+    return jsonError("機会創出の編集権限がありません（上司・管理者が編集できます）。", 403);
   }
 
   const body = await request.json().catch(() => null);
@@ -160,5 +160,5 @@ export async function PUT(request: Request, ctx: RouteContext) {
         }
       : undefined,
   });
-  return jsonOk(payload(sheet, access.canEditCoach));
+  return jsonOk(payload(sheet, access.canEditSupervisor));
 }

@@ -140,6 +140,14 @@ async function main() {
   } else {
     ok("client can edit PDCA", clientAccess.canEditClient && clientAccess.lifelineViewMode === "self");
     ok("partner coach comment", !("error" in partnerAccess) && partnerAccess.canEditCoach);
+    ok(
+      "partner cannot edit opportunity",
+      !("error" in partnerAccess) && partnerAccess.canEditSupervisor === false,
+    );
+    ok(
+      "admin can edit opportunity",
+      !("error" in adminAccess) && adminAccess.canEditSupervisor === true,
+    );
     ok("admin full access", !("error" in adminAccess) && adminAccess.canEditAdminSummary);
   }
 
