@@ -111,11 +111,11 @@ export function BusinessProblemPanel({ matchId }: { matchId: string }) {
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-2xl font-semibold text-slate-900">業務課題実践｜問題解決8ステップ</h2>
           <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800">
-            詳細は推奨
+            詳細は任意
           </span>
         </div>
         <p className="mt-2 text-sm text-slate-600">
-          業務課題1件は必須／8ステップ詳細はテーマに応じて選択。育成機会で合意した仕事をここで具体化します。未入力でも未達にはしません。
+          育成機会で合意した仕事を、ここで具体化します。業務課題は1件記入し、8ステップの詳細はテーマに応じて必要なところから進めてください。
         </p>
         {theme ? (
           <p className="mt-2 text-sm text-indigo-900">

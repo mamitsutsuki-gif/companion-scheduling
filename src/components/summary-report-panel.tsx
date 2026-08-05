@@ -66,7 +66,9 @@ export function SummaryReportPanel({ matchId }: { matchId: string }) {
       <div className="no-print flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold text-slate-900">総括レポート</h2>
-          <p className="mt-2 text-sm text-slate-600">各成果物を統合した最終レポートです。PDFは印刷機能で出力できます。</p>
+          <p className="mt-2 text-sm text-slate-600">
+            これまでのシートの内容をまとめた最終レポートです。印刷機能から PDF として保存できます。
+          </p>
         </div>
         <button
           type="button"

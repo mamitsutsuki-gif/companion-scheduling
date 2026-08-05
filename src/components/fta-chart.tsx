@@ -85,22 +85,22 @@ export function FtaEditor({
           </button>
         </div>
         <p className={`mt-2 text-sm font-medium ${safe.vision.locked ? "text-amber-800" : "text-emerald-700"}`}>
-          {safe.vision.locked ? "この枠は他ユーザーに非公開です。" : "この枠は閲覧可能です。"}
+          {safe.vision.locked ? "この内容は相手には見えません。" : "この内容は相手にも見えます。"}
         </p>
       </section>
 
       {focusSkillOptions.length > 0 ? (
         <section className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
-          <h3 className="text-sm font-semibold text-indigo-950">重点育成項目（スキルチェック連携）</h3>
+          <h3 className="text-sm font-semibold text-indigo-950">重点育成項目</h3>
           <p className="mt-1 text-xs text-indigo-900">
-            アクションアイテムを考えるときは、これらの重点育成項目も意識してください:{' '}
+            アクションを考えるときは、これらの重点育成項目も意識してください:{' '}
             {focusSkillOptions.map((s) => s.name).join("、")}
           </p>
         </section>
       ) : (
         <section className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4">
           <p className="text-xs text-slate-600">
-            スキルチェックで重点育成項目を選ぶと、ここに表示され、各アクションへ紐づけできます。
+            スキルチェックで重点育成項目を選ぶと、ここに表示されます。
           </p>
         </section>
       )}
@@ -189,13 +189,13 @@ export function FtaEditor({
               </button>
             </div>
             <p className={`mt-2 text-sm font-medium ${b.locked ? "text-amber-800" : "text-emerald-700"}`}>
-              {b.locked ? "この価値観は非公開です。" : "この価値観は閲覧可能です。"}
+              {b.locked ? "この価値観は相手には見えません。" : "この価値観は相手にも見えます。"}
             </p>
             <div className="mt-4 flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-zinc-800">アクションアイテム（最大8）</p>
                 <p className="text-xs text-zinc-600">
-                  今の会社をフィールドに、状況・回数がイメージできる粒度で書く
+                  今の仕事の場面で、状況や回数がイメージできる粒度で書く
                 </p>
               </div>
               <button

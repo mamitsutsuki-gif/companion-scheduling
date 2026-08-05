@@ -131,7 +131,7 @@ export function ActionBrakePanel({
       <div>
         <h2 className="text-2xl font-semibold text-slate-900">行動ブレーキ分析シート</h2>
         <p className="mt-2 text-sm text-slate-600">
-          認知行動療法の考え方で、行動を止めている思考パターンを理解します。成果物は「行動を妨げる思考の癖に気づく」ことです。
+          認知行動療法の考え方で、行動を止めている思考パターンを整理し、思考の癖に気づくためのシートです。
         </p>
       </div>
 

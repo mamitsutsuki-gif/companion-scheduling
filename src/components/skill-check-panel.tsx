@@ -260,7 +260,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
         <p className="mt-2 text-sm text-slate-600">
           {targetName ? `${targetName} さんの` : ""}
           会社から期待される成長テーマを明確にします。スキルを定義し、本人・上司で評価し、ギャップを見て重点育成項目（最大
-          {SKILL_CHECK_FOCUS_MAX}つ）を決めます。成果物は「何を伸ばすか」です。
+          {SKILL_CHECK_FOCUS_MAX}つ）を決めます。
         </p>
         <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-slate-600">
           <li>スキルを定義する</li>
@@ -487,7 +487,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
         <p className="mt-1 text-sm text-slate-600">
           本人と上司で話し合い、これから伸ばすスキルを{" "}
           <strong className="font-semibold text-slate-800">1〜{SKILL_CHECK_FOCUS_MAX}項目</strong>
-          （最大{SKILL_CHECK_FOCUS_MAX}）選びます。ここで「何を伸ばすか」が決まります。
+          （最大{SKILL_CHECK_FOCUS_MAX}）選びます。
         </p>
         <p className="mt-2 text-xs text-slate-500">
           選択中: {focusSkillIds.length} / {SKILL_CHECK_FOCUS_MAX}
@@ -528,7 +528,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
           <h3 className="text-lg font-semibold text-indigo-950">成長・挑戦合意</h3>
         </div>
         <p className="mt-2 text-sm text-indigo-900/90">
-          重点育成項目を踏まえ、本人・上司の期待を言葉にします。プレースホルダの見本を参考に、自分の言葉で書いてください。
+          重点育成項目を踏まえ、本人・上司の期待を言葉にします。入力欄の見本を参考に、自分の言葉で書いてください。
         </p>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <div className="space-y-3 rounded-xl border border-white bg-white/90 p-4 shadow-xs">

@@ -181,7 +181,7 @@ export function ReflectionPanel({ matchId }: { matchId: string }) {
         <div>
           <h3 className="text-lg font-semibold text-indigo-950">アフタースキルチェック（重点育成項目）</h3>
           <p className="mt-1 text-sm text-indigo-900/90">
-            スキルチェック開始時に選んだ重点育成項目だけを、本人・上司で再評価します。他のスキル項目はここでは不要です。
+            スキルチェック開始時に選んだ重点育成項目だけを、本人・上司で再評価します。
           </p>
         </div>
 

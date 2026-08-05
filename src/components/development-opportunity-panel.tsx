@@ -117,7 +117,7 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
   function applyTemplate(template: DevelopmentOpportunityTemplate) {
     if (!perms.canEditManager) return;
     setSheet((prev) => applyDevelopmentOpportunityTemplate(prev, template));
-    setNotice("候補バンクの内容を反映しました。権限・失敗許容は必ず確認してください。");
+    setNotice("例の内容を反映しました。権限や失敗の許容範囲は必ず確認してください。");
   }
 
   async function save() {
@@ -198,9 +198,9 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
 
       {showConditionWarning ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
-          <strong>成果創出条件が未整備です</strong>
+          <strong>まだ設定が足りない項目があります</strong>
           <br />
-          権限・支援・実践開始期限の設定と、挑戦機会チェック（必須3条件）の確認が必要です。
+          権限・支援・実践開始期限と、挑戦機会の必須条件（3つ）を確認してください。
         </div>
       ) : null}
 
@@ -221,9 +221,9 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
 
       {editable ? (
         <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 sm:p-5">
-          <strong className="text-sm text-indigo-950">挑戦機会候補バンク</strong>
+          <strong className="text-sm text-indigo-950">挑戦機会の例</strong>
           <p className="mt-1 text-sm text-indigo-900/80">
-            候補を選ぶと下書きを反映します。権限・失敗許容は上司が必ず確認してください。
+            選ぶと下の入力欄に反映されます。権限や失敗の許容範囲は必ず確認してください。
           </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             {templates.map((t) => (
@@ -243,7 +243,7 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="block space-y-1 text-sm">
-          <span className="font-medium text-slate-800">育成機会状態</span>
+          <span className="font-medium text-slate-800">進捗</span>
           <select
             value={sheet.status}
             disabled={!editable}
@@ -347,7 +347,7 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-        <h3 className="text-base font-semibold text-slate-900">挑戦機会チェック（必須3条件）</h3>
+        <h3 className="text-base font-semibold text-slate-900">挑戦機会の確認（必須3条件）</h3>
         <ul className="mt-3 space-y-2">
           {DEVELOPMENT_OPPORTUNITY_REQUIRED_CHECK_LABELS.map(({ key, label }) => (
             <CheckRow
@@ -364,7 +364,7 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
           ))}
         </ul>
         <h3 className="mt-5 text-base font-semibold text-slate-900">
-          質を高める推奨5条件{" "}
+          さらに確認したいこと（任意）{" "}
           <span className="ml-1 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800">
             推奨
           </span>
