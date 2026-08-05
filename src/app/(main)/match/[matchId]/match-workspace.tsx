@@ -11,6 +11,7 @@ import { SkillCheckPanel } from "@/components/skill-check-panel";
 import { PdcaPanel } from "@/components/pdca-panel";
 import { DevelopmentOpportunityPanel } from "@/components/development-opportunity-panel";
 import { BusinessProblemPanel } from "@/components/business-problem-panel";
+import { ActionBrakePanel } from "@/components/action-brake-panel";
 import { ReflectionPanel } from "@/components/reflection-panel";
 import { LifelinePanel } from "@/components/lifeline-panel";
 import { SummaryReportPanel } from "@/components/summary-report-panel";
@@ -153,6 +154,7 @@ type MatchTab =
   | "developmentOpportunity"
   | "businessProblem"
   | "pdca"
+  | "actionBrakeAnalysis"
   | "reflection"
   | "summaryReport"
   | "lifelineChart"
@@ -171,6 +173,7 @@ const TAB_HASH_MAP: Record<string, MatchTab> = {
   "development-opportunity": "developmentOpportunity",
   "business-problem": "businessProblem",
   pdca: "pdca",
+  "action-brake": "actionBrakeAnalysis",
   reflection: "reflection",
   "summary-report": "summaryReport",
   "lifeline-chart": "lifelineChart",
@@ -194,6 +197,7 @@ function hashFromTab(tab: MatchTab): string {
   if (tab === "skillCheck") return "skill-check";
   if (tab === "developmentOpportunity") return "development-opportunity";
   if (tab === "businessProblem") return "business-problem";
+  if (tab === "actionBrakeAnalysis") return "action-brake";
   if (tab === "summaryReport") return "summary-report";
   if (tab === "lifelineChart") return "lifeline-chart";
   if (tab === "coachingQuestions") return "questions";
@@ -225,6 +229,7 @@ function isSupervisorSheetTab(tab: MatchTab): boolean {
     tab === "developmentOpportunity" ||
     tab === "businessProblem" ||
     tab === "pdca" ||
+    tab === "actionBrakeAnalysis" ||
     tab === "reflection" ||
     tab === "summaryReport"
   );
@@ -237,6 +242,7 @@ function firstSupervisorSheetTab(features: PlanFeatures): MatchTab {
   if (features.developmentOpportunity) return "developmentOpportunity";
   if (features.businessProblem) return "businessProblem";
   if (features.pdca) return "pdca";
+  if (features.actionBrakeAnalysis) return "actionBrakeAnalysis";
   if (features.reflection) return "reflection";
   if (features.summaryReport) return "summaryReport";
   return "skillCheck";
@@ -901,6 +907,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [clientBriefingLoading, setClientBriefingLoading] = useState(false);
   const [partnerPending, setPartnerPending] = useState(false);
   const [supervisorViewer, setSupervisorViewer] = useState(false);
+  const [brakeFromPdcaId, setBrakeFromPdcaId] = useState<string | null>(null);
 
   const goTab = useCallback((tab: MatchTab) => {
     setActiveTab(tab);
@@ -2015,7 +2022,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                     : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
                 }`}
               >
-                育成機会
+                機会創出
               </button>
             ) : null}
             {scheduleSettings.planFeatures.businessProblem ? (
@@ -2046,6 +2053,21 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 }`}
               >
                 PDCA
+              </button>
+            ) : null}
+            {scheduleSettings.planFeatures.actionBrakeAnalysis ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "actionBrakeAnalysis"}
+                onClick={() => goTab("actionBrakeAnalysis")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "actionBrakeAnalysis"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                行動ブレーキ分析
               </button>
             ) : null}
             {scheduleSettings.planFeatures.reflection ? (
@@ -2596,10 +2618,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             <div className="space-y-1">
               <h2 className="text-2xl font-semibold text-indigo-900">自分FTA</h2>
               <p className="text-base text-indigo-800">
-                中心のありたい姿(A)から要素(B)・アクション(C)を整理します。
-                {scheduleSettings.planFeatures.skillCheck
-                  ? "スキルチェックで選んだ重点スキルと紐づけできます。"
-                  : null}
+                会社での成長と、自分の人生をつなげます。中心に夢・成し遂げたいこと、周りに価値観、さらに外側に「何を実践するか」のアクションを置きます。
               </p>
             </div>
             <FtaEditor
@@ -2803,7 +2822,17 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       ) : null}
 
       {activeTab === "pdca" && scheduleSettings.planFeatures.pdca ? (
-        <PdcaPanel matchId={matchId} />
+        <PdcaPanel
+          matchId={matchId}
+          onOpenActionBrake={(pdcaEntryId) => {
+            setBrakeFromPdcaId(pdcaEntryId ?? null);
+            goTab("actionBrakeAnalysis");
+          }}
+        />
+      ) : null}
+
+      {activeTab === "actionBrakeAnalysis" && scheduleSettings.planFeatures.actionBrakeAnalysis ? (
+        <ActionBrakePanel matchId={matchId} initialPdcaEntryId={brakeFromPdcaId} />
       ) : null}
 
       {activeTab === "reflection" && scheduleSettings.planFeatures.reflection ? (

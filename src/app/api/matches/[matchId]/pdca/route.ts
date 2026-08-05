@@ -11,6 +11,8 @@ import {
 import { normalizePdcaEntry, pdcaSkillCounts } from "@/lib/companion-pdca";
 import { getCompanySkillDefinitions, getSkillCheckProfile } from "@/lib/repositories/skill-check-repository";
 import { resolveEffectiveSkillDefinitions } from "@/lib/skill-check";
+import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
+import { resolvePlanFeatures } from "@/lib/company-plan";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +28,9 @@ const entrySchema = z.object({
   doText: z.string().max(4000).optional(),
   check: z.string().max(4000).optional(),
   act: z.string().max(4000).optional(),
+  stuckText: z.string().max(4000).optional(),
+  learningText: z.string().max(4000).optional(),
+  brakeEntryId: z.string().max(80).nullable().optional(),
   clientNotes: z.string().max(4000).optional(),
   coachComment: z.string().max(4000).optional(),
 });
@@ -40,16 +45,23 @@ export async function GET(_req: Request, ctx: RouteContext) {
     if (access.error === "plan_disabled") return jsonError("このプランでは利用できません。", 403);
     return jsonError("権限がありません。", 403);
   }
-  const [store, companySkills, skillProfile] = await Promise.all([
+  const [store, companySkills, skillProfile, effective] = await Promise.all([
     getPdcaStore(access.targetUserId, access.companyId),
     getCompanySkillDefinitions(access.companyId),
     getSkillCheckProfile(access.targetUserId),
+    getEffectiveAppSettingsForMatch(matchId),
   ]);
+  const features = resolvePlanFeatures(
+    effective.companyPlan,
+    effective.planFeatureOverrides,
+    effective.coachingPlanSettings,
+  );
   return jsonOk({
     store,
     skillCounts: pdcaSkillCounts(store.entries),
     skills: resolveEffectiveSkillDefinitions(skillProfile, companySkills),
     focusSkillIds: skillProfile?.focusSkillIds ?? [],
+    actionBrakeEnabled: features.actionBrakeAnalysis === true,
     permissions: {
       canEditClient: access.canEditClient,
       canEditCoach: access.canEditCoach,

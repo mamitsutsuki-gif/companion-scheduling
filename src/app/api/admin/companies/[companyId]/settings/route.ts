@@ -88,6 +88,7 @@ const patchSchema = z.object({
       summaryReport: z.boolean().optional(),
       developmentOpportunity: z.boolean().optional(),
       businessProblem: z.boolean().optional(),
+      actionBrakeAnalysis: z.boolean().optional(),
     })
     .optional(),
   clearPlanFeatureOverrides: z.boolean().optional(),

@@ -15,13 +15,30 @@ const emptyEntry = (): PdcaEntry => ({
   doText: "",
   check: "",
   act: "",
+  stuckText: "",
+  learningText: "",
+  brakeEntryId: null,
   clientNotes: "",
   coachComment: "",
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 });
 
-export function PdcaPanel({ matchId }: { matchId: string }) {
+const PLACEHOLDER = {
+  plan: "例：今週、他部署の担当者に15分ヒアリングを2件実施する",
+  doText: "例：月曜と水曜に各1件実施。質問リストを事前に送った",
+  stuck: "例：予定変更が多く、2件目の調整が止まってしまった／上司の反応が怖くて依頼メールを送れない",
+  learning: "例：事前に候補日を3つ提示すると調整が早い／自分で抱え込まず早めに相談すると進む",
+  act: "例：来週は候補日を3つ添えて依頼し、金曜に進捗を1行共有する",
+} as const;
+
+export function PdcaPanel({
+  matchId,
+  onOpenActionBrake,
+}: {
+  matchId: string;
+  onOpenActionBrake?: (pdcaEntryId?: string) => void;
+}) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +50,7 @@ export function PdcaPanel({ matchId }: { matchId: string }) {
   const [perms, setPerms] = useState({ canEditClient: false, canEditCoach: false });
   const [draft, setDraft] = useState<PdcaEntry>(emptyEntry());
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [actionBrakeEnabled, setActionBrakeEnabled] = useState(false);
 
   const skillName = useMemo(() => new Map(skills.map((s) => [s.id, s.name])), [skills]);
 
@@ -51,6 +69,7 @@ export function PdcaPanel({ matchId }: { matchId: string }) {
     setFocusSkillIds((json as { focusSkillIds?: string[] }).focusSkillIds ?? []);
     setSkillCounts((json as { skillCounts?: Array<{ skillId: string; count: number }> }).skillCounts ?? []);
     setPerms((json as { permissions?: typeof perms }).permissions ?? perms);
+    setActionBrakeEnabled(Boolean((json as { actionBrakeEnabled?: boolean }).actionBrakeEnabled));
   }, [matchId]);
 
   useEffect(() => {
@@ -64,21 +83,33 @@ export function PdcaPanel({ matchId }: { matchId: string }) {
       focusSkillIds: focusSkillIds.slice(0, 3),
       periodLabel: "",
     });
+    setNotice(null);
   }
 
   function startEdit(entry: PdcaEntry) {
     setEditingId(entry.id);
-    setDraft({ ...entry });
+    setDraft({
+      ...entry,
+      stuckText: entry.stuckText || entry.check,
+      learningText: entry.learningText,
+    });
   }
 
   async function save() {
     setSaving(true);
     setError(null);
     setNotice(null);
+    const payload = {
+      ...draft,
+      id: editingId ?? undefined,
+      check: draft.stuckText || draft.check,
+      stuckText: draft.stuckText,
+      learningText: draft.learningText,
+    };
     const res = await fetch(`/api/matches/${matchId}/pdca`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entry: { ...draft, id: editingId ?? undefined } }),
+      body: JSON.stringify({ entry: payload }),
     });
     const json = await res.json().catch(() => null);
     setSaving(false);
@@ -86,9 +117,10 @@ export function PdcaPanel({ matchId }: { matchId: string }) {
       setError((json as { error?: string })?.error ?? "保存に失敗しました。");
       return;
     }
-    setEntries((json as { store?: { entries?: PdcaEntry[] } }).store?.entries ?? []);
+    const saved = (json as { store?: { entries?: PdcaEntry[] } }).store?.entries ?? [];
+    setEntries(saved);
     setSkillCounts((json as { skillCounts?: Array<{ skillId: string; count: number }> }).skillCounts ?? []);
-    setNotice("保存しました。");
+    setNotice("保存しました。次のサイクルは「新規作成」から新しいシートを作れます。過去の記録は下の一覧から振り返れます。");
     setEditingId(null);
     setDraft(emptyEntry());
   }
@@ -114,7 +146,7 @@ export function PdcaPanel({ matchId }: { matchId: string }) {
       <div>
         <h2 className="text-2xl font-semibold text-slate-900">PDCAシート</h2>
         <p className="mt-2 text-sm text-slate-600">
-          セッションごとに Plan / Do / Check / Act を記録し、重点スキルに紐づけて行動を蓄積します。
+          行動を習慣化し、小さな成功体験を積み重ねます。シートは何枚でも作成・保存でき、過去の記録も振り返れます。
         </p>
       </div>
 
@@ -132,10 +164,10 @@ export function PdcaPanel({ matchId }: { matchId: string }) {
       ) : null}
 
       {(perms.canEditClient || perms.canEditCoach) && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-4">
+        <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-lg font-semibold text-slate-900">
-              {editingId ? "記録を編集" : "新しい記録"}
+              {editingId ? "シートを編集" : "新しいPDCAシート"}
             </h3>
             <button type="button" onClick={startNew} className="text-sm text-indigo-700 hover:underline">
               新規作成
@@ -148,7 +180,7 @@ export function PdcaPanel({ matchId }: { matchId: string }) {
                 value={draft.periodLabel}
                 disabled={!perms.canEditClient}
                 onChange={(e) => setDraft({ ...draft, periodLabel: e.target.value })}
-                placeholder="例: 第3回 / 4月"
+                placeholder="例: 第3回 / 4月第2週"
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
               />
             </label>
@@ -175,12 +207,13 @@ export function PdcaPanel({ matchId }: { matchId: string }) {
               value={draft.focusTheme}
               disabled={!perms.canEditClient}
               onChange={(e) => setDraft({ ...draft, focusTheme: e.target.value })}
+              placeholder="例：他部署との連携を前に進める"
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
             />
           </label>
           {perms.canEditClient ? (
             <fieldset>
-              <legend className="text-sm font-semibold text-slate-800">紐づく重点スキル</legend>
+              <legend className="text-sm font-semibold text-slate-800">紐づく重点育成項目</legend>
               <div className="mt-2 flex flex-wrap gap-2">
                 {skills.map((s) => (
                   <label key={s.id} className="flex items-center gap-1 rounded-lg border px-2 py-1 text-sm">
@@ -192,7 +225,7 @@ export function PdcaPanel({ matchId }: { matchId: string }) {
                           ...d,
                           focusSkillIds: d.focusSkillIds.includes(s.id)
                             ? d.focusSkillIds.filter((x) => x !== s.id)
-                            : [...d.focusSkillIds, s.id].slice(0, 5),
+                            : [...d.focusSkillIds, s.id].slice(0, 3),
                         }));
                       }}
                     />
@@ -202,20 +235,77 @@ export function PdcaPanel({ matchId }: { matchId: string }) {
               </div>
             </fieldset>
           ) : null}
-          {(["plan", "doText", "check", "act"] as const).map((key) => (
-            <label key={key} className="block text-sm">
-              {key === "plan" ? "Plan（何をやるか）" : key === "doText" ? "Do（実際にやったこと）" : key === "check" ? "Check（何が起きたか）" : "Act（次にどう改善するか）"}
-              <textarea
-                rows={3}
-                value={draft[key]}
-                disabled={!perms.canEditClient}
-                onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-              />
-            </label>
-          ))}
+
           <label className="block text-sm">
-            本人記載欄
+            今回取り組む行動
+            <textarea
+              rows={3}
+              value={draft.plan}
+              disabled={!perms.canEditClient}
+              placeholder={PLACEHOLDER.plan}
+              onChange={(e) => setDraft({ ...draft, plan: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 placeholder:text-slate-400"
+            />
+          </label>
+          <label className="block text-sm">
+            取り組んだ結果
+            <textarea
+              rows={3}
+              value={draft.doText}
+              disabled={!perms.canEditClient}
+              placeholder={PLACEHOLDER.doText}
+              onChange={(e) => setDraft({ ...draft, doText: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 placeholder:text-slate-400"
+            />
+          </label>
+          <label className="block text-sm">
+            行き詰まったところ
+            <textarea
+              rows={3}
+              value={draft.stuckText}
+              disabled={!perms.canEditClient}
+              placeholder={PLACEHOLDER.stuck}
+              onChange={(e) => setDraft({ ...draft, stuckText: e.target.value, check: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 placeholder:text-slate-400"
+            />
+          </label>
+          {actionBrakeEnabled && onOpenActionBrake && draft.stuckText.trim() ? (
+            <p className="text-sm text-amber-900">
+              行き詰まりがあるときは、
+              <button
+                type="button"
+                className="mx-1 font-semibold text-indigo-800 underline"
+                onClick={() => onOpenActionBrake(editingId || undefined)}
+              >
+                行動ブレーキ分析シート
+              </button>
+              で思考パターンを整理できます。
+            </p>
+          ) : null}
+          <label className="block text-sm">
+            学び
+            <textarea
+              rows={3}
+              value={draft.learningText}
+              disabled={!perms.canEditClient}
+              placeholder={PLACEHOLDER.learning}
+              onChange={(e) => setDraft({ ...draft, learningText: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 placeholder:text-slate-400"
+            />
+          </label>
+          <label className="block text-sm">
+            次回アクション（次のシートへつなげる）
+            <textarea
+              rows={3}
+              value={draft.act}
+              disabled={!perms.canEditClient}
+              placeholder={PLACEHOLDER.act}
+              onChange={(e) => setDraft({ ...draft, act: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 placeholder:text-slate-400"
+            />
+          </label>
+          <label className="block text-sm">
+            メモ
             <textarea
               rows={2}
               value={draft.clientNotes}
@@ -225,7 +315,7 @@ export function PdcaPanel({ matchId }: { matchId: string }) {
             />
           </label>
           <label className="block text-sm">
-            コーチコメント欄
+            パートナー／上司コメント
             <textarea
               rows={2}
               value={draft.coachComment}
@@ -240,15 +330,15 @@ export function PdcaPanel({ matchId }: { matchId: string }) {
             onClick={() => void save()}
             className="rounded-xl bg-indigo-700 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
           >
-            {saving ? "保存中…" : "保存する"}
+            {saving ? "保存中…" : "このシートを保存する"}
           </button>
         </div>
       )}
 
       <div className="space-y-3">
-        <h3 className="text-lg font-semibold text-slate-900">記録一覧</h3>
+        <h3 className="text-lg font-semibold text-slate-900">過去のPDCAシート</h3>
         {entries.length === 0 ? (
-          <p className="text-sm text-slate-500">まだ記録がありません。</p>
+          <p className="text-sm text-slate-500">まだ記録がありません。「新規作成」から始めましょう。</p>
         ) : (
           entries.map((e) => (
             <article key={e.id} className="rounded-xl border border-slate-200 bg-white p-4">
@@ -279,14 +369,30 @@ export function PdcaPanel({ matchId }: { matchId: string }) {
                 </div>
               </div>
               <dl className="mt-3 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
-                <div><dt className="font-semibold">Plan</dt><dd className="whitespace-pre-wrap">{e.plan || "—"}</dd></div>
-                <div><dt className="font-semibold">Do</dt><dd className="whitespace-pre-wrap">{e.doText || "—"}</dd></div>
-                <div><dt className="font-semibold">Check</dt><dd className="whitespace-pre-wrap">{e.check || "—"}</dd></div>
-                <div><dt className="font-semibold">Act</dt><dd className="whitespace-pre-wrap">{e.act || "—"}</dd></div>
+                <div>
+                  <dt className="font-semibold">今回の行動</dt>
+                  <dd className="whitespace-pre-wrap">{e.plan || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold">結果</dt>
+                  <dd className="whitespace-pre-wrap">{e.doText || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold">行き詰まり</dt>
+                  <dd className="whitespace-pre-wrap">{e.stuckText || e.check || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold">学び</dt>
+                  <dd className="whitespace-pre-wrap">{e.learningText || "—"}</dd>
+                </div>
+                <div className="md:col-span-2">
+                  <dt className="font-semibold">次回アクション</dt>
+                  <dd className="whitespace-pre-wrap">{e.act || "—"}</dd>
+                </div>
               </dl>
               {e.coachComment ? (
                 <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-                  コーチ: {e.coachComment}
+                  コメント: {e.coachComment}
                 </p>
               ) : null}
             </article>

@@ -51,6 +51,8 @@ export type PlanFeatures = {
   developmentOpportunity: boolean;
   /** 業務課題実践（問題解決8ステップ） */
   businessProblem: boolean;
+  /** 行動ブレーキ分析（認知行動療法の思考記録） */
+  actionBrakeAnalysis: boolean;
   /** コーチングマネジメント研修: ロールプレイング・フィードバック */
   coachingRoleplay: boolean;
   /** コーチングマネジメント研修: 質問リスト（4象限） */
@@ -76,18 +78,20 @@ export type IndividualCompanionFeatureKey =
   | "lifelineChart"
   | "summaryReport"
   | "developmentOpportunity"
-  | "businessProblem";
+  | "businessProblem"
+  | "actionBrakeAnalysis";
 
 export const INDIVIDUAL_COMPANION_FEATURE_OPTIONS: Array<{
   key: IndividualCompanionFeatureKey;
   label: string;
 }> = [
   { key: "fta", label: "自分FTA" },
-  { key: "developmentOpportunity", label: "育成機会" },
+  { key: "developmentOpportunity", label: "機会創出" },
   { key: "businessProblem", label: "業務課題" },
   { key: "skillCheck", label: "スキルチェック" },
   { key: "lifelineChart", label: "ライフラインチャート" },
   { key: "pdca", label: "PDCAシート" },
+  { key: "actionBrakeAnalysis", label: "行動ブレーキ分析" },
   { key: "reflection", label: "振り返りシート" },
   { key: "summaryReport", label: "サマリーレポート" },
 ];
@@ -224,6 +228,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         developmentOpportunity: true,
         /** 当面オフ（企業設定で ON にすれば再利用可） */
         businessProblem: false,
+        actionBrakeAnalysis: true,
         coachingRoleplay: false,
         coachingQuestions: false,
         coachingIcebreaker: false,
@@ -247,6 +252,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         summaryReport: false,
         developmentOpportunity: false,
         businessProblem: false,
+        actionBrakeAnalysis: false,
         coachingRoleplay: false,
         coachingQuestions: false,
         coachingIcebreaker: true,
@@ -270,6 +276,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         summaryReport: false,
         developmentOpportunity: false,
         businessProblem: false,
+        actionBrakeAnalysis: false,
         coachingRoleplay: false,
         coachingQuestions: false,
         coachingIcebreaker: false,
@@ -294,6 +301,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         summaryReport: false,
         developmentOpportunity: false,
         businessProblem: false,
+        actionBrakeAnalysis: false,
         coachingRoleplay: false,
         coachingQuestions: false,
         coachingIcebreaker: false,

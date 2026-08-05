@@ -30,13 +30,13 @@ export type DevelopmentOpportunitySheet = {
   userId: string;
   companyId: string;
   status: DevelopmentOpportunityStatus;
-  /** 挑戦する仕事 */
+  /** 与える仕事 */
   workText: string;
   /** 実践開始期限 (YYYY-MM-DD) */
   practiceStartDate: string;
   /** 任せる理由 */
   reasonText: string;
-  /** 本人に任せる範囲 */
+  /** 任せる役割 */
   scopeText: string;
   /** 付与する権限 */
   authorityText: string;
@@ -48,6 +48,10 @@ export type DevelopmentOpportunitySheet = {
   toleranceText: string;
   /** 上司の支援 */
   supportText: string;
+  /** 本人のアクションアイテム（FTA等を踏まえた実践内容） */
+  actionItemsText: string;
+  /** フィードバックポイント */
+  feedbackPointsText: string;
   requiredChecks: DevelopmentOpportunityRequiredChecks;
   recommendedChecks: DevelopmentOpportunityRecommendedChecks;
   updatedAt: string;
@@ -194,6 +198,8 @@ export function normalizeDevelopmentOpportunitySheet(
     metricsText: trimText(raw.metricsText, DEVELOPMENT_OPPORTUNITY_TEXT_MAX),
     toleranceText: trimText(raw.toleranceText, DEVELOPMENT_OPPORTUNITY_TEXT_MAX),
     supportText: trimText(raw.supportText, DEVELOPMENT_OPPORTUNITY_TEXT_MAX),
+    actionItemsText: trimText(raw.actionItemsText, DEVELOPMENT_OPPORTUNITY_TEXT_MAX),
+    feedbackPointsText: trimText(raw.feedbackPointsText, DEVELOPMENT_OPPORTUNITY_TEXT_MAX),
     requiredChecks: {
       canGrantAuthority: asBool(requiredRaw.canGrantAuthority),
       canVerifyWithin6Months: asBool(requiredRaw.canVerifyWithin6Months),

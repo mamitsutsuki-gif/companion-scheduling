@@ -9,10 +9,20 @@ export type PdcaEntry = {
   periodLabel: string;
   focusTheme: string;
   focusSkillIds: string[];
+  /** 今回取り組む行動 */
   plan: string;
+  /** 取り組んだ結果 */
   doText: string;
+  /** 行き詰まったところ（レガシー互換のため残す） */
   check: string;
+  /** 次回アクション（レガシー互換） */
   act: string;
+  /** 行き詰まったところ */
+  stuckText: string;
+  /** 学び */
+  learningText: string;
+  /** 紐づく行動ブレーキ分析エントリ */
+  brakeEntryId: string | null;
   clientNotes: string;
   coachComment: string;
   createdAt: string;
@@ -51,6 +61,12 @@ export function normalizePdcaEntry(input: unknown, fallbackId: string): PdcaEntr
     doText: trim(o.doText, 4000),
     check: trim(o.check, 4000),
     act: trim(o.act, 4000),
+    stuckText: trim(o.stuckText, 4000) || trim(o.check, 4000),
+    learningText: trim(o.learningText, 4000),
+    brakeEntryId:
+      typeof o.brakeEntryId === "string" && o.brakeEntryId.trim()
+        ? o.brakeEntryId.trim().slice(0, 80)
+        : null,
     clientNotes: trim(o.clientNotes, 4000),
     coachComment: trim(o.coachComment, 4000),
     createdAt: typeof o.createdAt === "string" ? o.createdAt : now,

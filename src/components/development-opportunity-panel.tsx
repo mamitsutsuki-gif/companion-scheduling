@@ -30,6 +30,8 @@ const emptySheet = (): DevelopmentOpportunitySheet => ({
   metricsText: "",
   toleranceText: "",
   supportText: "",
+  actionItemsText: "",
+  feedbackPointsText: "",
   requiredChecks: {
     canGrantAuthority: false,
     canVerifyWithin6Months: false,
@@ -70,6 +72,8 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
   const [sheet, setSheet] = useState<DevelopmentOpportunitySheet>(emptySheet);
   const [conditionReady, setConditionReady] = useState(false);
   const [perms, setPerms] = useState<Permissions>({ canEditManager: false });
+  const [focusSkillNames, setFocusSkillNames] = useState<string[]>([]);
+  const [ftaActionHints, setFtaActionHints] = useState<string[]>([]);
   const [templates, setTemplates] = useState(DEVELOPMENT_OPPORTUNITY_TEMPLATES);
 
   const load = useCallback(async () => {
@@ -85,6 +89,16 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
     setSheet((json as { sheet?: DevelopmentOpportunitySheet }).sheet ?? emptySheet());
     setConditionReady(Boolean((json as { conditionReady?: boolean }).conditionReady));
     setPerms((json as { permissions?: Permissions }).permissions ?? { canEditManager: false });
+    setFocusSkillNames(
+      Array.isArray((json as { focusSkillNames?: string[] }).focusSkillNames)
+        ? ((json as { focusSkillNames: string[] }).focusSkillNames)
+        : [],
+    );
+    setFtaActionHints(
+      Array.isArray((json as { ftaActionHints?: string[] }).ftaActionHints)
+        ? ((json as { ftaActionHints: string[] }).ftaActionHints)
+        : [],
+    );
     setTemplates(
       (json as { templates?: DevelopmentOpportunityTemplate[] }).templates ??
         DEVELOPMENT_OPPORTUNITY_TEMPLATES,
@@ -124,6 +138,8 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
         metricsText: sheet.metricsText,
         toleranceText: sheet.toleranceText,
         supportText: sheet.supportText,
+        actionItemsText: sheet.actionItemsText,
+        feedbackPointsText: sheet.feedbackPointsText,
         requiredChecks: sheet.requiredChecks,
         recommendedChecks: sheet.recommendedChecks,
       }),
@@ -150,17 +166,34 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
     <div className="space-y-5">
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-2xl font-semibold text-slate-900">育成機会・挑戦役割</h2>
+          <h2 className="text-2xl font-semibold text-slate-900">機会創出シート</h2>
           <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-800">
-            必須コア
+            上司用
           </span>
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusPillClass(sheet.status)}`}>
             {statusLabel(sheet.status)}
           </span>
         </div>
         <p className="mt-2 text-sm text-slate-600">
-          上司が提供する仕事・権限・支援を記録します。自分FTAの次に、実践の場となる挑戦機会を合意します。
+          成長できる実践機会を設計します。本人の重点育成項目とアクションを踏まえ、与える仕事・任せる役割・フィードバックポイントを決め、「どこで成長するか」を合意します。
         </p>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-sm">
+        <h3 className="font-semibold text-slate-900">本人の重点育成項目（スキルチェック）</h3>
+        <p className="mt-1 text-slate-700">
+          {focusSkillNames.length > 0 ? focusSkillNames.join("、") : "（まだ重点育成項目が未設定です）"}
+        </p>
+        {ftaActionHints.length > 0 ? (
+          <div className="mt-3">
+            <h4 className="font-semibold text-slate-900">本人FTAのアクション（参考）</h4>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-slate-700">
+              {ftaActionHints.slice(0, 8).map((t, i) => (
+                <li key={`${i}-${t.slice(0, 12)}`}>{t}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
 
       {showConditionWarning ? (
@@ -228,11 +261,12 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Field
-          label="挑戦する仕事"
+          label="与える仕事"
           required
           value={sheet.workText}
           disabled={!editable}
           onChange={(v) => patchSheet({ workText: v })}
+          placeholder="例：次期案件の要件整理リードを任せる"
         />
         <label className="block space-y-1 text-sm">
           <span className="font-medium text-slate-800">
@@ -247,17 +281,33 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
           />
         </label>
         <Field
-          label="任せる理由"
-          value={sheet.reasonText}
+          label="アクションアイテム（本人が実践すること）"
+          value={sheet.actionItemsText}
           disabled={!editable}
-          onChange={(v) => patchSheet({ reasonText: v })}
+          onChange={(v) => patchSheet({ actionItemsText: v })}
+          placeholder="例：週1で関係部署ヒアリングを実施し、要件案を更新する"
+          className="lg:col-span-2"
         />
         <Field
-          label="本人に任せる範囲"
+          label="任せる役割"
           required
           value={sheet.scopeText}
           disabled={!editable}
           onChange={(v) => patchSheet({ scopeText: v })}
+          placeholder="例：要件ヒアリングの主担当、優先度案の一次作成"
+        />
+        <Field
+          label="フィードバックポイント"
+          value={sheet.feedbackPointsText}
+          disabled={!editable}
+          onChange={(v) => patchSheet({ feedbackPointsText: v })}
+          placeholder="例：関係者への説明の分かりやすさ、優先度判断の根拠の言語化"
+        />
+        <Field
+          label="任せる理由"
+          value={sheet.reasonText}
+          disabled={!editable}
+          onChange={(v) => patchSheet({ reasonText: v })}
         />
         <Field
           label="付与する権限"
@@ -367,6 +417,7 @@ function Field({
   required,
   rows = 3,
   className = "",
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -375,6 +426,7 @@ function Field({
   required?: boolean;
   rows?: number;
   className?: string;
+  placeholder?: string;
 }) {
   return (
     <label className={`block space-y-1 text-sm ${className}`}>
@@ -388,7 +440,8 @@ function Field({
         disabled={disabled}
         rows={rows}
         maxLength={DEVELOPMENT_OPPORTUNITY_TEXT_MAX}
-        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500"
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 disabled:bg-slate-100 disabled:text-slate-500"
       />
     </label>
   );

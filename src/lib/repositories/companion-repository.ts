@@ -12,6 +12,11 @@ import {
   normalizeBusinessProblemSheet,
   type BusinessProblemSheet,
 } from "@/lib/companion-business-problem";
+import {
+  normalizeActionBrakeStore,
+  type ActionBrakeEntry,
+  type ActionBrakeStore,
+} from "@/lib/companion-action-brake";
 import { nanoid } from "nanoid";
 
 const PDCA_COL = "companionPdca";
@@ -20,6 +25,7 @@ const LIFELINE_COL = "companionLifeline";
 const SUMMARY_COL = "companionSummaryReports";
 const DEVELOPMENT_OPPORTUNITY_COL = "companionDevelopmentOpportunity";
 const BUSINESS_PROBLEM_COL = "companionBusinessProblem";
+const ACTION_BRAKE_COL = "companionActionBrake";
 
 const PRISMA_TABLE_BY_COL: Record<string, string> = {
   [PDCA_COL]: "userCompanionPdca",
@@ -28,6 +34,7 @@ const PRISMA_TABLE_BY_COL: Record<string, string> = {
   [SUMMARY_COL]: "userCompanionSummaryReport",
   [DEVELOPMENT_OPPORTUNITY_COL]: "userCompanionDevelopmentOpportunity",
   [BUSINESS_PROBLEM_COL]: "userCompanionBusinessProblem",
+  [ACTION_BRAKE_COL]: "userCompanionActionBrake",
 };
 
 async function readJsonDoc<T>(
@@ -260,5 +267,60 @@ export async function upsertBusinessProblemSheet(
     updatedAt: new Date().toISOString(),
   });
   await writeJsonDoc(BUSINESS_PROBLEM_COL, userId, companyId, next);
+  return next;
+}
+
+export async function getActionBrakeStore(
+  userId: string,
+  companyId: string,
+): Promise<ActionBrakeStore> {
+  return readJsonDoc(
+    ACTION_BRAKE_COL,
+    userId,
+    () => normalizeActionBrakeStore(userId, companyId, {}),
+    (d) => normalizeActionBrakeStore(userId, companyId, d),
+  );
+}
+
+export function newActionBrakeEntryId(): string {
+  return `brake-${nanoid(10)}`;
+}
+
+export async function upsertActionBrakeEntry(
+  userId: string,
+  companyId: string,
+  entry: ActionBrakeEntry,
+): Promise<ActionBrakeStore> {
+  const store = await getActionBrakeStore(userId, companyId);
+  const now = new Date().toISOString();
+  const nextEntry: ActionBrakeEntry = {
+    ...entry,
+    updatedAt: now,
+    createdAt: entry.createdAt || now,
+  };
+  const idx = store.entries.findIndex((e) => e.id === nextEntry.id);
+  const entries =
+    idx >= 0
+      ? store.entries.map((e, i) => (i === idx ? nextEntry : e))
+      : [nextEntry, ...store.entries];
+  const next = normalizeActionBrakeStore(userId, companyId, {
+    entries,
+    updatedAt: now,
+  });
+  await writeJsonDoc(ACTION_BRAKE_COL, userId, companyId, next);
+  return next;
+}
+
+export async function deleteActionBrakeEntry(
+  userId: string,
+  companyId: string,
+  entryId: string,
+): Promise<ActionBrakeStore> {
+  const store = await getActionBrakeStore(userId, companyId);
+  const next = normalizeActionBrakeStore(userId, companyId, {
+    entries: store.entries.filter((e) => e.id !== entryId),
+    updatedAt: new Date().toISOString(),
+  });
+  await writeJsonDoc(ACTION_BRAKE_COL, userId, companyId, next);
   return next;
 }

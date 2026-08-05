@@ -12,6 +12,10 @@ import {
   isDevelopmentOpportunityConditionReady,
   type DevelopmentOpportunitySheet,
 } from "@/lib/companion-development-opportunity";
+import { getFtaByUserId } from "@/lib/repositories/fta-repository";
+import { getCompanySkillDefinitions, getSkillCheckProfile } from "@/lib/repositories/skill-check-repository";
+import { resolveEffectiveSkillDefinitions } from "@/lib/skill-check";
+import { maskedFtaChartForViewer } from "@/lib/fta";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +37,8 @@ const putSchema = z.object({
   metricsText: text.optional(),
   toleranceText: text.optional(),
   supportText: text.optional(),
+  actionItemsText: text.optional(),
+  feedbackPointsText: text.optional(),
   requiredChecks: z
     .object({
       canGrantAuthority: z.boolean().optional(),
@@ -51,12 +57,18 @@ const putSchema = z.object({
     .optional(),
 });
 
-function payload(sheet: DevelopmentOpportunitySheet, canEditManager: boolean) {
+function payload(
+  sheet: DevelopmentOpportunitySheet,
+  canEditManager: boolean,
+  extras?: { focusSkillNames?: string[]; ftaActionHints?: string[] },
+) {
   return {
     sheet,
     templates: DEVELOPMENT_OPPORTUNITY_TEMPLATES,
     conditionReady: isDevelopmentOpportunityConditionReady(sheet),
     permissions: { canEditManager },
+    focusSkillNames: extras?.focusSkillNames ?? [],
+    ftaActionHints: extras?.ftaActionHints ?? [],
   };
 }
 
@@ -74,8 +86,23 @@ export async function GET(_req: Request, ctx: RouteContext) {
     if (access.error === "plan_disabled") return jsonError("このプランでは利用できません。", 403);
     return jsonError("権限がありません。", 403);
   }
-  const sheet = await getDevelopmentOpportunitySheet(access.targetUserId, access.companyId);
-  return jsonOk(payload(sheet, access.canEditCoach));
+  const [sheet, companySkills, skillProfile, fta] = await Promise.all([
+    getDevelopmentOpportunitySheet(access.targetUserId, access.companyId),
+    getCompanySkillDefinitions(access.companyId),
+    getSkillCheckProfile(access.targetUserId),
+    getFtaByUserId(access.targetUserId),
+  ]);
+  const skills = resolveEffectiveSkillDefinitions(skillProfile, companySkills);
+  const nameById = new Map(skills.map((s) => [s.id, s.name]));
+  const focusSkillNames = (skillProfile?.focusSkillIds ?? [])
+    .map((id) => nameById.get(id) ?? id)
+    .filter(Boolean);
+  const viewFta = maskedFtaChartForViewer(fta);
+  const ftaActionHints = viewFta.elements
+    .flatMap((el) => el.actions.map((a) => a.text.trim()))
+    .filter(Boolean)
+    .slice(0, 12);
+  return jsonOk(payload(sheet, access.canEditCoach, { focusSkillNames, ftaActionHints }));
 }
 
 export async function PUT(request: Request, ctx: RouteContext) {

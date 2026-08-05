@@ -61,13 +61,19 @@ export function FtaEditor({
   return (
     <div className="space-y-5">
       <section className="rounded-xl border border-indigo-300 bg-indigo-50 p-5">
-        <label className="block text-base font-semibold text-indigo-900">中心（ありたい姿）</label>
+        <label className="block text-base font-semibold text-indigo-900">
+          中心：自分が本当にやりたいこと・夢
+        </label>
+        <p className="mt-1 text-xs text-indigo-900/80">
+          今の仕事に関わらず、「自分が成し遂げたいこと」「自分らしい働き方」を書いてください。
+        </p>
         <div className="mt-2 flex items-start gap-2">
           <textarea
             value={safe.vision.text}
             onChange={(e) => onChange({ ...safe, vision: { ...safe.vision, text: e.target.value } })}
             rows={3}
-            className="w-full rounded-md border border-indigo-200 bg-white px-3 py-2.5 text-base leading-relaxed"
+            placeholder="例：人の成長に関わり続け、自分も学び続ける生き方をしたい／家族との時間を大切にしながら社会に貢献したい"
+            className="w-full rounded-md border border-indigo-200 bg-white px-3 py-2.5 text-base leading-relaxed placeholder:text-slate-400"
           />
           <button
             type="button"
@@ -85,22 +91,34 @@ export function FtaEditor({
 
       {focusSkillOptions.length > 0 ? (
         <section className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
-          <h3 className="text-sm font-semibold text-indigo-950">重点育成スキル（スキルチェック連携）</h3>
+          <h3 className="text-sm font-semibold text-indigo-950">重点育成項目（スキルチェック連携）</h3>
           <p className="mt-1 text-xs text-indigo-900">
-            各アクション(C)に重点スキルを紐づけられます: {focusSkillOptions.map((s) => s.name).join("、")}
+            アクションアイテムを考えるときは、これらの重点育成項目も意識してください:{' '}
+            {focusSkillOptions.map((s) => s.name).join("、")}
           </p>
         </section>
-      ) : null}
+      ) : (
+        <section className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs text-slate-600">
+            スキルチェックで重点育成項目を選ぶと、ここに表示され、各アクションへ紐づけできます。
+          </p>
+        </section>
+      )}
 
       <div className="flex items-center justify-between">
-        <p className="text-base font-semibold text-zinc-900">要素(B)は最大8枠まで追加できます</p>
+        <div>
+          <p className="text-base font-semibold text-zinc-900">周りの丸：価値観（最大8）</p>
+          <p className="mt-1 text-xs text-zinc-600">
+            ライフラインから見えてきた価値観をベースに入力します。
+          </p>
+        </div>
         <button
           type="button"
           onClick={addElement}
           disabled={!canAddElement}
           className="rounded-md bg-indigo-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-800 disabled:opacity-50"
         >
-          要素(B)を追加
+          価値観を追加
         </button>
       </div>
 
@@ -123,7 +141,7 @@ export function FtaEditor({
             className="rounded-xl border border-zinc-200 bg-white p-5"
           >
             <div className="flex items-center justify-between gap-2">
-              <label className="block text-base font-semibold text-zinc-900">要素 {bi + 1}</label>
+              <label className="block text-base font-semibold text-zinc-900">価値観 {bi + 1}</label>
               <div className="flex items-center gap-2">
                 <span className="cursor-grab rounded-md border border-zinc-300 bg-zinc-50 px-2 py-1 text-xs text-zinc-600">
                   ⇅ 並び替え
@@ -146,7 +164,16 @@ export function FtaEditor({
                   onChange({ ...safe, elements });
                 }}
                 rows={3}
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-base leading-relaxed"
+                placeholder={
+                  bi === 0
+                    ? "例：家族を大切にする"
+                    : bi === 1
+                      ? "例：社会に貢献したい"
+                      : bi === 2
+                        ? "例：自分のメンタルは自分でコントロールする"
+                        : "例：誠実さ・成長・信頼を大切にする"
+                }
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-base leading-relaxed placeholder:text-slate-400"
               />
               <button
                 type="button"
@@ -162,10 +189,15 @@ export function FtaEditor({
               </button>
             </div>
             <p className={`mt-2 text-sm font-medium ${b.locked ? "text-amber-800" : "text-emerald-700"}`}>
-              {b.locked ? "この要素は非公開です。" : "この要素は閲覧可能です。"}
+              {b.locked ? "この価値観は非公開です。" : "この価値観は閲覧可能です。"}
             </p>
             <div className="mt-4 flex items-center justify-between">
-              <p className="text-sm text-zinc-600">アクション(C)は最大8枠まで追加できます</p>
+              <div>
+                <p className="text-sm font-medium text-zinc-800">アクションアイテム（最大8）</p>
+                <p className="text-xs text-zinc-600">
+                  今の会社をフィールドに、状況・回数がイメージできる粒度で書く
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => {
@@ -180,7 +212,7 @@ export function FtaEditor({
                 disabled={b.actions.length >= 8}
                 className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-800 disabled:opacity-50"
               >
-                Cを追加
+                アクションを追加
               </button>
             </div>
             <div className="mt-3 space-y-3">
@@ -214,8 +246,8 @@ export function FtaEditor({
                       onChange({ ...safe, elements });
                     }}
                     rows={3}
-                    className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm leading-relaxed"
-                    placeholder={`アクション ${ci + 1}`}
+                    className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm leading-relaxed placeholder:text-slate-400"
+                    placeholder="例：週1回、他部署の同僚に15分ヒアリングし、学んだことをチーム共有に載せる"
                   />
                   {focusSkillOptions.length > 0 ? (
                     <select
@@ -229,7 +261,7 @@ export function FtaEditor({
                       }}
                       className="w-full rounded-md border border-indigo-200 bg-indigo-50/40 px-2 py-1 text-xs"
                     >
-                      <option value="">重点スキル（未選択）</option>
+                      <option value="">重点育成項目（未選択）</option>
                       {focusSkillOptions.map((s) => (
                         <option key={s.id} value={s.id}>{s.name}</option>
                       ))}
