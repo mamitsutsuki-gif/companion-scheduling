@@ -46,9 +46,9 @@ const emptyEntry = (): ActionBrakeEntry => ({
 function formatPdcaSource(link: PdcaLink | undefined): string | null {
   if (!link) return null;
   const when =
-    link.periodLabel.trim() ||
     (link.sessionNumber ? `第${link.sessionNumber}回` : "") ||
-    "（時期未設定）";
+    link.periodLabel.trim() ||
+    "（回未設定）";
   const stuck = link.stuckText.trim();
   if (stuck) return `${when}　行き詰まり事象「${stuck}」`;
   return when;

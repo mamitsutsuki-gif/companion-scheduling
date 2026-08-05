@@ -378,7 +378,12 @@ export function ReflectionPanel({ matchId }: { matchId: string }) {
           <ul className="mt-3 space-y-2 text-sm text-slate-700">
             {pdcaEntries.slice(0, 8).map((e) => (
               <li key={e.id}>
-                <strong>{e.periodLabel || e.id}</strong> — {e.focusTheme || "（テーマなし）"}
+                <strong>
+                  {e.sessionNumber
+                    ? `第${e.sessionNumber}回`
+                    : e.periodLabel || e.id}
+                </strong>{" "}
+                — {e.focusTheme || "（テーマなし）"}
               </li>
             ))}
           </ul>

@@ -197,34 +197,25 @@ export function PdcaPanel({
               新規作成
             </button>
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="text-sm">
-              対象（回・月）
-              <input
-                value={draft.periodLabel}
-                disabled={!perms.canEditClient}
-                onChange={(e) => setDraft({ ...draft, periodLabel: e.target.value })}
-                placeholder="例: 第3回 / 4月第2週"
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-              />
-            </label>
-            <label className="text-sm">
-              セッション回（任意）
-              <input
-                type="number"
-                min={1}
-                value={draft.sessionNumber ?? ""}
-                disabled={!perms.canEditClient}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    sessionNumber: e.target.value ? Number(e.target.value) : null,
-                  })
-                }
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-              />
-            </label>
-          </div>
+          <label className="block text-sm">
+            第何回目
+            <input
+              type="number"
+              min={1}
+              max={60}
+              value={draft.sessionNumber ?? ""}
+              disabled={!perms.canEditClient}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  sessionNumber: e.target.value ? Number(e.target.value) : null,
+                  periodLabel: "",
+                })
+              }
+              placeholder="例: 3"
+              className="mt-1 w-full max-w-[12rem] rounded-lg border border-slate-300 px-3 py-2"
+            />
+          </label>
           <label className="block text-sm">
             重点テーマ
             <input
@@ -379,8 +370,9 @@ export function PdcaPanel({
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="font-semibold text-slate-900">
-                    {e.periodLabel || "（時期未設定）"}
-                    {e.sessionNumber ? ` / 第${e.sessionNumber}回` : ""}
+                    {e.sessionNumber
+                      ? `第${e.sessionNumber}回`
+                      : e.periodLabel || "（回未設定）"}
                   </p>
                   {e.focusTheme ? <p className="text-sm text-slate-600">テーマ: {e.focusTheme}</p> : null}
                   {e.focusSkillIds.length > 0 ? (

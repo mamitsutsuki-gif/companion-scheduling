@@ -6,6 +6,7 @@ function trim(v: unknown, max: number): string {
 export type PdcaEntry = {
   id: string;
   sessionNumber: number | null;
+  /** @deprecated 互換のため残す。新規は sessionNumber のみ使う */
   periodLabel: string;
   focusTheme: string;
   focusSkillIds: string[];
