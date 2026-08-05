@@ -710,6 +710,8 @@ type StatusBannerInfo = {
   severity: "info" | "todo" | "warn";
   ctaLabel?: string;
   ctaTab?: MatchTab;
+  /** 指定時は該当回のセッション詳細ページへ直接遷移する */
+  ctaSessionNumber?: number;
   /** タブ切替後にスクロールする要素 id */
   scrollToId?: string;
 };
@@ -813,6 +815,7 @@ function computeMatchBanner(args: {
       severity: "todo",
       ctaLabel: isClientSide ? "振り返りを書く" : "レポートを書く",
       ctaTab: "sessions",
+      ctaSessionNumber: unsubmitted.sessionNumber,
       scrollToId: "sessions-review",
     };
   }
@@ -836,6 +839,8 @@ function computeMatchBanner(args: {
         severity: "info",
         ctaLabel: "セッション詳細を開く",
         ctaTab: "sessions",
+        ctaSessionNumber: upcoming.sessionNumber,
+        scrollToId: "sessions-review",
       };
     }
   }
@@ -1865,7 +1870,14 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             <p className="min-w-0 break-words text-sm font-semibold sm:text-base">
               {banner.message}
             </p>
-            {banner.ctaLabel && banner.ctaTab ? (
+            {banner.ctaLabel && banner.ctaSessionNumber && scheduleSettings.planFeatures.sessions ? (
+              <Link
+                href={`/match/${matchId}/sessions/${banner.ctaSessionNumber}`}
+                className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-semibold no-underline ${buttonClass}`}
+              >
+                {banner.ctaLabel}
+              </Link>
+            ) : banner.ctaLabel && banner.ctaTab ? (
               <button
                 type="button"
                 onClick={() => {
