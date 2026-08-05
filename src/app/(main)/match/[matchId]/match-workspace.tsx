@@ -53,6 +53,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  type ReactNode,
 } from "react";
 
 type Role =
@@ -531,6 +532,44 @@ function chatSendFormLabel(role: Role): string {
     : "メッセージ送信";
 }
 
+const CHAT_URL_PATTERN = /https?:\/\/[^\s]+/g;
+
+/** 末尾の句読点・閉じ括弧は URL に含めない */
+function trimUrlTail(url: string): { href: string; tail: string } {
+  let end = url.length;
+  while (end > 0 && "。、．，)）]］>》!?！？.,:;".includes(url[end - 1])) end -= 1;
+  return { href: url.slice(0, end), tail: url.slice(end) };
+}
+
+/** チャット本文中の URL をリンクにする */
+function renderChatBody(body: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let key = 0;
+  for (const match of body.matchAll(CHAT_URL_PATTERN)) {
+    const raw = match[0];
+    const start = match.index ?? 0;
+    if (start > lastIndex) nodes.push(body.slice(lastIndex, start));
+    const { href, tail } = trimUrlTail(raw);
+    nodes.push(
+      <a
+        key={`u${key}`}
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="break-all text-indigo-700 underline"
+      >
+        {href}
+      </a>,
+    );
+    if (tail) nodes.push(tail);
+    key += 1;
+    lastIndex = start + raw.length;
+  }
+  if (lastIndex < body.length) nodes.push(body.slice(lastIndex));
+  return nodes;
+}
+
 function ChatMsgRow({
   msg,
   me,
@@ -618,7 +657,7 @@ function ChatMsgRow({
       ) : msg.kind === "SCHEDULE_CONFIRMED" ? (
         <div className="mt-2 space-y-2">
           <ScheduleConfirmedCard payload={msg.payload} />
-          <pre className="whitespace-pre-wrap font-sans text-xs text-emerald-900/80">{msg.body}</pre>
+          <pre className="whitespace-pre-wrap font-sans text-xs text-emerald-900/80">{renderChatBody(msg.body)}</pre>
         </div>
       ) : msg.kind === "VOTE_SUMMARY" ? (
         <div className="mt-2">
@@ -637,7 +676,7 @@ function ChatMsgRow({
           />
         </div>
       ) : (
-        <pre className="mt-2 whitespace-pre-wrap font-sans text-sm">{msg.body}</pre>
+        <pre className="mt-2 whitespace-pre-wrap font-sans text-sm">{renderChatBody(msg.body)}</pre>
       )}
 
       <div className="mt-2 text-[11px] text-slate-400">{formatJa(msg.createdAt)}</div>
@@ -946,6 +985,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [clientBriefingLoading, setClientBriefingLoading] = useState(false);
   const [partnerPending, setPartnerPending] = useState(false);
   const [supervisorViewer, setSupervisorViewer] = useState(false);
+  /** ルーム自体を開けない（権限なし・不存在）。ポーリングを止めて案内だけ出す。 */
+  const [roomAccessDenied, setRoomAccessDenied] = useState(false);
   const [brakeFromPdcaId, setBrakeFromPdcaId] = useState<string | null>(null);
 
   const goTab = useCallback((tab: MatchTab) => {
@@ -1030,7 +1071,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   }, [chatFullscreen]);
 
   const load = useCallback(async () => {
-    setError(null);
     const roomRes = await fetch(`/api/matches/${encodeURIComponent(matchId)}`, { cache: "no-store" });
     const roomJson = await roomRes.json().catch(() => null);
     if (!roomRes.ok) {
@@ -1039,8 +1079,11 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       const meJson = await meRes.json().catch(() => null);
       if (meRes.ok && meJson?.user) setMe(meJson.user);
       setError(roomJson?.error ?? "このマッチを開けません。");
+      if (roomRes.status === 403 || roomRes.status === 404) setRoomAccessDenied(true);
       return;
     }
+    setError(null);
+    setRoomAccessDenied(false);
     const pending = roomJson?.partnerPending === true;
     setPartnerPending(pending);
     const sheetsOnly = roomJson?.supervisorViewer === true;
@@ -1285,27 +1328,30 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
   useEffect(() => {
     // 軽量ポーリング: チャット反映を高速化（1.2 秒）
+    if (roomAccessDenied) return;
     const id = window.setInterval(() => {
       void load();
     }, 1200);
     return () => window.clearInterval(id);
-  }, [load]);
+  }, [load, roomAccessDenied]);
 
   useEffect(() => {
     // セッション一覧は少し緩めに更新
+    if (roomAccessDenied) return;
     const id = window.setInterval(() => {
       void loadSessions();
     }, 3000);
     return () => window.clearInterval(id);
-  }, [loadSessions]);
+  }, [loadSessions, roomAccessDenied]);
 
   useEffect(() => {
     // FTAは独立で短い間隔で取得し、チャット/日程APIの成否に影響されないようにする。
+    if (roomAccessDenied) return;
     const id = window.setInterval(() => {
       void loadClientFta();
     }, 2000);
     return () => window.clearInterval(id);
-  }, [loadClientFta]);
+  }, [loadClientFta, roomAccessDenied]);
 
   // 既読タイムスタンプを localStorage から復元
   useEffect(() => {
@@ -1675,7 +1721,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     await load();
   }
 
-  if (!me) {
+  if (!me || roomAccessDenied) {
     if (error) {
       return (
         <div className="mx-auto max-w-xl px-6 py-10">
