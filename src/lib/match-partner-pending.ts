@@ -1,5 +1,5 @@
 import type { Role } from "@prisma/client";
-import { resolveCompanyPlan } from "@/lib/company-plan";
+import { resolveCompanyPlan, type CompanyPlan } from "@/lib/company-plan";
 import {
   assignPartnerToPendingMatch,
   createPendingCoachingMatchForClient,
@@ -39,14 +39,35 @@ function enrolledProgramIds(user: { enrolledProgramIds?: string[] } | null): str
 }
 
 /**
- * コーチングマネジメント研修の未割当ルームを確保する。
+ * 未割当ルームを作る研修プログラムを決める（純関数）。
  *
  * 隔離ルール（他プランへ漏らさない）:
- * - 企業に研修プログラムが無い → 何もしない
  * - 参加プログラムが明示されている → その中の研修のみ
- * - 参加未設定 → 企業レジストリのプランが `coaching_management_training` のときだけ作成
- *   （個別伴走・職場活性企業が誤って研修プログラムを持っていてもルームを作らない）
+ * - 参加未設定 かつ 研修以外のプログラムも持つ企業 → 作らない
+ *   （複数プラン企業では「メンバーの参加プログラム」で明示チェックが必要。UI の既定表示と一致させる）
+ * - 参加未設定 かつ 研修だけの企業 → 企業レジストリのプランが `coaching_management_training` のときだけ作成
  */
+export function selectCoachingProgramsForClient<T extends { id: string; plan: CompanyPlan }>(input: {
+  programs: T[];
+  enrolledProgramIds: string[];
+  registryPlan: CompanyPlan;
+}): T[] {
+  const coaching = input.programs.filter((p) => p.plan === "coaching_management_training");
+  if (coaching.length === 0) return [];
+
+  const enrolled = input.enrolledProgramIds.filter((id) => typeof id === "string" && id.trim());
+  if (enrolled.length > 0) {
+    return coaching.filter((p) => enrolled.includes(p.id));
+  }
+
+  const hasOtherPlanProgram = input.programs.some(
+    (p) => p.plan !== "coaching_management_training",
+  );
+  if (hasOtherPlanProgram) return [];
+  return input.registryPlan === "coaching_management_training" ? coaching : [];
+}
+
+/** コーチングマネジメント研修の未割当ルームを確保し、対象外の未割当ルームは掃除する。 */
 export async function ensureCoachingRoomForClient(
   clientId: string,
 ): Promise<Array<{ matchId: string; programId: string; created: boolean }>> {
@@ -57,22 +78,16 @@ export async function ensureCoachingRoomForClient(
   if (!companyId) return [];
 
   const programs = await listProgramsForCompany(companyId);
-  let coachingPrograms = programs.filter((p) => p.plan === "coaching_management_training");
-  if (coachingPrograms.length === 0) return [];
+  if (programs.every((p) => p.plan !== "coaching_management_training")) return [];
 
-  const enrolled = enrolledProgramIds(user as { enrolledProgramIds?: string[] });
-  if (enrolled.length > 0) {
-    coachingPrograms = coachingPrograms.filter((p) => enrolled.includes(p.id));
-  } else {
-    const settings = await getAppSettingsRow();
-    const registryPlan = resolveCompanyPlan(companyId, settings.companies);
-    if (registryPlan !== "coaching_management_training") {
-      // 他プラン企業に残った未割当研修ルームを掃除（割当済みは触らない）
-      await deleteOrphanPendingCoachingMatchesForClient(clientId, new Set()).catch(() => 0);
-      return [];
-    }
-  }
+  const settings = await getAppSettingsRow();
+  const coachingPrograms = selectCoachingProgramsForClient({
+    programs,
+    enrolledProgramIds: enrolledProgramIds(user as { enrolledProgramIds?: string[] }),
+    registryPlan: resolveCompanyPlan(companyId, settings.companies),
+  });
   if (coachingPrograms.length === 0) {
+    // 対象外になった未割当研修ルームを掃除（割当済みは触らない）
     await deleteOrphanPendingCoachingMatchesForClient(clientId, new Set()).catch(() => 0);
     return [];
   }

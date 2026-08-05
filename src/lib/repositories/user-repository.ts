@@ -621,6 +621,8 @@ export async function getUserById(userId: string) {
       // 最終アクセス時刻（管理者の「塩漬けユーザー」検知用）。
       lastSeenAt: typeof raw.lastSeenAt === "string" ? raw.lastSeenAt : null,
       availabilitySlotIds: asStringArray(raw.availabilitySlotIds),
+      // 参加プログラム（Firestore のみ）。未割当ルーム作成やプラン判定の正本。
+      enrolledProgramIds: asStringArray(raw.enrolledProgramIds),
     };
   }
   try {
@@ -642,6 +644,7 @@ export async function getUserById(userId: string) {
       onboardedAt: null as string | null,
       lastSeenAt: null as string | null,
       availabilitySlotIds: [] as string[],
+      enrolledProgramIds: [] as string[],
     };
   } catch (error) {
     if (
@@ -661,6 +664,7 @@ export async function getUserById(userId: string) {
       onboardedAt: null as string | null,
       lastSeenAt: null as string | null,
       availabilitySlotIds: [] as string[],
+      enrolledProgramIds: [] as string[],
     };
   }
 }
