@@ -222,7 +222,8 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
         lifelineChart: true,
         summaryReport: true,
         developmentOpportunity: true,
-        businessProblem: true,
+        /** 当面オフ（企業設定で ON にすれば再利用可） */
+        businessProblem: false,
         coachingRoleplay: false,
         coachingQuestions: false,
         coachingIcebreaker: false,
