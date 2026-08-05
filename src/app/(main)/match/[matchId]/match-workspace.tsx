@@ -1489,8 +1489,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   }
 
   async function onProposeTimeRanges(payload: {
-    sessionNumbers: number[];
-    timeRanges: TimeRangeInput[];
+    proposals: Array<{ sessionNumber: number; timeRanges: TimeRangeInput[] }>;
   }) {
     if (me?.role !== "PARTNER") return;
     if (proposeSubmitting) return;
@@ -1510,11 +1509,17 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     }
     const sessions = Array.isArray(json?.sessionNumbers)
       ? (json.sessionNumbers as number[])
-      : payload.sessionNumbers;
+      : payload.proposals.map((p) => p.sessionNumber);
+    const slotCounts =
+      json?.slotCounts && typeof json.slotCounts === "object"
+        ? (json.slotCounts as Record<string, number>)
+        : {};
     setProposeJustSent(true);
     setNotice(
       sessions.length > 1
-        ? `第${sessions.join("・")}回の候補日時（各${json?.slotCount ?? ""}件）をまとめて提示しました。`
+        ? sessions
+            .map((n) => `第${n}回（${slotCounts[String(n)] ?? ""}件）`)
+            .join("・") + "の候補日時をまとめて提示しました。"
         : `第${sessions[0] ?? ""}回の候補日時（${json?.slotCount ?? ""}件）を提示しました。`,
     );
     window.setTimeout(() => setProposeJustSent(false), 6000);
@@ -2459,6 +2464,16 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 .map((n) => `第${Math.max(1, n.sessionNumber ?? 1)}回`)
                 .join("・")}
               ）。上のフォームで対象の回を選び、新しい時間帯を再提示してください。
+            </div>
+          ) : null}
+
+          {isClientRole(me.role) &&
+          openNegotiations.filter((n) => n.status === "AWAITING_CLIENT_RESPONSE").length > 1 ? (
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950">
+              <strong>回ごとに候補が分かれています。</strong>
+              <span className="ml-1">
+                第1回、第2回…の順に、それぞれ都合の良い日時を選んで回答してください。
+              </span>
             </div>
           ) : null}
 

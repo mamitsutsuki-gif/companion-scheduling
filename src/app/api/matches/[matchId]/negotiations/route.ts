@@ -40,9 +40,22 @@ const timeRangeSchema = z.object({
 
 const rangesPayload = z.object({
   sessionNumber: z.number().int().min(1).optional(),
-  /** 複数回分を同じ時間帯でまとめて提案（月額以外のマッチ日程調整） */
+  /** 後方互換: 同じ候補を複数回へ送る旧形式 */
   sessionNumbers: z.array(z.number().int().min(1)).min(1).max(60).optional(),
   timeRanges: z.array(timeRangeSchema).min(1).max(14),
+});
+
+/** 回ごとに異なる候補日時をまとめて送る形式 */
+const groupedRangesPayload = z.object({
+  proposals: z
+    .array(
+      z.object({
+        sessionNumber: z.number().int().min(1),
+        timeRanges: z.array(timeRangeSchema).min(1).max(14),
+      }),
+    )
+    .min(1)
+    .max(60),
 });
 
 /** 後方互換: 旧来の starts / slots ペイロード */
@@ -101,25 +114,42 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const raw = await request.json().catch(() => null);
+  const parsedGrouped = groupedRangesPayload.safeParse(raw);
   const parsedRanges = rangesPayload.safeParse(raw);
-  const parsedStarts = !parsedRanges.success ? startsPayload.safeParse(raw) : null;
+  const parsedStarts =
+    !parsedGrouped.success && !parsedRanges.success ? startsPayload.safeParse(raw) : null;
   const parsedLegacy =
-    !parsedRanges.success && (!parsedStarts || !parsedStarts.success)
+    !parsedGrouped.success &&
+    !parsedRanges.success &&
+    (!parsedStarts || !parsedStarts.success)
       ? legacySlotsPayload.safeParse(raw)
       : null;
 
-  if (!parsedRanges.success && (!parsedStarts || !parsedStarts.success) && (!parsedLegacy || !parsedLegacy.success)) {
+  if (
+    !parsedGrouped.success &&
+    !parsedRanges.success &&
+    (!parsedStarts || !parsedStarts.success) &&
+    (!parsedLegacy || !parsedLegacy.success)
+  ) {
     return jsonError("対応可能な時間帯を1件以上登録してください。");
   }
 
   const settings = await getEffectiveAppSettingsForMatch(matchId);
   const maxSessions = Math.max(1, settings.totalSessions);
+  if (
+    parsedGrouped.success &&
+    parsedGrouped.data.proposals.some((p) => p.sessionNumber > maxSessions)
+  ) {
+    return jsonError(`対象回は第1回〜第${maxSessions}回の範囲で指定してください。`);
+  }
 
-  const rawSessionNumbers =
-    (parsedRanges.success ? parsedRanges.data.sessionNumbers : undefined) ??
-    (parsedStarts?.success ? parsedStarts.data.sessionNumbers : undefined) ??
-    (parsedLegacy?.success ? parsedLegacy.data.sessionNumbers : undefined);
+  const rawSessionNumbers = parsedGrouped.success
+    ? parsedGrouped.data.proposals.map((p) => p.sessionNumber)
+    : ((parsedRanges.success ? parsedRanges.data.sessionNumbers : undefined) ??
+      (parsedStarts?.success ? parsedStarts.data.sessionNumbers : undefined) ??
+      (parsedLegacy?.success ? parsedLegacy.data.sessionNumbers : undefined));
   const rawSessionNumber =
+    (parsedGrouped.success ? parsedGrouped.data.proposals[0]?.sessionNumber : undefined) ??
     (parsedRanges.success ? parsedRanges.data.sessionNumber : undefined) ??
     (parsedStarts?.success ? parsedStarts.data.sessionNumber : undefined) ??
     (parsedLegacy?.success ? parsedLegacy.data.sessionNumber : undefined) ??
@@ -136,6 +166,13 @@ export async function POST(request: Request, context: RouteContext) {
   if (sessionNumbers.length === 0) {
     return jsonError("対象の回を指定してください。");
   }
+  if (
+    parsedGrouped.success &&
+    new Set(parsedGrouped.data.proposals.map((p) => p.sessionNumber)).size !==
+      parsedGrouped.data.proposals.length
+  ) {
+    return jsonError("同じ回が重複しています。");
+  }
 
   const slotWindow = {
     slotDurationMinutes: settings.slotDurationMinutes,
@@ -145,17 +182,33 @@ export async function POST(request: Request, context: RouteContext) {
     timezone: settings.timezone || "Asia/Tokyo",
   };
 
-  let slotData: { startAt: Date; endAt: Date }[] = [];
+  const slotDataBySession = new Map<number, { startAt: Date; endAt: Date }[]>();
+  let sharedSlotData: { startAt: Date; endAt: Date }[] = [];
   let truncated = false;
 
-  if (parsedRanges.success) {
+  if (parsedGrouped.success) {
+    for (const proposal of parsedGrouped.data.proposals) {
+      const sessionNumber = Math.min(Math.max(1, proposal.sessionNumber), maxSessions);
+      const generated = generateSlotsFromTimeRanges(
+        proposal.timeRanges as TimeRangeInput[],
+        slotWindow,
+      );
+      if (generated.slots.length === 0) {
+        return jsonError(
+          `第${sessionNumber}回の候補日時を生成できませんでした。日付・時刻をご確認ください。`,
+        );
+      }
+      slotDataBySession.set(sessionNumber, generated.slots);
+      truncated = truncated || generated.truncated;
+    }
+  } else if (parsedRanges.success) {
     const generated = generateSlotsFromTimeRanges(
       parsedRanges.data.timeRanges as TimeRangeInput[],
       slotWindow,
     );
-    slotData = generated.slots;
+    sharedSlotData = generated.slots;
     truncated = generated.truncated;
-    if (slotData.length === 0) {
+    if (sharedSlotData.length === 0) {
       return jsonError("入力された時間帯から候補日時を生成できませんでした。日付・時刻をご確認ください。");
     }
   } else if (parsedStarts?.success) {
@@ -169,7 +222,7 @@ export async function POST(request: Request, context: RouteContext) {
       const end = addMinutes(start, settings.slotDurationMinutes);
       const v = validateSlotWindow(start, end, slotWindow);
       if (v) return jsonError(v);
-      slotData.push({ startAt: start, endAt: end });
+      sharedSlotData.push({ startAt: start, endAt: end });
     }
   } else if (parsedLegacy?.success) {
     for (const row of parsedLegacy.data.slots) {
@@ -180,7 +233,13 @@ export async function POST(request: Request, context: RouteContext) {
       }
       const v = validateSlotWindow(start, end, slotWindow);
       if (v) return jsonError(v);
-      slotData.push({ startAt: start, endAt: end });
+      sharedSlotData.push({ startAt: start, endAt: end });
+    }
+  }
+
+  if (!parsedGrouped.success) {
+    for (const sessionNumber of sessionNumbers) {
+      slotDataBySession.set(sessionNumber, sharedSlotData);
     }
   }
 
@@ -200,6 +259,10 @@ export async function POST(request: Request, context: RouteContext) {
   const created = [];
 
   for (const sessionNumber of sessionNumbers) {
+    const slotData = slotDataBySession.get(sessionNumber) ?? [];
+    if (slotData.length === 0) {
+      return jsonError(`第${sessionNumber}回の候補日時がありません。`);
+    }
     const latestForSession = await findLatestNegotiationForSession(matchId, sessionNumber);
     if (latestForSession?.status === "NEEDS_NEW_PROPOSAL") {
       await markNegotiationSuperseded(latestForSession.id);
@@ -291,5 +354,8 @@ export async function POST(request: Request, context: RouteContext) {
     sessionNumbers,
     truncated,
     slotCount: first.slots.length,
+    slotCounts: Object.fromEntries(
+      created.map((n) => [String(n.sessionNumber ?? 1), n.slots.length]),
+    ),
   });
 }

@@ -109,7 +109,11 @@ export function ScheduleClientVoteForm({
 
   return (
     <form
-      id="client-schedule-vote"
+      id={
+        sessionNumber != null
+          ? `client-schedule-vote-${sessionNumber}`
+          : "client-schedule-vote-form"
+      }
       onSubmit={(e) => void handleSubmit(e)}
       className="app-surface-indigo scroll-mt-24 space-y-5 rounded-2xl px-5 py-5"
     >
