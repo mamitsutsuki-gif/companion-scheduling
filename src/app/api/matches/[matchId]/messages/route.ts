@@ -1,6 +1,4 @@
-import { z } from "zod";
-import { readSession } from "@/lib/session";
-import { getMatchIfAllowed } from "@/lib/match-access";
+import { getMatchIfAllowed, isSupervisorSheetsOnly } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
 import { notifyMatchStakeholders, summarizeChatLine } from "@/lib/notify-members";
 import {
@@ -13,6 +11,8 @@ import { appendAdminNotification } from "@/lib/repositories/admin-notification-r
 import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
 import { isPartnerPendingMatch } from "@/lib/match-partner-pending";
+import { readSession } from "@/lib/session";
+import { z } from "zod";
 
 const postSchema = z.object({
   body: z.string().min(1).max(5000),
@@ -29,6 +29,9 @@ export async function GET(_request: Request, context: RouteContext) {
   if ("error" in gate) {
     const status = gate.error === "not_found" ? 404 : 403;
     return jsonError(status === 404 ? "見つかりません。" : "閲覧できません。", status);
+  }
+  if (isSupervisorSheetsOnly(gate)) {
+    return jsonError("上司紐づけではチャットを利用できません。", 403);
   }
 
   if (isPartnerPendingMatch(gate.match)) {
@@ -53,6 +56,9 @@ export async function POST(request: Request, context: RouteContext) {
   if ("error" in gate) {
     const status = gate.error === "not_found" ? 404 : 403;
     return jsonError(status === 404 ? "見つかりません。" : "送信できません。", status);
+  }
+  if (isSupervisorSheetsOnly(gate)) {
+    return jsonError("上司紐づけではチャットを利用できません。", 403);
   }
 
   if (isPartnerPendingMatch(gate.match)) {

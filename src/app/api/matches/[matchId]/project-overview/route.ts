@@ -1,6 +1,6 @@
 import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
-import { getMatchIfAllowed } from "@/lib/match-access";
+import { getMatchIfAllowed, isSupervisorSheetsOnly } from "@/lib/match-access";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import type { Role } from "@prisma/client";
 
@@ -17,6 +17,9 @@ export async function GET(_req: Request, ctx: RouteContext) {
     role: session.role as Role,
   });
   if ("error" in allowed) return jsonError("権限がありません。", 403);
+  if (isSupervisorSheetsOnly(allowed)) {
+    return jsonError("上司紐づけではプロジェクト概要を利用できません。", 403);
+  }
 
   const eff = await getEffectiveAppSettingsForMatch(matchId);
   const role = session.role;

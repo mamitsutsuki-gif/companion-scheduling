@@ -8,6 +8,7 @@ import {
   labelsForSlotIds,
   type AvailabilitySlotOption,
 } from "@/lib/availability";
+import { AdminSupervisorLinksSection } from "@/components/admin-supervisor-links-section";
 
 type RoleUser = {
   id: string;
@@ -171,24 +172,9 @@ export default function AdminMatchesPage() {
     [matchPrograms, matchProgramId],
   );
   const isIndividualCompanionMatch = selectedMatchProgram?.plan === "individual_companion";
-  const selectedMatchClient = useMemo(
-    () => users.find((u) => u.id === matchClientId) ?? null,
-    [users, matchClientId],
-  );
 
-  /** 個別伴走のみ: 同じ企業の CLIENT_ADMIN を上司（partner側）候補に含める */
-  const partnerCandidates = useMemo(() => {
-    if (!isIndividualCompanionMatch) return partners;
-    const companyId = (selectedMatchClient?.companyId ?? "").trim();
-    const supervisors = users.filter(
-      (u) =>
-        u.role === "CLIENT_ADMIN" &&
-        Boolean(companyId) &&
-        (u.companyId ?? "").trim() === companyId &&
-        u.id !== matchClientId,
-    );
-    return [...partners, ...supervisors];
-  }, [isIndividualCompanionMatch, partners, users, selectedMatchClient, matchClientId]);
+  /** マッチのパートナー候補は PARTNER のみ（上司は別セクションの紐づけ） */
+  const partnerCandidates = useMemo(() => partners, [partners]);
 
   const filteredPartners = useMemo(() => {
     const q = partnerFilter.trim().toLowerCase();
@@ -767,7 +753,7 @@ export default function AdminMatchesPage() {
         </p>
         <h1 className="mt-2 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">マッチ管理</h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          登録済みのパートナーとクライアントを 1対1 で紐づけます。個別伴走プランでは、同じ企業のクライアント管理者を上司として部下（CLIENT）とマッチできます。アプリ画面上では連絡先は非公開のまま運用されます。
+          登録済みのパートナーとクライアントを 1対1 で紐づけます。個別伴走の上司（CLIENT_ADMIN）は下の「上司割当」で部下と紐づけてください（マッチのパートナー枠には置きません）。アプリ画面上では連絡先は非公開のまま運用されます。
         </p>
       </header>
 
@@ -781,7 +767,7 @@ export default function AdminMatchesPage() {
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-3">
                 <label className="block text-sm font-semibold text-zinc-900">
-                  {isIndividualCompanionMatch ? "パートナー / 上司（CLIENT_ADMIN）" : "パートナー"}
+                  パートナー
                 </label>
                 <input
                   type="search"
@@ -802,22 +788,18 @@ export default function AdminMatchesPage() {
                   </option>
                   {filteredPartners.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.role === "CLIENT_ADMIN"
-                        ? `${p.displayName}（上司・CLIENT_ADMIN / ${p.email}）`
-                        : `${p.displayName}（${p.email}）`}
+                      {`${p.displayName}（${p.email}）`}
                     </option>
                   ))}
                 </select>
                 {isIndividualCompanionMatch ? (
                   <p className="text-xs text-slate-600">
-                    個別伴走では、同じ企業のクライアント管理者を上司としてマッチできます。
+                    上司のシート閲覧は下の「上司割当」で設定します（パートナー枠には置きません）。
                   </p>
                 ) : null}
                 {filteredPartners.length === 0 ? (
                   <p className="text-xs text-amber-800">
-                    {isIndividualCompanionMatch
-                      ? "該当するパートナー / 上司がいません。"
-                      : "該当するパートナーがいません。先に登録してください。"}
+                    該当するパートナーがいません。先に登録してください。
                   </p>
                 ) : null}
               </div>
@@ -1161,6 +1143,12 @@ export default function AdminMatchesPage() {
             </p>
           ) : null}
         </section>
+
+      <AdminSupervisorLinksSection
+        users={users}
+        companies={companies}
+        canWrite={viewerRole === "ADMIN"}
+      />
     </div>
   );
 }

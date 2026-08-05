@@ -216,6 +216,32 @@ function matchTabRequiresPartner(tab: MatchTab): boolean {
   );
 }
 
+/** 上司紐づけビューで表示する伴走シートタブ */
+function isSupervisorSheetTab(tab: MatchTab): boolean {
+  return (
+    tab === "skillCheck" ||
+    tab === "lifelineChart" ||
+    tab === "fta" ||
+    tab === "developmentOpportunity" ||
+    tab === "businessProblem" ||
+    tab === "pdca" ||
+    tab === "reflection" ||
+    tab === "summaryReport"
+  );
+}
+
+function firstSupervisorSheetTab(features: PlanFeatures): MatchTab {
+  if (features.skillCheck) return "skillCheck";
+  if (features.lifelineChart) return "lifelineChart";
+  if (features.fta) return "fta";
+  if (features.developmentOpportunity) return "developmentOpportunity";
+  if (features.businessProblem) return "businessProblem";
+  if (features.pdca) return "pdca";
+  if (features.reflection) return "reflection";
+  if (features.summaryReport) return "summaryReport";
+  return "skillCheck";
+}
+
 function firstPrePartnerCoachingTab(features: PlanFeatures): MatchTab {
   if (features.coachingIcebreaker) return "coachingIcebreaker";
   return "coachingIcebreaker";
@@ -267,13 +293,23 @@ function matchTabButtonClass(active: boolean, locked: boolean): string {
   }`;
 }
 
-function canShowFtaTab(me: Me, settings: ScheduleSettingsPayload): boolean {
+function canShowFtaTab(
+  me: Me,
+  settings: ScheduleSettingsPayload,
+  supervisorViewer = false,
+): boolean {
   if (!settings.planFeatures.fta) return false;
+  if (supervisorViewer) return true;
   if (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") return true;
   return isClientSideRole(me.role);
 }
 
-function ftaTabLabel(me: Me, _settings: ScheduleSettingsPayload): string {
+function ftaTabLabel(
+  me: Me,
+  _settings: ScheduleSettingsPayload,
+  supervisorViewer = false,
+): string {
+  if (supervisorViewer) return "クライアント自分FTA";
   return isClientSideRole(me.role) ? "自分FTA" : "クライアント自分FTA";
 }
 
@@ -864,6 +900,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   );
   const [clientBriefingLoading, setClientBriefingLoading] = useState(false);
   const [partnerPending, setPartnerPending] = useState(false);
+  const [supervisorViewer, setSupervisorViewer] = useState(false);
 
   const goTab = useCallback((tab: MatchTab) => {
     setActiveTab(tab);
@@ -877,6 +914,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const tryGoTab = useCallback(
     (tab: MatchTab) => {
       const isAdminViewer = isAdminViewerRole(me?.role ?? "CLIENT");
+      if (supervisorViewer && !isSupervisorSheetTab(tab)) return;
       if (partnerPending && !isAdminViewer && matchTabRequiresPartner(tab)) return;
       if (
         (tab === "coachingQuestions" || tab === "coachingOneOnOneFormat") &&
@@ -886,7 +924,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       }
       goTab(tab);
     },
-    [partnerPending, me?.role, goTab, scheduleSettings.planFeatures],
+    [partnerPending, supervisorViewer, me?.role, goTab, scheduleSettings.planFeatures],
   );
 
   useEffect(() => {
@@ -897,6 +935,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       goTab(firstPrePartnerCoachingTab(scheduleSettings.planFeatures));
     }
   }, [partnerPending, activeTab, scheduleSettings.planFeatures, goTab, me?.role]);
+
+  useEffect(() => {
+    if (!supervisorViewer) return;
+    if (!isSupervisorSheetTab(activeTab)) {
+      goTab(firstSupervisorSheetTab(scheduleSettings.planFeatures));
+    }
+  }, [supervisorViewer, activeTab, scheduleSettings.planFeatures, goTab]);
 
   useEffect(() => {
     if (!me) return;
@@ -951,28 +996,39 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     }
     const pending = roomJson?.partnerPending === true;
     setPartnerPending(pending);
+    const sheetsOnly = roomJson?.supervisorViewer === true;
+    setSupervisorViewer(sheetsOnly);
 
-    const [mRes, gRes, nRes, sRes] = await Promise.all([
+    const fetches: Promise<Response>[] = [
       fetch("/api/me", { cache: "no-store" }),
-      fetch(`/api/matches/${matchId}/messages`, { cache: "no-store" }),
-      fetch(`/api/matches/${matchId}/negotiations`, { cache: "no-store" }),
       fetch(`/api/settings?matchId=${encodeURIComponent(matchId)}`, { cache: "no-store" }),
-    ]);
+    ];
+    if (!sheetsOnly) {
+      fetches.push(
+        fetch(`/api/matches/${matchId}/messages`, { cache: "no-store" }),
+        fetch(`/api/matches/${matchId}/negotiations`, { cache: "no-store" }),
+      );
+    }
+    const results = await Promise.all(fetches);
+    const mRes = results[0]!;
+    const sRes = results[1]!;
+    const gRes = sheetsOnly ? null : results[2]!;
+    const nRes = sheetsOnly ? null : results[3]!;
     const mJson = await mRes.json().catch(() => null);
-    const gJson = await gRes.json().catch(() => null);
-    const nJson = await nRes.json().catch(() => null);
     const sJson = await sRes.json().catch(() => null);
+    const gJson = gRes ? await gRes.json().catch(() => null) : { messages: [] };
+    const nJson = nRes ? await nRes.json().catch(() => null) : { negotiations: [] };
 
     if (mRes.ok && mJson?.user) setMe(mJson.user);
     if (!mRes.ok) {
       setError(mJson?.error ?? "ユーザー情報が取得できません。");
       return;
     }
-    if (!gRes.ok) {
+    if (gRes && !gRes.ok) {
       setError(gJson?.error ?? "チャットを読込めませんでした。");
       return;
     }
-    if (!nRes.ok) {
+    if (nRes && !nRes.ok) {
       setError(nJson?.error ?? "日程情報を読込めませんでした。");
       return;
     }
@@ -1094,15 +1150,20 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   useEffect(() => {
     void load();
     void loadClientFta();
-    void loadAvailability();
-    void loadSessions();
-  }, [load, loadClientFta, loadAvailability, loadSessions]);
+  }, [load, loadClientFta]);
 
   useEffect(() => {
+    if (supervisorViewer) return;
+    void loadAvailability();
+    void loadSessions();
+  }, [supervisorViewer, loadAvailability, loadSessions]);
+
+  useEffect(() => {
+    if (supervisorViewer) return;
     if (me && isClientSideRole(me.role) && scheduleSettings.planFeatures.fta) {
       void loadMyFta();
     }
-  }, [me, scheduleSettings.planFeatures.fta, loadMyFta]);
+  }, [me, supervisorViewer, scheduleSettings.planFeatures.fta, loadMyFta]);
 
   useEffect(() => {
     if (!myFtaDirty || myFtaSaving) return;
@@ -1594,29 +1655,28 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     scheduleSettings.planFeatures,
     me.role,
   );
-  const showCoachingIcebreakerTab = showCoachingTabForViewer(
-    "coachingIcebreaker",
-    scheduleSettings,
-    me.role,
-  );
-  const showCoachingQuestionsTab = showCoachingTabForViewer(
-    "coachingQuestions",
-    scheduleSettings,
-    me.role,
-  );
-  const showCoachingFormatTab = showCoachingTabForViewer(
-    "coachingOneOnOneFormat",
-    scheduleSettings,
-    me.role,
-  );
+  const showCoachingIcebreakerTab =
+    !supervisorViewer &&
+    showCoachingTabForViewer("coachingIcebreaker", scheduleSettings, me.role);
+  const showCoachingQuestionsTab =
+    !supervisorViewer &&
+    showCoachingTabForViewer("coachingQuestions", scheduleSettings, me.role);
+  const showCoachingFormatTab =
+    !supervisorViewer &&
+    showCoachingTabForViewer("coachingOneOnOneFormat", scheduleSettings, me.role);
 
   return (
     <>
     <div className="mx-auto flex w-full max-w-none flex-1 flex-col gap-8 px-1 py-4 sm:gap-12 sm:px-6 sm:py-10">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4 sm:gap-4 sm:pb-6">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Match Detail</p>
-          <p className="text-sm text-slate-600 sm:text-base">{withHonorificSan(me.displayName)} として表示中（メールなどは公開されません）</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+            {supervisorViewer ? "Supervisor Sheets" : "Match Detail"}
+          </p>
+          <p className="text-sm text-slate-600 sm:text-base">
+            {withHonorificSan(me.displayName)} として表示中
+            {supervisorViewer ? "（部下の伴走シート）" : "（メールなどは公開されません）"}
+          </p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
             {me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (
               <>
@@ -1695,10 +1755,11 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       {error ? <p className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p> : null}
       {notice ? <p className="rounded-xl bg-indigo-50 px-4 py-2 text-sm text-indigo-900">{notice}</p> : null}
 
-      {me.role === "PARTNER" ||
-      me.role === "CLIENT" ||
-      me.role === "CLIENT_ADMIN" ||
-      me.role === "CLIENT_HR" ? (
+      {!supervisorViewer &&
+      (me.role === "PARTNER" ||
+        me.role === "CLIENT" ||
+        me.role === "CLIENT_ADMIN" ||
+        me.role === "CLIENT_HR") ? (
         !partnerPending ? (
         <MatchRoomGuideBanner
           userId={me.id}
@@ -1830,6 +1891,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           role="tablist"
         >
           <div className="flex flex-nowrap items-end gap-1 overflow-x-auto pb-0 sm:gap-1.5">
+            {!supervisorViewer ? (
             <button
               type="button"
               role="tab"
@@ -1840,7 +1902,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             >
               プロジェクト概要
             </button>
-            {scheduleSettings.planFeatures.clientInfo && (me.role === "PARTNER" || me.role === "ADMIN") ? (
+            ) : null}
+            {!supervisorViewer &&
+            scheduleSettings.planFeatures.clientInfo &&
+            (me.role === "PARTNER" || me.role === "ADMIN") ? (
               <button
                 type="button"
                 role="tab"
@@ -1852,7 +1917,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 クライアント情報
               </button>
             ) : null}
-            {scheduleSettings.planFeatures.chat ? (
+            {!supervisorViewer && scheduleSettings.planFeatures.chat ? (
             <button
               type="button"
               role="tab"
@@ -1869,7 +1934,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               ) : null}
             </button>
             ) : null}
-            {scheduleSettings.planFeatures.schedule ? (
+            {!supervisorViewer && scheduleSettings.planFeatures.schedule ? (
             <button
               type="button"
               role="tab"
@@ -1881,7 +1946,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               日程調整
             </button>
             ) : null}
-            {scheduleSettings.planFeatures.sessions ? (
+            {!supervisorViewer && scheduleSettings.planFeatures.sessions ? (
             <button
               type="button"
               role="tab"
@@ -1923,7 +1988,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 ライフライン
               </button>
             ) : null}
-            {me && canShowFtaTab(me, scheduleSettings) ? (
+            {me && canShowFtaTab(me, scheduleSettings, supervisorViewer) ? (
               <button
                 type="button"
                 role="tab"
@@ -1935,7 +2000,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                     : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
                 }`}
               >
-                {ftaTabLabel(me, scheduleSettings)}
+                {ftaTabLabel(me, scheduleSettings, supervisorViewer)}
               </button>
             ) : null}
             {scheduleSettings.planFeatures.developmentOpportunity ? (
@@ -1999,7 +2064,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               </button>
             ) : null}
             {scheduleSettings.planFeatures.summaryReport &&
-            (me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" || me.role === "PARTNER") ? (
+            (me.role === "ADMIN" ||
+              me.role === "ADMIN_ASSISTANT" ||
+              me.role === "PARTNER" ||
+              supervisorViewer) ? (
               <button
                 type="button"
                 role="tab"
@@ -2522,7 +2590,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       </section>
       ) : null}
 
-      {activeTab === "fta" && me && canShowFtaTab(me, scheduleSettings) ? (
+      {activeTab === "fta" && me && canShowFtaTab(me, scheduleSettings, supervisorViewer) ? (
         me.role === "CLIENT" && scheduleSettings.planFeatures.fta ? (
           <section className="space-y-4 rounded-3xl border border-indigo-100 bg-indigo-50/30 px-3 py-5 sm:px-6 sm:py-8">
             <div className="space-y-1">

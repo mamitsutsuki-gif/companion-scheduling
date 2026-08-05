@@ -155,6 +155,7 @@ export function ApplicationChrome({
   }
   if (profile.role === "CLIENT_ADMIN" || profile.role === "CLIENT_HR") {
     nav.push({ href: "/client-admin/sessions", label: "1on1セッション一覧" });
+    nav.push({ href: "/client-admin/companion-sheets", label: "部下の伴走シート" });
     nav.push({ href: "/client-admin/skill-check", label: "スキルチェック" });
   }
   if (profile.role === "PARTNER") {

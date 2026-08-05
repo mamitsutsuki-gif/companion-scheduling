@@ -1,7 +1,7 @@
 import { addMinutes } from "date-fns";
 import { z } from "zod";
 import { readSession } from "@/lib/session";
-import { getMatchIfAllowed } from "@/lib/match-access";
+import { getMatchIfAllowed, isSupervisorSheetsOnly } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { notifyMatchStakeholders } from "@/lib/notify-members";
@@ -72,6 +72,9 @@ export async function GET(_request: Request, context: RouteContext) {
   if ("error" in gate) {
     const status = gate.error === "not_found" ? 404 : 403;
     return jsonError(status === 404 ? "見つかりません。" : "閲覧できません。", status);
+  }
+  if (isSupervisorSheetsOnly(gate)) {
+    return jsonError("上司紐づけではこの機能を利用できません。", 403);
   }
 
   if (isPartnerPendingMatch(gate.match)) {

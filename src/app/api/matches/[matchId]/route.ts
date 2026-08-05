@@ -24,6 +24,8 @@ export async function GET(_request: Request, context: RouteContext) {
   return jsonOk({
     matchId: match.id,
     partnerPending,
+    /** 上司紐づけによるシート専用ビュー（チャット・日程・1on1 は非表示） */
+    supervisorViewer: gate.supervisorViewer === true,
     partner: {
       id: match.partner?.id ?? "",
       displayName: match.partner?.displayName ?? "未決定",

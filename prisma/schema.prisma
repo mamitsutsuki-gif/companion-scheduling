@@ -280,6 +280,21 @@ model Match {
   @@unique([partnerId, clientId, programId])
 }
 
+/// 個別伴走の上司↔部下紐づけ（マッチとは独立。上司は部下のパートナールームのシートのみ閲覧・編集）
+model SupervisorLink {
+  id           String   @id
+  supervisorId String
+  clientId     String
+  companyId    String
+  programId    String?
+  createdBy    String?
+  createdAt    DateTime @default(now())
+
+  @@unique([supervisorId, clientId])
+  @@index([companyId])
+  @@index([supervisorId])
+}
+
 model Message {
   id        String      @id @default(cuid())
   matchId   String

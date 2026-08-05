@@ -1,6 +1,6 @@
 import { addHours } from "date-fns";
 import { z } from "zod";
-import { getMatchIfAllowed } from "@/lib/match-access";
+import { getMatchIfAllowed, isSupervisorSheetsOnly } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
 import { notifyMatchStakeholders } from "@/lib/notify-members";
 import { createMessage } from "@/lib/repositories/message-repository";
@@ -47,6 +47,9 @@ export async function POST(request: Request, context: RouteContext) {
   if ("error" in gate) {
     const status = gate.error === "not_found" ? 404 : 403;
     return jsonError(status === 404 ? "見つかりません。" : "操作できません。", status);
+  }
+  if (isSupervisorSheetsOnly(gate)) {
+    return jsonError("上司紐づけでは日程変更を利用できません。", 403);
   }
 
   const raw = await request.json().catch(() => null);

@@ -6,6 +6,7 @@ import { getMatchById } from "@/lib/repositories/match-repository";
 import { readSession } from "@/lib/session";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { shouldUseClientFta } from "@/lib/company-plan";
+import { isPairedIndividualCompanionSupervisor } from "@/lib/skill-check-access";
 
 type RouteContext = { params: Promise<{ matchId: string }> };
 export const dynamic = "force-dynamic";
@@ -29,13 +30,20 @@ export async function GET(_request: Request, context: RouteContext) {
     const chart = maskedFtaChartForViewer(await getFtaByUserId(match.clientId));
     return jsonOk({ targetRole: "CLIENT", targetName: match.client.displayName, chart });
   }
-  if (session.role === "CLIENT_ADMIN" && match.partnerId === session.sub) {
-    const chart = maskedFtaChartForViewer(await getFtaByUserId(match.clientId));
-    return jsonOk({ targetRole: "CLIENT", targetName: match.client.displayName, chart });
+  if (session.role === "CLIENT_ADMIN" || session.role === "CLIENT_HR") {
+    const paired =
+      match.partnerId === session.sub ||
+      (await isPairedIndividualCompanionSupervisor(session.sub, match.clientId));
+    if (paired) {
+      const chart = maskedFtaChartForViewer(await getFtaByUserId(match.clientId));
+      return jsonOk({ targetRole: "CLIENT", targetName: match.client.displayName, chart });
+    }
   }
-  if (session.role === "CLIENT") {
-    const chart = await getFtaByUserId(match.clientId);
-    return jsonOk({ targetRole: "CLIENT", targetName: match.client.displayName, chart });
+  if (session.role === "CLIENT" || session.role === "CLIENT_ADMIN" || session.role === "CLIENT_HR") {
+    if (match.clientId === session.sub) {
+      const chart = await getFtaByUserId(match.clientId);
+      return jsonOk({ targetRole: "CLIENT", targetName: match.client.displayName, chart });
+    }
   }
   if (session.role === "ADMIN" || session.role === "ADMIN_ASSISTANT") {
     const chart = maskedFtaChartForViewer(await getFtaByUserId(match.clientId));

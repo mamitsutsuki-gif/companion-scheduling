@@ -8,6 +8,7 @@ import { getUserById } from "@/lib/repositories/user-repository";
 import { isClientAdminLike } from "@/lib/role-aliases";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { hasSupervisorLink } from "@/lib/repositories/supervisor-links-repository";
 
 export type SkillCheckAccess = {
   targetUserId: string;
@@ -20,11 +21,17 @@ export type SkillCheckAccess = {
   canEditSkillDefinitions: boolean;
 };
 
-/** 個別伴走で、actor が client の上司（partnerId）としてペアになっているか */
+/**
+ * 個別伴走で、actor が client の上司としてペアになっているか。
+ * 1) supervisorLinks 紐づけ（推奨）
+ * 2) レガシー: match.partnerId に CLIENT_ADMIN が入っている場合
+ */
 export async function isPairedIndividualCompanionSupervisor(
   supervisorId: string,
   clientId: string,
 ): Promise<boolean> {
+  if (await hasSupervisorLink(supervisorId, clientId)) return true;
+
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
     if (!db) return false;

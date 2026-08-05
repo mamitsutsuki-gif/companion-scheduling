@@ -1,4 +1,4 @@
-import { getMatchIfAllowed } from "@/lib/match-access";
+import { getMatchIfAllowed, isSupervisorSheetsOnly } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
 import { getMatchById } from "@/lib/repositories/match-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
@@ -15,6 +15,7 @@ export async function GET(_request: Request, context: RouteContext) {
   const { matchId } = await context.params;
   const gate = await getMatchIfAllowed(matchId, { id: session.sub, role: session.role });
   if ("error" in gate) return jsonError("閲覧できません。", gate.error === "not_found" ? 404 : 403);
+  if (isSupervisorSheetsOnly(gate)) return jsonError("上司紐づけではこの機能を利用できません。", 403);
 
   const match = await getMatchById(matchId);
   if (!match) return jsonError("見つかりません。", 404);

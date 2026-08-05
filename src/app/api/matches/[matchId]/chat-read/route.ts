@@ -1,6 +1,6 @@
 import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
-import { getMatchIfAllowed } from "@/lib/match-access";
+import { getMatchIfAllowed, isSupervisorSheetsOnly } from "@/lib/match-access";
 import { markChatNotificationsReadForMatch } from "@/lib/repositories/member-notification-repository";
 
 /**
@@ -28,6 +28,9 @@ export async function POST(_request: Request, context: RouteContext) {
   if ("error" in gate) {
     const status = gate.error === "not_found" ? 404 : 403;
     return jsonError(status === 404 ? "見つかりません。" : "操作できません。", status);
+  }
+  if (isSupervisorSheetsOnly(gate)) {
+    return jsonError("上司紐づけではチャット既読を利用できません。", 403);
   }
   // 管理者は member notifications を受け取らないので無視で問題ない。
   if (session.role !== "ADMIN" && session.role !== "ADMIN_ASSISTANT") {

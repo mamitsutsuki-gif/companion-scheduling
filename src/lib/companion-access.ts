@@ -9,6 +9,7 @@ import { getMatchById } from "@/lib/repositories/match-repository";
 import { findProgramForCompanyPlan } from "@/lib/repositories/program-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
 import { isClientAdminLike, isAnyAdmin } from "@/lib/role-aliases";
+import { isPairedIndividualCompanionSupervisor } from "@/lib/skill-check-access";
 
 export type LifelineViewMode = "full" | "manager" | "self" | "none";
 
@@ -61,8 +62,8 @@ function accessForActor(
       lifelineViewMode: "manager",
     };
   }
-  // 個別伴走の上司マッチ（CLIENT_ADMIN が partnerId）
-  if (opts.isSupervisorOnMatch && actor.role === "CLIENT_ADMIN") {
+  // 個別伴走の上司（CLIENT_ADMIN / CLIENT_HR：partnerId または紐づけ）
+  if (opts.isSupervisorOnMatch && isClientAdminLike(actor.role)) {
     return {
       targetUserId,
       companyId,
@@ -110,10 +111,14 @@ export async function resolveCompanionAccessForMatch(
   const companyId = ((client as { companyId?: string | null }).companyId ?? "").trim();
   if (!companyId) return { error: "forbidden" };
 
+  const pairedSupervisor =
+    isClientAdminLike(actor.role) &&
+    (match.partnerId === actor.id ||
+      (await isPairedIndividualCompanionSupervisor(actor.id, match.clientId)));
   const base = accessForActor(match.clientId, companyId, actor, {
     isClient: true,
     isPartnerOnMatch: actor.role === "PARTNER" && match.partnerId === actor.id,
-    isSupervisorOnMatch: actor.role === "CLIENT_ADMIN" && match.partnerId === actor.id,
+    isSupervisorOnMatch: pairedSupervisor,
   });
   if (base) return base;
 
@@ -187,5 +192,8 @@ export async function resolveCompanionAccessForUser(
 }
 
 export function canUseSummaryReport(access: CompanionSheetAccess, role: Role) {
-  return access.canView && (isAnyAdmin(role) || role === "PARTNER" || access.canEditAdminSummary);
+  return (
+    access.canView &&
+    (isAnyAdmin(role) || role === "PARTNER" || access.canEditAdminSummary || access.canEditCoach)
+  );
 }

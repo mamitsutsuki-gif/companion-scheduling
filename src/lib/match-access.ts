@@ -2,8 +2,22 @@ import type { Role } from "@prisma/client";
 import { getMatchById } from "@/lib/repositories/match-repository";
 import { getProgramById } from "@/lib/repositories/program-repository";
 import { isIndividualCompanionSupervisorMatch } from "@/lib/individual-companion-match";
+import { isPairedIndividualCompanionSupervisor } from "@/lib/skill-check-access";
+import { isClientAdminLike } from "@/lib/role-aliases";
 
-export async function getMatchIfAllowed(matchId: string, actor: { id: string; role: Role }) {
+export type MatchAccessOk = {
+  match: NonNullable<Awaited<ReturnType<typeof getMatchById>>>;
+  /**
+   * 上司紐づけによるシート専用アクセス（partnerId ではない）。
+   * チャット・日程・1on1 等は不可。レガシー上司マッチ（partnerId = 上司）では false。
+   */
+  supervisorViewer?: boolean;
+};
+
+export async function getMatchIfAllowed(
+  matchId: string,
+  actor: { id: string; role: Role },
+): Promise<{ error: "not_found" | "forbidden" } | MatchAccessOk> {
   const match = await getMatchById(matchId);
 
   if (!match) return { error: "not_found" as const };
@@ -14,7 +28,7 @@ export async function getMatchIfAllowed(matchId: string, actor: { id: string; ro
 
   if (actor.role === "PARTNER" && match.partnerId === actor.id) return { match };
 
-  // 個別伴走のみ: CLIENT_ADMIN が上司として partnerId に入っている場合
+  // 個別伴走のみ: CLIENT_ADMIN が上司として partnerId に入っている場合（レガシー）
   // programId 欠落のレガシーも許可（CLIENT_ADMIN を partner に置けるのは IC のみ）
   if (actor.role === "CLIENT_ADMIN" && match.partnerId === actor.id) {
     const program = match.programId ? await getProgramById(match.programId) : null;
@@ -40,5 +54,23 @@ export async function getMatchIfAllowed(matchId: string, actor: { id: string; ro
     return { match };
   }
 
+  // 上司紐づけ: 部下の個別伴走パートナールームへシート専用アクセス
+  if (isClientAdminLike(actor.role) && match.clientId !== actor.id) {
+    const paired = await isPairedIndividualCompanionSupervisor(actor.id, match.clientId);
+    if (paired) {
+      const program = match.programId ? await getProgramById(match.programId) : null;
+      if (!program || program.plan === "individual_companion") {
+        return { match, supervisorViewer: true };
+      }
+    }
+  }
+
   return { error: "forbidden" as const };
+}
+
+/** シート専用上司ビューではルーム機能（チャット・日程等）を拒否する */
+export function isSupervisorSheetsOnly(
+  gate: MatchAccessOk | { error: string },
+): boolean {
+  return !("error" in gate) && gate.supervisorViewer === true;
 }
