@@ -26,8 +26,10 @@ export type ActionBrakeEntry = {
   automaticThoughtText: string;
   /** 自動思考の書き換え */
   thoughtRewriteText: string;
-  /** 思考の癖・気づき */
+  /** 思考の癖 */
   habitNotesText: string;
+  /** 次回から変えたいこと（旧データは habitNotesText にまとまっている場合あり） */
+  nextChangeText: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -58,6 +60,7 @@ export function normalizeActionBrakeEntry(input: unknown, fallbackId: string): A
     automaticThoughtText: trim(o.automaticThoughtText, ACTION_BRAKE_TEXT_MAX),
     thoughtRewriteText: trim(o.thoughtRewriteText, ACTION_BRAKE_TEXT_MAX),
     habitNotesText: trim(o.habitNotesText, ACTION_BRAKE_TEXT_MAX),
+    nextChangeText: trim(o.nextChangeText, ACTION_BRAKE_TEXT_MAX),
     createdAt: typeof o.createdAt === "string" ? o.createdAt : now,
     updatedAt: typeof o.updatedAt === "string" ? o.updatedAt : now,
   };

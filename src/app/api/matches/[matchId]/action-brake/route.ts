@@ -5,6 +5,7 @@ import { resolveCompanionAccessForMatch } from "@/lib/companion-access";
 import {
   deleteActionBrakeEntry,
   getActionBrakeStore,
+  getPdcaStore,
   newActionBrakeEntryId,
   upsertActionBrakeEntry,
 } from "@/lib/repositories/companion-repository";
@@ -25,6 +26,7 @@ const entrySchema = z.object({
   automaticThoughtText: z.string().max(ACTION_BRAKE_TEXT_MAX).optional(),
   thoughtRewriteText: z.string().max(ACTION_BRAKE_TEXT_MAX).optional(),
   habitNotesText: z.string().max(ACTION_BRAKE_TEXT_MAX).optional(),
+  nextChangeText: z.string().max(ACTION_BRAKE_TEXT_MAX).optional(),
 });
 
 export async function GET(_req: Request, ctx: RouteContext) {
@@ -41,9 +43,18 @@ export async function GET(_req: Request, ctx: RouteContext) {
     if (access.error === "plan_disabled") return jsonError("このプランでは利用できません。", 403);
     return jsonError("権限がありません。", 403);
   }
-  const store = await getActionBrakeStore(access.targetUserId, access.companyId);
+  const [store, pdca] = await Promise.all([
+    getActionBrakeStore(access.targetUserId, access.companyId),
+    getPdcaStore(access.targetUserId, access.companyId),
+  ]);
   return jsonOk({
     store,
+    pdcaLinks: pdca.entries.map((e) => ({
+      id: e.id,
+      periodLabel: e.periodLabel,
+      sessionNumber: e.sessionNumber,
+      stuckText: e.stuckText || e.check || "",
+    })),
     permissions: {
       canEditClient: access.canEditClient,
       canEditCoach: access.canEditCoach,

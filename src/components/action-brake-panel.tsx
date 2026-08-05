@@ -1,8 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ActionBrakeEntry } from "@/lib/companion-action-brake";
 import { ACTION_BRAKE_TEXT_MAX } from "@/lib/companion-action-brake";
+
+type PdcaLink = {
+  id: string;
+  periodLabel: string;
+  sessionNumber: number | null;
+  stuckText: string;
+};
 
 const SAMPLE = {
   event:
@@ -16,8 +23,8 @@ const SAMPLE = {
     "例：人前で怒鳴るなんて恥をかかそうとしている／上司の期待に沿っていたのに認められなかった／恥ずかしい",
   rewrite:
     "例：上司は恥をかかすつもりではなかったのかもしれない。上からの指摘を恐れて言い方がキツくなっただけかもしれない。進め方の行き違いをすり合わせれば、引き続き進められるかもしれない。",
-  habit:
-    "例：「人前で否定されると、即座に防衛・反論してしまう」癖がある。まずは事実確認の質問をしてから反応する。",
+  habit: "例：人前で否定されると、即座に防衛・反論してしまう",
+  nextChange: "例：まずは事実確認の質問をしてから反応する",
 } as const;
 
 const emptyEntry = (): ActionBrakeEntry => ({
@@ -31,9 +38,21 @@ const emptyEntry = (): ActionBrakeEntry => ({
   automaticThoughtText: "",
   thoughtRewriteText: "",
   habitNotesText: "",
+  nextChangeText: "",
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 });
+
+function formatPdcaSource(link: PdcaLink | undefined): string | null {
+  if (!link) return null;
+  const when =
+    link.periodLabel.trim() ||
+    (link.sessionNumber ? `第${link.sessionNumber}回` : "") ||
+    "（時期未設定）";
+  const stuck = link.stuckText.trim();
+  if (stuck) return `${when}　行き詰まり事象「${stuck}」`;
+  return when;
+}
 
 export function ActionBrakePanel({
   matchId,
@@ -47,9 +66,12 @@ export function ActionBrakePanel({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [entries, setEntries] = useState<ActionBrakeEntry[]>([]);
+  const [pdcaLinks, setPdcaLinks] = useState<PdcaLink[]>([]);
   const [perms, setPerms] = useState({ canEditClient: false, canEditCoach: false });
   const [draft, setDraft] = useState<ActionBrakeEntry>(emptyEntry());
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  const pdcaById = useMemo(() => new Map(pdcaLinks.map((p) => [p.id, p])), [pdcaLinks]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,6 +84,7 @@ export function ActionBrakePanel({
       return;
     }
     setEntries((json as { store?: { entries?: ActionBrakeEntry[] } }).store?.entries ?? []);
+    setPdcaLinks(Array.isArray((json as { pdcaLinks?: PdcaLink[] }).pdcaLinks) ? (json as { pdcaLinks: PdcaLink[] }).pdcaLinks : []);
     setPerms((json as { permissions?: typeof perms }).permissions ?? perms);
   }, [matchId]);
 
@@ -72,8 +95,25 @@ export function ActionBrakePanel({
   useEffect(() => {
     if (!initialPdcaEntryId) return;
     setEditingId(null);
-    setDraft({ ...emptyEntry(), pdcaEntryId: initialPdcaEntryId, title: "PDCAからの行き詰まり分析" });
+    setDraft({
+      ...emptyEntry(),
+      pdcaEntryId: initialPdcaEntryId,
+      title: "PDCAからの行き詰まり分析",
+    });
+    setNotice(null);
   }, [initialPdcaEntryId]);
+
+  // PDCA リンク到着後、未入力の出来事欄に行き詰まり文を入れる（上書きしない）
+  useEffect(() => {
+    if (!initialPdcaEntryId || editingId) return;
+    const link = pdcaById.get(initialPdcaEntryId);
+    const stuck = link?.stuckText?.trim() || "";
+    if (!stuck) return;
+    setDraft((d) => {
+      if (d.pdcaEntryId !== initialPdcaEntryId || d.eventText.trim()) return d;
+      return { ...d, eventText: stuck };
+    });
+  }, [initialPdcaEntryId, pdcaById, editingId]);
 
   const canEdit = perms.canEditClient || perms.canEditCoach;
 
@@ -85,7 +125,7 @@ export function ActionBrakePanel({
 
   function startEdit(entry: ActionBrakeEntry) {
     setEditingId(entry.id);
-    setDraft({ ...entry });
+    setDraft({ ...entry, nextChangeText: entry.nextChangeText ?? "" });
     setNotice(null);
   }
 
@@ -126,6 +166,8 @@ export function ActionBrakePanel({
 
   if (loading) return <p className="text-sm text-slate-500">読込中…</p>;
 
+  const draftSource = draft.pdcaEntryId ? formatPdcaSource(pdcaById.get(draft.pdcaEntryId)) : null;
+
   return (
     <section className="space-y-6">
       <div>
@@ -140,7 +182,7 @@ export function ActionBrakePanel({
         <ol className="mt-2 list-decimal space-y-1 pl-5">
           <li>①出来事 → ③感情 → ④とった行動 → ⑤結果 を先に書く</li>
           <li>そのあと ①と③のあいだにある ②自動思考（瞬発的な解釈）を書き出す</li>
-          <li>自動思考を書き換え、思考の癖に気づく</li>
+          <li>自動思考を書き換え、思考の癖に気づき、次回から変えたいことを決める</li>
         </ol>
       </aside>
 
@@ -154,6 +196,13 @@ export function ActionBrakePanel({
               新規作成
             </button>
           </div>
+
+          {draftSource ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-amber-950">
+              <p className="font-semibold">元のPDCA</p>
+              <p className="mt-1 whitespace-pre-wrap">{draftSource}</p>
+            </div>
+          ) : null}
 
           <label className="block text-sm">
             タイトル（任意）
@@ -219,11 +268,18 @@ export function ActionBrakePanel({
               onChange={(v) => setDraft({ ...draft, thoughtRewriteText: v })}
             />
             <TextArea
-              label="思考の癖・次回から変えたいこと"
+              label="思考の癖"
               value={draft.habitNotesText}
               disabled={!perms.canEditClient}
               placeholder={SAMPLE.habit}
               onChange={(v) => setDraft({ ...draft, habitNotesText: v })}
+            />
+            <TextArea
+              label="次回から変えたいこと"
+              value={draft.nextChangeText}
+              disabled={!perms.canEditClient}
+              placeholder={SAMPLE.nextChange}
+              onChange={(v) => setDraft({ ...draft, nextChangeText: v })}
             />
           </div>
 
@@ -245,48 +301,64 @@ export function ActionBrakePanel({
         {entries.length === 0 ? (
           <p className="text-sm text-slate-500">まだ記録がありません。</p>
         ) : (
-          entries.map((e) => (
-            <article key={e.id} className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="font-semibold text-slate-900">{e.title || "（無題）"}</p>
-                  <p className="text-xs text-slate-500">
-                    更新: {e.updatedAt ? new Date(e.updatedAt).toLocaleString("ja-JP") : "—"}
+          entries.map((e) => {
+            const source = e.pdcaEntryId ? formatPdcaSource(pdcaById.get(e.pdcaEntryId)) : null;
+            return (
+              <article key={e.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                {source ? (
+                  <p className="mb-2 rounded-lg border border-amber-100 bg-amber-50/70 px-3 py-2 text-xs text-amber-950">
+                    元のPDCA: {source}
                   </p>
+                ) : null}
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-slate-900">{e.title || "（無題）"}</p>
+                    <p className="text-xs text-slate-500">
+                      更新: {e.updatedAt ? new Date(e.updatedAt).toLocaleString("ja-JP") : "—"}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {canEdit ? (
+                      <button type="button" onClick={() => startEdit(e)} className="text-sm text-indigo-700">
+                        編集
+                      </button>
+                    ) : null}
+                    {perms.canEditClient ? (
+                      <button type="button" onClick={() => void remove(e.id)} className="text-sm text-red-700">
+                        削除
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  {canEdit ? (
-                    <button type="button" onClick={() => startEdit(e)} className="text-sm text-indigo-700">
-                      編集
-                    </button>
-                  ) : null}
-                  {perms.canEditClient ? (
-                    <button type="button" onClick={() => void remove(e.id)} className="text-sm text-red-700">
-                      削除
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-              <dl className="mt-3 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
-                <div>
-                  <dt className="font-semibold">①出来事</dt>
-                  <dd className="whitespace-pre-wrap">{e.eventText || "—"}</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold">②自動思考</dt>
-                  <dd className="whitespace-pre-wrap">{e.automaticThoughtText || "—"}</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold">③感情</dt>
-                  <dd className="whitespace-pre-wrap">{e.emotionText || "—"}</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold">書き換え</dt>
-                  <dd className="whitespace-pre-wrap">{e.thoughtRewriteText || "—"}</dd>
-                </div>
-              </dl>
-            </article>
-          ))
+                <dl className="mt-3 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
+                  <div>
+                    <dt className="font-semibold">①出来事</dt>
+                    <dd className="whitespace-pre-wrap">{e.eventText || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">②自動思考</dt>
+                    <dd className="whitespace-pre-wrap">{e.automaticThoughtText || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">③感情</dt>
+                    <dd className="whitespace-pre-wrap">{e.emotionText || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">書き換え</dt>
+                    <dd className="whitespace-pre-wrap">{e.thoughtRewriteText || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">思考の癖</dt>
+                    <dd className="whitespace-pre-wrap">{e.habitNotesText || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">次回から変えたいこと</dt>
+                    <dd className="whitespace-pre-wrap">{e.nextChangeText || "—"}</dd>
+                  </div>
+                </dl>
+              </article>
+            );
+          })
         )}
       </div>
 

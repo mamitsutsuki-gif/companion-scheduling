@@ -45,12 +45,14 @@ export function PdcaPanel({
   const [notice, setNotice] = useState<string | null>(null);
   const [entries, setEntries] = useState<PdcaEntry[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
-  const [focusSkillIds, setFocusSkillIds] = useState<string[]>([]);
+  const [profileFocusSkillIds, setProfileFocusSkillIds] = useState<string[]>([]);
   const [skillCounts, setSkillCounts] = useState<Array<{ skillId: string; count: number }>>([]);
   const [perms, setPerms] = useState({ canEditClient: false, canEditCoach: false });
   const [draft, setDraft] = useState<PdcaEntry>(emptyEntry());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [actionBrakeEnabled, setActionBrakeEnabled] = useState(false);
+  /** 新規作成時に参照する前回シートの次回アクション */
+  const [previousActHint, setPreviousActHint] = useState<string | null>(null);
 
   const skillName = useMemo(() => new Map(skills.map((s) => [s.id, s.name])), [skills]);
 
@@ -66,7 +68,7 @@ export function PdcaPanel({
     }
     setEntries((json as { store?: { entries?: PdcaEntry[] } }).store?.entries ?? []);
     setSkills((json as { skills?: Skill[] }).skills ?? []);
-    setFocusSkillIds((json as { focusSkillIds?: string[] }).focusSkillIds ?? []);
+    setProfileFocusSkillIds((json as { focusSkillIds?: string[] }).focusSkillIds ?? []);
     setSkillCounts((json as { skillCounts?: Array<{ skillId: string; count: number }> }).skillCounts ?? []);
     setPerms((json as { permissions?: typeof perms }).permissions ?? perms);
     setActionBrakeEnabled(Boolean((json as { actionBrakeEnabled?: boolean }).actionBrakeEnabled));
@@ -76,23 +78,38 @@ export function PdcaPanel({
     void load();
   }, [load]);
 
-  function startNew() {
+  function latestEntry(list: PdcaEntry[] = entries): PdcaEntry | null {
+    return list[0] ?? null;
+  }
+
+  function startNew(fromEntries: PdcaEntry[] = entries) {
+    const prev = latestEntry(fromEntries);
+    const carriedSkills =
+      prev && prev.focusSkillIds.length > 0
+        ? prev.focusSkillIds.slice(0, 3)
+        : profileFocusSkillIds.slice(0, 3);
+    const prevAct = prev?.act?.trim() || "";
     setEditingId(null);
     setDraft({
       ...emptyEntry(),
-      focusSkillIds: focusSkillIds.slice(0, 3),
+      focusTheme: prev?.focusTheme ?? "",
+      focusSkillIds: carriedSkills,
+      plan: prevAct,
       periodLabel: "",
     });
+    setPreviousActHint(prevAct || null);
     setNotice(null);
   }
 
   function startEdit(entry: PdcaEntry) {
     setEditingId(entry.id);
+    setPreviousActHint(null);
     setDraft({
       ...entry,
       stuckText: entry.stuckText || entry.check,
       learningText: entry.learningText,
     });
+    setNotice(null);
   }
 
   async function save() {
@@ -120,9 +137,10 @@ export function PdcaPanel({
     const saved = (json as { store?: { entries?: PdcaEntry[] } }).store?.entries ?? [];
     setEntries(saved);
     setSkillCounts((json as { skillCounts?: Array<{ skillId: string; count: number }> }).skillCounts ?? []);
-    setNotice("保存しました。次のサイクルは「新規作成」から新しいシートを作れます。過去の記録は下の一覧から振り返れます。");
+    setNotice("保存しました。続けて書くときは「新規作成」で次のシートを開けます。過去の記録は下の一覧から振り返れます。");
     setEditingId(null);
     setDraft(emptyEntry());
+    setPreviousActHint(null);
   }
 
   async function remove(entryId: string) {
@@ -148,7 +166,13 @@ export function PdcaPanel({
         <p className="mt-2 text-sm text-slate-600">
           行動を習慣化し、小さな成功体験を積み重ねます。シートは何枚でも作成・保存でき、過去の記録も振り返れます。
         </p>
+        <p className="mt-2 text-sm text-slate-500">
+          「新規作成」で次のサイクル用の空シートを開けます（重点テーマ・育成項目・前回の次回アクションを引き継ぎます）。保存だけでも記録は残ります。
+        </p>
       </div>
+
+      {error ? <p className="text-sm text-red-700">{error}</p> : null}
+      {notice ? <p className="text-sm text-emerald-800">{notice}</p> : null}
 
       {skillCounts.length > 0 ? (
         <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
@@ -169,7 +193,7 @@ export function PdcaPanel({
             <h3 className="text-lg font-semibold text-slate-900">
               {editingId ? "シートを編集" : "新しいPDCAシート"}
             </h3>
-            <button type="button" onClick={startNew} className="text-sm text-indigo-700 hover:underline">
+            <button type="button" onClick={() => startNew()} className="text-sm text-indigo-700 hover:underline">
               新規作成
             </button>
           </div>
@@ -234,6 +258,16 @@ export function PdcaPanel({
                 ))}
               </div>
             </fieldset>
+          ) : null}
+
+          {!editingId && previousActHint ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-3 text-sm text-amber-950">
+              <p className="font-semibold">前回の次回アクション</p>
+              <p className="mt-1 whitespace-pre-wrap text-amber-900/90">{previousActHint}</p>
+              <p className="mt-2 text-xs text-amber-800/80">
+                上の内容を「今回取り組む行動」の初期値に入れています。必要に応じて書き換えてください。
+              </p>
+            </div>
           ) : null}
 
           <label className="block text-sm">
@@ -315,7 +349,7 @@ export function PdcaPanel({
             />
           </label>
           <label className="block text-sm">
-            パートナー／上司コメント
+            上司コメント
             <textarea
               rows={2}
               value={draft.coachComment}
@@ -392,15 +426,13 @@ export function PdcaPanel({
               </dl>
               {e.coachComment ? (
                 <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-                  コメント: {e.coachComment}
+                  上司コメント: {e.coachComment}
                 </p>
               ) : null}
             </article>
           ))
         )}
       </div>
-      {error ? <p className="text-sm text-red-700">{error}</p> : null}
-      {notice ? <p className="text-sm text-emerald-800">{notice}</p> : null}
     </section>
   );
 }
