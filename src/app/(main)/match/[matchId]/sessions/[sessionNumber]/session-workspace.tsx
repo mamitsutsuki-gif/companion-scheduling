@@ -37,6 +37,7 @@ type SessionDetail = {
     negotiationId: string | null;
   };
   openable: boolean;
+  postSessionOpenable: boolean;
   viewerRole: Role;
   partnerExtraQuestions: string[];
   /**
@@ -338,8 +339,11 @@ export function SessionWorkspace({
   const reflectionTooLong = reflectionLength > 800;
 
   const now = Date.now();
+  const startMs = detail.plan.startAt ? new Date(detail.plan.startAt).getTime() : null;
   const endMs = detail.plan.endAt ? new Date(detail.plan.endAt).getTime() : null;
+  const isStarted = startMs !== null && startMs <= now;
   const isPast = endMs !== null && endMs <= now;
+  const postSessionOpenable = detail.postSessionOpenable;
   const isAbandoned = detail.abandonment !== null;
   const statusInfo: { label: string; tone: string } = isAbandoned
     ? { label: "未実施・消化", tone: "border-red-300 bg-red-50 text-red-800" }
@@ -405,7 +409,7 @@ export function SessionWorkspace({
           ) : null}
         </div>
 
-        {role === "PARTNER" ? (
+        {role === "PARTNER" && isStarted ? (
           isAbandoned ? (
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -478,7 +482,21 @@ export function SessionWorkspace({
         ) : null
       ) : null}
 
-      {isCoachingRoleplay && !isAbandoned ? (
+      {!postSessionOpenable ? (
+        <section className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 sm:px-5">
+          <h2 className="text-lg font-semibold text-slate-900">
+            {isCoachingRoleplay
+              ? "ロールプレイ評価はセッション終了後に入力できます"
+              : "振り返り・セッションレポートはセッション終了後に入力できます"}
+          </h2>
+          <p className="text-sm text-slate-600">
+            セッション詳細とガイドラインは事前に確認できます。
+            {detail.plan.endAt ? ` 終了予定：${formatJa(detail.plan.endAt)}` : ""}
+          </p>
+        </section>
+      ) : null}
+
+      {postSessionOpenable && isCoachingRoleplay && !isAbandoned ? (
         <section className="space-y-4 rounded-3xl border border-indigo-100 bg-white p-4 shadow-sm sm:p-6">
           <CoachingSessionRoleplayPanel
             matchId={matchId}
@@ -489,7 +507,7 @@ export function SessionWorkspace({
         </section>
       ) : null}
 
-      {!isCoachingRoleplay && (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR" || role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT") ? (
+      {postSessionOpenable && !isCoachingRoleplay && (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR" || role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT") ? (
         <section className="space-y-4 rounded-3xl border border-indigo-100 bg-white p-4 shadow-sm sm:p-6">
           <header>
             <h2 className="text-xl font-semibold text-indigo-900">クライアント振り返り</h2>
@@ -743,7 +761,7 @@ export function SessionWorkspace({
         </section>
       ) : null}
 
-      {!isCoachingRoleplay && (role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT") ? (
+      {postSessionOpenable && !isCoachingRoleplay && (role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT") ? (
         <section className="space-y-4 rounded-3xl border border-amber-100 bg-white p-4 shadow-sm sm:p-6">
           <header>
             <h2 className="text-xl font-semibold text-amber-900">1on1セッションレポート（パートナー）</h2>

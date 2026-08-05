@@ -347,6 +347,7 @@ type SessionPlanApiRow = {
   endAt: string | null;
   negotiationId: string | null;
   openable: boolean;
+  postSessionOpenable: boolean;
   isRoleplaySession?: boolean;
   hasClientFeedback: boolean;
   hasPartnerReport: boolean;
@@ -2628,15 +2629,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
             <h3 className="text-xl font-semibold text-indigo-950">実施・振り返り</h3>
             <p className="text-sm text-indigo-800">
               セッション計画（全 {scheduleSettings.totalSessions} 回）。未確定の回も含めて一覧できます。
-              開始時刻を過ぎた回だけ
-              {scheduleSettings.companyPlan === "coaching_management_training"
-                ? "ロールプレイ評価"
-                : me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR"
-                  ? "振り返り"
-                  : me.role === "PARTNER"
-                    ? "レポート"
-                    : "詳細"}
-              を開けます。
+              日程確定後は詳細を確認でき、振り返り・レポートはセッション終了後に入力できます。
             </p>
           </div>
 
@@ -2653,6 +2646,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                   endAt: planRow.slot?.endAt ?? null,
                   negotiationId: null,
                   openable: false,
+                  postSessionOpenable: false,
                   hasClientFeedback: false,
                   hasPartnerReport: false,
                 } as SessionPlanApiRow);
@@ -2691,7 +2685,11 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                     ? { label: "実施済", className: "border-emerald-300 bg-emerald-50 text-emerald-800" }
                     : { label: "予定", className: "border-indigo-300 bg-indigo-50 text-indigo-800" };
               const filledBadges: string[] = [];
-              if (!isAbandoned && scheduleSettings.planFeatures.sessions) {
+              if (
+                !isAbandoned &&
+                row.postSessionOpenable &&
+                scheduleSettings.planFeatures.sessions
+              ) {
                 const coachingPlan = scheduleSettings.companyPlan === "coaching_management_training";
                 const isRoleplayRow = coachingPlan && row.isRoleplaySession !== false;
                 if (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") {
@@ -2712,8 +2710,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               const canOpen =
                 scheduleSettings.planFeatures.sessions &&
                 (row.openable || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT");
-              const openLabel =
-                scheduleSettings.companyPlan === "coaching_management_training"
+              const openLabel = !row.postSessionOpenable
+                ? "詳細を開く"
+                : scheduleSettings.companyPlan === "coaching_management_training"
                   ? "ロールプレイ評価を開く"
                   : me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR"
                     ? "振り返りを開く"
@@ -2801,7 +2800,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                           </Link>
                         ) : (
                           <span className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-500">
-                            まだ開けません
+                            日程確定後に開けます
                           </span>
                         )
                       ) : null}

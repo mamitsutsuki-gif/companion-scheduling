@@ -2,7 +2,7 @@ import { readSession } from "@/lib/session";
 import { getMatchIfAllowed, isSupervisorSheetsOnly } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
 import {
-  determineOpenableSessions,
+  determinePostSessionOpenableSessions,
   listSessionPlanForMatch,
 } from "@/lib/repositories/match-sessions-repository";
 import { listSessionFeedbacksForMatch } from "@/lib/repositories/session-feedback-repository";
@@ -44,8 +44,8 @@ export async function GET(_request: Request, context: RouteContext) {
   const fbSet = new Set(feedbacks.map((f) => f.sessionNumber));
   const rpSet = new Set(reports.map((r) => r.sessionNumber));
   const abMap = new Map(abandonments.map((a) => [a.sessionNumber, a]));
-  const openable = determineOpenableSessions(plan);
-  // 管理者はサポートのため全回を開ける
+  const postSessionOpenable = determinePostSessionOpenableSessions(plan);
+  // 詳細は日程確定後から閲覧可能。管理者はサポートのため未確定回も開ける。
   const adminBypass = session.role === "ADMIN" || session.role === "ADMIN_ASSISTANT";
 
   const rows = plan.map((row) => {
@@ -64,7 +64,8 @@ export async function GET(_request: Request, context: RouteContext) {
         : rpSet.has(row.sessionNumber);
     return {
       ...row,
-      openable: adminBypass || openable.has(row.sessionNumber),
+      openable: adminBypass || row.confirmed,
+      postSessionOpenable: postSessionOpenable.has(row.sessionNumber),
       isRoleplaySession: isCoachingRoleplaySession(modeCtx, row.sessionNumber),
       hasClientFeedback,
       hasPartnerReport,

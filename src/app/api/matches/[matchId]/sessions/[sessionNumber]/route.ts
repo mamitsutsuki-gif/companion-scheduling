@@ -2,7 +2,7 @@ import { readSession } from "@/lib/session";
 import { getMatchIfAllowed } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
 import {
-  determineOpenableSessions,
+  isSessionEnded,
   listSessionPlanForMatch,
 } from "@/lib/repositories/match-sessions-repository";
 import { getSessionFeedback } from "@/lib/repositories/session-feedback-repository";
@@ -46,12 +46,12 @@ export async function GET(_request: Request, context: RouteContext) {
       meetingProvider: null,
     };
 
-  const openableSet = determineOpenableSessions(plan);
   const adminBypass = session.role === "ADMIN" || session.role === "ADMIN_ASSISTANT";
-  const openable = adminBypass || openableSet.has(n);
+  const openable = adminBypass || target.confirmed;
   if (!openable) {
-    return jsonError("この回はまだ開けません。開始時刻以降に再度お試しください。", 403);
+    return jsonError("この回はまだ開けません。日程確定後に再度お試しください。", 403);
   }
+  const postSessionOpenable = isSessionEnded(target);
 
   // この match のクライアント企業に効く実効設定で、ガイドライン・追加質問を返す。
   const settings = await getEffectiveAppSettingsForMatch(matchId);
@@ -96,6 +96,7 @@ export async function GET(_request: Request, context: RouteContext) {
     isCoachingRoleplaySession: isCoachingRoleplaySession(modeCtx, n),
     plan: target,
     openable: true,
+    postSessionOpenable,
     viewerRole: session.role,
     partnerExtraQuestions,
     clientExtraQuestions,

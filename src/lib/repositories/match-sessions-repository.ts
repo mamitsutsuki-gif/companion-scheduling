@@ -143,24 +143,21 @@ export async function listSessionPlanForMatch(matchId: string): Promise<SessionP
   });
 }
 
-/**
- * セッション一覧の中から、ユーザーが「開く」ことを許可される回を判定。
- * - 過去（end <= now）: 許可
- * - 開始済みかつ未終了（実施中）: 許可
- * - 未来・未確定: 不可
- */
-export function determineOpenableSessions(plan: SessionPlanRow[], now = new Date()): Set<number> {
+/** フィードバック・レポートなど、終了後の入力を許可できる回か判定する。 */
+export function isSessionEnded(row: SessionPlanRow, now = new Date()): boolean {
+  if (!row.confirmed || !row.endAt) return false;
+  const end = new Date(row.endAt);
+  return !Number.isNaN(end.getTime()) && end <= now;
+}
+
+export function determinePostSessionOpenableSessions(
+  plan: SessionPlanRow[],
+  now = new Date(),
+): Set<number> {
   const openable = new Set<number>();
 
   for (const row of plan) {
-    if (!row.confirmed || !row.startAt || !row.endAt) continue;
-    const start = new Date(row.startAt);
-    const end = new Date(row.endAt);
-    if (end <= now) {
-      openable.add(row.sessionNumber);
-    } else if (start <= now && now < end) {
-      openable.add(row.sessionNumber);
-    }
+    if (isSessionEnded(row, now)) openable.add(row.sessionNumber);
   }
   return openable;
 }

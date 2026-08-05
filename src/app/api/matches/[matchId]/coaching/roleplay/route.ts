@@ -21,6 +21,10 @@ import {
   coachingSessionModeContextFromEffective,
   isCoachingRoleplaySession,
 } from "@/lib/coaching-session-mode";
+import {
+  isSessionEnded,
+  listSessionPlanForMatch,
+} from "@/lib/repositories/match-sessions-repository";
 
 export const dynamic = "force-dynamic";
 
@@ -113,6 +117,12 @@ export async function PUT(request: Request, ctx: RouteContext) {
   const round = parsed.data.round;
   if (!isCoachingRoleplaySession(modeCtx, round)) {
     return jsonError("この回のセッションはロールプレイ評価ではありません。", 403);
+  }
+  const plan = await listSessionPlanForMatch(matchId);
+  const target = plan.find((row) => row.sessionNumber === round);
+  if (!target) return jsonError("回が見つかりません。", 404);
+  if (!isSessionEnded(target)) {
+    return jsonError("ロールプレイ評価はセッション終了後に入力できます。", 403);
   }
 
   const idx = round - 1;
