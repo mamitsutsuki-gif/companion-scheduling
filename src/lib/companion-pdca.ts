@@ -19,9 +19,9 @@ export type PdcaEntry = {
   act: string;
   /** 行き詰まったところ */
   stuckText: string;
-  /** 学び */
+  /** 学び・気づき・モヤモヤしたこと */
   learningText: string;
-  /** 紐づく行動ブレーキ分析エントリ */
+  /** 紐づく行き詰まり分析エントリ */
   brakeEntryId: string | null;
   clientNotes: string;
   coachComment: string;

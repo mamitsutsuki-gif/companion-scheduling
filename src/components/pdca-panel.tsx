@@ -311,13 +311,13 @@ export function PdcaPanel({
                 className="mx-1 font-semibold text-indigo-800 underline"
                 onClick={() => onOpenActionBrake(editingId || undefined)}
               >
-                行動ブレーキ分析シート
+                行き詰まり分析シート
               </button>
               で思考パターンを整理できます。
             </p>
           ) : null}
           <label className="block text-sm">
-            学び
+            学び・気づき・モヤモヤしたこと
             <textarea
               rows={3}
               value={draft.learningText}
@@ -416,7 +416,7 @@ export function PdcaPanel({
                   <dd className="whitespace-pre-wrap">{e.stuckText || e.check || "—"}</dd>
                 </div>
                 <div>
-                  <dt className="font-semibold">学び</dt>
+                  <dt className="font-semibold">学び・気づき・モヤモヤしたこと</dt>
                   <dd className="whitespace-pre-wrap">{e.learningText || "—"}</dd>
                 </div>
                 <div className="md:col-span-2">

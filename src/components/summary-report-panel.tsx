@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SummaryReportDoc } from "@/lib/companion-summary";
+import type { SkillCheckProfile, SkillDefinition } from "@/lib/skill-check";
+import { resolveEffectiveSkillDefinitions } from "@/lib/skill-check";
+import { SkillRadarChart } from "@/components/skill-radar-chart";
 
 export function SummaryReportPanel({ matchId }: { matchId: string }) {
   const [loading, setLoading] = useState(true);
@@ -52,6 +55,41 @@ export function SummaryReportPanel({ matchId }: { matchId: string }) {
     setNotice("保存しました。");
   }
 
+  const skillProfile = (data?.skillProfile as SkillCheckProfile | null | undefined) ?? null;
+  const companySkills = (data?.skills as SkillDefinition[] | undefined) ?? [];
+  const focusRadar = useMemo(() => {
+    if (!skillProfile?.focusSkillIds?.length) return null;
+    const defs = resolveEffectiveSkillDefinitions(skillProfile, companySkills);
+    const nameById = new Map(defs.map((s) => [s.id, s.name]));
+    const ids = skillProfile.focusSkillIds;
+    const labels = ids.map((id) => nameById.get(id) ?? id);
+    return {
+      labels,
+      series: [
+        {
+          label: "開始時・本人",
+          color: "#a5b4fc",
+          values: ids.map((id) => skillProfile.baseline[id]?.selfScore ?? null),
+        },
+        {
+          label: "開始時・上司",
+          color: "#6ee7b7",
+          values: ids.map((id) => skillProfile.baseline[id]?.managerScore ?? null),
+        },
+        {
+          label: "終了時・本人",
+          color: "#4f46e5",
+          values: ids.map((id) => skillProfile.current[id]?.selfScore ?? null),
+        },
+        {
+          label: "終了時・上司",
+          color: "#059669",
+          values: ids.map((id) => skillProfile.current[id]?.managerScore ?? null),
+        },
+      ],
+    };
+  }, [skillProfile, companySkills]);
+
   if (loading) return <p className="text-sm text-slate-500">読込中…</p>;
   if (!data || !adminDoc) return <p className="text-sm text-red-700">{error ?? "読み込みに失敗しました。"}</p>;
 
@@ -92,6 +130,27 @@ export function SummaryReportPanel({ matchId }: { matchId: string }) {
           <p className="mt-1 text-sm text-slate-700">
             {focusSkillNames.length > 0 ? focusSkillNames.join("、") : "（未設定）"}
           </p>
+          {focusRadar ? (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-slate-800">重点育成項目の Before / After</p>
+              <p className="mt-1 text-xs text-slate-500">
+                開始時（薄い色）と終了時（濃い色）の本人・上司評価を重ねて表示します。
+              </p>
+              <div className="mt-3 flex flex-wrap justify-center gap-3 text-xs text-slate-600">
+                {focusRadar.series.map((s) => (
+                  <span key={s.label} className="inline-flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                    {s.label}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-2">
+                <SkillRadarChart labels={focusRadar.labels} series={focusRadar.series} size={420} />
+              </div>
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-slate-500">重点育成項目のスコアがまだありません。</p>
+          )}
         </section>
 
         <section className="mt-6">

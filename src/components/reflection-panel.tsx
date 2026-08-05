@@ -4,7 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { REFLECTION_FIELDS, type ReflectionSheet } from "@/lib/companion-reflection";
 import {
   criteriaLabel,
+  emptySkillAssessment,
+  needsScoreReason,
   scoreGap,
+  SKILL_CHECK_REASON_REQUIRED_MIN_SCORE,
+  SKILL_CHECK_REASON_TEXT_MAX,
   type SkillAssessmentEntry,
   type SkillCheckProfile,
   type SkillDefinition,
@@ -65,9 +69,12 @@ export function ReflectionPanel({ matchId }: { matchId: string }) {
     const focusIds = profile?.focusSkillIds ?? [];
     const draft: Record<string, SkillAssessmentEntry> = {};
     for (const id of focusIds) {
+      const cur = profile?.current[id];
       draft[id] = {
-        selfScore: profile?.current[id]?.selfScore ?? null,
-        managerScore: profile?.current[id]?.managerScore ?? null,
+        selfScore: cur?.selfScore ?? null,
+        managerScore: cur?.managerScore ?? null,
+        selfReason: cur?.selfReason ?? "",
+        managerReason: cur?.managerReason ?? "",
       };
     }
     setAfterDraft(draft);
@@ -93,13 +100,30 @@ export function ReflectionPanel({ matchId }: { matchId: string }) {
 
   function setAfterScore(skillId: string, field: "selfScore" | "managerScore", raw: string) {
     const score = parseScore(raw);
-    setAfterDraft((prev) => ({
-      ...prev,
-      [skillId]: {
-        selfScore: field === "selfScore" ? score : (prev[skillId]?.selfScore ?? null),
-        managerScore: field === "managerScore" ? score : (prev[skillId]?.managerScore ?? null),
-      },
-    }));
+    setAfterDraft((prev) => {
+      const prevRow = prev[skillId] ?? emptySkillAssessment();
+      return {
+        ...prev,
+        [skillId]: {
+          ...prevRow,
+          selfScore: field === "selfScore" ? score : prevRow.selfScore,
+          managerScore: field === "managerScore" ? score : prevRow.managerScore,
+        },
+      };
+    });
+  }
+
+  function setAfterReason(skillId: string, field: "selfReason" | "managerReason", value: string) {
+    setAfterDraft((prev) => {
+      const prevRow = prev[skillId] ?? emptySkillAssessment();
+      return {
+        ...prev,
+        [skillId]: {
+          ...prevRow,
+          [field]: value.slice(0, SKILL_CHECK_REASON_TEXT_MAX),
+        },
+      };
+    });
   }
 
   async function save() {
@@ -128,13 +152,43 @@ export function ReflectionPanel({ matchId }: { matchId: string }) {
     setNotice(null);
     const assessments: Record<
       string,
-      { selfScore?: SkillScore | null; managerScore?: SkillScore | null }
+      {
+        selfScore?: SkillScore | null;
+        managerScore?: SkillScore | null;
+        selfReason?: string;
+        managerReason?: string;
+      }
     > = {};
     for (const skill of focusSkills) {
-      const row = afterDraft[skill.id] ?? { selfScore: null, managerScore: null };
-      const entry: { selfScore?: SkillScore | null; managerScore?: SkillScore | null } = {};
-      if (canEditSelfAfter) entry.selfScore = row.selfScore;
-      if (canEditManagerAfter) entry.managerScore = row.managerScore;
+      const row = afterDraft[skill.id] ?? emptySkillAssessment();
+      if (canEditSelfAfter && needsScoreReason(row.selfScore) && !row.selfReason.trim()) {
+        setError(
+          `「${skill.name}」の本人評価が${SKILL_CHECK_REASON_REQUIRED_MIN_SCORE}点以上のため、評価理由（具体的な事例）を記入してください。`,
+        );
+        setSavingAfter(false);
+        return;
+      }
+      if (canEditManagerAfter && needsScoreReason(row.managerScore) && !row.managerReason.trim()) {
+        setError(
+          `「${skill.name}」の上司評価が${SKILL_CHECK_REASON_REQUIRED_MIN_SCORE}点以上のため、評価理由（具体的な事例）を記入してください。`,
+        );
+        setSavingAfter(false);
+        return;
+      }
+      const entry: {
+        selfScore?: SkillScore | null;
+        managerScore?: SkillScore | null;
+        selfReason?: string;
+        managerReason?: string;
+      } = {};
+      if (canEditSelfAfter) {
+        entry.selfScore = row.selfScore;
+        entry.selfReason = row.selfReason;
+      }
+      if (canEditManagerAfter) {
+        entry.managerScore = row.managerScore;
+        entry.managerReason = row.managerReason;
+      }
       if (Object.keys(entry).length > 0) assessments[skill.id] = entry;
     }
     const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/skill-check`, {
@@ -153,9 +207,12 @@ export function ReflectionPanel({ matchId }: { matchId: string }) {
       setSkillProfile(profile);
       const draft: Record<string, SkillAssessmentEntry> = {};
       for (const id of profile.focusSkillIds) {
+        const cur = profile.current[id];
         draft[id] = {
-          selfScore: profile.current[id]?.selfScore ?? null,
-          managerScore: profile.current[id]?.managerScore ?? null,
+          selfScore: cur?.selfScore ?? null,
+          managerScore: cur?.managerScore ?? null,
+          selfReason: cur?.selfReason ?? "",
+          managerReason: cur?.managerReason ?? "",
         };
       }
       setAfterDraft(draft);
@@ -182,6 +239,8 @@ export function ReflectionPanel({ matchId }: { matchId: string }) {
           <h3 className="text-lg font-semibold text-indigo-950">アフタースキルチェック（重点育成項目）</h3>
           <p className="mt-1 text-sm text-indigo-900/90">
             スキルチェック開始時に選んだ重点育成項目だけを、本人・上司で再評価します。
+            {SKILL_CHECK_REASON_REQUIRED_MIN_SCORE}
+            点以上を付ける場合は、標準より高い水準の具体的な事例を理由欄に書いてください。
           </p>
         </div>
 
@@ -194,7 +253,7 @@ export function ReflectionPanel({ matchId }: { matchId: string }) {
           <ul className="space-y-4">
             {focusSkills.map((skill) => {
               const baseline = skillProfile?.baseline[skill.id];
-              const after = afterDraft[skill.id] ?? { selfScore: null, managerScore: null };
+              const after = afterDraft[skill.id] ?? emptySkillAssessment();
               const gap = scoreGap(after.selfScore, after.managerScore);
               const criteria = skill.criteria;
               return (
@@ -212,44 +271,86 @@ export function ReflectionPanel({ matchId }: { matchId: string }) {
                     {baseline?.managerScore ?? "—"}
                   </p>
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
-                    <label className="block text-sm">
-                      <span className="font-semibold text-indigo-900">アフター本人評価</span>
-                      <select
-                        value={scoreSelectValue(after.selfScore)}
-                        disabled={!canEditSelfAfter}
-                        onChange={(e) => setAfterScore(skill.id, "selfScore", e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
-                      >
-                        <option value="">未入力</option>
-                        {[1, 2, 3, 4, 5].map((n) => (
-                          <option key={n} value={n}>
-                            {n}点
-                            {criteria
-                              ? ` — ${criteriaLabel(criteria, n as SkillScore)}`
-                              : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="block text-sm">
-                      <span className="font-semibold text-emerald-900">アフター上司評価</span>
-                      <select
-                        value={scoreSelectValue(after.managerScore)}
-                        disabled={!canEditManagerAfter}
-                        onChange={(e) => setAfterScore(skill.id, "managerScore", e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
-                      >
-                        <option value="">未入力</option>
-                        {[1, 2, 3, 4, 5].map((n) => (
-                          <option key={n} value={n}>
-                            {n}点
-                            {criteria
-                              ? ` — ${criteriaLabel(criteria, n as SkillScore)}`
-                              : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <div className="space-y-2">
+                      <label className="block text-sm">
+                        <span className="font-semibold text-indigo-900">アフター本人評価</span>
+                        <select
+                          value={scoreSelectValue(after.selfScore)}
+                          disabled={!canEditSelfAfter}
+                          onChange={(e) => setAfterScore(skill.id, "selfScore", e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+                        >
+                          <option value="">未入力</option>
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <option key={n} value={n}>
+                              {n}点
+                              {criteria
+                                ? ` — ${criteriaLabel(criteria, n as SkillScore)}`
+                                : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block text-sm">
+                        <span className="font-medium text-slate-800">
+                          本人評価の理由
+                          {needsScoreReason(after.selfScore) ? (
+                            <span className="ml-1 text-xs font-semibold text-rose-700">
+                              （{SKILL_CHECK_REASON_REQUIRED_MIN_SCORE}点以上は必須）
+                            </span>
+                          ) : null}
+                        </span>
+                        <textarea
+                          rows={3}
+                          value={after.selfReason}
+                          disabled={!canEditSelfAfter}
+                          maxLength={SKILL_CHECK_REASON_TEXT_MAX}
+                          placeholder="例：他部署との定例を自ら設定し、3件の調整を完了させた"
+                          onChange={(e) => setAfterReason(skill.id, "selfReason", e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 disabled:bg-slate-100"
+                        />
+                      </label>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm">
+                        <span className="font-semibold text-emerald-900">アフター上司評価</span>
+                        <select
+                          value={scoreSelectValue(after.managerScore)}
+                          disabled={!canEditManagerAfter}
+                          onChange={(e) => setAfterScore(skill.id, "managerScore", e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+                        >
+                          <option value="">未入力</option>
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <option key={n} value={n}>
+                              {n}点
+                              {criteria
+                                ? ` — ${criteriaLabel(criteria, n as SkillScore)}`
+                                : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block text-sm">
+                        <span className="font-medium text-slate-800">
+                          上司評価の理由
+                          {needsScoreReason(after.managerScore) ? (
+                            <span className="ml-1 text-xs font-semibold text-rose-700">
+                              （{SKILL_CHECK_REASON_REQUIRED_MIN_SCORE}点以上は必須）
+                            </span>
+                          ) : null}
+                        </span>
+                        <textarea
+                          rows={3}
+                          value={after.managerReason}
+                          disabled={!canEditManagerAfter}
+                          maxLength={SKILL_CHECK_REASON_TEXT_MAX}
+                          placeholder="例：関係部署から『調整が早い』と具体的な評価を受けている"
+                          onChange={(e) => setAfterReason(skill.id, "managerReason", e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 disabled:bg-slate-100"
+                        />
+                      </label>
+                    </div>
                   </div>
                 </li>
               );

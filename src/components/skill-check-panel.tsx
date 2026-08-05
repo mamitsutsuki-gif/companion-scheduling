@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   criteriaLabel,
+  emptySkillAssessment,
   scoreGap,
   SKILL_CHECK_AGREEMENT_TEXT_MAX,
   SKILL_CHECK_FOCUS_MAX,
@@ -144,13 +145,17 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
 
   function setScore(skillId: string, field: "selfScore" | "managerScore", raw: string) {
     const score = parseScore(raw);
-    setDraft((prev) => ({
-      ...prev,
-      [skillId]: {
-        selfScore: field === "selfScore" ? score : (prev[skillId]?.selfScore ?? null),
-        managerScore: field === "managerScore" ? score : (prev[skillId]?.managerScore ?? null),
-      },
-    }));
+    setDraft((prev) => {
+      const prevRow = prev[skillId] ?? emptySkillAssessment();
+      return {
+        ...prev,
+        [skillId]: {
+          ...prevRow,
+          selfScore: field === "selfScore" ? score : prevRow.selfScore,
+          managerScore: field === "managerScore" ? score : prevRow.managerScore,
+        },
+      };
+    });
   }
 
   function toggleFocusSkill(skillId: string) {
@@ -188,7 +193,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
         { selfScore?: SkillScore | null; managerScore?: SkillScore | null }
       > = {};
       for (const skill of activeSkills) {
-        const row = draft[skill.id] ?? { selfScore: null, managerScore: null };
+        const row = draft[skill.id] ?? emptySkillAssessment();
         const entry: { selfScore?: SkillScore | null; managerScore?: SkillScore | null } = {};
         if (permissions.canEditSelf) entry.selfScore = row.selfScore;
         if (permissions.canEditManager) entry.managerScore = row.managerScore;
@@ -407,7 +412,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
           </p>
         </div>
         {displaySkills.map((skill) => {
-          const row = draft[skill.id] ?? { selfScore: null, managerScore: null };
+          const row = draft[skill.id] ?? emptySkillAssessment();
           const gap = scoreGap(row.selfScore, row.managerScore);
           return (
             <article key={skill.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">

@@ -6,7 +6,7 @@ function trim(v: unknown, max: number): string {
 export const ACTION_BRAKE_TEXT_MAX = 4000;
 
 /**
- * 行動ブレーキ分析（認知行動療法の思考記録）
+ * 行き詰まり分析（認知行動療法の思考記録）
  * 記入順の推奨: ①出来事 → ③感情 → ④行動 → ⑤結果 → ②自動思考 → 書き換え
  */
 export type ActionBrakeEntry = {

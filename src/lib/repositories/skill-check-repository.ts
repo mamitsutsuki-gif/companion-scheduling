@@ -51,7 +51,15 @@ export async function upsertSkillCheckProfile(input: {
   userId: string;
   companyId: string;
   phase: SkillCheckPhase;
-  assessments: Record<string, { selfScore?: SkillScore | null; managerScore?: SkillScore | null }>;
+  assessments: Record<
+    string,
+    {
+      selfScore?: SkillScore | null;
+      managerScore?: SkillScore | null;
+      selfReason?: string;
+      managerReason?: string;
+    }
+  >;
   focusSkillIds?: string[];
   skillDefinitions?: SkillDefinition[] | null;
   clientValuesText?: string;
@@ -66,10 +74,17 @@ export async function upsertSkillCheckProfile(input: {
   const phaseKey = input.phase === "baseline" ? "baseline" : "current";
   const nextPhase = { ...existing[phaseKey] };
   for (const [skillId, row] of Object.entries(input.assessments)) {
-    const prev = nextPhase[skillId] ?? { selfScore: null, managerScore: null };
+    const prev = nextPhase[skillId] ?? {
+      selfScore: null,
+      managerScore: null,
+      selfReason: "",
+      managerReason: "",
+    };
     nextPhase[skillId] = {
       selfScore: row.selfScore !== undefined ? row.selfScore : prev.selfScore,
       managerScore: row.managerScore !== undefined ? row.managerScore : prev.managerScore,
+      selfReason: row.selfReason !== undefined ? row.selfReason : prev.selfReason,
+      managerReason: row.managerReason !== undefined ? row.managerReason : prev.managerReason,
     };
   }
 

@@ -81,7 +81,7 @@ export type PlanFeatures = {
   developmentOpportunity: boolean;
   /** 業務課題実践（問題解決8ステップ） */
   businessProblem: boolean;
-  /** 行動ブレーキ分析（認知行動療法の思考記録） */
+  /** 行き詰まり分析（認知行動療法の思考記録・旧称：行動ブレーキ分析） */
   actionBrakeAnalysis: boolean;
   /** コーチングマネジメント研修: ロールプレイング・フィードバック */
   coachingRoleplay: boolean;
@@ -121,7 +121,7 @@ export const INDIVIDUAL_COMPANION_FEATURE_OPTIONS: Array<{
   { key: "skillCheck", label: "スキルチェック" },
   { key: "lifelineChart", label: "ライフラインチャート" },
   { key: "pdca", label: "PDCAシート" },
-  { key: "actionBrakeAnalysis", label: "行動ブレーキ分析" },
+  { key: "actionBrakeAnalysis", label: "行き詰まり分析" },
   { key: "reflection", label: "振り返りシート" },
   { key: "summaryReport", label: "サマリーレポート" },
 ];

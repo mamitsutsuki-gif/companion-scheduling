@@ -2158,7 +2158,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                     : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
                 }`}
               >
-                行動ブレーキ分析
+                行き詰まり分析
               </button>
             ) : null}
             {scheduleSettings.planFeatures.reflection ? (

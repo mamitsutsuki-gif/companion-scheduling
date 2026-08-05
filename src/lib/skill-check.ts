@@ -18,6 +18,10 @@ export type SkillDefinition = {
 export type SkillAssessmentEntry = {
   selfScore: SkillScore | null;
   managerScore: SkillScore | null;
+  /** 本人評価の理由・エビデンス */
+  selfReason: string;
+  /** 上司評価の理由・エビデンス */
+  managerReason: string;
 };
 
 export type SkillCheckPhase = "baseline" | "current";
@@ -43,6 +47,12 @@ export type SkillCheckProfile = {
 
 /** 成長・挑戦合意テキストの最大文字数 */
 export const SKILL_CHECK_AGREEMENT_TEXT_MAX = 2000;
+
+/** 評価理由テキストの最大文字数 */
+export const SKILL_CHECK_REASON_TEXT_MAX = 1000;
+
+/** 4点以上を付ける場合に理由を必須とする閾値 */
+export const SKILL_CHECK_REASON_REQUIRED_MIN_SCORE = 4 as SkillScore;
 
 /** 重点育成スキルの上限（1〜3項目） */
 export const SKILL_CHECK_FOCUS_MAX = 3;
@@ -154,6 +164,8 @@ function normalizeAssessmentMap(input: unknown): Record<string, SkillAssessmentE
     out[skillId] = {
       selfScore: normalizeSkillScore(row.selfScore),
       managerScore: normalizeSkillScore(row.managerScore),
+      selfReason: trimText(row.selfReason, SKILL_CHECK_REASON_TEXT_MAX),
+      managerReason: trimText(row.managerReason, SKILL_CHECK_REASON_TEXT_MAX),
     };
   }
   return out;
@@ -204,4 +216,13 @@ export function criteriaLabel(criteria: SkillCriteria, score: SkillScore): strin
 export function scoreGap(selfScore: SkillScore | null, managerScore: SkillScore | null): number | null {
   if (selfScore === null || managerScore === null) return null;
   return managerScore - selfScore;
+}
+
+export function emptySkillAssessment(): SkillAssessmentEntry {
+  return { selfScore: null, managerScore: null, selfReason: "", managerReason: "" };
+}
+
+/** 4点以上の評価には理由が必要か */
+export function needsScoreReason(score: SkillScore | null | undefined): boolean {
+  return score != null && score >= SKILL_CHECK_REASON_REQUIRED_MIN_SCORE;
 }

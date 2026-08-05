@@ -48,6 +48,8 @@ const putSchema = z.object({
       z.object({
         selfScore: scoreSchema.optional(),
         managerScore: scoreSchema.optional(),
+        selfReason: z.string().max(1000).optional(),
+        managerReason: z.string().max(1000).optional(),
       }),
     )
     .optional(),
@@ -121,11 +123,21 @@ export async function PUT(request: Request, context: RouteContext) {
   const phase = parsed.data.phase as SkillCheckPhase;
   const assessments: Record<
     string,
-    { selfScore?: SkillScore | null; managerScore?: SkillScore | null }
+    {
+      selfScore?: SkillScore | null;
+      managerScore?: SkillScore | null;
+      selfReason?: string;
+      managerReason?: string;
+    }
   > = {};
   if (parsed.data.assessments) {
     for (const [skillId, row] of Object.entries(parsed.data.assessments)) {
-      const next: { selfScore?: SkillScore | null; managerScore?: SkillScore | null } = {};
+      const next: {
+        selfScore?: SkillScore | null;
+        managerScore?: SkillScore | null;
+        selfReason?: string;
+        managerReason?: string;
+      } = {};
       if (row.selfScore !== undefined) {
         if (!access.canEditSelf) return jsonError("本人評価の編集権限がありません。", 403);
         next.selfScore = row.selfScore;
@@ -133,6 +145,14 @@ export async function PUT(request: Request, context: RouteContext) {
       if (row.managerScore !== undefined) {
         if (!access.canEditManager) return jsonError("上司評価の編集権限がありません。", 403);
         next.managerScore = row.managerScore;
+      }
+      if (row.selfReason !== undefined) {
+        if (!access.canEditSelf) return jsonError("本人評価の編集権限がありません。", 403);
+        next.selfReason = row.selfReason;
+      }
+      if (row.managerReason !== undefined) {
+        if (!access.canEditManager) return jsonError("上司評価の編集権限がありません。", 403);
+        next.managerReason = row.managerReason;
       }
       assessments[skillId] = next;
     }
