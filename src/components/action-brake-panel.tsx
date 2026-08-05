@@ -6,7 +6,7 @@ import { ACTION_BRAKE_TEXT_MAX } from "@/lib/companion-action-brake";
 
 const SAMPLE = {
   event:
-    "例：他部署連携のために他の課のメンバーを集めて会議をしていたら、直属の上司から「上の合意が取れていないから今すぐやめろ」と強い口調で止められた。（案件名・固有名詞は書かない）",
+    "例：他部署連携のために他の課のメンバーを集めて会議をしていたら、直属の上司から「上の合意が取れていないから今すぐやめろ」と強い口調で止められた。",
   emotion:
     "例：他部署連携を推進しろと言っているのは上司なのに意味が分からない。他部署の人の前で恥をかかされたと感じた。",
   action:
@@ -132,9 +132,6 @@ export function ActionBrakePanel({
         <h2 className="text-2xl font-semibold text-slate-900">行動ブレーキ分析シート</h2>
         <p className="mt-2 text-sm text-slate-600">
           認知行動療法の考え方で、行動を止めている思考パターンを理解します。成果物は「行動を妨げる思考の癖に気づく」ことです。
-        </p>
-        <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-          案件名・顧客名・機密情報は入力せず、「会議で発言できなかった」など抽象化した内容のみ記録してください。
         </p>
       </div>
 

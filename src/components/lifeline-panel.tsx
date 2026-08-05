@@ -299,6 +299,33 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
             </article>
           ))}
 
+          {events.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-indigo-300 bg-indigo-50/40 px-4 py-8 text-center">
+              <p className="text-sm text-indigo-950">まだ出来事がありません。まずは1件追加してみましょう。</p>
+              <button
+                type="button"
+                onClick={addEvent}
+                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-indigo-700 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-800"
+              >
+                <span aria-hidden className="text-lg leading-none">
+                  ＋
+                </span>
+                人生の出来事を追加する
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={addEvent}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50/60 px-4 py-3.5 text-sm font-semibold text-indigo-900 hover:border-indigo-400 hover:bg-indigo-50"
+            >
+              <span aria-hidden className="text-lg leading-none">
+                ＋
+              </span>
+              人生の出来事をもう1件追加する
+            </button>
+          )}
+
           <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 sm:p-5 space-y-4">
             <div>
               <h3 className="text-lg font-semibold text-emerald-950">まとめ：なぜ頑張りたいのか</h3>
@@ -335,9 +362,6 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={addEvent} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
-              出来事を追加
-            </button>
             <button
               type="button"
               disabled={saving}

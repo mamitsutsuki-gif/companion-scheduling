@@ -14,7 +14,7 @@ export type ActionBrakeEntry = {
   title: string;
   /** 紐づく PDCA 記録（任意） */
   pdcaEntryId: string | null;
-  /** ①出来事（抽象化。案件名・機密は書かない） */
+  /** ①出来事 */
   eventText: string;
   /** ③感情 */
   emotionText: string;

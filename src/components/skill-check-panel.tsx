@@ -465,17 +465,19 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
         <p className="mt-1 text-sm text-slate-600">
           本人評価と上司評価の差が大きい項目ほど、対話の手がかりになります。
         </p>
-        <div className="mt-4 flex flex-wrap justify-center gap-4 text-xs text-slate-600">
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-indigo-600" />
+        <div className="mt-4 flex flex-wrap justify-center gap-4 text-sm text-slate-600">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-indigo-600" />
             本人評価
           </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-emerald-600" />
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
             上司評価
           </span>
         </div>
-        <SkillRadarChart labels={chartLabels} series={chartSeries} />
+        <div className="mt-4 sm:mt-6">
+          <SkillRadarChart labels={chartLabels} series={chartSeries} size={480} />
+        </div>
       </div>
 
       {/* ④ 重点育成項目 */}

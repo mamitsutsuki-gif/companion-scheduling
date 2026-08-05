@@ -11,18 +11,20 @@ type RadarSeries = {
 export function SkillRadarChart({
   labels,
   series,
-  size = 280,
+  size = 440,
+  className = "mx-auto h-auto w-full max-w-[560px]",
 }: {
   labels: string[];
   series: RadarSeries[];
   size?: number;
+  className?: string;
 }) {
   if (labels.length === 0) {
     return <p className="text-sm text-slate-500">表示するスキルがありません。</p>;
   }
 
   const center = size / 2;
-  const radius = size * 0.34;
+  const radius = size * 0.36;
   const levels = 5;
   const angleStep = (Math.PI * 2) / labels.length;
 
@@ -45,7 +47,7 @@ export function SkillRadarChart({
   }
 
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} className="mx-auto h-auto w-full max-w-[320px]" role="img">
+    <svg viewBox={`0 0 ${size} ${size}`} className={className} role="img">
       {[1, 2, 3, 4, 5].map((level) => {
         const pts = labels
           .map((_, i) => {
@@ -59,24 +61,24 @@ export function SkillRadarChart({
             points={pts}
             fill="none"
             stroke="#e2e8f0"
-            strokeWidth={level === 5 ? 1.2 : 0.8}
+            strokeWidth={level === 5 ? 1.6 : 1}
           />
         );
       })}
       {labels.map((label, i) => {
         const outer = pointAt(i, levels);
-        const text = pointAt(i, levels + 0.55);
+        const text = pointAt(i, levels + 0.62);
         return (
           <g key={label}>
-            <line x1={center} y1={center} x2={outer.x} y2={outer.y} stroke="#cbd5e1" strokeWidth={0.8} />
+            <line x1={center} y1={center} x2={outer.x} y2={outer.y} stroke="#cbd5e1" strokeWidth={1} />
             <text
               x={text.x}
               y={text.y}
               textAnchor="middle"
               dominantBaseline="middle"
-              className="fill-slate-600 text-[9px]"
+              className="fill-slate-700 text-[12px] font-medium"
             >
-              {label.length > 8 ? `${label.slice(0, 7)}…` : label}
+              {label.length > 10 ? `${label.slice(0, 9)}…` : label}
             </text>
           </g>
         );
@@ -88,10 +90,10 @@ export function SkillRadarChart({
           fill={s.color}
           fillOpacity={0.18}
           stroke={s.color}
-          strokeWidth={2}
+          strokeWidth={2.5}
         />
       ))}
-      <text x={center} y={16} textAnchor="middle" className="fill-slate-500 text-[10px]">
+      <text x={center} y={22} textAnchor="middle" className="fill-slate-500 text-[12px]">
         5点満点
       </text>
     </svg>
