@@ -51,7 +51,7 @@ const putSchema = z.object({
       }),
     )
     .optional(),
-  focusSkillIds: z.array(z.string().max(80)).max(8).optional(),
+  focusSkillIds: z.array(z.string().max(80)).max(3).optional(),
   skillDefinitions: z.array(skillDefSchema).max(32).optional(),
   clientValuesText: agreementText.optional(),
   clientSixMonthGoalText: agreementText.optional(),

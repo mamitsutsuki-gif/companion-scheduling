@@ -5,6 +5,7 @@ import {
   criteriaLabel,
   scoreGap,
   SKILL_CHECK_AGREEMENT_TEXT_MAX,
+  SKILL_CHECK_FOCUS_MAX,
   type SkillAssessmentEntry,
   type SkillCheckPhase,
   type SkillCheckProfile,
@@ -37,6 +38,16 @@ function parseScore(raw: string): SkillScore | null {
 function newSkillId(): string {
   return `custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
+
+const PLACEHOLDER = {
+  clientValues:
+    "例：チームの信頼関係を大切にしながら、自分の強みを活かして貢献したい。スピードより丁寧さを優先したい。",
+  clientSixMonth:
+    "例：部下に任せつつ、部門横断の課題を自分から提案・推進できる状態になっている。",
+  managerCurrent: "例：チームリーダーとして日常の進捗管理と後輩育成を担う役割。",
+  managerNext: "例：小規模プロジェクトのリード、関係部署との調整・合意形成を担う役割。",
+  skillName: "例：巻き込み力、課題設定力、対話力 など",
+} as const;
 
 export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?: string }) {
   const apiPath =
@@ -97,7 +108,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
       );
       const p = json?.profile;
       if (p) {
-        setFocusSkillIds(p.focusSkillIds ?? []);
+        setFocusSkillIds((p.focusSkillIds ?? []).slice(0, SKILL_CHECK_FOCUS_MAX));
         setDraft(p.baseline ?? {});
         setClientValuesText(p.clientValuesText ?? "");
         setClientSixMonthGoalText(p.clientSixMonthGoalText ?? "");
@@ -146,7 +157,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
     if (!permissions.canEditFocusSkills) return;
     setFocusSkillIds((prev) => {
       if (prev.includes(skillId)) return prev.filter((id) => id !== skillId);
-      if (prev.length >= 5) return prev;
+      if (prev.length >= SKILL_CHECK_FOCUS_MAX) return prev;
       return [...prev, skillId];
     });
   }
@@ -188,7 +199,9 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
         assessments: payloadAssessments,
       };
       if (permissions.canEditFocusSkills) {
-        body.focusSkillIds = focusSkillIds.filter((id) => activeSkills.some((s) => s.id === id));
+        body.focusSkillIds = focusSkillIds
+          .filter((id) => activeSkills.some((s) => s.id === id))
+          .slice(0, SKILL_CHECK_FOCUS_MAX);
       }
       if (editingSkills && permissions.canEditSkillDefinitions) {
         body.skillDefinitions = skillDraft.map((s) => ({
@@ -234,92 +247,28 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
   if (error && !profile) return <p className="text-sm text-red-700">{error}</p>;
 
   const displaySkills = editingSkills ? skillDraft : skills;
+  const canSave =
+    permissions.canEditSelf ||
+    permissions.canEditManager ||
+    permissions.canEditFocusSkills ||
+    (permissions.canEditSkillDefinitions && editingSkills);
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-8">
       <div>
         <h2 className="text-2xl font-semibold text-slate-900">スキルチェックシート</h2>
         <p className="mt-2 text-sm text-slate-600">
           {targetName ? `${targetName} さんの` : ""}
-          スキル評価・重点育成テーマに加え、成長・挑戦合意（大切にしたいこと／目指す状態／期待役割）を記録します。後続の自分FTA・PDCA・振り返り・総括レポートと連動します。
+          会社から期待される成長テーマを明確にします。スキルを定義し、本人・上司で評価し、ギャップを見て重点育成項目（最大
+          {SKILL_CHECK_FOCUS_MAX}つ）を決めます。成果物は「何を伸ばすか」です。
         </p>
-      </div>
-
-      <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 sm:p-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-lg font-semibold text-indigo-950">成長・挑戦合意</h3>
-          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-800">
-            必須コア
-          </span>
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
-            追加
-          </span>
-        </div>
-        <p className="mt-2 text-sm text-indigo-900/90">
-          本人・上司・パートナーの共有計画です。自分FTAのアクションを置き換えるものではなく、重点行動を三者が確認するための記載欄です。
-        </p>
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <div className="space-y-3 rounded-xl border border-white bg-white/90 p-4 shadow-xs">
-            <h4 className="text-sm font-semibold text-slate-900">本人入力</h4>
-            <label className="block space-y-1 text-sm">
-              <span className="font-medium text-slate-800">大切にしたいこと</span>
-              <textarea
-                value={clientValuesText}
-                onChange={(e) => setClientValuesText(e.target.value.slice(0, SKILL_CHECK_AGREEMENT_TEXT_MAX))}
-                disabled={!permissions.canEditSelf}
-                rows={3}
-                maxLength={SKILL_CHECK_AGREEMENT_TEXT_MAX}
-                placeholder="例：チームの信頼を築きながら、自分の強みを活かしたい"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500"
-              />
-            </label>
-            <label className="block space-y-1 text-sm">
-              <span className="font-medium text-slate-800">6か月後の目指す状態</span>
-              <textarea
-                value={clientSixMonthGoalText}
-                onChange={(e) =>
-                  setClientSixMonthGoalText(e.target.value.slice(0, SKILL_CHECK_AGREEMENT_TEXT_MAX))
-                }
-                disabled={!permissions.canEditSelf}
-                rows={3}
-                maxLength={SKILL_CHECK_AGREEMENT_TEXT_MAX}
-                placeholder="例：部下に任せながら、部門横断の課題を自分から提案できる状態"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500"
-              />
-            </label>
-          </div>
-          <div className="space-y-3 rounded-xl border border-white bg-white/90 p-4 shadow-xs">
-            <h4 className="text-sm font-semibold text-slate-900">上司入力</h4>
-            <label className="block space-y-1 text-sm">
-              <span className="font-medium text-slate-800">現在期待される役割</span>
-              <textarea
-                value={managerCurrentRoleText}
-                onChange={(e) =>
-                  setManagerCurrentRoleText(e.target.value.slice(0, SKILL_CHECK_AGREEMENT_TEXT_MAX))
-                }
-                disabled={!permissions.canEditManager}
-                rows={3}
-                maxLength={SKILL_CHECK_AGREEMENT_TEXT_MAX}
-                placeholder="例：チームリーダーとしての日常管理と後輩育成"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500"
-              />
-            </label>
-            <label className="block space-y-1 text-sm">
-              <span className="font-medium text-slate-800">次に期待される役割</span>
-              <textarea
-                value={managerNextRoleText}
-                onChange={(e) =>
-                  setManagerNextRoleText(e.target.value.slice(0, SKILL_CHECK_AGREEMENT_TEXT_MAX))
-                }
-                disabled={!permissions.canEditManager}
-                rows={3}
-                maxLength={SKILL_CHECK_AGREEMENT_TEXT_MAX}
-                placeholder="例：小規模プロジェクトのリード、関係部署との調整"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500"
-              />
-            </label>
-          </div>
-        </div>
+        <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-slate-600">
+          <li>スキルを定義する</li>
+          <li>スキルごとに点数をつける</li>
+          <li>グラフでギャップを可視化する</li>
+          <li>重点育成項目（1〜{SKILL_CHECK_FOCUS_MAX}項目）を設定する</li>
+          <li>成長・挑戦合意を記入する</li>
+        </ol>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -339,16 +288,18 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
         ))}
       </div>
 
-      {permissions.canEditSkillDefinitions ? (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-base font-semibold text-slate-900">スキル項目の編集</h3>
-              <p className="mt-1 text-sm text-slate-600">
-                項目名を手入力で変更・追加・削除できます（このメンバー専用）。
-              </p>
-            </div>
-            {!editingSkills ? (
+      {/* ① スキル定義 */}
+      <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold tracking-wide text-indigo-800 uppercase">Step 1</p>
+            <h3 className="mt-1 text-lg font-semibold text-slate-900">スキル定義</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              会社・役割に合わせて項目を編集できます。上司・部下の双方が編集可能です。
+            </p>
+          </div>
+          {permissions.canEditSkillDefinitions ? (
+            !editingSkills ? (
               <button
                 type="button"
                 onClick={() => {
@@ -370,121 +321,98 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
               >
                 編集をやめる
               </button>
-            )}
-          </div>
-          {editingSkills ? (
-            <ul className="mt-4 space-y-2">
-              {skillDraft.map((skill, index) => (
-                <li key={skill.id} className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="text"
-                    value={skill.name}
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      setSkillDraft((prev) =>
-                        prev.map((s, i) => (i === index ? { ...s, name } : s)),
-                      );
-                    }}
-                    className="min-w-[12rem] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                    placeholder="スキル項目名"
-                    maxLength={120}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSkillDraft((prev) => prev.filter((_, i) => i !== index));
-                      setFocusSkillIds((prev) => prev.filter((id) => id !== skill.id));
-                    }}
-                    className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-red-700 hover:bg-red-50"
-                  >
-                    削除
-                  </button>
-                </li>
-              ))}
-              <li>
+            )
+          ) : null}
+        </div>
+        {editingSkills ? (
+          <ul className="mt-4 space-y-2">
+            {skillDraft.map((skill, index) => (
+              <li key={skill.id} className="flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  value={skill.name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setSkillDraft((prev) =>
+                      prev.map((s, i) => (i === index ? { ...s, name } : s)),
+                    );
+                  }}
+                  className="min-w-[12rem] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                  placeholder={PLACEHOLDER.skillName}
+                  maxLength={120}
+                />
                 <button
                   type="button"
                   onClick={() => {
-                    if (skillDraft.length >= 32) return;
-                    setSkillDraft((prev) => [
-                      ...prev,
-                      {
-                        id: newSkillId(),
-                        name: "",
-                        kind: "company",
-                        criteria: skills[0]?.criteria ?? {
-                          score1: "これから伸ばしたい段階",
-                          score2: "一部で発揮できている",
-                          score3: "日常業務で発揮できている",
-                          score4: "周囲から認識されている",
-                          score5: "組織の模範として発揮できている",
-                        },
-                      },
-                    ]);
+                    setSkillDraft((prev) => prev.filter((_, i) => i !== index));
+                    setFocusSkillIds((prev) => prev.filter((id) => id !== skill.id));
                   }}
-                  className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-red-700 hover:bg-red-50"
                 >
-                  ＋ 項目を追加
+                  削除
                 </button>
               </li>
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
-          <h3 className="text-base font-semibold text-slate-900">レーダーチャート</h3>
-          <div className="mt-4 flex flex-wrap justify-center gap-4 text-xs text-slate-600">
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-indigo-600" />
-              本人評価
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-emerald-600" />
-              上司評価
-            </span>
-          </div>
-          <SkillRadarChart labels={chartLabels} series={chartSeries} />
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
-          <h3 className="text-base font-semibold text-slate-900">重点育成スキル</h3>
-          <p className="mt-1 text-sm text-slate-600">本人と上司が話し合い、重点的に取り組むスキルを最大5つ選びます。</p>
-          <ul className="mt-4 space-y-2">
-            {displaySkills.map((skill) => {
-              const selected = focusSkillIds.includes(skill.id);
-              return (
-                <li key={skill.id}>
-                  <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50">
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      disabled={!permissions.canEditFocusSkills || editingSkills}
-                      onChange={() => toggleFocusSkill(skill.id)}
-                    />
-                    <span className="text-sm font-medium text-slate-800">{skill.name || "（未入力）"}</span>
-                    {skill.kind === "company" ? (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
-                        企業独自
-                      </span>
-                    ) : null}
-                  </label>
-                </li>
-              );
-            })}
+            ))}
+            <li>
+              <button
+                type="button"
+                onClick={() => {
+                  if (skillDraft.length >= 32) return;
+                  setSkillDraft((prev) => [
+                    ...prev,
+                    {
+                      id: newSkillId(),
+                      name: "",
+                      kind: "company",
+                      criteria: skills[0]?.criteria ?? {
+                        score1: "これから伸ばしたい段階",
+                        score2: "一部で発揮できている",
+                        score3: "日常業務で発揮できている",
+                        score4: "周囲から認識されている",
+                        score5: "組織の模範として発揮できている",
+                      },
+                    },
+                  ]);
+                }}
+                className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                ＋ 項目を追加
+              </button>
+            </li>
           </ul>
-        </div>
+        ) : (
+          <ul className="mt-4 flex flex-wrap gap-2">
+            {displaySkills.map((skill) => (
+              <li
+                key={skill.id}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800"
+              >
+                {skill.name || "（未入力）"}
+                {skill.kind === "company" ? (
+                  <span className="ml-1.5 text-[10px] font-semibold text-amber-800">企業独自</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
+      {/* ② スキルごとの点数 */}
       <div className="space-y-4">
+        <div>
+          <p className="text-xs font-semibold tracking-wide text-indigo-800 uppercase">Step 2</p>
+          <h3 className="mt-1 text-lg font-semibold text-slate-900">スキルごとの評価</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            本人評価と上司評価をそれぞれ 1〜5 点で入力します。基準の文言を参考にしてください。
+          </p>
+        </div>
         {displaySkills.map((skill) => {
           const row = draft[skill.id] ?? { selfScore: null, managerScore: null };
           const gap = scoreGap(row.selfScore, row.managerScore);
           return (
             <article key={skill.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-lg font-semibold text-slate-900">{skill.name || "（未入力）"}</h3>
+                <h4 className="text-base font-semibold text-slate-900">{skill.name || "（未入力）"}</h4>
                 {gap !== null ? (
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
                     評価ギャップ: {gap > 0 ? `+${gap}` : gap}
@@ -493,14 +421,14 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
               </div>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <label className="block text-sm">
-                  <span className="font-semibold text-indigo-900">本人評価</span>
+                  <span className="font-semibold text-indigo-900">本人評価（クライアント）</span>
                   <select
                     value={scoreSelectValue(row.selfScore)}
                     disabled={!permissions.canEditSelf || editingSkills}
                     onChange={(e) => setScore(skill.id, "selfScore", e.target.value)}
                     className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
                   >
-                    <option value="">未入力</option>
+                    <option value="">未入力 — まずは現状の自己認識で選ぶ</option>
                     {[1, 2, 3, 4, 5].map((n) => (
                       <option key={n} value={n}>
                         {n}点 — {criteriaLabel(skill.criteria, n as SkillScore)}
@@ -516,7 +444,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
                     onChange={(e) => setScore(skill.id, "managerScore", e.target.value)}
                     className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
                   >
-                    <option value="">未入力</option>
+                    <option value="">未入力 — 日常の発揮度で選ぶ</option>
                     {[1, 2, 3, 4, 5].map((n) => (
                       <option key={n} value={n}>
                         {n}点 — {criteriaLabel(skill.criteria, n as SkillScore)}
@@ -530,13 +458,146 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
         })}
       </div>
 
+      {/* ③ ギャップ可視化 */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs sm:p-5">
+        <p className="text-xs font-semibold tracking-wide text-indigo-800 uppercase">Step 3</p>
+        <h3 className="mt-1 text-lg font-semibold text-slate-900">ギャップの可視化</h3>
+        <p className="mt-1 text-sm text-slate-600">
+          本人評価と上司評価の差が大きい項目ほど、対話の手がかりになります。
+        </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-4 text-xs text-slate-600">
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-indigo-600" />
+            本人評価
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-emerald-600" />
+            上司評価
+          </span>
+        </div>
+        <SkillRadarChart labels={chartLabels} series={chartSeries} />
+      </div>
+
+      {/* ④ 重点育成項目 */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs sm:p-5">
+        <p className="text-xs font-semibold tracking-wide text-indigo-800 uppercase">Step 4</p>
+        <h3 className="mt-1 text-lg font-semibold text-slate-900">重点育成項目</h3>
+        <p className="mt-1 text-sm text-slate-600">
+          本人と上司で話し合い、これから伸ばすスキルを{" "}
+          <strong className="font-semibold text-slate-800">1〜{SKILL_CHECK_FOCUS_MAX}項目</strong>
+          （最大{SKILL_CHECK_FOCUS_MAX}）選びます。ここで「何を伸ばすか」が決まります。
+        </p>
+        <p className="mt-2 text-xs text-slate-500">
+          選択中: {focusSkillIds.length} / {SKILL_CHECK_FOCUS_MAX}
+        </p>
+        <ul className="mt-4 space-y-2">
+          {displaySkills.map((skill) => {
+            const selected = focusSkillIds.includes(skill.id);
+            const atMax = focusSkillIds.length >= SKILL_CHECK_FOCUS_MAX && !selected;
+            return (
+              <li key={skill.id}>
+                <label
+                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 ${
+                    selected
+                      ? "border-indigo-300 bg-indigo-50"
+                      : "border-slate-200 hover:bg-slate-50"
+                  } ${atMax ? "opacity-60" : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    disabled={!permissions.canEditFocusSkills || editingSkills || atMax}
+                    onChange={() => toggleFocusSkill(skill.id)}
+                  />
+                  <span className="text-sm font-medium text-slate-800">
+                    {skill.name || "（未入力）"}
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      {/* ⑤ 成長・挑戦合意（最下部） */}
+      <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 sm:p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs font-semibold tracking-wide text-indigo-800 uppercase">Step 5</p>
+          <h3 className="text-lg font-semibold text-indigo-950">成長・挑戦合意</h3>
+        </div>
+        <p className="mt-2 text-sm text-indigo-900/90">
+          重点育成項目を踏まえ、本人・上司の期待を言葉にします。プレースホルダの見本を参考に、自分の言葉で書いてください。
+        </p>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="space-y-3 rounded-xl border border-white bg-white/90 p-4 shadow-xs">
+            <h4 className="text-sm font-semibold text-slate-900">本人入力</h4>
+            <label className="block space-y-1 text-sm">
+              <span className="font-medium text-slate-800">大切にしたいこと</span>
+              <textarea
+                value={clientValuesText}
+                onChange={(e) =>
+                  setClientValuesText(e.target.value.slice(0, SKILL_CHECK_AGREEMENT_TEXT_MAX))
+                }
+                disabled={!permissions.canEditSelf}
+                rows={3}
+                maxLength={SKILL_CHECK_AGREEMENT_TEXT_MAX}
+                placeholder={PLACEHOLDER.clientValues}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 disabled:bg-slate-100 disabled:text-slate-500"
+              />
+            </label>
+            <label className="block space-y-1 text-sm">
+              <span className="font-medium text-slate-800">6か月後の目指す状態</span>
+              <textarea
+                value={clientSixMonthGoalText}
+                onChange={(e) =>
+                  setClientSixMonthGoalText(e.target.value.slice(0, SKILL_CHECK_AGREEMENT_TEXT_MAX))
+                }
+                disabled={!permissions.canEditSelf}
+                rows={3}
+                maxLength={SKILL_CHECK_AGREEMENT_TEXT_MAX}
+                placeholder={PLACEHOLDER.clientSixMonth}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 disabled:bg-slate-100 disabled:text-slate-500"
+              />
+            </label>
+          </div>
+          <div className="space-y-3 rounded-xl border border-white bg-white/90 p-4 shadow-xs">
+            <h4 className="text-sm font-semibold text-slate-900">上司入力</h4>
+            <label className="block space-y-1 text-sm">
+              <span className="font-medium text-slate-800">現在期待される役割</span>
+              <textarea
+                value={managerCurrentRoleText}
+                onChange={(e) =>
+                  setManagerCurrentRoleText(e.target.value.slice(0, SKILL_CHECK_AGREEMENT_TEXT_MAX))
+                }
+                disabled={!permissions.canEditManager}
+                rows={3}
+                maxLength={SKILL_CHECK_AGREEMENT_TEXT_MAX}
+                placeholder={PLACEHOLDER.managerCurrent}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 disabled:bg-slate-100 disabled:text-slate-500"
+              />
+            </label>
+            <label className="block space-y-1 text-sm">
+              <span className="font-medium text-slate-800">次に期待される役割</span>
+              <textarea
+                value={managerNextRoleText}
+                onChange={(e) =>
+                  setManagerNextRoleText(e.target.value.slice(0, SKILL_CHECK_AGREEMENT_TEXT_MAX))
+                }
+                disabled={!permissions.canEditManager}
+                rows={3}
+                maxLength={SKILL_CHECK_AGREEMENT_TEXT_MAX}
+                placeholder={PLACEHOLDER.managerNext}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 disabled:bg-slate-100 disabled:text-slate-500"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
       {notice ? <p className="text-sm text-emerald-800">{notice}</p> : null}
 
-      {permissions.canEditSelf ||
-      permissions.canEditManager ||
-      permissions.canEditFocusSkills ||
-      (permissions.canEditSkillDefinitions && editingSkills) ? (
+      {canSave ? (
         <button
           type="button"
           onClick={() => void save()}

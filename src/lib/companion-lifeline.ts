@@ -25,8 +25,15 @@ export type LifelineChart = {
   userId: string;
   companyId: string;
   events: LifelineEvent[];
+  /** エネルギーの源泉（まとめ） */
+  energySourcesText: string;
+  /** 大切にしている価値観（まとめ） */
+  coreValuesText: string;
   updatedAt: string;
 };
+
+/** まとめテキストの最大文字数 */
+export const LIFELINE_SUMMARY_TEXT_MAX = 2000;
 
 export function normalizeLifelineEvent(input: unknown, fallbackId: string, sortOrder: number): LifelineEvent | null {
   if (!input || typeof input !== "object") return null;
@@ -61,6 +68,8 @@ export function normalizeLifelineChart(userId: string, companyId: string, input:
     userId,
     companyId,
     events,
+    energySourcesText: trim(raw.energySourcesText, LIFELINE_SUMMARY_TEXT_MAX),
+    coreValuesText: trim(raw.coreValuesText, LIFELINE_SUMMARY_TEXT_MAX),
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
   };
 }
@@ -69,7 +78,9 @@ export function filterLifelineForViewer(
   chart: LifelineChart,
   mode: "full" | "manager" | "self" | "none",
 ): LifelineChart {
-  if (mode === "none") return { ...chart, events: [] };
+  if (mode === "none") {
+    return { ...chart, events: [], energySourcesText: "", coreValuesText: "" };
+  }
   if (mode === "full" || mode === "self") return chart;
   return {
     ...chart,

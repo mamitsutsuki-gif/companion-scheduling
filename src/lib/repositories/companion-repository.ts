@@ -148,10 +148,19 @@ export async function getLifelineChart(userId: string, companyId: string): Promi
 export async function upsertLifelineChart(
   userId: string,
   companyId: string,
-  events: LifelineChart["events"],
+  input: {
+    events: LifelineChart["events"];
+    energySourcesText?: string;
+    coreValuesText?: string;
+  },
 ): Promise<LifelineChart> {
+  const existing = await getLifelineChart(userId, companyId);
   const next = normalizeLifelineChart(userId, companyId, {
-    events,
+    events: input.events,
+    energySourcesText:
+      input.energySourcesText !== undefined ? input.energySourcesText : existing.energySourcesText,
+    coreValuesText:
+      input.coreValuesText !== undefined ? input.coreValuesText : existing.coreValuesText,
     updatedAt: new Date().toISOString(),
   });
   await writeJsonDoc(LIFELINE_COL, userId, companyId, next);

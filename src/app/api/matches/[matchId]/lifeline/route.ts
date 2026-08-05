@@ -3,7 +3,11 @@ import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
 import { resolveCompanionAccessForMatch } from "@/lib/companion-access";
 import { getLifelineChart, upsertLifelineChart } from "@/lib/repositories/companion-repository";
-import { filterLifelineForViewer, normalizeLifelineEvent } from "@/lib/companion-lifeline";
+import {
+  filterLifelineForViewer,
+  LIFELINE_SUMMARY_TEXT_MAX,
+  normalizeLifelineEvent,
+} from "@/lib/companion-lifeline";
 import { nanoid } from "nanoid";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +28,8 @@ const eventSchema = z.object({
 
 const putSchema = z.object({
   events: z.array(eventSchema).max(80),
+  energySourcesText: z.string().max(LIFELINE_SUMMARY_TEXT_MAX).optional(),
+  coreValuesText: z.string().max(LIFELINE_SUMMARY_TEXT_MAX).optional(),
 });
 
 export async function GET(_req: Request, ctx: RouteContext) {
@@ -62,6 +68,10 @@ export async function PUT(request: Request, ctx: RouteContext) {
   const events = parsed.data.events
     .map((e, i) => normalizeLifelineEvent({ ...e, id: e.id ?? `life-${nanoid(8)}` }, `life-${i}`, i))
     .filter((e): e is NonNullable<typeof e> => e !== null);
-  const chart = await upsertLifelineChart(access.targetUserId, access.companyId, events);
+  const chart = await upsertLifelineChart(access.targetUserId, access.companyId, {
+    events,
+    energySourcesText: parsed.data.energySourcesText,
+    coreValuesText: parsed.data.coreValuesText,
+  });
   return jsonOk({ chart });
 }

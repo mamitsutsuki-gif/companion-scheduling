@@ -91,19 +91,21 @@ async function main() {
   const reflection = await getReflectionSheet(client!.id, DEMO_COMPANY_ID);
   ok("reflection round-trip", reflection.changedThrough === "振り返りテスト");
 
-  await upsertLifelineChart(client!.id, DEMO_COMPANY_ID, [
-    {
-      id: "ev1",
-      title: "転職",
-      ageOrPeriod: "30歳",
-      detail: "",
-      emotionScore: 2,
-      emotionReason: "",
-      insights: "秘密の気づき",
-      locked: true,
-      sortOrder: 0,
-    },
-  ]);
+  await upsertLifelineChart(client!.id, DEMO_COMPANY_ID, {
+    events: [
+      {
+        id: "ev1",
+        title: "転職",
+        ageOrPeriod: "30歳",
+        detail: "",
+        emotionScore: 2,
+        emotionReason: "",
+        insights: "秘密の気づき",
+        locked: true,
+        sortOrder: 0,
+      },
+    ],
+  });
   const lifeline = await getLifelineChart(client!.id, DEMO_COMPANY_ID);
   const masked = filterLifelineForViewer(lifeline, "manager");
   ok(

@@ -64,8 +64,8 @@ export default function ClientAdminSkillCheckPage() {
           スキルチェック（上司評価）
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          自社メンバーのスキルチェックシートに、上司評価と重点育成スキルを入力できます。
-          本人評価はメンバー本人がマッチルームから入力します。
+          自社メンバーのスキルチェックシートに、上司評価と重点育成項目（最大3つ）を入力できます。
+          本人評価と成長・挑戦合意の本人欄はメンバー本人がマッチルームから入力します。
         </p>
         <div className="mt-4 flex flex-wrap items-end gap-3">
           {programs.length > 1 ? (

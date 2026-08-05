@@ -44,6 +44,9 @@ export type SkillCheckProfile = {
 /** 成長・挑戦合意テキストの最大文字数 */
 export const SKILL_CHECK_AGREEMENT_TEXT_MAX = 2000;
 
+/** 重点育成スキルの上限（1〜3項目） */
+export const SKILL_CHECK_FOCUS_MAX = 3;
+
 const DEFAULT_CRITERIA: SkillCriteria = {
   score1: "これから伸ばしたい段階",
   score2: "一部で発揮できている",
@@ -162,7 +165,7 @@ export function normalizeSkillCheckProfile(userId: string, companyId: string, in
   const focusSkillIds = focusRaw
     .map((v) => trimText(v, 80))
     .filter((v) => v.length > 0)
-    .slice(0, 8);
+    .slice(0, SKILL_CHECK_FOCUS_MAX);
   const custom = normalizeCompanySkillDefinitions(raw.skillDefinitions);
   return {
     userId,
