@@ -138,6 +138,67 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
     [editingSkills, skillDraft, skills],
   );
 
+  /** 保存していない入力があるか（開始時／終了時の切替やリロードで失われる） */
+  const isDirty = useMemo(() => {
+    if (!profile) return false;
+    const stored = phase === "baseline" ? profile.baseline : profile.current;
+    for (const skill of displaySkills) {
+      const now = draft[skill.id];
+      const before = stored[skill.id];
+      if (!now) continue;
+      if (
+        now.selfScore !== (before?.selfScore ?? null) ||
+        now.managerScore !== (before?.managerScore ?? null) ||
+        now.selfReason !== (before?.selfReason ?? "") ||
+        now.managerReason !== (before?.managerReason ?? "")
+      ) {
+        return true;
+      }
+    }
+    if (focusSkillIds.join("|") !== (profile.focusSkillIds ?? []).join("|")) return true;
+    if (clientValuesText !== (profile.clientValuesText ?? "")) return true;
+    if (clientSixMonthGoalText !== (profile.clientSixMonthGoalText ?? "")) return true;
+    if (managerCurrentRoleText !== (profile.managerCurrentRoleText ?? "")) return true;
+    if (managerNextRoleText !== (profile.managerNextRoleText ?? "")) return true;
+    if (editingSkills) {
+      const before = skills.map((s) => `${s.id}:${s.name}`).join("|");
+      const now = skillDraft.map((s) => `${s.id}:${s.name}`).join("|");
+      if (before !== now) return true;
+    }
+    return false;
+  }, [
+    profile,
+    phase,
+    draft,
+    displaySkills,
+    focusSkillIds,
+    clientValuesText,
+    clientSixMonthGoalText,
+    managerCurrentRoleText,
+    managerNextRoleText,
+    editingSkills,
+    skills,
+    skillDraft,
+  ]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [isDirty]);
+
+  function changePhase(next: SkillCheckPhase) {
+    if (next === phase) return;
+    if (
+      isDirty &&
+      !confirm("保存していない入力があります。切り替えると失われます。よろしいですか？")
+    ) {
+      return;
+    }
+    setPhase(next);
+  }
+
   const chartLabels = useMemo(
     () => displaySkills.map((s, i) => s.name.trim() || `（項目${i + 1}）`),
     [displaySkills],
@@ -284,12 +345,12 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
         </ol>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {(["baseline", "current"] as SkillCheckPhase[]).map((p) => (
           <button
             key={p}
             type="button"
-            onClick={() => setPhase(p)}
+            onClick={() => changePhase(p)}
             className={`rounded-lg px-4 py-2 text-sm font-semibold ${
               phase === p
                 ? "bg-indigo-700 text-white"
@@ -299,6 +360,11 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
             {p === "baseline" ? "開始時評価" : "終了時評価"}
           </button>
         ))}
+        {isDirty ? (
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
+            未保存の入力があります
+          </span>
+        ) : null}
       </div>
 
       {/* ① スキル定義 */}
