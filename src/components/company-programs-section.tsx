@@ -28,7 +28,7 @@ export function CompanyProgramsSection({ companyId }: { companyId: string }) {
   const [consolidating, setConsolidating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
-  const [newPlan, setNewPlan] = useState<CompanyPlan>("individual_companion");
+  const [newPlan, setNewPlan] = useState<CompanyPlan>("individual_companion_pro");
 
   const usedPlans = useMemo(() => new Set(programs.map((p) => p.plan)), [programs]);
   const availablePlanOptions = useMemo(

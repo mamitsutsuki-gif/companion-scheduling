@@ -9,6 +9,7 @@ import {
   type AvailabilitySlotOption,
 } from "@/lib/availability";
 import { AdminSupervisorLinksSection } from "@/components/admin-supervisor-links-section";
+import { isIndividualCompanionPlan } from "@/lib/company-plan";
 
 type RoleUser = {
   id: string;
@@ -171,7 +172,7 @@ export default function AdminMatchesPage() {
     () => matchPrograms.find((p) => p.id === matchProgramId) ?? null,
     [matchPrograms, matchProgramId],
   );
-  const isIndividualCompanionMatch = selectedMatchProgram?.plan === "individual_companion";
+  const isIndividualCompanionMatch = isIndividualCompanionPlan(selectedMatchProgram?.plan);
 
   /** マッチのパートナー候補は PARTNER のみ（上司は別セクションの紐づけ） */
   const partnerCandidates = useMemo(() => partners, [partners]);
@@ -872,7 +873,7 @@ export default function AdminMatchesPage() {
                 {matchPrograms.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
-                    {p.plan === "individual_companion" ? "（個別伴走）" : ""}
+                    {isIndividualCompanionPlan(p.plan) ? "（個別伴走）" : ""}
                   </option>
                 ))}
               </select>

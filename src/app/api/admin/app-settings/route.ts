@@ -15,6 +15,8 @@ import {
 const companyPlanSchema = z.enum([
   "workplace_activation",
   "individual_companion",
+  "individual_companion_exec",
+  "individual_companion_pro",
   "coaching_management_training",
   "monthly_session",
 ]);

@@ -222,6 +222,25 @@ export async function findProgramForCompanyPlan(
   return pickCanonicalProgram(programs, plan);
 }
 
+/** 個別伴走系（Exec / Pro / 旧）のいずれかのプログラムを返す（優先: Exec → Pro → 旧） */
+export async function findAnyIndividualCompanionProgram(
+  companyId: string,
+): Promise<ProgramRow | null> {
+  const cid = sanitizeCompanyId(companyId);
+  if (!cid) return null;
+  const programs = await listProgramsForCompany(cid);
+  const order = [
+    "individual_companion_exec",
+    "individual_companion_pro",
+    "individual_companion",
+  ] as const;
+  for (const plan of order) {
+    const hit = pickCanonicalProgram(programs, plan);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 export async function countMatchesForProgram(programId: string): Promise<number> {
   const pid = sanitizeProgramId(programId);
   if (!pid || !isFirebaseDataBackend()) return 0;

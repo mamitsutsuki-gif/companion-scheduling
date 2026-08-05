@@ -13,6 +13,7 @@ import {
   MEETING_PROVIDER_OPTIONS,
   companyPlanLabel,
   getPlanFeatures,
+  isIndividualCompanionPlan,
   resolveCoachingPlanSettings,
   resolvePlanFeatures,
   type CoachingPlanSettings,
@@ -580,13 +581,13 @@ export default function AdminCompanySettingsPage({
     }
     if (clearFields.length > 0) body.clearFields = clearFields;
 
-    if (companyPlan === "individual_companion" && planFeaturesCustomized) {
+    if (isIndividualCompanionPlan(companyPlan) && planFeaturesCustomized) {
       const overrides: PlanFeatureOverrides = {};
       for (const { key } of INDIVIDUAL_COMPANION_FEATURE_OPTIONS) {
         overrides[key] = vPlanFeatures[key];
       }
       body.planFeatureOverrides = overrides;
-    } else if (companyPlan === "individual_companion" && data.override?.planFeatureOverrides) {
+    } else if (isIndividualCompanionPlan(companyPlan) && data.override?.planFeatureOverrides) {
       body.clearPlanFeatureOverrides = true;
     }
 
@@ -1071,12 +1072,14 @@ export default function AdminCompanySettingsPage({
             </div>
           </section>
 
-          {companyPlan === "individual_companion" ? (
+          {isIndividualCompanionPlan(companyPlan) ? (
             <section className="rounded-2xl border border-violet-200 bg-violet-50/30 p-5 shadow-sm sm:p-8">
-              <h2 className="text-lg font-semibold text-violet-950">個別伴走プラン — 成果物の表示</h2>
+              <h2 className="text-lg font-semibold text-violet-950">
+                {companyPlanLabel(companyPlan)} — 成果物の表示
+              </h2>
               <p className="mt-2 text-sm text-violet-900/90">
                 クライアントのマッチルームに表示するシート・成果物を選びます。選択したタブは、
-                ペアになったパートナーも同じルーム内でリアルタイムに閲覧できます。
+                ペアになったパートナーも同じルーム内で閲覧できます。セッション回数・密度は下の「枠・回数」でプランごとに設定してください。
               </p>
               <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-violet-300 bg-white px-4 py-3 text-sm">
                 <input
@@ -1086,7 +1089,7 @@ export default function AdminCompanySettingsPage({
                     const on = e.target.checked;
                     setPlanFeaturesCustomized(on);
                     if (!on) {
-                      setVPlanFeatures(planFeaturesToToggles(getPlanFeatures("individual_companion")));
+                      setVPlanFeatures(planFeaturesToToggles(getPlanFeatures(companyPlan)));
                     }
                   }}
                   className="mt-0.5 h-4 w-4 accent-violet-700"
@@ -1233,7 +1236,7 @@ export default function AdminCompanySettingsPage({
             </>
           ) : (
             <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              導入プラン: {companyPlanLabel(companyPlan)} — 成果物の個別選択は個別伴走プランのみ利用できます。
+              導入プラン: {companyPlanLabel(companyPlan)} — 成果物の個別選択は個別伴走プラン（Exec / Pro）のみ利用できます。
             </p>
           )}
 

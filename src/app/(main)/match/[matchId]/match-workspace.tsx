@@ -24,6 +24,7 @@ import {
   DEFAULT_COMPANY_PLAN,
   companyPlanLabel,
   getPlanFeatures,
+  isIndividualCompanionPlan,
   resolveCoachingPlanSettings,
   type CoachingPlanSettings,
   type CompanyPlan,
@@ -1058,9 +1059,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           ? (sJson.overriddenFields as unknown[]).map((x) => String(x))
           : [],
         companyPlan:
-          sJson.companyPlan === "individual_companion" ||
+          isIndividualCompanionPlan(sJson.companyPlan) ||
           sJson.companyPlan === "coaching_management_training" ||
-          sJson.companyPlan === "workplace_activation"
+          sJson.companyPlan === "workplace_activation" ||
+          sJson.companyPlan === "monthly_session"
             ? sJson.companyPlan
             : DEFAULT_COMPANY_PLAN,
         planFeatures:

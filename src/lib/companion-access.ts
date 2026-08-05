@@ -6,7 +6,8 @@ import {
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { getEffectiveAppSettings } from "@/lib/repositories/app-settings-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
-import { findProgramForCompanyPlan } from "@/lib/repositories/program-repository";
+import { findAnyIndividualCompanionProgram } from "@/lib/repositories/program-repository";
+import { isIndividualCompanionPlan } from "@/lib/company-plan";
 import { getUserById } from "@/lib/repositories/user-repository";
 import { isClientAdminLike, isAnyAdmin } from "@/lib/role-aliases";
 import { isPairedIndividualCompanionSupervisor } from "@/lib/skill-check-access";
@@ -104,7 +105,7 @@ export async function resolveCompanionAccessForMatch(
   if (!match) return { error: "not_found" };
 
   const effective = await getEffectiveAppSettingsForMatch(matchId);
-  if (effective.companyPlan !== "individual_companion") return { error: "plan_disabled" };
+  if (!isIndividualCompanionPlan(effective.companyPlan)) return { error: "plan_disabled" };
 
   const features = resolvePlanFeatures(
     effective.companyPlan,
@@ -160,7 +161,7 @@ export async function resolveCompanionAccessForUser(
   if (!companyId) return { error: "forbidden" };
 
   // 企業レジストリの代表プランではなく、個別伴走プログラムの有無で判定する
-  const icProgram = await findProgramForCompanyPlan(companyId, "individual_companion");
+  const icProgram = await findAnyIndividualCompanionProgram(companyId);
   if (!icProgram) return { error: "plan_disabled" };
 
   const effective = await getEffectiveAppSettings({
@@ -172,7 +173,7 @@ export async function resolveCompanionAccessForUser(
     effective.planFeatureOverrides,
     effective.coachingPlanSettings,
   );
-  if (effective.companyPlan !== "individual_companion") return { error: "plan_disabled" };
+  if (!isIndividualCompanionPlan(effective.companyPlan)) return { error: "plan_disabled" };
   if (opts?.feature && !features[opts.feature]) return { error: "plan_disabled" };
 
   const base = accessForActor(targetUserId, companyId, actor, {

@@ -5,19 +5,47 @@
 export type CompanyPlan =
   | "workplace_activation"
   | "individual_companion"
+  | "individual_companion_exec"
+  | "individual_companion_pro"
   | "coaching_management_training"
   | "monthly_session";
 
 export const DEFAULT_COMPANY_PLAN: CompanyPlan = "workplace_activation";
 
+/** 個別伴走系（Exec / Pro / 旧 individual_companion）。機能セットは現状同一。 */
+export const INDIVIDUAL_COMPANION_PLANS = [
+  "individual_companion_exec",
+  "individual_companion_pro",
+  "individual_companion",
+] as const;
+
+export type IndividualCompanionPlan = (typeof INDIVIDUAL_COMPANION_PLANS)[number];
+
+export function isIndividualCompanionPlan(plan: unknown): plan is IndividualCompanionPlan {
+  return (
+    plan === "individual_companion_exec" ||
+    plan === "individual_companion_pro" ||
+    plan === "individual_companion"
+  );
+}
+
 export const COMPANY_PLAN_OPTIONS: Array<{ value: CompanyPlan; label: string }> = [
   { value: "workplace_activation", label: "職場活性プラン" },
-  { value: "individual_companion", label: "個別伴走プラン" },
+  { value: "individual_companion_exec", label: "個別伴走プラン（Exec）" },
+  { value: "individual_companion_pro", label: "個別伴走プラン（Pro）" },
   { value: "coaching_management_training", label: "コーチングマネジメント研修" },
   { value: "monthly_session", label: "月額プラン（セッション申し込み）" },
 ];
 
+/** 新規作成UIには出さないが、既存データ表示用 */
+const LEGACY_COMPANY_PLAN_LABELS: Partial<Record<CompanyPlan, string>> = {
+  individual_companion: "個別伴走プラン（旧）",
+};
+
 export function companyPlanLabel(plan: CompanyPlan | null | undefined): string {
+  if (!plan) return COMPANY_PLAN_OPTIONS[0]!.label;
+  const legacy = LEGACY_COMPANY_PLAN_LABELS[plan];
+  if (legacy) return legacy;
   const hit = COMPANY_PLAN_OPTIONS.find((o) => o.value === plan);
   return hit?.label ?? COMPANY_PLAN_OPTIONS[0]!.label;
 }
@@ -27,6 +55,8 @@ export function normalizeCompanyPlan(input: unknown): CompanyPlan {
   if (
     input === "workplace_activation" ||
     input === "individual_companion" ||
+    input === "individual_companion_exec" ||
+    input === "individual_companion_pro" ||
     input === "coaching_management_training" ||
     input === "monthly_session"
   ) {
@@ -213,6 +243,8 @@ export function normalizePlanFeatureOverrides(input: unknown): PlanFeatureOverri
 export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
   switch (plan) {
     case "individual_companion":
+    case "individual_companion_exec":
+    case "individual_companion_pro":
       return {
         overview: true,
         clientInfo: true,
@@ -320,7 +352,7 @@ export function resolvePlanFeatures(
   coachingSettings?: CoachingPlanSettingsOverrides | null,
 ): PlanFeatures {
   const base = getPlanFeatures(plan);
-  if (plan === "individual_companion" && overrides) {
+  if (isIndividualCompanionPlan(plan) && overrides) {
     const merged = { ...base };
     for (const { key } of INDIVIDUAL_COMPANION_FEATURE_OPTIONS) {
       if (overrides[key] !== undefined) merged[key] = overrides[key]!;

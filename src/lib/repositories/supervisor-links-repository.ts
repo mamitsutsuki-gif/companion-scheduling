@@ -3,6 +3,7 @@ import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebas
 import { getMatchById } from "@/lib/repositories/match-repository";
 import { getProgramById } from "@/lib/repositories/program-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
+import { isIndividualCompanionPlan } from "@/lib/company-plan";
 
 const COLLECTION = "supervisorLinks";
 
@@ -162,7 +163,7 @@ export async function createSupervisorLink(input: {
     typeof input.programId === "string" && input.programId.trim() ? input.programId.trim() : null;
   if (programId) {
     const program = await getProgramById(programId);
-    if (!program || program.companyId !== companyId || program.plan !== "individual_companion") {
+    if (!program || program.companyId !== companyId || !isIndividualCompanionPlan(program.plan)) {
       return { ok: false, error: "プログラムは同一企業の個別伴走である必要があります。" };
     }
   }
@@ -295,7 +296,7 @@ export async function findPartnerRoomMatchForClient(
       if (!partner || partner.role !== "PARTNER") continue;
       if (c.programId) {
         const program = await getProgramById(c.programId);
-        if (program && program.plan !== "individual_companion") continue;
+        if (program && !isIndividualCompanionPlan(program.plan)) continue;
       }
       return {
         id: c.id,
@@ -319,7 +320,7 @@ export async function findPartnerRoomMatchForClient(
     if (!partner || partner.role !== "PARTNER") continue;
     if (row.programId) {
       const program = await getProgramById(row.programId);
-      if (program && program.plan !== "individual_companion") continue;
+      if (program && !isIndividualCompanionPlan(program.plan)) continue;
     }
     return { id: row.id, programId: row.programId, partnerName: partner.displayName };
   }

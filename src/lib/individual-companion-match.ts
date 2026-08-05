@@ -1,4 +1,5 @@
-import type { CompanyPlan } from "@/lib/company-plan";
+import type { CompanyPlan, IndividualCompanionPlan } from "@/lib/company-plan";
+import { isIndividualCompanionPlan } from "@/lib/company-plan";
 
 /**
  * 個別伴走プラン専用: クライアント管理者を「上司」として partnerId に置ける。
@@ -9,7 +10,7 @@ export function canBeMatchPartnerForPlan(
   plan: CompanyPlan | null | undefined,
 ): boolean {
   if (role === "PARTNER") return true;
-  if (plan === "individual_companion" && role === "CLIENT_ADMIN") return true;
+  if (isIndividualCompanionPlan(plan) && role === "CLIENT_ADMIN") return true;
   return false;
 }
 
@@ -27,6 +28,8 @@ export function isIndividualCompanionSupervisorMatch(input: {
   if (input.actorRole !== "CLIENT_ADMIN") return false;
   if (!input.partnerId || input.partnerId !== input.actorId) return false;
   // CLIENT_ADMIN を partner に置けるのは個別伴走のみ。programId 欠落のレガシーも許可する。
-  if (input.programPlan != null && input.programPlan !== "individual_companion") return false;
+  if (input.programPlan != null && !isIndividualCompanionPlan(input.programPlan)) return false;
   return true;
 }
+
+export type { IndividualCompanionPlan };

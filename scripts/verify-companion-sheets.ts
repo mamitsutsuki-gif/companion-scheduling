@@ -4,7 +4,7 @@
  */
 import "dotenv/config";
 import { getFirebaseFirestoreClient, isFirebaseAdminConfigured, isFirebaseDataBackend } from "../src/lib/firebase-admin";
-import { resolveCompanyPlan, type CompanyPlan } from "../src/lib/company-plan";
+import { resolveCompanyPlan, isIndividualCompanionPlan, type CompanyPlan } from "../src/lib/company-plan";
 import { normalizePdcaStore, pdcaSkillCounts } from "../src/lib/companion-pdca";
 import { normalizeReflectionSheet } from "../src/lib/companion-reflection";
 import { normalizeLifelineChart, filterLifelineForViewer } from "../src/lib/companion-lifeline";
@@ -49,7 +49,9 @@ async function checkFirebaseData() {
 
   const settings = await db.collection("appSettings").doc("app").get();
   const companies = (settings.data()?.companies ?? []) as Array<{ id: string; name: string; plan?: CompanyPlan }>;
-  const companionCompanies = companies.filter((c) => resolveCompanyPlan(c.id, companies) === "individual_companion");
+  const companionCompanies = companies.filter((c) =>
+    isIndividualCompanionPlan(resolveCompanyPlan(c.id, companies)),
+  );
   console.log(`  ✓ 登録企業 ${companies.length} 件 / 個別伴走プラン ${companionCompanies.length} 件`);
   for (const c of companionCompanies.slice(0, 5)) {
     console.log(`    - ${c.name}（${c.id}）`);

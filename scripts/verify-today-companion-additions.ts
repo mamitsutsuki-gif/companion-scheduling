@@ -43,11 +43,17 @@ function ok(name: string, cond: boolean, detail?: string) {
 }
 
 function checkPlanFeatures() {
-  const ic = getPlanFeatures("individual_companion");
-  ok(
-    "individual_companion features ON",
-    ic.developmentOpportunity && !ic.businessProblem && ic.skillCheck && ic.fta,
-  );
+  for (const plan of [
+    "individual_companion",
+    "individual_companion_exec",
+    "individual_companion_pro",
+  ] as const) {
+    const ic = getPlanFeatures(plan);
+    ok(
+      `${plan} features ON`,
+      ic.developmentOpportunity && !ic.businessProblem && ic.skillCheck && ic.fta,
+    );
+  }
   const other = getPlanFeatures("coaching_management_training");
   ok(
     "coaching plan features OFF",

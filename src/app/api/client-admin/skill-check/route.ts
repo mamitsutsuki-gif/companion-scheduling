@@ -1,7 +1,7 @@
 import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
 import { getUserById, isDeletedUser, listClientsInCompany } from "@/lib/repositories/user-repository";
-import { companyPlanLabel } from "@/lib/company-plan";
+import { companyPlanLabel, isIndividualCompanionPlan } from "@/lib/company-plan";
 import { getSkillCheckProfile } from "@/lib/repositories/skill-check-repository";
 import {
   ensureDefaultProgramForCompany,
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
   const programId = new URL(request.url).searchParams.get("programId")?.trim() || null;
   await ensureDefaultProgramForCompany(companyId);
   const allPrograms = await listProgramsForCompany(companyId);
-  const companionPrograms = allPrograms.filter((p) => p.plan === "individual_companion");
+  const companionPrograms = allPrograms.filter((p) => isIndividualCompanionPlan(p.plan));
 
   if (companionPrograms.length === 0) {
     return jsonOk({

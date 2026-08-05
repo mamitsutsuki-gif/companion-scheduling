@@ -4,6 +4,7 @@ import { getProgramById } from "@/lib/repositories/program-repository";
 import { isIndividualCompanionSupervisorMatch } from "@/lib/individual-companion-match";
 import { isPairedIndividualCompanionSupervisor } from "@/lib/skill-check-access";
 import { isClientAdminLike } from "@/lib/role-aliases";
+import { isIndividualCompanionPlan } from "@/lib/company-plan";
 
 export type MatchAccessOk = {
   match: NonNullable<Awaited<ReturnType<typeof getMatchById>>>;
@@ -59,7 +60,7 @@ export async function getMatchIfAllowed(
     const paired = await isPairedIndividualCompanionSupervisor(actor.id, match.clientId);
     if (paired) {
       const program = match.programId ? await getProgramById(match.programId) : null;
-      if (!program || program.plan === "individual_companion") {
+      if (!program || isIndividualCompanionPlan(program.plan)) {
         return { match, supervisorViewer: true };
       }
     }

@@ -3,7 +3,7 @@ import { Role } from "@prisma/client";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { companyLabelFromRegistry } from "@/lib/company-display";
-import { companyPlanLabel } from "@/lib/company-plan";
+import { companyPlanLabel, isIndividualCompanionPlan } from "@/lib/company-plan";
 import { getProgramById } from "@/lib/repositories/program-repository";
 import { PENDING_PARTNER_DISPLAY_NAME } from "@/lib/match-partner-pending";
 import { canBeMatchPartnerForPlan } from "@/lib/individual-companion-match";
@@ -178,7 +178,7 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
       if (m.clientId === input.userId) return true;
       if (!m.programId) return true;
       const program = programCache.get(m.programId);
-      return !program || program.plan === "individual_companion";
+      return !program || isIndividualCompanionPlan(program.plan);
     });
 
     return visibleDocs
@@ -255,7 +255,7 @@ export async function listMatchesForRole(input: { role: Role; userId: string }) 
       r.clientId !== input.userId
     ) {
       const program = r.programId ? await getProgramById(r.programId) : null;
-      if (program?.plan !== "individual_companion") continue;
+      if (program && !isIndividualCompanionPlan(program.plan)) continue;
     }
     mapped.push({
       ...r,
@@ -279,7 +279,7 @@ function validateSupervisorPartnerPair(input: {
   programPlan: CompanyPlan;
 }): { ok: true } | { ok: false; error: string } {
   if (!canBeMatchPartnerForPlan(input.partnerRole, input.programPlan)) {
-    if (input.programPlan === "individual_companion") {
+    if (isIndividualCompanionPlan(input.programPlan)) {
       return {
         ok: false,
         error: "パートナー側は PARTNER、または個別伴走の上司（CLIENT_ADMIN）を指定してください。",

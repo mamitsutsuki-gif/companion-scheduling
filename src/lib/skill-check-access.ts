@@ -1,9 +1,12 @@
 import type { Role } from "@prisma/client";
-import { resolvePlanFeatures } from "@/lib/company-plan";
+import { resolvePlanFeatures, isIndividualCompanionPlan, type CompanyPlan } from "@/lib/company-plan";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { getEffectiveAppSettings } from "@/lib/repositories/app-settings-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
-import { findProgramForCompanyPlan, getProgramById } from "@/lib/repositories/program-repository";
+import {
+  findAnyIndividualCompanionProgram,
+  getProgramById,
+} from "@/lib/repositories/program-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
 import { isClientAdminLike } from "@/lib/role-aliases";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
@@ -47,7 +50,7 @@ export async function isPairedIndividualCompanionSupervisor(
       // programId 欠落のレガシー: CLIENT_ADMIN が partner のマッチは個別伴走として扱う
       if (!programId) return true;
       const program = await getProgramById(programId);
-      if (!program || program.plan === "individual_companion") return true;
+      if (!program || isIndividualCompanionPlan(program.plan)) return true;
     }
     return false;
   }
@@ -59,7 +62,7 @@ export async function isPairedIndividualCompanionSupervisor(
   for (const row of rows) {
     if (!row.programId) return true;
     const program = await getProgramById(row.programId);
-    if (!program || program.plan === "individual_companion") return true;
+    if (!program || isIndividualCompanionPlan(program.plan)) return true;
   }
   return false;
 }
@@ -69,9 +72,9 @@ function skillCheckEnabledFromEffective(effective: {
   planFeatureOverrides: Parameters<typeof resolvePlanFeatures>[1];
   coachingPlanSettings: Parameters<typeof resolvePlanFeatures>[2];
 }): boolean {
-  if (effective.companyPlan !== "individual_companion") return false;
+  if (!isIndividualCompanionPlan(effective.companyPlan)) return false;
   const features = resolvePlanFeatures(
-    "individual_companion",
+    effective.companyPlan as CompanyPlan,
     effective.planFeatureOverrides,
     effective.coachingPlanSettings,
   );
@@ -187,7 +190,7 @@ export async function resolveSkillCheckAccessForUser(
   if (!companyId) return { error: "forbidden" };
 
   // 企業レジストリの代表プランではなく、個別伴走プログラムの有無 + 機能フラグで判定
-  const icProgram = await findProgramForCompanyPlan(companyId, "individual_companion");
+  const icProgram = await findAnyIndividualCompanionProgram(companyId);
   if (!icProgram) return { error: "plan_disabled" };
   const effective = await getEffectiveAppSettings({
     companyId,
