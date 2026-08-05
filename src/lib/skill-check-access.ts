@@ -1,4 +1,5 @@
 import type { Role } from "@prisma/client";
+import { resolveActorRole } from "@/lib/actor-role";
 import { resolvePlanFeatures, isIndividualCompanionPlan, type CompanyPlan } from "@/lib/company-plan";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { getEffectiveAppSettings } from "@/lib/repositories/app-settings-repository";
@@ -83,10 +84,12 @@ function skillCheckEnabledFromEffective(effective: {
 
 export async function resolveSkillCheckAccessForMatch(
   matchId: string,
-  actor: { id: string; role: Role },
+  rawActor: { id: string; role: Role },
 ): Promise<{ error: "not_found" | "forbidden" | "plan_disabled" } | SkillCheckAccess> {
   const match = await getMatchById(matchId);
   if (!match) return { error: "not_found" };
+
+  const actor = { id: rawActor.id, role: await resolveActorRole(rawActor) };
 
   const effective = await getEffectiveAppSettingsForMatch(matchId);
   if (!skillCheckEnabledFromEffective(effective)) {
@@ -180,8 +183,9 @@ export async function resolveSkillCheckAccessForMatch(
 
 export async function resolveSkillCheckAccessForUser(
   targetUserId: string,
-  actor: { id: string; role: Role },
+  rawActor: { id: string; role: Role },
 ): Promise<{ error: "not_found" | "forbidden" | "plan_disabled" } | SkillCheckAccess> {
+  const actor = { id: rawActor.id, role: await resolveActorRole(rawActor) };
   const target = await getUserById(targetUserId);
   if (!target || (target as { deletedAt?: Date | null }).deletedAt) {
     return { error: "not_found" };

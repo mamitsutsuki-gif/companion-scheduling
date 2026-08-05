@@ -5,6 +5,7 @@ import { isIndividualCompanionSupervisorMatch } from "@/lib/individual-companion
 import { isPairedIndividualCompanionSupervisor } from "@/lib/skill-check-access";
 import { isClientAdminLike } from "@/lib/role-aliases";
 import { isIndividualCompanionPlan } from "@/lib/company-plan";
+import { resolveActorRole } from "@/lib/actor-role";
 
 export type MatchAccessOk = {
   match: NonNullable<Awaited<ReturnType<typeof getMatchById>>>;
@@ -17,11 +18,13 @@ export type MatchAccessOk = {
 
 export async function getMatchIfAllowed(
   matchId: string,
-  actor: { id: string; role: Role },
+  rawActor: { id: string; role: Role },
 ): Promise<{ error: "not_found" | "forbidden" } | MatchAccessOk> {
   const match = await getMatchById(matchId);
 
   if (!match) return { error: "not_found" as const };
+
+  const actor = { id: rawActor.id, role: await resolveActorRole(rawActor) };
 
   // ADMIN_ASSISTANT は閲覧と「チャットへのコメント」だけ ADMIN と同等。
   // 個別エンドポイントの write 操作は requireAdminWriter 側で別途弾く。

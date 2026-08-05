@@ -1,4 +1,4 @@
-import { readSession, clearSessionCookie } from "@/lib/session";
+import { readSession, clearSessionCookie, createSessionCookie } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
 import { getUserById, isDeletedUser, updateUserAvailability, updateUserDisplayName } from "@/lib/repositories/user-repository";
 import {
@@ -19,6 +19,12 @@ export async function GET() {
     return jsonError("このアカウントは削除されています。", 403);
   }
 
+  // 管理者がロールを変更しても Cookie は発行時のロールのまま。
+  // ここで発行し直して、API 側の権限判定が古いロールで動くのを防ぐ。
+  if (user.role !== session.role) {
+    await createSessionCookie({ sub: user.id, role: user.role });
+  }
+
   const safe = {
     id: user.id,
     displayName: user.displayName,
@@ -26,7 +32,7 @@ export async function GET() {
     availabilitySlotIds: user.availabilitySlotIds,
     companyId: (user as { companyId?: string | null }).companyId ?? null,
   };
-  if (session.role === "ADMIN" || session.role === "ADMIN_ASSISTANT") return jsonOk({ user });
+  if (user.role === "ADMIN" || user.role === "ADMIN_ASSISTANT") return jsonOk({ user });
   return jsonOk({ user: safe });
 }
 
