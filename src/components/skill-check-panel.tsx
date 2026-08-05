@@ -132,16 +132,25 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
     setDraft(phase === "baseline" ? { ...profile.baseline } : { ...profile.current });
   }, [phase, profile]);
 
-  const chartLabels = useMemo(() => skills.map((s) => s.name), [skills]);
+  // 項目編集中は下書きの項目でグラフを描く（保存前でも増減・改名が反映される）
+  const displaySkills = useMemo(
+    () => (editingSkills ? skillDraft : skills),
+    [editingSkills, skillDraft, skills],
+  );
+
+  const chartLabels = useMemo(
+    () => displaySkills.map((s, i) => s.name.trim() || `（項目${i + 1}）`),
+    [displaySkills],
+  );
 
   const chartSeries = useMemo(() => {
-    const selfValues = skills.map((s) => draft[s.id]?.selfScore ?? null);
-    const managerValues = skills.map((s) => draft[s.id]?.managerScore ?? null);
+    const selfValues = displaySkills.map((s) => draft[s.id]?.selfScore ?? null);
+    const managerValues = displaySkills.map((s) => draft[s.id]?.managerScore ?? null);
     return [
       { label: "本人評価", color: "#4f46e5", values: selfValues },
       { label: "上司評価", color: "#059669", values: managerValues },
     ];
-  }, [skills, draft]);
+  }, [displaySkills, draft]);
 
   function setScore(skillId: string, field: "selfScore" | "managerScore", raw: string) {
     const score = parseScore(raw);
@@ -251,7 +260,6 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
   if (loading) return <p className="text-sm text-slate-500">読込中…</p>;
   if (error && !profile) return <p className="text-sm text-red-700">{error}</p>;
 
-  const displaySkills = editingSkills ? skillDraft : skills;
   const canSave =
     permissions.canEditSelf ||
     permissions.canEditManager ||
