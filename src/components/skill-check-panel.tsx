@@ -424,7 +424,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
                   <span className="font-semibold text-indigo-900">本人評価（クライアント）</span>
                   <select
                     value={scoreSelectValue(row.selfScore)}
-                    disabled={!permissions.canEditSelf || editingSkills}
+                    disabled={!permissions.canEditSelf}
                     onChange={(e) => setScore(skill.id, "selfScore", e.target.value)}
                     className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
                   >
@@ -440,7 +440,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
                   <span className="font-semibold text-emerald-900">上司評価</span>
                   <select
                     value={scoreSelectValue(row.managerScore)}
-                    disabled={!permissions.canEditManager || editingSkills}
+                    disabled={!permissions.canEditManager}
                     onChange={(e) => setScore(skill.id, "managerScore", e.target.value)}
                     className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
                   >
@@ -508,7 +508,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
                   <input
                     type="checkbox"
                     checked={selected}
-                    disabled={!permissions.canEditFocusSkills || editingSkills || atMax}
+                    disabled={!permissions.canEditFocusSkills || atMax}
                     onChange={() => toggleFocusSkill(skill.id)}
                   />
                   <span className="text-sm font-medium text-slate-800">
