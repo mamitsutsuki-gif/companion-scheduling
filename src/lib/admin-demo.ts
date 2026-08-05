@@ -92,8 +92,7 @@ function matchRoomTabs(planFeatures: PlanFeatures, role: DemoRole | "ADMIN"): st
   const tabs: string[] = ["プロジェクト概要"];
   if (role === "PARTNER" && planFeatures.clientInfo) tabs.push("クライアント情報");
   if (planFeatures.chat) tabs.push("チャット");
-  if (planFeatures.schedule) tabs.push("日程調整");
-  if (planFeatures.sessions) tabs.push("1on1セッション");
+  if (planFeatures.schedule || planFeatures.sessions) tabs.push("1on1セッション");
   if (planFeatures.skillCheck) tabs.push("スキルチェック");
   if (planFeatures.lifelineChart) tabs.push("ライフラインチャート");
   if (planFeatures.fta && (role === "PARTNER" || role === "CLIENT")) tabs.push("自分FTA");

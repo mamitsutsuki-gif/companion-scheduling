@@ -128,7 +128,7 @@ export function AdminSupervisorLinksSection({ users, companies, canWrite }: Prop
       <h2 className="text-lg font-semibold text-slate-950">上司割当（シート閲覧）</h2>
       <p className="mt-2 text-sm text-zinc-600">
         個別伴走の上司はマッチとは別に紐づけます。上司は部下のパートナールームの伴走シート（スキルチェック・FTA
-        等）だけを開けます。チャットや日程調整には入りません。
+        等）だけを開けます。チャットや1on1セッションには入りません。
       </p>
 
       <div className="mt-6">

@@ -252,7 +252,7 @@ export async function POST(request: Request, context: RouteContext) {
     await notifyMatchStakeholders(matchId, {
       appOrigin: new URL(request.url).origin,
       subject: `${sessionNumber}回目の候補日時 Round ${negotiation.round} が届きました`,
-      text: `${bodyShort}\n\n${lines}${moreLine}\n\nアプリの「日程調整」タブからご都合の良い日時を選択してください。`,
+      text: `${bodyShort}\n\n${lines}${moreLine}\n\nアプリの「1on1セッション」タブからご都合の良い日時を選択してください。`,
       excludeUserId: session.sub,
     });
 
@@ -277,7 +277,7 @@ export async function POST(request: Request, context: RouteContext) {
         sessionNumber,
         actorUserId: session.sub,
         actorRole: session.role,
-        summary: `${sender?.displayName ?? "パートナー"}さんから ${sessionNumber} 回目のご案内可能な日時が届きました。日程調整タブからご回答ください。`,
+        summary: `${sender?.displayName ?? "パートナー"}さんから ${sessionNumber} 回目のご案内可能な日時が届きました。1on1セッションタブからご回答ください。`,
         link: `/match/${matchId}#schedule`,
       });
     }

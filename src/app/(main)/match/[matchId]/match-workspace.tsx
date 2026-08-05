@@ -165,7 +165,10 @@ type MatchTab =
 
 const TAB_HASH_MAP: Record<string, MatchTab> = {
   chat: "chat",
-  schedule: "schedule",
+  // 旧「日程調整」タブは 1on1セッションに統合。#schedule は互換のため sessions へ。
+  schedule: "sessions",
+  "sessions-adjust": "sessions",
+  "sessions-review": "sessions",
   fta: "fta",
   sessions: "sessions",
   overview: "overview",
@@ -193,6 +196,14 @@ function tabFromHash(hash: string): MatchTab | null {
   return TAB_HASH_MAP[h] ?? null;
 }
 
+/** 統合後のセクションへスクロールするハッシュ（旧 #schedule 含む） */
+function sessionsSectionIdFromHash(hash: string): string | null {
+  const h = hash.replace(/^#/, "").toLowerCase();
+  if (h === "schedule" || h === "sessions-adjust") return "sessions-adjust";
+  if (h === "sessions-review") return "sessions-review";
+  return null;
+}
+
 function hashFromTab(tab: MatchTab): string {
   if (tab === "clientInfo") return "client-info";
   if (tab === "skillCheck") return "skill-check";
@@ -204,6 +215,7 @@ function hashFromTab(tab: MatchTab): string {
   if (tab === "coachingQuestions") return "questions";
   if (tab === "coachingIcebreaker") return "icebreaker";
   if (tab === "coachingOneOnOneFormat") return "one-on-one-format";
+  if (tab === "schedule") return "sessions";
   return tab;
 }
 
@@ -493,7 +505,10 @@ function isClientRole(role: Role) {
 
 function scrollToClientScheduleVote() {
   window.setTimeout(() => {
-    document.getElementById("client-schedule-vote")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const el =
+      document.getElementById("client-schedule-vote") ??
+      document.getElementById("sessions-adjust");
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, 80);
 }
 
@@ -545,7 +560,7 @@ function ChatMsgRow({
   const awaitingClientVote =
     isClientRole(me.role) && activeNegotiation?.status === "AWAITING_CLIENT_RESPONSE";
   const jumpToScheduleVote = () => {
-    navigateToTab("schedule");
+    navigateToTab("sessions");
     scrollToClientScheduleVote();
   };
   const showScheduleVoteLink =
@@ -610,9 +625,11 @@ function ChatMsgRow({
             payload={msg.payload}
             body={msg.body}
             onJumpToConfirm={() => {
-              navigateToTab("schedule");
+              navigateToTab("sessions");
               window.setTimeout(() => {
-                const el = document.getElementById("partner-confirm-section");
+                const el =
+                  document.getElementById("partner-confirm-section") ??
+                  document.getElementById("sessions-adjust");
                 if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
               }, 80);
             }}
@@ -730,7 +747,8 @@ function computeMatchBanner(args: {
         message: `あなたの番です — 第 ${sn} 回の候補日に ◯× で回答してください。${more}`,
         severity: "todo",
         ctaLabel: "回答する",
-        ctaTab: "schedule",
+        ctaTab: "sessions",
+        scrollToId: "sessions-adjust",
       };
     }
     if (active.status === "AWAITING_CLIENT_RESPONSE" && isPartner) {
@@ -738,7 +756,8 @@ function computeMatchBanner(args: {
         message: `クライアントの回答待ち — 第 ${sn} 回の候補日への ◯× を待っています。${more}`,
         severity: "info",
         ctaLabel: "状況を確認",
-        ctaTab: "schedule",
+        ctaTab: "sessions",
+        scrollToId: "sessions-adjust",
       };
     }
     if (active.status === "NEEDS_NEW_PROPOSAL" && isPartner) {
@@ -746,7 +765,8 @@ function computeMatchBanner(args: {
         message: `あなたの番です — 第 ${sn} 回はすべて × でした。新しい候補日を送ってください。${more}`,
         severity: "warn",
         ctaLabel: "候補日を送る",
-        ctaTab: "schedule",
+        ctaTab: "sessions",
+        scrollToId: "sessions-adjust",
       };
     }
     if (active.status === "NEEDS_NEW_PROPOSAL" && isClientSide) {
@@ -754,7 +774,8 @@ function computeMatchBanner(args: {
         message: `パートナーが新しい候補日を準備中 — 第 ${sn} 回の候補日が再送されるのをお待ちください。${more}`,
         severity: "info",
         ctaLabel: "状況を確認",
-        ctaTab: "schedule",
+        ctaTab: "sessions",
+        scrollToId: "sessions-adjust",
       };
     }
     if (active.status === "AWAITING_PARTNER_CONFIRM" && isPartner) {
@@ -762,7 +783,7 @@ function computeMatchBanner(args: {
         message: `あなたの番です — 第 ${sn} 回の日程を ◯ から決定してください。${more}`,
         severity: "todo",
         ctaLabel: "日程を決定する",
-        ctaTab: "schedule",
+        ctaTab: "sessions",
         scrollToId: "partner-confirm-section",
       };
     }
@@ -791,6 +812,7 @@ function computeMatchBanner(args: {
       severity: "todo",
       ctaLabel: isClientSide ? "振り返りを書く" : "レポートを書く",
       ctaTab: "sessions",
+      scrollToId: "sessions-review",
     };
   }
 
@@ -880,7 +902,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [sessionRows, setSessionRows] = useState<SessionPlanApiRow[]>([]);
   // 初期タブは URL ハッシュから決定する。
   // 例: 通知メールやアプリ内通知から `/match/<id>#schedule` で飛んできた場合に
-  // 「日程調整」タブを自動で開く（以前はハッシュ無視で常に "chat" タブが開いていた）。
+  // 「1on1セッション」タブ（調整中セクション）を自動で開く。
   const [activeTab, setActiveTab] = useState<MatchTab>(() => {
     if (typeof window === "undefined") return "chat";
     const tab = tabFromHash(window.location.hash || "");
@@ -888,10 +910,20 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   });
   // クライアント側マウント後にハッシュが変わったときも追随する（戻る/進む対応）。
   useEffect(() => {
-    function onHashChange() {
-      const tab = tabFromHash(window.location.hash || "");
-      if (tab) setActiveTab(tab);
+    function scrollToSessionsSection(hash: string) {
+      const sectionId = sessionsSectionIdFromHash(hash);
+      if (!sectionId) return;
+      window.setTimeout(() => {
+        document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 80);
     }
+    function onHashChange() {
+      const hash = window.location.hash || "";
+      const tab = tabFromHash(hash);
+      if (tab) setActiveTab(tab);
+      scrollToSessionsSection(hash);
+    }
+    scrollToSessionsSection(window.location.hash || "");
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
@@ -911,9 +943,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [brakeFromPdcaId, setBrakeFromPdcaId] = useState<string | null>(null);
 
   const goTab = useCallback((tab: MatchTab) => {
-    setActiveTab(tab);
+    const next = tab === "schedule" ? "sessions" : tab;
+    setActiveTab(next);
     try {
-      history.replaceState(null, "", `#${hashFromTab(tab)}`);
+      history.replaceState(null, "", `#${hashFromTab(next)}`);
     } catch {
       /* ignore */
     }
@@ -1784,7 +1817,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <section className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
           <p className="text-base font-semibold text-slate-900">パートナー未割当</p>
           <p className="mt-2 text-sm leading-relaxed text-slate-700">
-            パートナーが決まるまで、プロジェクト概要・チャット・日程調整・1on1セッションはご利用いただけません。
+            パートナーが決まるまで、プロジェクト概要・チャット・1on1セッションはご利用いただけません。
             アイスブレイク・質問リスト・1on1フォーマットはお使いいただけます。
           </p>
         </section>
@@ -1852,7 +1885,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         <section className="app-surface-emerald rounded-2xl px-5 py-4">
           <h2 className="text-lg font-semibold text-emerald-900">お互いの対応可能時間</h2>
           <p className="mt-1 text-sm text-emerald-900/80">
-            アサイン用に登録された参考情報です。実際の日程はチャット下の「日程調整」で個別調整してください。
+            アサイン用に登録された参考情報です。実際の日程は「1on1セッション」タブの調整中セクションで個別調整してください。
           </p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <div className="app-surface-inset-emerald px-4 py-3">
@@ -1943,26 +1976,18 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               ) : null}
             </button>
             ) : null}
-            {!supervisorViewer && scheduleSettings.planFeatures.schedule ? (
+            {!supervisorViewer &&
+            (scheduleSettings.planFeatures.schedule || scheduleSettings.planFeatures.sessions) ? (
             <button
               type="button"
               role="tab"
-              aria-selected={activeTab === "schedule"}
-              aria-disabled={partnerTabsLocked}
-              onClick={() => tryGoTab("schedule")}
-              className={matchTabButtonClass(activeTab === "schedule", partnerTabsLocked)}
-            >
-              日程調整
-            </button>
-            ) : null}
-            {!supervisorViewer && scheduleSettings.planFeatures.sessions ? (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "sessions"}
+              aria-selected={activeTab === "sessions" || activeTab === "schedule"}
               aria-disabled={partnerTabsLocked}
               onClick={() => tryGoTab("sessions")}
-              className={matchTabButtonClass(activeTab === "sessions", partnerTabsLocked)}
+              className={matchTabButtonClass(
+                activeTab === "sessions" || activeTab === "schedule",
+                partnerTabsLocked,
+              )}
             >
               1on1セッション
             </button>
@@ -2304,316 +2329,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         </section>
       ) : null}
 
-      {activeTab === "schedule" ? (
-      <section id="schedule" className="space-y-6 rounded-3xl border border-indigo-100 bg-indigo-50/40 px-3 py-5 shadow-inner shadow-indigo-100 sm:px-6 sm:py-8">
-        <div className="space-y-3">
-          {(me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
-            <details className="app-surface-indigo rounded-2xl px-4 py-3 transition open:shadow-md">
-              <summary className="cursor-pointer text-base font-semibold text-indigo-950">
-                パートナー向け：日程調整機能の使い方（最初にお読みください）
-              </summary>
-              <ScheduleRulesDetail
-                audience="partner"
-                className="mt-3 pr-1"
-                scrollClassName="max-h-[min(70vh,28rem)] overflow-y-auto overflow-x-hidden"
-              />
-            </details>
-          ) : null}
-          {(me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
-            <details className="app-surface-indigo rounded-2xl px-4 py-3 transition open:shadow-md">
-              <summary className="cursor-pointer text-base font-semibold text-indigo-950">
-                クライアント向け：日程調整機能の使い方（最初にお読みください）
-              </summary>
-              <ScheduleRulesDetail
-                audience="client"
-                className="mt-3 pr-1"
-                scrollClassName="max-h-[min(70vh,28rem)] overflow-y-auto overflow-x-hidden"
-              />
-            </details>
-          ) : null}
-        </div>
-        <div className="space-y-1">
-          <h2 className="text-2xl font-semibold text-indigo-900">日程調整</h2>
-          <p className="text-base text-indigo-800">
-            担当パートナーが候補日時を提示し、クライアントが回答、担当パートナーが日程を確定する流れです。第1回〜複数回分をまとめて提案し、回ごとに回答・確定できます。
-          </p>
-        </div>
-        <div className="app-surface-indigo space-y-3 rounded-2xl px-5 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold text-indigo-900">セッション計画（全 {scheduleSettings.totalSessions} 回）</h3>
-          </div>
-          <ul className="space-y-2 text-base">
-            {sessionPlans.map((row) => {
-              const eligibility = getRescheduleEligibility(row.index, row.slot);
-              const apiRow = sessionRows.find((r) => r.sessionNumber === row.index);
-              const isRescheduling = isReschedulingSession(row.index);
-              const zoomUrl = apiRow?.zoomUrl ?? null;
-              const zoomMeetingId = apiRow?.zoomMeetingId ?? null;
-              const zoomPass = apiRow?.zoomPass ?? null;
-              const abandonment = apiRow?.abandonment ?? null;
-              const now = Date.now();
-              const endMs = row.slot ? new Date(row.slot.endAt).getTime() : null;
-              const isPast = endMs !== null && endMs <= now;
-              const statusBadge: { label: string; className: string } | null = abandonment
-                ? { label: "未実施・消化", className: "border-red-300 bg-red-50 text-red-800" }
-                : !row.slot
-                  ? { label: "未確定", className: "border-slate-300 bg-white text-slate-700" }
-                  : isPast
-                    ? { label: "実施済", className: "border-emerald-300 bg-emerald-50 text-emerald-800" }
-                    : { label: "予定", className: "border-indigo-300 bg-indigo-50 text-indigo-800" };
-              return (
-                <li key={row.index} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {statusBadge ? (
-                        <span
-                          className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${statusBadge.className}`}
-                        >
-                          {statusBadge.label}
-                        </span>
-                      ) : null}
-                      <span>
-                        {row.index}回目の日程：
-                        {row.slot
-                          ? `${formatJa(row.slot.startAt, scheduleSettings.timezone)} 〜 ${formatJa(row.slot.endAt, scheduleSettings.timezone)}`
-                          : "未確定"}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {apiRow?.openable || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (
-                        <Link
-                          href={`/match/${matchId}/sessions/${row.index}`}
-                          className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-900 no-underline shadow-sm transition hover:bg-indigo-100"
-                        >
-                          {scheduleSettings.companyPlan === "coaching_management_training"
-                            ? "ロールプレイ評価を開く"
-                            : me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR"
-                              ? "振り返りを開く"
-                              : me.role === "PARTNER"
-                                ? "レポートを開く"
-                                : "詳細を開く"}
-                        </Link>
-                      ) : (
-                        <span className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-500">
-                          まだ開けません
-                        </span>
-                      )}
-                      {isRescheduling ? (
-                        <span className="rounded-md border border-amber-300 bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-900">
-                          再調整中
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={!eligibility.can || rescheduleSubmittingSession !== null}
-                          onClick={() => void onRequestReschedule(row.index)}
-                          className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100 active:translate-y-[1px] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {rescheduleSubmittingSession === row.index ? "送信中…" : "変更希望"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {(zoomUrl || zoomMeetingId || zoomPass) ? (
-                    <p className="mt-1 text-xs text-slate-700">
-                      {zoomUrl ? (
-                        <a
-                          href={zoomUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-indigo-700 underline underline-offset-2"
-                        >
-                          {meetingProviderLabel(resolveSessionMeetingProvider({
-                            meetingProvider: apiRow?.meetingProvider,
-                            zoomUrl,
-                          }))}
-                          : {zoomUrl}
-                        </a>
-                      ) : null}
-                      {resolveSessionMeetingProvider({
-                        meetingProvider: apiRow?.meetingProvider,
-                        zoomUrl,
-                      }) === "zoom" && zoomMeetingId ? (
-                        <span className="ml-2">ID: {zoomMeetingId}</span>
-                      ) : null}
-                      {resolveSessionMeetingProvider({
-                        meetingProvider: apiRow?.meetingProvider,
-                        zoomUrl,
-                      }) === "zoom" && zoomPass ? (
-                        <span className="ml-2">パス: {zoomPass}</span>
-                      ) : null}
-                    </p>
-                  ) : null}
-                  {!eligibility.can && !isRescheduling ? (
-                    <p className="mt-1 text-sm font-medium text-amber-800">
-                      この日程は変更不可: {eligibility.reason}（日程変更は開始24時間前まで可能です）
-                    </p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-          <p className="text-sm text-slate-600">日程変更は開始24時間前まで可能です。変更希望を送ると、相手へ通知され、パートナーが再提案できます。</p>
-          <p className="text-sm font-medium text-amber-800">開始24時間前を過ぎての変更はできません。体調不良などの場合は、サポートデスクに連絡ください。</p>
-        </div>
-
-        {me.role === "PARTNER" ? (
-          <ScheduleProposeForm
-            scheduleSettings={{
-              slotDurationMinutes: scheduleSettings.slotDurationMinutes,
-              slotEarliestHour: scheduleSettings.slotEarliestHour,
-              slotLatestHour: scheduleSettings.slotLatestHour,
-              allowWeekends: scheduleSettings.allowWeekends,
-              timezone: scheduleSettings.timezone,
-            }}
-            totalSessions={scheduleSettings.totalSessions}
-            submitting={proposeSubmitting}
-            justSent={proposeJustSent}
-            blockedSessionNumbers={blockedProposeSessions}
-            defaultSessionNumbers={defaultProposeSessions}
-            onSubmit={onProposeTimeRanges}
-          />
-        ) : null}
-
-        {openNegotiations.some((n) => n.status === "NEEDS_NEW_PROPOSAL") && me.role === "PARTNER" ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-            クライアントから別候補の希望がありました（
-            {openNegotiations
-              .filter((n) => n.status === "NEEDS_NEW_PROPOSAL")
-              .map((n) => `第${Math.max(1, n.sessionNumber ?? 1)}回`)
-              .join("・")}
-            ）。上のフォームで対象の回を選び、新しい時間帯を再提示してください。
-          </div>
-        ) : null}
-
-        {isClientRole(me.role)
-          ? openNegotiations
-              .filter((n) => n.status === "AWAITING_CLIENT_RESPONSE")
-              .map((n) => (
-                <div key={n.id} id={`session-vote-${Math.max(1, n.sessionNumber ?? 1)}`}>
-                  <ScheduleClientVoteForm
-                    partnerName={availability?.partner.displayName ?? "担当パートナー"}
-                    slots={n.slots}
-                    timezone={scheduleSettings.timezone}
-                    responseDeadline={n.responseDeadline}
-                    submitting={false}
-                    sessionNumber={Math.max(1, n.sessionNumber ?? 1)}
-                    onSubmitSelected={(ids) => void onVoteSelected(n, ids)}
-                    onRequestAlternative={() => void onRequestAlternative(n)}
-                  />
-                </div>
-              ))
-          : null}
-
-        {me.role === "PARTNER"
-          ? openNegotiations
-              .filter((n) => n.status === "AWAITING_PARTNER_CONFIRM")
-              .map((n) => {
-                const sn = Math.max(1, n.sessionNumber ?? 1);
-                return (
-                  <form
-                    key={n.id}
-                    id={sn === (activeNegotiation?.sessionNumber ?? 0) ? "partner-confirm-section" : `partner-confirm-${sn}`}
-                    onSubmit={(e) => void onConfirm(n, e)}
-                    className="space-y-3 rounded-2xl border border-amber-200 bg-white px-5 py-4"
-                  >
-                    <h3 className="text-xl font-semibold text-amber-900">
-                      第{sn}回の日程を確定する
-                    </h3>
-                    <p className="text-base text-amber-800">
-                      クライアントが参加可能と回答した日時の中から、1件を選んで日程を確定してください。
-                    </p>
-                    <select
-                      name="slotId"
-                      required
-                      defaultValue=""
-                      className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-amber-900"
-                    >
-                      <option disabled value="">
-                        時間を選択
-                      </option>
-                      {n.slots
-                        .filter((s) => s.clientVote === "YES")
-                        .map((slot) => (
-                          <option key={slot.id} value={slot.id}>
-                            {formatJa(slot.startAt, scheduleSettings.timezone)} 〜{" "}
-                            {formatJa(slot.endAt, scheduleSettings.timezone)}
-                          </option>
-                        ))}
-                    </select>
-                    <label className="block text-sm text-amber-950">
-                      開始時刻の微調整（任意・5分刻み）
-                      <p className="mt-1 text-xs font-normal text-amber-900/85">
-                        クライアントから希望があった場合、同じ日付の中で開始時刻だけ変更できます。選択後に調整してください。
-                      </p>
-                      <input
-                        name="adjustStartTime"
-                        type="time"
-                        step={300}
-                        className="mt-2 w-full max-w-xs rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <div className="space-y-2">
-                      <button type="submit" className="app-btn-amber rounded-lg px-4 py-2.5 text-base">
-                        第{sn}回の日程を確定する
-                      </button>
-                      <p className="text-xs text-amber-900/80">
-                        → 双方に {meetingProviderLabel(scheduleSettings.meetingProvider)}{" "}
-                        入りの確定メールが届きます。確定後の変更は「日程変更依頼」から。
-                      </p>
-                    </div>
-                  </form>
-                );
-              })
-          : null}
-
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold text-slate-900">すべての調整ログ</h3>
-          <ul className="space-y-4">
-            {negotiations.map((neg) => (
-              <li key={neg.id} className="app-surface-raised rounded-2xl p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                  <p className="text-sm font-semibold text-slate-900">
-                    {Math.max(1, neg.sessionNumber ?? 1)}回目 / Round #{neg.round} — {statusLabel[neg.status]}
-                  </p>
-                  <span className="text-xs uppercase tracking-wide text-slate-400">ID {neg.id}</span>
-                </div>
-                <table className="mt-4 w-full text-left text-xs text-slate-600">
-                  <thead>
-                    <tr className="text-[11px] uppercase tracking-wide">
-                      <th className="py-2 pr-2 font-medium">開始</th>
-                      <th className="py-2 pr-2 font-medium">終了</th>
-                      <th className="py-2 pr-2 font-medium">回答</th>
-                      <th className="py-2 font-medium">確定</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {neg.slots.map((slot) => (
-                      <tr key={slot.id} className="border-t border-slate-50">
-                        <td className="py-2 pr-2">
-                          {formatJa(slot.startAt, scheduleSettings.timezone)}
-                        </td>
-                        <td className="py-2 pr-2">
-                          {formatJa(slot.endAt, scheduleSettings.timezone)}
-                        </td>
-                        <td className="py-2 pr-2">
-                          {!slot.clientVote ? "—" : slot.clientVote === "YES" ? "○ YES" : "× NO"}
-                        </td>
-                        <td className="py-2">{slot.isConfirmed ? "★" : "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </li>
-            ))}
-          </ul>
-          {negotiations.length === 0 ? (
-            <p className="text-sm text-slate-600">調整ログはありません。</p>
-          ) : null}
-        </div>
-      </section>
-      ) : null}
-
       {activeTab === "fta" && me && canShowFtaTab(me, scheduleSettings, supervisorViewer) ? (
         me.role === "CLIENT" && scheduleSettings.planFeatures.fta ? (
           <section className="space-y-4 rounded-3xl border border-indigo-100 bg-indigo-50/30 px-3 py-5 sm:px-6 sm:py-8">
@@ -2664,47 +2379,281 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
         )
       ) : null}
 
-      {activeTab === "sessions" ? (
-        <section className="space-y-4 rounded-3xl border border-indigo-100 bg-indigo-50/30 px-3 py-5 sm:px-6 sm:py-8">
-          <div className="space-y-1">
-            <h2 className="text-2xl font-semibold text-indigo-900">1on1セッション</h2>
-            <p className="text-base text-indigo-800">
-              セッション計画（全 {scheduleSettings.totalSessions} 回）。各回をタップすると、その回の
+      {(activeTab === "sessions" || activeTab === "schedule") &&
+      (scheduleSettings.planFeatures.schedule || scheduleSettings.planFeatures.sessions) ? (
+      <section id="sessions" className="space-y-8 rounded-3xl border border-indigo-100 bg-indigo-50/40 px-3 py-5 shadow-inner shadow-indigo-100 sm:px-6 sm:py-8">
+        <div className="space-y-1">
+          <h2 className="text-2xl font-semibold text-indigo-900">1on1セッション</h2>
+          <p className="text-base text-indigo-800">
+            日程の調整から、実施後の
+            {scheduleSettings.companyPlan === "coaching_management_training"
+              ? "ロールプレイ評価"
+              : me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR"
+                ? "振り返り"
+                : me.role === "PARTNER"
+                  ? "レポート"
+                  : "振り返り・レポート"}
+            まで、このタブで進めます。
+          </p>
+        </div>
+
+        {scheduleSettings.planFeatures.schedule ? (
+        <div id="sessions-adjust" className="space-y-5 scroll-mt-24">
+          <div className="space-y-1 border-b border-indigo-200/80 pb-3">
+            <h3 className="text-xl font-semibold text-indigo-950">調整中</h3>
+            <p className="text-sm text-indigo-800">
+              担当パートナーが候補日時を提示し、クライアントが回答、担当パートナーが日程を確定する流れです。
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {(me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
+              <details className="app-surface-indigo rounded-2xl px-4 py-3 transition open:shadow-md">
+                <summary className="cursor-pointer text-base font-semibold text-indigo-950">
+                  パートナー向け：日程調整機能の使い方（最初にお読みください）
+                </summary>
+                <ScheduleRulesDetail
+                  audience="partner"
+                  className="mt-3 pr-1"
+                  scrollClassName="max-h-[min(70vh,28rem)] overflow-y-auto overflow-x-hidden"
+                />
+              </details>
+            ) : null}
+            {(me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") ? (
+              <details className="app-surface-indigo rounded-2xl px-4 py-3 transition open:shadow-md">
+                <summary className="cursor-pointer text-base font-semibold text-indigo-950">
+                  クライアント向け：日程調整機能の使い方（最初にお読みください）
+                </summary>
+                <ScheduleRulesDetail
+                  audience="client"
+                  className="mt-3 pr-1"
+                  scrollClassName="max-h-[min(70vh,28rem)] overflow-y-auto overflow-x-hidden"
+                />
+              </details>
+            ) : null}
+          </div>
+
+          {me.role === "PARTNER" ? (
+            <ScheduleProposeForm
+              scheduleSettings={{
+                slotDurationMinutes: scheduleSettings.slotDurationMinutes,
+                slotEarliestHour: scheduleSettings.slotEarliestHour,
+                slotLatestHour: scheduleSettings.slotLatestHour,
+                allowWeekends: scheduleSettings.allowWeekends,
+                timezone: scheduleSettings.timezone,
+              }}
+              totalSessions={scheduleSettings.totalSessions}
+              submitting={proposeSubmitting}
+              justSent={proposeJustSent}
+              blockedSessionNumbers={blockedProposeSessions}
+              defaultSessionNumbers={defaultProposeSessions}
+              onSubmit={onProposeTimeRanges}
+            />
+          ) : null}
+
+          {openNegotiations.some((n) => n.status === "NEEDS_NEW_PROPOSAL") && me.role === "PARTNER" ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              クライアントから別候補の希望がありました（
+              {openNegotiations
+                .filter((n) => n.status === "NEEDS_NEW_PROPOSAL")
+                .map((n) => `第${Math.max(1, n.sessionNumber ?? 1)}回`)
+                .join("・")}
+              ）。上のフォームで対象の回を選び、新しい時間帯を再提示してください。
+            </div>
+          ) : null}
+
+          {isClientRole(me.role)
+            ? openNegotiations
+                .filter((n) => n.status === "AWAITING_CLIENT_RESPONSE")
+                .map((n, idx) => (
+                  <div
+                    key={n.id}
+                    id={
+                      idx === 0
+                        ? "client-schedule-vote"
+                        : `session-vote-${Math.max(1, n.sessionNumber ?? 1)}`
+                    }
+                  >
+                    <ScheduleClientVoteForm
+                      partnerName={availability?.partner.displayName ?? "担当パートナー"}
+                      slots={n.slots}
+                      timezone={scheduleSettings.timezone}
+                      responseDeadline={n.responseDeadline}
+                      submitting={false}
+                      sessionNumber={Math.max(1, n.sessionNumber ?? 1)}
+                      onSubmitSelected={(ids) => void onVoteSelected(n, ids)}
+                      onRequestAlternative={() => void onRequestAlternative(n)}
+                    />
+                  </div>
+                ))
+            : null}
+
+          {me.role === "PARTNER"
+            ? openNegotiations
+                .filter((n) => n.status === "AWAITING_PARTNER_CONFIRM")
+                .map((n) => {
+                  const sn = Math.max(1, n.sessionNumber ?? 1);
+                  return (
+                    <form
+                      key={n.id}
+                      id={sn === (activeNegotiation?.sessionNumber ?? 0) ? "partner-confirm-section" : `partner-confirm-${sn}`}
+                      onSubmit={(e) => void onConfirm(n, e)}
+                      className="space-y-3 rounded-2xl border border-amber-200 bg-white px-5 py-4"
+                    >
+                      <h3 className="text-xl font-semibold text-amber-900">
+                        第{sn}回の日程を確定する
+                      </h3>
+                      <p className="text-base text-amber-800">
+                        クライアントが参加可能と回答した日時の中から、1件を選んで日程を確定してください。
+                      </p>
+                      <select
+                        name="slotId"
+                        required
+                        defaultValue=""
+                        className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-amber-900"
+                      >
+                        <option disabled value="">
+                          時間を選択
+                        </option>
+                        {n.slots
+                          .filter((s) => s.clientVote === "YES")
+                          .map((slot) => (
+                            <option key={slot.id} value={slot.id}>
+                              {formatJa(slot.startAt, scheduleSettings.timezone)} 〜{" "}
+                              {formatJa(slot.endAt, scheduleSettings.timezone)}
+                            </option>
+                          ))}
+                      </select>
+                      <label className="block text-sm text-amber-950">
+                        開始時刻の微調整（任意・5分刻み）
+                        <p className="mt-1 text-xs font-normal text-amber-900/85">
+                          クライアントから希望があった場合、同じ日付の中で開始時刻だけ変更できます。選択後に調整してください。
+                        </p>
+                        <input
+                          name="adjustStartTime"
+                          type="time"
+                          step={300}
+                          className="mt-2 w-full max-w-xs rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <div className="space-y-2">
+                        <button type="submit" className="app-btn-amber rounded-lg px-4 py-2.5 text-base">
+                          第{sn}回の日程を確定する
+                        </button>
+                        <p className="text-xs text-amber-900/80">
+                          → 双方に {meetingProviderLabel(scheduleSettings.meetingProvider)}{" "}
+                          入りの確定メールが届きます。確定後の変更は「変更希望」から。
+                        </p>
+                      </div>
+                    </form>
+                  );
+                })
+            : null}
+
+          {openNegotiations.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-indigo-200 bg-white/70 px-4 py-3 text-sm text-indigo-900/80">
+              いま進行中の日程調整はありません。下の「実施・振り返り」で各回の予定とフォームを確認できます。
+            </p>
+          ) : null}
+
+          <details className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <summary className="cursor-pointer text-base font-semibold text-slate-900">
+              すべての調整ログ（{negotiations.length}件）
+            </summary>
+            <div className="mt-3 space-y-3">
+              <ul className="space-y-4">
+                {negotiations.map((neg) => (
+                  <li key={neg.id} className="app-surface-raised rounded-2xl p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {Math.max(1, neg.sessionNumber ?? 1)}回目 / Round #{neg.round} — {statusLabel[neg.status]}
+                      </p>
+                      <span className="text-xs uppercase tracking-wide text-slate-400">ID {neg.id}</span>
+                    </div>
+                    <table className="mt-4 w-full text-left text-xs text-slate-600">
+                      <thead>
+                        <tr className="text-[11px] uppercase tracking-wide">
+                          <th className="py-2 pr-2 font-medium">開始</th>
+                          <th className="py-2 pr-2 font-medium">終了</th>
+                          <th className="py-2 pr-2 font-medium">回答</th>
+                          <th className="py-2 font-medium">確定</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {neg.slots.map((slot) => (
+                          <tr key={slot.id} className="border-t border-slate-50">
+                            <td className="py-2 pr-2">
+                              {formatJa(slot.startAt, scheduleSettings.timezone)}
+                            </td>
+                            <td className="py-2 pr-2">
+                              {formatJa(slot.endAt, scheduleSettings.timezone)}
+                            </td>
+                            <td className="py-2 pr-2">
+                              {!slot.clientVote ? "—" : slot.clientVote === "YES" ? "○ YES" : "× NO"}
+                            </td>
+                            <td className="py-2">{slot.isConfirmed ? "★" : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </li>
+                ))}
+              </ul>
+              {negotiations.length === 0 ? (
+                <p className="text-sm text-slate-600">調整ログはありません。</p>
+              ) : null}
+            </div>
+          </details>
+        </div>
+        ) : null}
+
+        {scheduleSettings.planFeatures.sessions || scheduleSettings.planFeatures.schedule ? (
+        <div id="sessions-review" className="space-y-4 scroll-mt-24">
+          <div className="space-y-1 border-b border-indigo-200/80 pb-3">
+            <h3 className="text-xl font-semibold text-indigo-950">実施・振り返り</h3>
+            <p className="text-sm text-indigo-800">
+              セッション計画（全 {scheduleSettings.totalSessions} 回）。未確定の回も含めて一覧できます。
+              開始時刻を過ぎた回だけ
               {scheduleSettings.companyPlan === "coaching_management_training"
                 ? "ロールプレイ評価"
                 : me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR"
-                  ? "振り返りフォーム"
+                  ? "振り返り"
                   : me.role === "PARTNER"
                     ? "レポート"
-                    : "クライアント振り返り＆パートナーレポート"}
+                    : "詳細"}
               を開けます。
-              <br />
-              <span className="text-sm">
-                未来の回は開けません。開始時刻を過ぎた回（実施中・終了後）だけ開けます。
-              </span>
             </p>
           </div>
+
           <ul className="space-y-2 rounded-2xl border border-indigo-200 bg-white p-3 sm:p-4">
-            {(sessionRows.length > 0
-              ? sessionRows
-              : Array.from({ length: scheduleSettings.totalSessions }, (_, i) => ({
+            {sessionPlans.map((planRow) => {
+              const apiRow =
+                sessionRows.find((r) => r.sessionNumber === planRow.index) ??
+                ({
                   matchId,
-                  sessionNumber: i + 1,
-                  confirmed: false,
+                  sessionNumber: planRow.index,
+                  confirmed: Boolean(planRow.slot),
                   round: null,
-                  startAt: null,
-                  endAt: null,
+                  startAt: planRow.slot?.startAt ?? null,
+                  endAt: planRow.slot?.endAt ?? null,
                   negotiationId: null,
                   openable: false,
                   hasClientFeedback: false,
                   hasPartnerReport: false,
-                } as SessionPlanApiRow))
-            ).map((row) => {
-              const dateLabel = row.startAt && row.endAt
-                ? `${formatJa(row.startAt, scheduleSettings.timezone)} 〜 ${formatJa(row.endAt, scheduleSettings.timezone)}`
-                : "未確定";
+                } as SessionPlanApiRow);
+              const row = {
+                ...apiRow,
+                startAt: apiRow.startAt ?? planRow.slot?.startAt ?? null,
+                endAt: apiRow.endAt ?? planRow.slot?.endAt ?? null,
+                confirmed: apiRow.confirmed || Boolean(planRow.slot),
+              };
+              const dateLabel =
+                row.startAt && row.endAt
+                  ? `${formatJa(row.startAt, scheduleSettings.timezone)} 〜 ${formatJa(row.endAt, scheduleSettings.timezone)}`
+                  : "未確定";
               const isAbandoned = !!row.abandonment;
               const isRescheduling = isReschedulingSession(row.sessionNumber);
+              const eligibility = getRescheduleEligibility(row.sessionNumber, planRow.slot);
               const showAbandonReasonToClient =
                 isAbandoned &&
                 (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT");
@@ -2714,8 +2663,20 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                     ? "クライアントが連絡なく参加しなかった"
                     : "クライアントが24時間前を過ぎてキャンセルした"
                   : null;
+              // ステータスバッジ用。壁時計との比較のため render 時の現在時刻を使う。
+              // eslint-disable-next-line react-hooks/purity -- session status vs wall clock
+              const now = Date.now();
+              const endMs = row.endAt ? new Date(row.endAt).getTime() : null;
+              const isPast = endMs !== null && endMs <= now;
+              const statusBadge: { label: string; className: string } | null = isAbandoned
+                ? { label: "未実施・消化", className: "border-red-300 bg-red-50 text-red-800" }
+                : !row.startAt
+                  ? { label: "未確定", className: "border-slate-300 bg-white text-slate-700" }
+                  : isPast
+                    ? { label: "実施済", className: "border-emerald-300 bg-emerald-50 text-emerald-800" }
+                    : { label: "予定", className: "border-indigo-300 bg-indigo-50 text-indigo-800" };
               const filledBadges: string[] = [];
-              if (!isAbandoned) {
+              if (!isAbandoned && scheduleSettings.planFeatures.sessions) {
                 const coachingPlan = scheduleSettings.companyPlan === "coaching_management_training";
                 const isRoleplayRow = coachingPlan && row.isRoleplaySession !== false;
                 if (me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT") {
@@ -2733,82 +2694,137 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                   );
                 }
               }
+              const canOpen =
+                scheduleSettings.planFeatures.sessions &&
+                (row.openable || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT");
+              const openLabel =
+                scheduleSettings.companyPlan === "coaching_management_training"
+                  ? "ロールプレイ評価を開く"
+                  : me.role === "CLIENT" || me.role === "CLIENT_ADMIN" || me.role === "CLIENT_HR"
+                    ? "振り返りを開く"
+                    : me.role === "PARTNER"
+                      ? "レポートを開く"
+                      : "詳細を開く";
               return (
                 <li
                   key={row.sessionNumber}
-                  className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-2 ${
+                  className={`rounded-xl border px-3 py-2 ${
                     isAbandoned
                       ? "border-red-200 bg-red-50/60"
                       : "border-indigo-100 bg-indigo-50/40"
                   }`}
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-base font-semibold text-indigo-950">
-                      {row.sessionNumber}回目
-                      <span className="ml-2 text-sm font-normal text-indigo-900/85">{dateLabel}</span>
-                      {isAbandoned ? (
-                        <span className="ml-2 inline-flex items-center rounded-md border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800 align-middle">
-                          未実施・消化
-                        </span>
-                      ) : isRescheduling ? (
-                        <span className="ml-2 inline-flex items-center rounded-md border border-amber-300 bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 align-middle">
-                          再調整中
-                        </span>
-                      ) : null}
-                    </p>
-                    {isAbandoned && abandonReasonLabel ? (
-                      <p className="mt-1 text-xs text-red-800">理由：{abandonReasonLabel}</p>
-                    ) : null}
-                    {!isAbandoned && (row.zoomUrl || row.zoomMeetingId || row.zoomPass) ? (
-                      <p className="mt-1 text-xs text-indigo-900/85">
-                        {row.zoomUrl ? (
-                          <a
-                            href={row.zoomUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-indigo-800 underline underline-offset-2"
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {statusBadge ? (
+                          <span
+                            className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${statusBadge.className}`}
                           >
-                            {meetingProviderLabel(resolveSessionMeetingProvider(row))}: {row.zoomUrl}
-                          </a>
+                            {statusBadge.label}
+                          </span>
                         ) : null}
-                        {resolveSessionMeetingProvider(row) === "zoom" && row.zoomMeetingId ? (
-                          <span className="ml-2">ID: {row.zoomMeetingId}</span>
-                        ) : null}
-                        {resolveSessionMeetingProvider(row) === "zoom" && row.zoomPass ? (
-                          <span className="ml-2">パス: {row.zoomPass}</span>
-                        ) : null}
-                      </p>
-                    ) : null}
-                    <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
-                      {filledBadges.map((b, i) => (
-                        <span
-                          key={i}
-                          className={`rounded-full border px-2 py-0.5 ${b.endsWith("済") ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-slate-200 bg-white text-slate-600"}`}
-                        >
-                          {b}
-                        </span>
-                      ))}
+                        <p className="text-base font-semibold text-indigo-950">
+                          {row.sessionNumber}回目
+                          <span className="ml-2 text-sm font-normal text-indigo-900/85">{dateLabel}</span>
+                          {isRescheduling ? (
+                            <span className="ml-2 inline-flex items-center rounded-md border border-amber-300 bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 align-middle">
+                              再調整中
+                            </span>
+                          ) : null}
+                        </p>
+                      </div>
+                      {isAbandoned && abandonReasonLabel ? (
+                        <p className="mt-1 text-xs text-red-800">理由：{abandonReasonLabel}</p>
+                      ) : null}
+                      {!isAbandoned && (row.zoomUrl || row.zoomMeetingId || row.zoomPass) ? (
+                        <p className="mt-1 text-xs text-indigo-900/85">
+                          {row.zoomUrl ? (
+                            <a
+                              href={row.zoomUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-indigo-800 underline underline-offset-2"
+                            >
+                              {meetingProviderLabel(resolveSessionMeetingProvider(row))}: {row.zoomUrl}
+                            </a>
+                          ) : null}
+                          {resolveSessionMeetingProvider(row) === "zoom" && row.zoomMeetingId ? (
+                            <span className="ml-2">ID: {row.zoomMeetingId}</span>
+                          ) : null}
+                          {resolveSessionMeetingProvider(row) === "zoom" && row.zoomPass ? (
+                            <span className="ml-2">パス: {row.zoomPass}</span>
+                          ) : null}
+                        </p>
+                      ) : null}
+                      {filledBadges.length > 0 ? (
+                        <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
+                          {filledBadges.map((b, i) => (
+                            <span
+                              key={i}
+                              className={`rounded-full border px-2 py-0.5 ${b.endsWith("済") ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-slate-200 bg-white text-slate-600"}`}
+                            >
+                              {b}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                      {scheduleSettings.planFeatures.schedule && !eligibility.can && !isRescheduling ? (
+                        <p className="mt-1 text-sm font-medium text-amber-800">
+                          この日程は変更不可: {eligibility.reason}（日程変更は開始24時間前まで可能です）
+                        </p>
+                      ) : null}
                     </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {row.openable ? (
-                      <Link
-                        href={`/match/${matchId}/sessions/${row.sessionNumber}`}
-                        className="app-btn-primary rounded-md px-3 py-1.5 text-sm no-underline"
-                      >
-                        開く
-                      </Link>
-                    ) : (
-                      <span className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-500">
-                        まだ開けません
-                      </span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {scheduleSettings.planFeatures.sessions ? (
+                        canOpen ? (
+                          <Link
+                            href={`/match/${matchId}/sessions/${row.sessionNumber}`}
+                            className="app-btn-primary rounded-md px-3 py-1.5 text-sm no-underline"
+                          >
+                            {openLabel}
+                          </Link>
+                        ) : (
+                          <span className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-500">
+                            まだ開けません
+                          </span>
+                        )
+                      ) : null}
+                      {scheduleSettings.planFeatures.schedule ? (
+                        isRescheduling ? (
+                          <span className="rounded-md border border-amber-300 bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-900">
+                            再調整中
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={!eligibility.can || rescheduleSubmittingSession !== null}
+                            onClick={() => void onRequestReschedule(row.sessionNumber)}
+                            className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100 active:translate-y-[1px] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {rescheduleSubmittingSession === row.sessionNumber ? "送信中…" : "変更希望"}
+                          </button>
+                        )
+                      ) : null}
+                    </div>
                   </div>
                 </li>
               );
             })}
           </ul>
-        </section>
+          {scheduleSettings.planFeatures.schedule ? (
+            <>
+              <p className="text-sm text-slate-600">
+                日程変更は開始24時間前まで可能です。変更希望を送ると、相手へ通知され、パートナーが再提案できます。
+              </p>
+              <p className="text-sm font-medium text-amber-800">
+                開始24時間前を過ぎての変更はできません。体調不良などの場合は、サポートデスクに連絡ください。
+              </p>
+            </>
+          ) : null}
+        </div>
+        ) : null}
+      </section>
       ) : null}
 
       {activeTab === "skillCheck" && scheduleSettings.planFeatures.skillCheck ? (

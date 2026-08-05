@@ -282,7 +282,7 @@ export function ScheduleProposeForm({
             : `候補日時を提示する（${preview.count}件 × ${sessionNumbers.filter((n) => !blocked.has(n)).length || 0}回）`}
         </button>
         <p className="text-xs text-slate-500">
-          → クライアントにメールとアプリ通知が届き、日程調整タブで回ごとに回答できます。
+          → クライアントにメールとアプリ通知が届き、1on1セッションタブで回ごとに回答できます。
         </p>
       </div>
     </form>

@@ -18,21 +18,45 @@ function buildSteps(
     return isClient
       ? [
           { title: "チャットでパートナーに挨拶", tab: "chat", tabLabel: "チャット" },
-          { title: "候補日が届いたら日程調整で ○× 回答", tab: "schedule", tabLabel: "日程調整" },
-          { title: "1on1 後はセッション画面でロールプレイ評価", tab: "sessions", tabLabel: "1on1" },
+          {
+            title: "候補日が届いたら 1on1セッションで ○× 回答",
+            tab: "sessions",
+            tabLabel: "1on1セッション",
+          },
+          {
+            title: "1on1 後は同じタブでロールプレイ評価",
+            tab: "sessions",
+            tabLabel: "1on1セッション",
+          },
         ]
       : [
           { title: "チャットでクライアントに挨拶", tab: "chat", tabLabel: "チャット" },
-          { title: "日程調整から候補日を送る", tab: "schedule", tabLabel: "日程調整" },
-          { title: "1on1 後はセッション画面でロールプレイ評価", tab: "sessions", tabLabel: "1on1" },
+          {
+            title: "1on1セッションから候補日を送る",
+            tab: "sessions",
+            tabLabel: "1on1セッション",
+          },
+          {
+            title: "1on1 後は同じタブでロールプレイ評価",
+            tab: "sessions",
+            tabLabel: "1on1セッション",
+          },
         ];
   }
 
   if (isClient) {
     const steps: GuideStep[] = [
       { title: "チャットでパートナーに挨拶", tab: "chat", tabLabel: "チャット" },
-      { title: "候補日が届いたら日程調整で ○× 回答", tab: "schedule", tabLabel: "日程調整" },
-      { title: "1on1 後はセッション画面で振り返り", tab: "sessions", tabLabel: "1on1" },
+      {
+        title: "候補日が届いたら 1on1セッションで ○× 回答",
+        tab: "sessions",
+        tabLabel: "1on1セッション",
+      },
+      {
+        title: "1on1 後は同じタブで振り返り",
+        tab: "sessions",
+        tabLabel: "1on1セッション",
+      },
     ];
     if (planFeatures.fta) {
       steps.unshift({ title: "自分FTA でありたい姿を整理", tab: "fta", tabLabel: "自分FTA" });
@@ -42,8 +66,16 @@ function buildSteps(
 
   return [
     { title: "チャットでクライアントに挨拶", tab: "chat", tabLabel: "チャット" },
-    { title: "日程調整から候補日を送る", tab: "schedule", tabLabel: "日程調整" },
-    { title: "1on1 後はセッション画面でレポート", tab: "sessions", tabLabel: "1on1" },
+    {
+      title: "1on1セッションから候補日を送る",
+      tab: "sessions",
+      tabLabel: "1on1セッション",
+    },
+    {
+      title: "1on1 後は同じタブでレポート",
+      tab: "sessions",
+      tabLabel: "1on1セッション",
+    },
   ];
 }
 
@@ -108,7 +140,7 @@ export function MatchRoomGuideBanner({
       <ol className="mt-5 space-y-3">
         {steps.map((step, i) => (
           <li
-            key={step.tab}
+            key={`${step.tab}-${i}`}
             className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4"
           >
             <div className="min-w-0">

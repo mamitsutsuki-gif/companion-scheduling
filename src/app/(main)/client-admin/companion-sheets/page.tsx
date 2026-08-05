@@ -51,7 +51,7 @@ export default function ClientAdminCompanionSheetsPage() {
           部下の伴走シート
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          管理者から紐づけられた部下の伴走シートを開けます。チャット・日程調整・1on1
+          管理者から紐づけられた部下の伴走シートを開けます。チャット・1on1
           セッションには入りません。
         </p>
         <button
