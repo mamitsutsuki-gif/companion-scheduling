@@ -75,7 +75,10 @@ export async function GET(_req: Request, ctx: RouteContext) {
     focusSkillNames: (skillProfile?.focusSkillIds ?? []).map((id) => skillName.get(id) ?? id),
     permissions: {
       canEditAdminSummary: access.canEditAdminSummary,
-      canEditCoach: access.canEditCoach,
+      // パートナー所見は PARTNER / ADMIN のみ。上司（CLIENT_ADMIN）は閲覧のみ。
+      canEditPartnerComment:
+        session.role === "ADMIN" ||
+        (session.role === "PARTNER" && access.canEditCoach),
     },
   });
 }
@@ -86,13 +89,17 @@ export async function PUT(request: Request, ctx: RouteContext) {
   const { matchId } = await ctx.params;
   const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role }, { feature: "summaryReport" });
   if ("error" in access) return jsonError("権限がありません。", 403);
-  if (!access.canEditAdminSummary && !access.canEditCoach) {
+  const canEditPartnerComment =
+    session.role === "ADMIN" || (session.role === "PARTNER" && access.canEditCoach);
+  if (!access.canEditAdminSummary && !canEditPartnerComment) {
     return jsonError("編集権限がありません。", 403);
   }
   const parsed = putSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("入力内容を確認してください。", 400);
   const patch: Record<string, string> = {};
-  if (parsed.data.coachComment !== undefined && access.canEditCoach) patch.coachComment = parsed.data.coachComment;
+  if (parsed.data.coachComment !== undefined && canEditPartnerComment) {
+    patch.coachComment = parsed.data.coachComment;
+  }
   if (parsed.data.motiveSummary !== undefined && access.canEditAdminSummary) {
     patch.motiveSummary = parsed.data.motiveSummary;
   }
