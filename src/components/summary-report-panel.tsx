@@ -68,24 +68,26 @@ export function SummaryReportPanel({ matchId }: { matchId: string }) {
     const labels = ids.map((id) => nameById.get(id) ?? id);
     return {
       labels,
-      series: [
+      before: [
         {
-          label: "開始時・本人",
-          color: "#a5b4fc",
+          label: "本人",
+          color: "#4f46e5",
           values: ids.map((id) => skillProfile.baseline[id]?.selfScore ?? null),
         },
         {
-          label: "開始時・上司",
-          color: "#6ee7b7",
+          label: "上司",
+          color: "#059669",
           values: ids.map((id) => skillProfile.baseline[id]?.managerScore ?? null),
         },
+      ],
+      after: [
         {
-          label: "終了時・本人",
+          label: "本人",
           color: "#4f46e5",
           values: ids.map((id) => skillProfile.current[id]?.selfScore ?? null),
         },
         {
-          label: "終了時・上司",
+          label: "上司",
           color: "#059669",
           values: ids.map((id) => skillProfile.current[id]?.managerScore ?? null),
         },
@@ -137,18 +139,37 @@ export function SummaryReportPanel({ matchId }: { matchId: string }) {
             <div className="mt-4">
               <p className="text-sm font-medium text-slate-800">重点育成項目の Before / After</p>
               <p className="mt-1 text-xs text-slate-500">
-                開始時（薄い色）と終了時（濃い色）の本人・上司評価を重ねて表示します。
+                左が開始時、右が終了時です。それぞれ本人評価と上司評価を表示します。
               </p>
-              <div className="mt-3 flex flex-wrap justify-center gap-3 text-xs text-slate-600">
-                {focusRadar.series.map((s) => (
-                  <span key={s.label} className="inline-flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-                    {s.label}
-                  </span>
-                ))}
-              </div>
-              <div className="mt-2">
-                <SkillRadarChart labels={focusRadar.labels} series={focusRadar.series} size={420} />
+              <div className="mt-4 grid gap-6 md:grid-cols-2">
+                <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+                  <p className="text-center text-sm font-semibold text-slate-800">開始時</p>
+                  <div className="mt-2 flex flex-wrap justify-center gap-3 text-xs text-slate-600">
+                    {focusRadar.before.map((s) => (
+                      <span key={`b-${s.label}`} className="inline-flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                        {s.label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-2">
+                    <SkillRadarChart labels={focusRadar.labels} series={focusRadar.before} size={360} />
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+                  <p className="text-center text-sm font-semibold text-slate-800">終了時</p>
+                  <div className="mt-2 flex flex-wrap justify-center gap-3 text-xs text-slate-600">
+                    {focusRadar.after.map((s) => (
+                      <span key={`a-${s.label}`} className="inline-flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                        {s.label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-2">
+                    <SkillRadarChart labels={focusRadar.labels} series={focusRadar.after} size={360} />
+                  </div>
+                </div>
               </div>
             </div>
           ) : (

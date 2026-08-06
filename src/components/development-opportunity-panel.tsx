@@ -70,7 +70,6 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [sheet, setSheet] = useState<DevelopmentOpportunitySheet>(emptySheet);
-  const [conditionReady, setConditionReady] = useState(false);
   const [perms, setPerms] = useState<Permissions>({ canEditManager: false });
   const [focusSkillNames, setFocusSkillNames] = useState<string[]>([]);
   const [ftaActionHints, setFtaActionHints] = useState<string[]>([]);
@@ -87,7 +86,6 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
       return;
     }
     setSheet((json as { sheet?: DevelopmentOpportunitySheet }).sheet ?? emptySheet());
-    setConditionReady(Boolean((json as { conditionReady?: boolean }).conditionReady));
     setPerms((json as { permissions?: Permissions }).permissions ?? { canEditManager: false });
     setFocusSkillNames(
       Array.isArray((json as { focusSkillNames?: string[] }).focusSkillNames)
@@ -151,12 +149,10 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
       return;
     }
     setSheet((json as { sheet?: DevelopmentOpportunitySheet }).sheet ?? sheet);
-    setConditionReady(Boolean((json as { conditionReady?: boolean }).conditionReady));
     setNotice("保存しました。");
   }
 
   const editable = perms.canEditManager;
-  const showConditionWarning = !conditionReady;
 
   if (loading) {
     return <p className="text-sm text-slate-600">読込中…</p>;
@@ -196,13 +192,9 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
         ) : null}
       </div>
 
-      {showConditionWarning ? (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
-          <strong>まだ設定が足りない項目があります</strong>
-          <br />
-          権限・支援・実践開始期限と、挑戦機会の必須条件（3つ）を確認してください。
-        </div>
-      ) : null}
+      <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-4 py-3 text-sm text-indigo-950">
+        挑戦機会を与える上で必須と考えられる項目は、必ず記入してください。
+      </div>
 
       {error ? (
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>

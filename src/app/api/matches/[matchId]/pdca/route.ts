@@ -155,7 +155,11 @@ export async function PUT(request: Request, ctx: RouteContext) {
   if (!access.canEditClient && !access.canEditCoach) return jsonError("編集権限がありません。", 403);
 
   const store = await upsertPdcaEntry(access.targetUserId, access.companyId, merged);
-  return jsonOk({ store, skillCounts: pdcaSkillCounts(store.entries) });
+  return jsonOk({
+    store,
+    entry: store.entries.find((e) => e.id === merged.id) ?? merged,
+    skillCounts: pdcaSkillCounts(store.entries),
+  });
 }
 
 export async function DELETE(request: Request, ctx: RouteContext) {

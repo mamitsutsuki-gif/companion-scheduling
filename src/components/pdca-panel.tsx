@@ -112,7 +112,7 @@ export function PdcaPanel({
     setNotice(null);
   }
 
-  async function save() {
+  async function saveEntry(): Promise<string | null> {
     setSaving(true);
     setError(null);
     setNotice(null);
@@ -132,15 +132,37 @@ export function PdcaPanel({
     setSaving(false);
     if (!res.ok) {
       setError((json as { error?: string })?.error ?? "保存に失敗しました。");
-      return;
+      return null;
     }
     const saved = (json as { store?: { entries?: PdcaEntry[] } }).store?.entries ?? [];
     setEntries(saved);
     setSkillCounts((json as { skillCounts?: Array<{ skillId: string; count: number }> }).skillCounts ?? []);
+    const entryId =
+      (json as { entry?: { id?: string } })?.entry?.id ||
+      editingId ||
+      saved[0]?.id ||
+      null;
+    return entryId;
+  }
+
+  async function save() {
+    const id = await saveEntry();
+    if (!id) return;
     setNotice("保存しました。続けて書くときは「新規作成」で次のシートを開けます。過去の記録は下の一覧から振り返れます。");
     setEditingId(null);
     setDraft(emptyEntry());
     setPreviousActHint(null);
+  }
+
+  async function saveAndOpenBrake() {
+    if (!onOpenActionBrake) return;
+    const id = await saveEntry();
+    if (!id) return;
+    setEditingId(null);
+    setDraft(emptyEntry());
+    setPreviousActHint(null);
+    setNotice(null);
+    onOpenActionBrake(id);
   }
 
   async function remove(entryId: string) {
@@ -295,17 +317,20 @@ export function PdcaPanel({
             />
           </label>
           {actionBrakeEnabled && onOpenActionBrake && draft.stuckText.trim() ? (
-            <p className="text-sm text-amber-900">
-              行き詰まりがあるときは、
+            <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-3 text-sm text-amber-950">
+              <p>
+                行き詰まりがあるときは、思考パターンを整理すると次の行動につながりやすくなります。
+                下のボタンで、いまのPDCA内容を保存してから行き詰まり分析シートを開きます。
+              </p>
               <button
                 type="button"
-                className="mx-1 font-semibold text-indigo-800 underline"
-                onClick={() => onOpenActionBrake(editingId || undefined)}
+                disabled={saving || !perms.canEditClient}
+                onClick={() => void saveAndOpenBrake()}
+                className="mt-3 rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-800 disabled:opacity-50"
               >
-                行き詰まり分析シート
+                {saving ? "保存中…" : "保存して、行き詰まり分析シートを開く"}
               </button>
-              で思考パターンを整理できます。
-            </p>
+            </div>
           ) : null}
           <label className="block text-sm">
             学び・気づき・モヤモヤしたこと
