@@ -120,7 +120,11 @@ function checkNormalizers() {
   const counts = pdcaSkillCounts(pdca.entries);
   const reflection = normalizeReflectionSheet("u1", "c1", { changedThrough: "変化" });
   const lifeline = normalizeLifelineChart("u1", "c1", {
-    events: [{ id: "e1", title: "入学", emotionScore: 3, locked: true, insights: "挑戦" }],
+    events: [
+      { id: "e1", title: "入学", emotionScore: 3, locked: true, insights: "秘密の気づき" },
+      { id: "e2", title: "転職", emotionScore: -2, locked: false, insights: "公開の気づき", detail: "詳細文" },
+    ],
+    coreValuesText: "誠実さ",
   });
   const masked = filterLifelineForViewer(lifeline, "manager");
   const summary = normalizeSummaryReportDoc("u1", "c1", { motiveSummary: "総括" });
@@ -128,7 +132,14 @@ function checkNormalizers() {
     pdca.entries.length === 1 &&
     counts[0]?.count === 1 &&
     reflection.changedThrough === "変化" &&
-    masked.events[0]?.title === "（非公開の出来事）" &&
+    masked.events.length === 2 &&
+    masked.events[0]?.title === "" &&
+    masked.events[0]?.insights === "" &&
+    masked.events[0]?.emotionScore === 3 &&
+    masked.events[1]?.title === "" &&
+    masked.events[1]?.detail === "" &&
+    masked.events[1]?.insights === "公開の気づき" &&
+    masked.coreValuesText === "誠実さ" &&
     summary.motiveSummary === "総括";
   console.log(`  ${ok ? "✓" : "✗"} 正規化・マスク・集計ロジック`);
   return ok;

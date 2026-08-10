@@ -113,7 +113,9 @@ async function main() {
   const masked = filterLifelineForViewer(lifeline, "manager");
   ok(
     "lifeline mask for manager",
-    masked.events[0]?.title === "（非公開の出来事）" && masked.events[0]?.insights === "秘密の気づき",
+    masked.events[0]?.title === "" &&
+      masked.events[0]?.insights === "" &&
+      typeof masked.events[0]?.emotionScore === "number",
   );
 
   await upsertSummaryReportDoc(client!.id, DEMO_COMPANY_ID, {

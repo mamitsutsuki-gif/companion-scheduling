@@ -74,6 +74,15 @@ export function normalizeLifelineChart(userId: string, companyId: string, input:
   };
 }
 
+/**
+ * 閲覧者ごとの公開範囲。
+ * - self / full: 全項目
+ * - manager（上司・パートナー）:
+ *   - エピソード詳細（時期・タイトル・本文・理由）は常に非公開
+ *   - 鍵なし: グラフ（感情スコア）＋価値観の気づき（insights）
+ *   - 鍵あり: グラフのみ（insights も非公開）
+ *   - まとめ（エネルギーの源泉／大切にしている価値観）は常に表示
+ */
 export function filterLifelineForViewer(
   chart: LifelineChart,
   mode: "full" | "manager" | "self" | "none",
@@ -84,18 +93,15 @@ export function filterLifelineForViewer(
   if (mode === "full" || mode === "self") return chart;
   return {
     ...chart,
-    events: chart.events
-      .filter((e) => !e.locked || e.insights.trim().length > 0)
-      .map((e) =>
-        e.locked
-          ? {
-              ...e,
-              title: "（非公開の出来事）",
-              detail: "",
-              emotionReason: "",
-              emotionScore: 0,
-            }
-          : e,
-      ),
+    events: chart.events.map((e) => ({
+      ...e,
+      ageOrPeriod: "",
+      title: "",
+      detail: "",
+      emotionReason: "",
+      // 感情スコアは鍵の有無に関わらずグラフ用に残す
+      emotionScore: e.emotionScore,
+      insights: e.locked ? "" : e.insights,
+    })),
   };
 }

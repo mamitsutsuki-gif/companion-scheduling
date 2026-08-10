@@ -132,6 +132,9 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
 
   if (loading) return <p className="text-sm text-slate-500">読込中…</p>;
 
+  const isManagerView = viewMode === "manager";
+  const sharedInsights = events.filter((e) => e.insights.trim().length > 0);
+
   return (
     <section className="space-y-8">
       <div>
@@ -139,13 +142,43 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
         <p className="mt-2 text-sm text-slate-600">
           自分の価値観・モチベーションの源泉を理解します。人生の出来事（喜び・挫折）を振り返り、「なぜ頑張りたいのか」を言葉にします。
         </p>
-        {viewMode === "manager" ? (
-          <p className="mt-2 text-xs text-amber-800">
-            上司向け表示: 公開許可された出来事と、価値観・強み・傾向のみ表示されます。
-          </p>
-        ) : null}
       </div>
 
+      {isManagerView ? (
+        <aside className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm leading-relaxed text-amber-950">
+          <p className="font-semibold">上司・パートナー向けの表示について</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>感情の推移（グラフ）は、鍵の有無にかかわらず確認できます。</li>
+            <li>
+              鍵がかかっていない項目では、「価値観・強みの気づき」と、まとめの価値観も確認できます。
+            </li>
+            <li>
+              鍵がかかっている項目では、グラフのみです（気づきは表示されません）。
+            </li>
+            <li>
+              人生の出来事の詳細（時期・タイトル・本文・理由など）は、プライバシーのため表示されません。
+            </li>
+          </ul>
+        </aside>
+      ) : (
+        <aside className="rounded-2xl border border-indigo-200 bg-indigo-50/60 px-4 py-3 text-sm leading-relaxed text-indigo-950">
+          <p className="font-semibold">安心して本音で書くための公開範囲</p>
+          <p className="mt-2">
+            上司・パートナーには、あなたの人生のエピソード詳細（時期・タイトル・本文・理由）は見えません。
+            飾らずにそのまま書いて大丈夫です。
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>
+              <strong>鍵なし:</strong> グラフ（感情の波）と、価値観の気づき・まとめが相手に見えます。
+            </li>
+            <li>
+              <strong>鍵あり:</strong> グラフだけが見えます（価値観の気づきは非公開）。
+            </li>
+          </ul>
+        </aside>
+      )}
+
+      {!isManagerView ? (
       <aside className="rounded-2xl border border-slate-200 bg-slate-50/90 p-4 sm:p-5 text-sm leading-relaxed text-slate-700">
         <h3 className="text-base font-semibold text-slate-900">価値観とは</h3>
         <p className="mt-3">
@@ -181,11 +214,13 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
           と言えます。
         </p>
       </aside>
+      ) : null}
 
+      {!isManagerView ? (
       <aside className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/50 p-4 sm:p-5">
         <h3 className="text-sm font-semibold text-indigo-950">入力の見本（参考）</h3>
         <p className="mt-1 text-xs text-indigo-900/80">
-          下の欄は空のまま、見本を参考に自分の言葉で書いてください。鍵付きにした内容は本人以外には非公開です。
+          下の欄は空のまま、見本を参考に自分の言葉で書いてください。エピソード詳細は上司に見えません。
         </p>
         <dl className="mt-3 space-y-2 text-sm text-indigo-950/90">
           <div>
@@ -208,6 +243,7 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
           </div>
         </dl>
       </aside>
+      ) : null}
 
       <LifelineGraph events={events} />
 
@@ -288,13 +324,19 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
                   className="mt-1 w-full rounded-lg border px-3 py-2 placeholder:text-slate-400"
                 />
               </label>
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex items-start gap-2 text-sm">
                 <input
                   type="checkbox"
+                  className="mt-1"
                   checked={e.locked}
                   onChange={(ev) => updateEvent(i, { locked: ev.target.checked })}
                 />
-                鍵付き（本人以外には非公開）
+                <span>
+                  鍵付き（上司にはグラフのみ。この項目の価値観・気づきは非公開）
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    エピソード詳細は鍵の有無にかかわらず上司には表示されません。
+                  </span>
+                </span>
               </label>
             </article>
           ))}
@@ -330,7 +372,7 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
             <div>
               <h3 className="text-lg font-semibold text-emerald-950">まとめ：なぜ頑張りたいのか</h3>
               <p className="mt-1 text-sm text-emerald-900/90">
-                出来事を振り返ったうえで、エネルギーの源泉と大切にしている価値観を言語化します。
+                出来事を振り返ったうえで、エネルギーの源泉と大切にしている価値観を言語化します。上司にも共有されます。
               </p>
             </div>
             <label className="block text-sm">
@@ -374,20 +416,45 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
         </div>
       ) : (
         <div className="space-y-4">
-          <ul className="space-y-3">
-            {events.map((e) => (
-              <li key={e.id} className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="font-semibold text-slate-900">{e.title || "（無題）"}</p>
-                <p className="text-xs text-slate-500">{e.ageOrPeriod}</p>
-                {e.detail ? (
-                  <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{e.detail}</p>
-                ) : null}
-                {e.insights ? (
-                  <p className="mt-2 text-sm text-indigo-900">洞察: {e.insights}</p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+          {isManagerView ? (
+            <>
+              <p className="text-sm text-slate-600">
+                出来事は {events.length} 件あります（詳細は非公開）。鍵なしの項目では価値観の気づきのみ表示します。
+              </p>
+              {sharedInsights.length > 0 ? (
+                <div className="space-y-3">
+                  <h3 className="text-base font-semibold text-slate-900">共有されている価値観・気づき</h3>
+                  <ul className="space-y-3">
+                    {sharedInsights.map((e, i) => (
+                      <li key={e.id || i} className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4">
+                        <p className="text-xs font-semibold text-indigo-800">気づき {i + 1}</p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{e.insights}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                  いま上司に共有されている価値観の気づきはありません（すべて鍵付き、または未記入）。
+                </p>
+              )}
+            </>
+          ) : (
+            <ul className="space-y-3">
+              {events.map((e) => (
+                <li key={e.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="font-semibold text-slate-900">{e.title || "（無題）"}</p>
+                  <p className="text-xs text-slate-500">{e.ageOrPeriod}</p>
+                  {e.detail ? (
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{e.detail}</p>
+                  ) : null}
+                  {e.insights ? (
+                    <p className="mt-2 text-sm text-indigo-900">洞察: {e.insights}</p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
           {(energySourcesText || coreValuesText) && (
             <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4 space-y-2 text-sm">
               {energySourcesText ? (

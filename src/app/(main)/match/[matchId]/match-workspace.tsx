@@ -250,8 +250,8 @@ function isSupervisorSheetTab(tab: MatchTab): boolean {
 }
 
 function firstSupervisorSheetTab(features: PlanFeatures): MatchTab {
-  if (features.skillCheck) return "skillCheck";
   if (features.lifelineChart) return "lifelineChart";
+  if (features.skillCheck) return "skillCheck";
   if (features.fta) return "fta";
   if (features.developmentOpportunity) return "developmentOpportunity";
   if (features.businessProblem) return "businessProblem";
@@ -259,7 +259,7 @@ function firstSupervisorSheetTab(features: PlanFeatures): MatchTab {
   if (features.actionBrakeAnalysis) return "actionBrakeAnalysis";
   if (features.reflection) return "reflection";
   if (features.summaryReport) return "summaryReport";
-  return "skillCheck";
+  return "lifelineChart";
 }
 
 function firstPrePartnerCoachingTab(features: PlanFeatures): MatchTab {
@@ -2056,21 +2056,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               1on1セッション
             </button>
             ) : null}
-            {scheduleSettings.planFeatures.skillCheck ? (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === "skillCheck"}
-                onClick={() => goTab("skillCheck")}
-                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
-                  activeTab === "skillCheck"
-                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
-                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
-                }`}
-              >
-                スキルチェック
-              </button>
-            ) : null}
             {scheduleSettings.planFeatures.lifelineChart ? (
               <button
                 type="button"
@@ -2084,6 +2069,21 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 }`}
               >
                 ライフライン
+              </button>
+            ) : null}
+            {scheduleSettings.planFeatures.skillCheck ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "skillCheck"}
+                onClick={() => goTab("skillCheck")}
+                className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                  activeTab === "skillCheck"
+                    ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                    : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                スキルチェック
               </button>
             ) : null}
             {me && canShowFtaTab(me, scheduleSettings, supervisorViewer) ? (
