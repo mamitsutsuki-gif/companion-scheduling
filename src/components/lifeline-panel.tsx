@@ -22,7 +22,7 @@ function LifelineGraph({ events }: { events: LifelineEvent[] }) {
   });
   const path = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white">
+    <svg viewBox={`0 0 ${w} ${h}`} className="h-auto w-full max-w-2xl rounded-xl border border-slate-200 bg-white" preserveAspectRatio="xMidYMid meet">
       <line x1={pad} y1={h / 2} x2={w - pad} y2={h / 2} stroke="#cbd5e1" />
       <path d={path} fill="none" stroke="#4f46e5" strokeWidth={2} />
       {pts.map((p) => (
@@ -145,7 +145,7 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
       </div>
 
       {isManagerView ? (
-        <aside className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm leading-relaxed text-amber-950">
+        <aside className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm leading-relaxed break-words text-amber-950">
           <p className="font-semibold">上司・パートナー向けの表示について</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>感情の推移（グラフ）は、鍵の有無にかかわらず確認できます。</li>
@@ -161,7 +161,7 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
           </ul>
         </aside>
       ) : (
-        <aside className="rounded-2xl border border-indigo-200 bg-indigo-50/60 px-4 py-3 text-sm leading-relaxed text-indigo-950">
+        <aside className="rounded-2xl border border-indigo-200 bg-indigo-50/60 px-4 py-3 text-sm leading-relaxed break-words text-indigo-950">
           <p className="font-semibold">安心して本音で書くための公開範囲</p>
           <p className="mt-2">
             上司・パートナーには、あなたの人生のエピソード詳細（時期・タイトル・本文・理由）は見えません。
@@ -245,7 +245,9 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
       </aside>
       ) : null}
 
-      <LifelineGraph events={events} />
+      <div className="min-w-0 max-w-full">
+        <LifelineGraph events={events} />
+      </div>
 
       {canEdit ? (
         <div className="space-y-6">

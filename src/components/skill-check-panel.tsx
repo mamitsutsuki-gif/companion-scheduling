@@ -505,7 +505,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
                     value={scoreSelectValue(row.selfScore)}
                     disabled={!permissions.canEditSelf}
                     onChange={(e) => setScore(skill.id, "selfScore", e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                    className="mt-1 w-full min-w-0 max-w-full rounded-lg border border-slate-300 px-3 py-2"
                   >
                     <option value="">未入力 — まずは現状の自己認識で選ぶ</option>
                     {[1, 2, 3, 4, 5].map((n) => (
@@ -521,7 +521,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
                     value={scoreSelectValue(row.managerScore)}
                     disabled={!permissions.canEditManager}
                     onChange={(e) => setScore(skill.id, "managerScore", e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                    className="mt-1 w-full min-w-0 max-w-full rounded-lg border border-slate-300 px-3 py-2"
                   >
                     <option value="">未入力 — 日常の発揮度で選ぶ</option>
                     {[1, 2, 3, 4, 5].map((n) => (
@@ -554,7 +554,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
             上司評価
           </span>
         </div>
-        <div className="mt-4 sm:mt-6">
+        <div className="mt-4 min-w-0 overflow-x-auto sm:mt-6">
           <SkillRadarChart labels={chartLabels} series={chartSeries} size={480} />
         </div>
       </div>

@@ -326,7 +326,7 @@ export function PdcaPanel({
                 type="button"
                 disabled={saving || !perms.canEditClient}
                 onClick={() => void saveAndOpenBrake()}
-                className="mt-3 rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-800 disabled:opacity-50"
+                className="mt-3 w-full whitespace-normal rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-semibold leading-snug text-white hover:bg-indigo-800 disabled:opacity-50 sm:w-auto"
               >
                 {saving ? "保存中…" : "保存して、行き詰まり分析シートを開く"}
               </button>

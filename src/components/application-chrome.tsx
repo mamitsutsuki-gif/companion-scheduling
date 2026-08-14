@@ -255,7 +255,7 @@ export function ApplicationChrome({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[min(90rem,calc(100vw-1.5rem))] px-3 py-6 sm:px-6 sm:py-10">
+      <main className="mx-auto w-full min-w-0 max-w-[min(90rem,calc(100vw-1.5rem))] px-3 py-6 sm:px-6 sm:py-10">
         {children}
       </main>
     </div>

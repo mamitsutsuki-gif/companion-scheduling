@@ -12,7 +12,7 @@ export function SkillRadarChart({
   labels,
   series,
   size = 440,
-  className = "mx-auto h-auto w-full max-w-[560px]",
+  className = "mx-auto h-auto w-full max-w-full sm:max-w-[560px]",
 }: {
   labels: string[];
   series: RadarSeries[];

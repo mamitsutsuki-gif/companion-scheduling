@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Sans_JP, JetBrains_Mono } from "next/font/google";
 import { APP_DISPLAY_NAME, APP_SHORT_DESCRIPTION } from "@/lib/brand";
 import "./globals.css";
@@ -28,6 +28,12 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+};
+
 export const metadata: Metadata = {
   title: {
     default: APP_DISPLAY_NAME,
@@ -44,9 +50,9 @@ export default function RootLayout({
   return (
     <html
       lang="ja"
-      className={`${inter.variable} ${notoJp.variable} ${mono.variable} h-full antialiased`}
+      className={`${inter.variable} ${notoJp.variable} ${mono.variable} h-full overflow-x-clip antialiased`}
     >
-      <body className="app-canvas flex min-h-full flex-col font-sans text-slate-900">{children}</body>
+      <body className="app-canvas flex min-h-full flex-col overflow-x-clip font-sans text-slate-900">{children}</body>
     </html>
   );
 }

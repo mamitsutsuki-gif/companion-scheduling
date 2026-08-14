@@ -1766,7 +1766,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
   return (
     <>
-    <div className="mx-auto flex w-full max-w-none flex-1 flex-col gap-8 px-1 py-4 sm:gap-12 sm:px-6 sm:py-10">
+    <div className="mx-auto flex w-full min-w-0 max-w-none flex-1 flex-col gap-8 px-1 py-4 sm:gap-12 sm:px-6 sm:py-10">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4 sm:gap-4 sm:pb-6">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
@@ -1992,11 +1992,11 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
 
       <div className="flex flex-col gap-0">
         <nav
-          className="sticky top-0 z-20 -mx-1 border-b border-slate-200 bg-slate-50/95 px-1 pt-1 backdrop-blur-sm sm:static sm:mx-0 sm:border sm:border-b-0 sm:border-slate-200 sm:bg-slate-100 sm:px-2 sm:pt-2 sm:backdrop-blur-none rounded-t-xl"
+          className="relative z-20 -mx-1 border-b border-slate-200 bg-slate-50/95 px-1 pt-1 sm:static sm:mx-0 sm:border sm:border-b-0 sm:border-slate-200 sm:bg-slate-100 sm:px-2 sm:pt-2 rounded-t-xl"
           aria-label="ルームメニュー"
           role="tablist"
         >
-          <div className="flex flex-nowrap items-end gap-1 overflow-x-auto pb-0 sm:gap-1.5">
+          <div className="-mx-1 flex flex-nowrap items-end gap-1 overflow-x-auto overscroll-x-contain px-1 pb-0 sm:mx-0 sm:gap-1.5 sm:px-0">
             {!supervisorViewer ? (
             <button
               type="button"

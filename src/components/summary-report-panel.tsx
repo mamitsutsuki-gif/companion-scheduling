@@ -142,7 +142,7 @@ export function SummaryReportPanel({ matchId }: { matchId: string }) {
                 左が開始時、右が終了時です。それぞれ本人評価と上司評価を表示します。
               </p>
               <div className="mt-4 grid gap-6 md:grid-cols-2">
-                <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+                <div className="min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
                   <p className="text-center text-sm font-semibold text-slate-800">開始時</p>
                   <div className="mt-2 flex flex-wrap justify-center gap-3 text-xs text-slate-600">
                     {focusRadar.before.map((s) => (
@@ -156,7 +156,7 @@ export function SummaryReportPanel({ matchId }: { matchId: string }) {
                     <SkillRadarChart labels={focusRadar.labels} series={focusRadar.before} size={360} />
                   </div>
                 </div>
-                <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+                <div className="min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
                   <p className="text-center text-sm font-semibold text-slate-800">終了時</p>
                   <div className="mt-2 flex flex-wrap justify-center gap-3 text-xs text-slate-600">
                     {focusRadar.after.map((s) => (

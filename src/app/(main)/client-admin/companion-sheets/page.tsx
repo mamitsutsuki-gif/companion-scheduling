@@ -142,7 +142,7 @@ export default function ClientAdminCompanionSheetsPage() {
                 <SkillCheckPanel key={selected.clientId} userId={selected.clientId} />
               </>
             ) : (
-              <p className="text-sm text-slate-500">左の一覧から部下を選んでください。</p>
+              <p className="text-sm text-slate-500">一覧から部下を選んでください。</p>
             )}
           </div>
         </div>
