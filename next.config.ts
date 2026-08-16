@@ -16,6 +16,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    "/howto-companion": ["./content/howto-companion/index.html"],
+  },
   async headers() {
     return [
       {
