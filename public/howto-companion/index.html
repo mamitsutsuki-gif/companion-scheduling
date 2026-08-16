@@ -1,0 +1,2487 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>個別伴走プラン Motive-iji Cloud 操作ガイド</title>
+  <style>
+:root {
+  --indigo-600: #4f46e5;
+  --indigo-800: #312e81;
+  --indigo-700: #4338ca;
+  --slate-800: #1e293b;
+  --slate-200: #e2e8f0;
+  --slate-100: #f1f5f9;
+  --slate-50: #f8fafc;
+  --tab-bar-height: 3.5rem;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.25rem 3rem;
+  line-height: 1.7;
+  color: var(--slate-800);
+  background: #fff;
+}
+
+.site-header {
+  padding: 1.5rem 0 0.5rem;
+  border-bottom: 2px solid var(--indigo-600);
+  margin-bottom: 0.5rem;
+}
+
+.site-title {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--indigo-800);
+}
+
+.site-subtitle {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(6px);
+  padding: 0.75rem 0;
+  margin: 0 0 1rem;
+  border-bottom: 1px solid var(--slate-200);
+}
+
+.tab-btn {
+  border: 1px solid #c7d2fe;
+  background: var(--slate-50);
+  color: var(--indigo-700);
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab-btn:hover {
+  background: #eef2ff;
+}
+
+.tab-btn.active {
+  background: var(--indigo-600);
+  color: #fff;
+  border-color: var(--indigo-600);
+}
+
+.page-layout {
+  display: grid;
+  grid-template-columns: 11rem 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.sidebar-toc {
+  position: sticky;
+  top: var(--tab-bar-height);
+  max-height: calc(100vh - var(--tab-bar-height) - 1rem);
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem 0.5rem 0;
+  border-right: 1px solid var(--slate-200);
+  font-size: 0.8rem;
+}
+
+.sidebar-toc-heading {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--indigo-800);
+  font-weight: 600;
+}
+
+.sidebar-toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar-toc-list li {
+  margin: 0.15em 0;
+  line-height: 1.4;
+}
+
+.sidebar-toc-list a {
+  color: #64748b;
+  text-decoration: none;
+  display: block;
+  padding: 0.15em 0;
+}
+
+.sidebar-toc-list a:hover {
+  color: var(--indigo-600);
+  text-decoration: underline;
+}
+
+.sidebar-toc-list a.toc-active {
+  color: var(--indigo-700);
+  font-weight: 600;
+  border-left: 2px solid var(--indigo-600);
+  padding-left: 0.4em;
+  margin-left: -0.4em;
+}
+
+.sidebar-toc-list .toc-sub {
+  padding-left: 0.75em;
+  font-size: 0.92em;
+}
+
+.tab-panels {
+  min-width: 0;
+}
+
+.tab-panel {
+  min-height: 200px;
+}
+
+.tab-panel h1 {
+  border-bottom: 2px solid var(--indigo-600);
+  padding-bottom: 0.3em;
+  font-size: 1.35rem;
+}
+
+h2 { margin-top: 2em; color: var(--indigo-800); font-size: 1.15rem; scroll-margin-top: 4.5rem; }
+h3 { color: var(--indigo-700); font-size: 1.05rem; scroll-margin-top: 4.5rem; }
+h4 { color: #475569; font-size: 1rem; }
+
+a { color: var(--indigo-600); }
+a:hover { text-decoration: underline; }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  font-size: 0.92rem;
+}
+
+th, td {
+  border: 1px solid #cbd5e1;
+  padding: 0.45em 0.65em;
+  text-align: left;
+  vertical-align: top;
+}
+
+th { background: var(--slate-100); }
+
+code {
+  background: var(--slate-100);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--slate-200);
+  border-radius: 4px;
+  margin: 0.5em 0;
+}
+
+blockquote {
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  border-left: 4px solid #c7d2fe;
+  background: var(--slate-50);
+  color: #475569;
+}
+
+hr {
+  margin: 2.5em 0;
+  border: none;
+  border-top: 1px solid var(--slate-200);
+}
+
+ul, ol { padding-left: 1.4em; }
+
+.site-footer {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--slate-200);
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+@media (max-width: 768px) {
+  .page-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar-toc {
+    position: static;
+    max-height: none;
+    border-right: none;
+    border-bottom: 1px solid var(--slate-200);
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .sidebar-toc-list {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
+
+  .sidebar-toc-list li {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .sidebar-toc-list .toc-sub {
+    padding-left: 0;
+  }
+
+  .sidebar-toc-list a.toc-active {
+    border-left: none;
+    border-bottom: 2px solid var(--indigo-600);
+    padding-left: 0;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .tab-btn {
+    flex: 1 1 calc(50% - 0.35rem);
+    text-align: center;
+  }
+}
+
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <h1 class="site-title">個別伴走プラン Motive-iji Cloud 操作ガイド</h1>
+    <p class="site-subtitle">受講者・上司・パートナー・運営向け</p>
+  </header>
+
+  <nav class="tab-bar" role="tablist" aria-label="ロール別ガイド">
+    <button type="button" class="tab-btn" data-tab="client" role="tab" aria-selected="false">受講者</button>
+    <button type="button" class="tab-btn" data-tab="supervisor" role="tab" aria-selected="false">上司</button>
+    <button type="button" class="tab-btn" data-tab="partner" role="tab" aria-selected="false">パートナー</button>
+    <button type="button" class="tab-btn" data-tab="ops" role="tab" aria-selected="false">モチベイジ</button>
+  </nav>
+
+  <div class="page-layout">
+    <aside id="sidebar-toc" class="sidebar-toc" aria-label="この章の目次">
+      <h2 class="sidebar-toc-heading">目次</h2>
+      <ul class="sidebar-toc-list"></ul>
+    </aside>
+
+    <main class="tab-panels">
+    <section id="panel-client" class="tab-panel" data-tab="client" role="tabpanel" hidden>
+<h1 id="client-受講者部下-マッチルームの使い方">受講者（部下）— マッチルームの使い方</h1>
+<h2 id="client-部下受講者-マッチルームの使い方">4. 部下（受講者）— マッチルームの使い方</h2>
+<p>マッチルーム上部のタブは、左から次の順で並びます（プラン設定により一部非表示の場合あり）。</p>
+<ol type="1">
+<li>プロジェクト概要</li>
+<li>1on1セッション</li>
+<li>スキルチェック</li>
+<li>ライフライン</li>
+<li>自分FTA</li>
+<li>機会創出</li>
+<li>PDCA</li>
+<li>行き詰まり分析</li>
+<li>振り返り</li>
+</ol>
+<p>以下、各タブの操作を説明します。</p>
+<h3 id="client-プロジェクト概要">4.1 プロジェクト概要</h3>
+<h4 id="client-このタブの目的">このタブの目的</h4>
+<p>受講いただくプランの概要をご確認いただく画面です。伴走プログラムの全体像・進め方・関係者の役割が記載されています。</p>
+<h4 id="client-いつ使うか">いつ使うか</h4>
+<ul>
+<li>キックオフ直後（初回ログイン時）</li>
+<li>プログラムの進め方を改めて確認したいとき</li>
+</ul>
+<h4 id="client-開き方">開き方</h4>
+<ol type="1">
+<li>ログイン後、マッチ一覧から担当パートナーとのルームを開く</li>
+<li>左端のタブ <strong>「プロジェクト概要」</strong> をクリック</li>
+</ol>
+<h4 id="client-画面の見方">画面の見方</h4>
+<figure>
+<img src="./assets/howto-client/4-1-project-overview.png" alt="プロジェクト概要タブ" />
+<figcaption aria-hidden="true">プロジェクト概要タブ</figcaption>
+</figure>
+<ul>
+<li>プログラムの目的、期間、1on1の頻度、成果物の一覧などが表示されます</li>
+<li>パートナーや運営が設定した内容を<strong>閲覧</strong>する画面です（部下は通常、編集しません）</li>
+</ul>
+<h4 id="client-操作手順">操作手順</h4>
+<ol type="1">
+<li>マッチルームを開く</li>
+<li>「プロジェクト概要」タブを選択</li>
+<li>表示内容を一通り読み、不明点はキックオフや次回1on1で確認する</li>
+</ol>
+<h4 id="client-保存提出">保存・提出</h4>
+<p>閲覧のみです。保存操作は不要です。</p>
+<h4 id="client-adv-pro-の違い">ADV / PRO の違い</h4>
+<p>両プランとも表示されます。</p>
+<h4 id="client-つまずきポイント">つまずきポイント</h4>
+<ul>
+<li>ホームに複数のルームが表示される場合は、<strong>自分が受講する個別伴走のルーム</strong>を選んでください</li>
+</ul>
+<hr />
+<h3 id="client-on1セッション">4.2 1on1セッション</h3>
+<h4 id="client-このタブの目的-1">このタブの目的</h4>
+<p><strong>日程の調整から、実施後の振り返りまで</strong>、パートナーとのやりとりをこのタブで行います。チャット・日程調整・セッション振り返りは <strong>「1on1セッション」タブ1つに統合</strong> されています（旧来の「チャット」「日程調整」単独タブはありません）。</p>
+<h4 id="client-いつ使うか-1">いつ使うか</h4>
+<ul>
+<li>パートナーに連絡したいとき（随時）</li>
+<li>日程候補の回答・確定（キックオフ後〜各回前）</li>
+<li>セッション当日・終了後の振り返り入力</li>
+</ul>
+<h4 id="client-開き方-1">開き方</h4>
+<ol type="1">
+<li>マッチルームを開く</li>
+<li><strong>「1on1セッション」</strong> タブをクリック</li>
+</ol>
+<h4 id="client-画面の見方-1">画面の見方</h4>
+<figure>
+<img src="./assets/howto-client/4-2-1on1.png" alt="1on1セッションタブ" />
+<figcaption aria-hidden="true">1on1セッションタブ</figcaption>
+</figure>
+<table>
+<colgroup>
+<col style="width: 57%" />
+<col style="width: 42%" />
+</colgroup>
+<thead>
+<tr>
+<th>エリア</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>調整中</strong></td>
+<td>パートナーから送られた日程候補への回答</td>
+</tr>
+<tr>
+<td><strong>すべての調整ログ</strong></td>
+<td>過去の日程調整の履歴</td>
+</tr>
+<tr>
+<td><strong>実施・振り返り</strong></td>
+<td>各回のセッション詳細、その回の<strong>セッション振り返り</strong>入力（※プログラム終了時の「振り返り」タブとは別）</td>
+</tr>
+<tr>
+<td><strong>チャット</strong></td>
+<td>パートナーとのメッセージ（同一タブ内）</td>
+</tr>
+</tbody>
+</table>
+<h4 id="client-操作手順チャット">操作手順（チャット）</h4>
+<ol type="1">
+<li>「1on1セッション」タブを開く</li>
+<li>チャット欄にメッセージを入力して送信</li>
+</ol>
+<h4 id="client-操作手順日程調整">操作手順（日程調整）</h4>
+<ol type="1">
+<li>「1on1セッション」タブを開く</li>
+<li><strong>「調整中」</strong> で対象の回を確認</li>
+<li>候補日時から希望を選ぶ（回ごとに回答欄が分かれています）</li>
+<li>回答を送信</li>
+</ol>
+<h4 id="client-操作手順セッション振り返り">操作手順（セッション振り返り）</h4>
+<ol type="1">
+<li>セッション <strong>終了後</strong>、「実施・振り返り」から該当回を開く</li>
+<li>その回の振り返りを入力し <strong>「提出する」</strong></li>
+</ol>
+<p>※ プログラム終了時（6か月目）の <strong>「振り返り」タブ</strong> は <a href="#client-振り返り">§4.9 振り返り</a> を参照してください。</p>
+<h4 id="client-保存提出-1">保存・提出</h4>
+<p>振り返りはセッション <strong>開始前は入力できません</strong>（1on1タブ内のセッション振り返り）。</p>
+<h4 id="client-adv-pro-の違い-1">ADV / PRO の違い</h4>
+<p>タブ構成は同じ。1on1の頻度がプランにより異なります。</p>
+<h4 id="client-つまずきポイント-1">つまずきポイント</h4>
+<ul>
+<li>日程候補は <strong>回ごとに分離</strong> されています</li>
+<li>リマインドバナーから該当回の詳細へ直接移動できます</li>
+</ul>
+<h4 id="client-on1セッションの日程調整詳細版">1on1セッションの日程調整（詳細版）</h4>
+<p>スケジュール調整の画面操作を、資料のページ順（PPT 53〜73ページ）に説明します。パートナーと受講者の双方の操作が含まれます。</p>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-54.png" alt="「1on1セッション」タブを開いた画面" />
+<figcaption aria-hidden="true">「1on1セッション」タブを開いた画面</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-55.png" alt="パートナー向け：日程調整機能の使い方（チャット）" />
+<figcaption aria-hidden="true">パートナー向け：日程調整機能の使い方（チャット）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-56.png" alt="パートナー向け：1on1セッション日程の決め方" />
+<figcaption aria-hidden="true">パートナー向け：1on1セッション日程の決め方</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-57.png" alt="候補日をまとめて作る（第1回）" />
+<figcaption aria-hidden="true">候補日をまとめて作る（第1回）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-58.png" alt="候補日をまとめて作る（第2回）" />
+<figcaption aria-hidden="true">候補日をまとめて作る（第2回）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-59.png" alt="すべての調整ログ（パートナー）" />
+<figcaption aria-hidden="true">すべての調整ログ（パートナー）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-60.png" alt="実施・振り返りのステータス（パートナー）" />
+<figcaption aria-hidden="true">実施・振り返りのステータス（パートナー）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-61.png" alt="ホーム：候補日への回答（受講者）" />
+<figcaption aria-hidden="true">ホーム：候補日への回答（受講者）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-62.png" alt="1on1セッションタブ：日程調整（受講者）" />
+<figcaption aria-hidden="true">1on1セッションタブ：日程調整（受講者）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-63.png" alt="日程調整：第1回の回答（受講者）" />
+<figcaption aria-hidden="true">日程調整：第1回の回答（受講者）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-64.png" alt="日程調整：第2回の回答（受講者）" />
+<figcaption aria-hidden="true">日程調整：第2回の回答（受講者）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-65.png" alt="すべての調整ログ（受講者）" />
+<figcaption aria-hidden="true">すべての調整ログ（受講者）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-66.png" alt="ホーム：日程を決定する（パートナー）" />
+<figcaption aria-hidden="true">ホーム：日程を決定する（パートナー）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-67.png" alt="日程を確定する：第1回（パートナー）" />
+<figcaption aria-hidden="true">日程を確定する：第1回（パートナー）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-68.png" alt="日程を確定する：第2回・開始時間の微調整（パートナー）" />
+<figcaption aria-hidden="true">日程を確定する：第2回・開始時間の微調整（パートナー）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-69.png" alt="すべての調整ログ（パートナー・確定後）" />
+<figcaption aria-hidden="true">すべての調整ログ（パートナー・確定後）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-70.png" alt="実施・振り返り：会議リンク設定後" />
+<figcaption aria-hidden="true">実施・振り返り：会議リンク設定後</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-71.png" alt="1回目のセッション：ガイドライン確認（パートナー）" />
+<figcaption aria-hidden="true">1回目のセッション：ガイドライン確認（パートナー）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-72.png" alt="設定済セッションの日程変更（案内）" />
+<figcaption aria-hidden="true">設定済セッションの日程変更（案内）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-73.png" alt="設定済セッションの日程変更：候補日の送り方（パートナー）" />
+<figcaption aria-hidden="true">設定済セッションの日程変更：候補日の送り方（パートナー）</figcaption>
+</figure>
+<hr />
+<h3 id="client-スキルチェック">4.3 スキルチェック</h3>
+<h4 id="client-このタブの目的-2">このタブの目的</h4>
+<p>会社から期待される成長テーマを明確にします。スキルを定義し、本人・上司で評価し、ギャップを見て重点育成項目（最大3つ）を決めます。</p>
+<h4 id="client-いつ使うか-2">いつ使うか</h4>
+<ul>
+<li>キックオフ後（ベースライン評価）</li>
+<li>プログラム終了時（アフター評価は「振り返り」タブから）</li>
+</ul>
+<h4 id="client-開き方-2">開き方</h4>
+<p>マッチルーム → <strong>「スキルチェック」</strong> タブ</p>
+<h4 id="client-画面の見方-2">画面の見方</h4>
+<figure>
+<img src="./assets/howto-client/4-3-skill-check-01-tab.png" alt="スキルチェックタブ" />
+<figcaption aria-hidden="true">スキルチェックタブ</figcaption>
+</figure>
+<table>
+<thead>
+<tr>
+<th>エリア</th>
+<th>誰が書くか</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>本人評価</td>
+<td>部下（1〜5点）</td>
+</tr>
+<tr>
+<td>上司評価</td>
+<td>上司（入力後に反映）</td>
+</tr>
+<tr>
+<td>レーダーチャート</td>
+<td>本人評価と上司評価のギャップ可視化</td>
+</tr>
+<tr>
+<td>重点育成</td>
+<td>最大3つ選択</td>
+</tr>
+<tr>
+<td>成長・挑戦合意</td>
+<td>大切にしたいこと、6か月後の目指す状態</td>
+</tr>
+<tr>
+<td>ギャップ表示</td>
+<td>評価差の可視化</td>
+</tr>
+</tbody>
+</table>
+<h4 id="client-操作手順-1">操作手順</h4>
+<ol type="1">
+<li>各スキル項目の <strong>本人評価</strong> を1〜5点で選択（上司評価は上司入力後に反映）</li>
+</ol>
+<figure>
+<img src="./assets/howto-client/4-3-skill-check-02-items.png" alt="スキル項目の入力" />
+<figcaption aria-hidden="true">スキル項目の入力</figcaption>
+</figure>
+<ol start="2" type="1">
+<li>レーダーチャートでギャップを確認</li>
+</ol>
+<figure>
+<img src="./assets/howto-client/4-3-skill-check-03-radar.png" alt="レーダーチャート" />
+<figcaption aria-hidden="true">レーダーチャート</figcaption>
+</figure>
+<ol start="3" type="1">
+<li>上司と話し合い、<strong>重点育成項目</strong> を1〜3項目（最大3つ）選択</li>
+</ol>
+<figure>
+<img src="./assets/howto-client/4-3-skill-check-04-focus.png" alt="重点育成項目" />
+<figcaption aria-hidden="true">重点育成項目</figcaption>
+</figure>
+<ol start="4" type="1">
+<li><strong>成長・挑戦合意</strong> に「大切にしたいこと」「6か月後の目指す状態」を記載</li>
+</ol>
+<figure>
+<img src="./assets/howto-client/4-3-skill-check-05-agreement.png" alt="成長・挑戦合意" />
+<figcaption aria-hidden="true">成長・挑戦合意</figcaption>
+</figure>
+<ol start="5" type="1">
+<li><strong>「項目と評価を保存する」</strong> をクリック</li>
+</ol>
+<h4 id="client-保存提出-2">保存・提出</h4>
+<p><strong>「項目と評価を保存する」</strong> で保存。再読み込み後も内容は残ります。</p>
+<h4 id="client-adv-pro-の違い-2">ADV / PRO の違い</h4>
+<p>両プランとも利用できます。</p>
+<h4 id="client-つまずきポイント-2">つまずきポイント</h4>
+<ul>
+<li>本人は本人欄のみ、上司は上司欄のみ編集可</li>
+<li>評価差が大きい項目は対話の手がかりになります</li>
+</ul>
+<hr />
+<h3 id="client-ライフライン">4.4 ライフライン</h3>
+<h4 id="client-このタブの目的-3">このタブの目的</h4>
+<p>ライフラインチャートを作成し、自分の価値観・モチベーションの源泉を理解します。人生の出来事（喜び・挫折）を振り返り、「なぜ頑張りたいのか」を言葉にします。</p>
+<h4 id="client-いつ使うか-3">いつ使うか</h4>
+<p>キックオフ後〜第1〜2回セッション前後</p>
+<h4 id="client-開き方-3">開き方</h4>
+<p>マッチルーム → <strong>「ライフライン」</strong> タブ</p>
+<h4 id="client-画面の見方-3">画面の見方</h4>
+<figure>
+<img src="./assets/howto-client/4-4-lifeline-01-overview.png" alt="ライフラインチャート" />
+<figcaption aria-hidden="true">ライフラインチャート</figcaption>
+</figure>
+<ul>
+<li><strong>人生の出来事</strong> — 感情が大きく動いた出来事を時系列で記載（3〜7件推奨）</li>
+<li><strong>「人生の出来事をもう1件追加する」</strong> — 出来事を追加</li>
+<li><strong>まとめ</strong> — 「エネルギーの源泉」「大切にしている価値観」</li>
+<li><strong>鍵付き</strong> の詳細は上司に非公開</li>
+</ul>
+<h4 id="client-操作手順-2">操作手順</h4>
+<ol type="1">
+<li>各時期の出来事・感情スコアを入力</li>
+</ol>
+<figure>
+<img src="./assets/howto-client/4-4-lifeline-02-values.png" alt="価値観の整理" />
+<figcaption aria-hidden="true">価値観の整理</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-client/4-4-lifeline-03-emotion.png" alt="感情スコア" />
+<figcaption aria-hidden="true">感情スコア</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-client/4-4-lifeline-04-events.png" alt="人生の出来事" />
+<figcaption aria-hidden="true">人生の出来事</figcaption>
+</figure>
+<ol start="2" type="1">
+<li><strong>「人生の出来事をもう1件追加する」</strong> で必要な分だけ追加</li>
+</ol>
+<figure>
+<img src="./assets/howto-client/4-4-lifeline-05-add-event.png" alt="出来事の追加" />
+<figcaption aria-hidden="true">出来事の追加</figcaption>
+</figure>
+<ol start="3" type="1">
+<li>出来事を振り返り、「エネルギーの源泉」「大切にしている価値観」を記載</li>
+<li>必要なら鍵付き設定</li>
+<li><strong>「保存する」</strong> をクリック</li>
+</ol>
+<h4 id="client-保存提出-3">保存・提出</h4>
+<p>記載・変更したら、忘れずに <strong>「保存する」</strong> を押してください。</p>
+<h4 id="client-adv-pro-の違い-3">ADV / PRO の違い</h4>
+<p>両プランとも利用できます。</p>
+<h4 id="client-つまずきポイント-3">つまずきポイント</h4>
+<p>鍵付き内容は上司画面に表示されません。</p>
+<hr />
+<h3 id="client-自分fta">4.5 自分FTA</h3>
+<h4 id="client-このタブの目的-4">このタブの目的</h4>
+<p>会社での成長と、自分の人生をつなげます。中心に夢・成し遂げたいこと、周りに価値観、外側に「何を実践するか」のアクションを置きます。</p>
+<h4 id="client-いつ使うか-4">いつ使うか</h4>
+<p>キックオフ後〜前半</p>
+<h4 id="client-開き方-4">開き方</h4>
+<p>マッチルーム → <strong>「自分FTA」</strong> タブ</p>
+<h4 id="client-画面の見方-4">画面の見方</h4>
+<figure>
+<img src="./assets/howto-client/4-5-fta-01-tab.png" alt="自分FTAタブ" />
+<figcaption aria-hidden="true">自分FTAタブ</figcaption>
+</figure>
+<table>
+<thead>
+<tr>
+<th>欄</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>中心</td>
+<td>自分が本当にやりたいこと・夢</td>
+</tr>
+<tr>
+<td>周りの丸</td>
+<td>価値観（ライフラインから）</td>
+</tr>
+<tr>
+<td>アクションアイテム</td>
+<td>今の仕事で実践する行動、関連する重点育成項目</td>
+</tr>
+<tr>
+<td>プレビュー</td>
+<td>完成した自分FTAの表示</td>
+</tr>
+</tbody>
+</table>
+<h4 id="client-操作手順-3">操作手順</h4>
+<ol type="1">
+<li>中心に「成し遂げたいこと」「自分らしい働き方」を記載</li>
+<li>周りの丸に価値観を記載</li>
+</ol>
+<figure>
+<img src="./assets/howto-client/4-5-fta-02-values.png" alt="周りの丸：価値観" />
+<figcaption aria-hidden="true">周りの丸：価値観</figcaption>
+</figure>
+<ol start="3" type="1">
+<li>アクションアイテムに、状況や回数がイメージできる粒度で記載</li>
+</ol>
+<figure>
+<img src="./assets/howto-client/4-5-fta-03-actions.png" alt="アクションアイテム" />
+<figcaption aria-hidden="true">アクションアイテム</figcaption>
+</figure>
+<ol start="4" type="1">
+<li>関連する重点育成項目を選択</li>
+<li>プレビューで確認し <strong>「保存する」</strong> をクリック</li>
+</ol>
+<figure>
+<img src="./assets/howto-client/4-5-fta-04-preview.png" alt="プレビュー" />
+<figcaption aria-hidden="true">プレビュー</figcaption>
+</figure>
+<h4 id="client-保存提出-4">保存・提出</h4>
+<p>記載・変更したら <strong>「保存する」</strong> を押してください。</p>
+<h4 id="client-adv-pro-の違い-4">ADV / PRO の違い</h4>
+<p>両プランとも利用できます。</p>
+<hr />
+<h3 id="client-機会創出">4.6 機会創出</h3>
+<h4 id="client-このタブの目的-5">このタブの目的</h4>
+<p>上司が設計・記入した挑戦機会の内容を確認します。<strong>閲覧のみ</strong>です。内容の編集は上司が行います。</p>
+<h4 id="client-いつ使うか-5">いつ使うか</h4>
+<p>上司が更新した内容を確認するとき</p>
+<h4 id="client-開き方-5">開き方</h4>
+<p>マッチルーム → <strong>「機会創出」</strong> タブ</p>
+<h4 id="client-画面の見方-5">画面の見方</h4>
+<figure>
+<img src="./assets/howto-client/4-6-opportunity.png" alt="機会創出タブ" />
+<figcaption aria-hidden="true">機会創出タブ</figcaption>
+</figure>
+<p>挑戦機会の候補・設定項目。部下は編集不可。</p>
+<h4 id="client-操作手順-4">操作手順</h4>
+<ol type="1">
+<li>タブを開いて内容を確認</li>
+<li>1on1や職場実践で取り組む</li>
+</ol>
+<h4 id="client-保存提出-5">保存・提出</h4>
+<p>部下は保存操作なし（閲覧のみ）。</p>
+<h4 id="client-adv-pro-の違い-5">ADV / PRO の違い</h4>
+<p>両プランとも表示（部下は閲覧のみ）。</p>
+<h4 id="client-つまずきポイント-4">つまずきポイント</h4>
+<p>内容についての詳細やご不明な点は上司に確認・相談してください。</p>
+<hr />
+<h3 id="client-pdca">4.7 PDCA</h3>
+<h4 id="client-このタブの目的-6">このタブの目的</h4>
+<p>行動を習慣化し、小さな成功体験を積み重ねるためのPDCAシートです。<strong>「新規作成」</strong> で次のサイクル用の空シートを開けます（重点テーマ・育成項目・前回の次回アクションを引き継ぎます）。</p>
+<h4 id="client-いつ使うか-6">いつ使うか</h4>
+<p>毎回の1on1前後、職場実践の振り返り時</p>
+<h4 id="client-開き方-6">開き方</h4>
+<p>マッチルーム → <strong>「PDCA」</strong> タブ</p>
+<h4 id="client-画面の見方-6">画面の見方</h4>
+<figure>
+<img src="./assets/howto-client/4-7-pdca-01-tab.png" alt="PDCAタブ" />
+<figcaption aria-hidden="true">PDCAタブ</figcaption>
+</figure>
+<p>重点テーマ、今回取り組む行動、学び・気づき・モヤモヤしたこと、次回アクション、上司コメント。2件目以降は前回の次回アクションが初期値になります。</p>
+<h4 id="client-操作手順-5">操作手順</h4>
+<ol type="1">
+<li><strong>「新規作成」</strong> でPDCAシートを追加</li>
+<li>「今回取り組む行動」に今回の実践テーマを入力</li>
+<li>「取り組んだ結果」「行き詰まったところ」を記載</li>
+</ol>
+<figure>
+<img src="./assets/howto-client/4-7-pdca-02-sheet.png" alt="PDCAシートの記入" />
+<figcaption aria-hidden="true">PDCAシートの記入</figcaption>
+</figure>
+<ol start="4" type="1">
+<li>行き詰まりがある場合、<strong>「保存して、行き詰まり分析シートを開く」</strong> を押下（PDCAを先に保存してから開く）</li>
+<li>行き詰まり分析後、PDCAに戻り <strong>「過去のPDCAシート」</strong> の <strong>「編集」</strong> を押して続きを入力</li>
+</ol>
+<figure>
+<img src="./assets/howto-client/4-7-pdca-03-continue.png" alt="PDCAシートの続き" />
+<figcaption aria-hidden="true">PDCAシートの続き</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-client/4-7-pdca-04-detail.png" alt="PDCAシートの詳細" />
+<figcaption aria-hidden="true">PDCAシートの詳細</figcaption>
+</figure>
+<ol start="6" type="1">
+<li>「学び・気づき・モヤモヤしたこと」「次回アクション」を記載（上司コメントは上司入力後に反映）</li>
+<li><strong>「このシートを保存する」</strong> をクリック</li>
+</ol>
+<h4 id="client-保存提出-6">保存・提出</h4>
+<p>記載・変更したら <strong>「このシートを保存する」</strong> を押してください。行き詰まり分析へ移る前にも必ず保存してください。</p>
+<h4 id="client-adv-pro-の違い-6">ADV / PRO の違い</h4>
+<p>両プランとも利用できます。</p>
+<h4 id="client-つまずきポイント-5">つまずきポイント</h4>
+<p>行き詰まり分析へ移る前にPDCAを保存してください。</p>
+<hr />
+<h3 id="client-行き詰まり分析">4.8 行き詰まり分析</h3>
+<h4 id="client-このタブの目的-7">このタブの目的</h4>
+<p>認知行動療法の考え方で、行動を止めている思考パターンを整理し、思考の癖に気づくためのシートです。</p>
+<h4 id="client-いつ使うか-7">いつ使うか</h4>
+<p>PDCAで行き詰まりがあったとき</p>
+<h4 id="client-開き方-7">開き方</h4>
+<p>マッチルーム → <strong>「行き詰まり分析」</strong> タブ</p>
+<h4 id="client-画面の見方-7">画面の見方</h4>
+<figure>
+<img src="./assets/howto-client/4-8-stagnation-01-tab.png" alt="行き詰まり分析タブ" />
+<figcaption aria-hidden="true">行き詰まり分析タブ</figcaption>
+</figure>
+<p>記入の順番に従って入力します。</p>
+<table>
+<thead>
+<tr>
+<th>欄</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>①出来事</td>
+<td>何が起きたか</td>
+</tr>
+<tr>
+<td>②自動思考（瞬発的な解釈）</td>
+<td>そのときの考え方</td>
+</tr>
+<tr>
+<td>③感情</td>
+<td>感じたこと</td>
+</tr>
+<tr>
+<td>④とった行動</td>
+<td>実際にしたこと</td>
+</tr>
+<tr>
+<td>⑤結果</td>
+<td>どうなったか</td>
+</tr>
+<tr>
+<td>書き換え（別の見方）</td>
+<td>別の解釈</td>
+</tr>
+<tr>
+<td>思考の癖</td>
+<td>パターンとして気づいたこと</td>
+</tr>
+<tr>
+<td>次回から変えたいこと</td>
+<td>改善したい行動・思考</td>
+</tr>
+</tbody>
+</table>
+<h4 id="client-操作手順-6">操作手順</h4>
+<ol type="1">
+<li>PDCAで行き詰まりを記載し、<strong>「保存して、行き詰まり分析シートを開く」</strong> から遷移（またはタブから直接開く）</li>
+</ol>
+<figure>
+<img src="./assets/howto-client/4-8-stagnation-02-sheet.png" alt="行き詰まり分析シート" />
+<figcaption aria-hidden="true">行き詰まり分析シート</figcaption>
+</figure>
+<ol start="2" type="1">
+<li>①出来事 → ③感情 → ④とった行動 → ⑤結果 の順に記載</li>
+<li>②自動思考を記載し、書き換え（別の見方）を記載</li>
+</ol>
+<figure>
+<img src="./assets/howto-client/4-8-stagnation-03-detail.png" alt="行き詰まり分析の詳細" />
+<figcaption aria-hidden="true">行き詰まり分析の詳細</figcaption>
+</figure>
+<ol start="4" type="1">
+<li>思考の癖、次回から変えたいことを記載</li>
+<li><strong>「保存する」</strong> をクリック</li>
+</ol>
+<h4 id="client-保存提出-7">保存・提出</h4>
+<p>記載・変更したら <strong>「保存する」</strong> を押してください。</p>
+<h4 id="client-adv-pro-の違い-7">ADV / PRO の違い</h4>
+<p>両プランとも利用できます。</p>
+<h4 id="client-つまずきポイント-6">つまずきポイント</h4>
+<p>PDCAから移動する場合は先にPDCAを保存してください。</p>
+<hr />
+<h3 id="client-振り返り">4.9 振り返り</h3>
+<h4 id="client-このタブの目的-8">このタブの目的</h4>
+<p>最終月に、活動を通じて起きた変化を言語化します。<strong>アフタースキルチェック（重点育成項目）</strong> と <strong>活動の振り返り</strong> の2部構成です。</p>
+<h4 id="client-いつ使うか-8">いつ使うか</h4>
+<p>プログラム最終月（6か月目）</p>
+<h4 id="client-開き方-8">開き方</h4>
+<p>マッチルーム → <strong>「振り返り」</strong> タブ</p>
+<h4 id="client-画面の見方-8">画面の見方</h4>
+<figure>
+<img src="./assets/howto-client/4-9-reflection-01-after-skill.png" alt="振り返りタブ（アフタースキルチェック）" />
+<figcaption aria-hidden="true">振り返りタブ（アフタースキルチェック）</figcaption>
+</figure>
+<ul>
+<li><strong>アフタースキルチェック</strong> — スキルチェック開始時に選んだ重点育成項目のみ再評価</li>
+<li><strong>活動の振り返り</strong> — 変化・できるようになったこと・継続したいこと 等</li>
+</ul>
+<h4 id="client-操作手順-7">操作手順</h4>
+<ol type="1">
+<li><strong>アフタースキルチェック</strong> で重点育成項目のアフター本人評価を実施（4点以上は評価理由を必須記載）</li>
+<li><strong>「アフター評価を保存する」</strong> をクリック</li>
+</ol>
+<figure>
+<img src="./assets/howto-client/4-9-reflection-02-after-save.png" alt="アフター評価の保存" />
+<figcaption aria-hidden="true">アフター評価の保存</figcaption>
+</figure>
+<ol start="3" type="1">
+<li><strong>活動の振り返り</strong> に以下を記載:</li>
+</ol>
+<figure>
+<img src="./assets/howto-client/4-9-reflection-03-activity.png" alt="活動の振り返り" />
+<figcaption aria-hidden="true">活動の振り返り</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-client/4-9-reflection-04-activity-detail.png" alt="活動の振り返り（詳細）" />
+<figcaption aria-hidden="true">活動の振り返り（詳細）</figcaption>
+</figure>
+<ul>
+<li>活動を通じて変化したこと / できるようになったこと</li>
+<li>行動が変わったこと / 周囲との関係性の変化</li>
+<li>今後も継続したいこと / さらに伸ばしたいこと</li>
+<li>印象に残っているPDCA / 意味があったセッション内容</li>
+</ul>
+<ol start="4" type="1">
+<li><strong>「振り返りを保存する」</strong> をクリック</li>
+</ol>
+<h4 id="client-保存提出-8">保存・提出</h4>
+<p>アフター評価は <strong>「アフター評価を保存する」</strong>、振り返り本文は <strong>「振り返りを保存する」</strong>。保存後、スキルチェック current に反映されます。</p>
+<h4 id="client-adv-pro-の違い-8">ADV / PRO の違い</h4>
+<p>両プランとも利用できます。</p>
+<h4 id="client-つまずきポイント-7">つまずきポイント</h4>
+<p>高得点には具体的な事例を理由欄に書いてください。</p>
+<hr />
+<h2 id="client-よくある質問困ったとき">6. よくある質問・困ったとき</h2>
+<h3 id="client-ログイン表示">6.1 ログイン・表示</h3>
+<p><strong>Q. ログインできない</strong></p>
+<ul>
+<li>メールアドレス・パスワードを確認してください</li>
+<li>別のGoogleアカウントでログインしていないか確認（シークレットウィンドウ推奨）</li>
+<li>解決しない場合はモチベイジのサポートデスクにお問い合わせください</li>
+</ul>
+<p><strong>Q. ホームに想定外のルームが表示される / 表示されない</strong></p>
+<ul>
+<li><strong>割当・アサイン前</strong>は伴走ルームは表示されません（企業割当とパートナーアサイン完了後に表示）</li>
+<li>複数プランに所属している場合、<strong>参加設定されたプランのルームのみ</strong>が表示されます</li>
+</ul>
+<p><strong>Q. 上司でログインしたが「部下の伴走シート」が出ない</strong></p>
+<ul>
+<li>アカウントが上司（CLIENT_ADMIN）として登録され、部下との <strong>上司リンク</strong> が設定されている必要があります</li>
+<li>解決しない場合はモチベイジのサポートデスクにお問い合わせください</li>
+</ul>
+<p><strong>Q. 上司で部下シートを開くと一瞬「閲覧できません」と表示される</strong></p>
+<ul>
+<li>読み込み中の表示であることがあります。数秒待って再表示してください</li>
+<li>続く場合は一度ログアウトして再ログイン</li>
+</ul>
+<p><strong>Q. ロールを変更した直後に操作できない</strong></p>
+<ul>
+<li>ロール変更後は <strong>一度ログアウトして再ログイン</strong> してください</li>
+</ul>
+<h3 id="client-権限編集">6.2 権限・編集</h3>
+<p><strong>Q. 機会創出が編集できない（部下）</strong></p>
+<ul>
+<li>仕様です。機会創出は <strong>上司が編集</strong>、部下は <strong>閲覧のみ</strong> です</li>
+</ul>
+<p><strong>Q. スキルチェックで相手の欄が編集できない</strong></p>
+<ul>
+<li>本人は本人欄のみ、上司は上司欄のみ編集できます</li>
+</ul>
+<p><strong>Q. 自分FTAのタブがない</strong></p>
+<ul>
+<li>ご利用のプランにより、表示されるタブの構成が異なります</li>
+</ul>
+<p><strong>Q. 総括レポートが見えない（部下）</strong></p>
+<ul>
+<li>総括レポートは <strong>モチベイジから上司への最終報告</strong> のため、部下には表示されません</li>
+</ul>
+<h3 id="client-on1日程">6.3 1on1・日程</h3>
+<p><strong>Q. 1on1タブでセッション振り返りが入力できない</strong></p>
+<ul>
+<li>セッション <strong>終了後</strong> のみ入力可能です。「終了後に入力できます」と表示されている場合は、セッション実施後にお試しください</li>
+</ul>
+<p><strong>Q. 「振り返り」タブ（6か月目）が使えない / 入力できない</strong></p>
+<ul>
+<li><strong>「振り返り」タブ</strong> はプログラム最終月（6か月目）の6か月振り返り用です。時期が早い場合は表示・入力できないことがあります</li>
+</ul>
+<p><strong>Q. 第2回の日程に第1回の候補が出てくる</strong></p>
+<ul>
+<li>回ごとに候補が分離されています。該当する回の回答欄を選んでください</li>
+</ul>
+<h3 id="client-シート操作">6.4 シート操作</h3>
+<p><strong>Q. PDCAから行き詰まり分析に移ったら内容が消えた</strong></p>
+<ul>
+<li>タブを切り替える前に <strong>PDCAを保存</strong> してください</li>
+</ul>
+<p><strong>Q. 重点育成が4つ選べない</strong></p>
+<ul>
+<li>重点育成は <strong>最大3つ</strong> までです（仕様）</li>
+</ul>
+<p><strong>Q. アフター評価で4点以上が保存できない</strong></p>
+<ul>
+<li><strong>評価理由</strong> の記入が必須です。具体的な事例を書いてください</li>
+</ul>
+<h3 id="client-プランの違い再掲">6.5 プランの違い（再掲）</h3>
+<p><a href="#ops-エグゼクティブ伴走とスタンダード伴走の違い">§3 エグゼクティブ伴走とスタンダード伴走の違い</a> を参照してください。主な違いは <strong>1on1の頻度・回数（24回 / 12回）</strong> と <strong>人材育成会議の頻度（月1回 / 隔月）</strong> です。利用できるタブの種類は同じです。</p>
+<h3 id="client-お問い合わせ">6.6 お問い合わせ</h3>
+<p>操作方法やツールの作成方法については、担当パートナーではなく、モチベイジのサポートデスクまでご連絡ください。</p>
+<hr />
+<p><em>本ガイドは QA 検証結果（2026年8月）および個別伴走プラン仕様に基づいています。画面はアップデートにより変更される場合があります。</em></p>
+
+    </section>
+    <section id="panel-supervisor" class="tab-panel" data-tab="supervisor" role="tabpanel" hidden>
+<h1 id="supervisor-上司-部下の伴走シートの使い方">上司 — 部下の伴走シートの使い方</h1>
+<h2 id="supervisor-上司-部下の伴走シートの使い方-1">5. 上司 — 部下の伴走シートの使い方</h2>
+<h3 id="supervisor-入り口と画面の違い">5.0 入り口と画面の違い</h3>
+<p>上司（CLIENT_ADMIN）は、部下と <strong>別の画面構成</strong> でシートにアクセスします。</p>
+<p><strong>「部下の伴走シート」</strong> は、企業への割当・部下との上司リンク設定・パートナーのアサインが完了している場合にヘッダーに表示されます。未設定の間は表示されません。</p>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>部下</th>
+<th>上司</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>入り口</td>
+<td>マッチルーム一覧</td>
+<td>ヘッダー <strong>「部下の伴走シート」</strong></td>
+</tr>
+<tr>
+<td>チャット・日程・1on1</td>
+<td>あり</td>
+<td><strong>なし</strong>（sheets-only）</td>
+</tr>
+<tr>
+<td>プロジェクト概要</td>
+<td>あり</td>
+<td><strong>なし</strong></td>
+</tr>
+<tr>
+<td>スキルチェック単独タブ</td>
+<td>—</td>
+<td><strong>なし</strong>（廃止済み）</td>
+</tr>
+</tbody>
+</table>
+<h4 id="supervisor-開き方">開き方</h4>
+<ol type="1">
+<li>画面上部の <strong>「部下の伴走シート」</strong> をクリック</li>
+<li>紐づけられた部下のお名前を確認のうえ、<strong>「シートを開く」</strong> を押下</li>
+<li>タブで各シートを開く</li>
+</ol>
+<figure>
+<img src="./assets/howto-supervisor/5-0-entry-01-tab.png" alt="部下の伴走シートタブ" />
+<figcaption aria-hidden="true">部下の伴走シートタブ</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-supervisor/5-0-entry-02-open-sheet.png" alt="シートを開く" />
+<figcaption aria-hidden="true">シートを開く</figcaption>
+</figure>
+<p>部下のシートには、ライフライン、スキルチェック、自分FTA、機会創出、PDCA、行き詰まり分析、振り返り、<strong>総括レポート</strong> がそれぞれのタブで確認できます。</p>
+<hr />
+<h3 id="supervisor-スキルチェック上司">5.1 スキルチェック（上司）</h3>
+<h4 id="supervisor-このタブの目的">このタブの目的</h4>
+<p>部下の強み・育成課題を上司視点で評価し、重点育成と成長合意を決めます。</p>
+<h4 id="supervisor-いつ使うか">いつ使うか</h4>
+<p>キックオフ後、人材育成会議前後、プログラム終了時</p>
+<h4 id="supervisor-開き方-1">開き方</h4>
+<p>部下の伴走シート → 部下選択 → <strong>「スキルチェック」</strong></p>
+<h4 id="supervisor-画面の見方">画面の見方</h4>
+<figure>
+<img src="./assets/howto-supervisor/5-1-skill-01-definition.png" alt="スキル定義" />
+<figcaption aria-hidden="true">スキル定義</figcaption>
+</figure>
+<p>部下が入力した <strong>本人評価</strong> を閲覧し、<strong>上司評価</strong> 欄のみ編集できます。ギャップ（評価差）が表示されます。</p>
+<h4 id="supervisor-操作手順">操作手順</h4>
+<ol type="1">
+<li>部下の伴走シートで対象部下の <strong>「シートを開く」</strong> を押す</li>
+<li>「スキルチェック」タブを開く</li>
+<li>必要なら <strong>「項目を編集」</strong> でスキル項目を追加・変更（上司・部下双方が編集可能）</li>
+</ol>
+<figure>
+<img src="./assets/howto-supervisor/5-1-skill-02-rating.png" alt="スキルごとの評価" />
+<figcaption aria-hidden="true">スキルごとの評価</figcaption>
+</figure>
+<ol start="4" type="1">
+<li>各項目の <strong>上司評価</strong> を基準の文言を参考に1〜5点で選択</li>
+<li>レーダーチャートでギャップを確認</li>
+</ol>
+<figure>
+<img src="./assets/howto-supervisor/5-1-skill-03-gap.png" alt="ギャップの可視化" />
+<figcaption aria-hidden="true">ギャップの可視化</figcaption>
+</figure>
+<ol start="6" type="1">
+<li><strong>重点育成項目</strong> を本人と話し合い1〜3項目選択</li>
+</ol>
+<figure>
+<img src="./assets/howto-supervisor/5-1-skill-04-focus.png" alt="重点育成項目" />
+<figcaption aria-hidden="true">重点育成項目</figcaption>
+</figure>
+<ol start="7" type="1">
+<li><strong>成長・挑戦合意</strong> に上司として本人に期待する役割を記載</li>
+<li><strong>「項目と評価を保存する」</strong> をクリック</li>
+</ol>
+<h4 id="supervisor-保存提出">保存・提出</h4>
+<p><strong>「項目と評価を保存する」</strong> で保存してください。</p>
+<h4 id="supervisor-部下との違い">部下との違い</h4>
+<p>上司は上司欄のみ編集。本人欄は閲覧のみ。</p>
+<hr />
+<h3 id="supervisor-ライフライン上司">5.2 ライフライン（上司）</h3>
+<h4 id="supervisor-このタブの目的-1">このタブの目的</h4>
+<p>部下のライフラインチャートを閲覧し、育成の文脈を理解します。</p>
+<h4 id="supervisor-いつ使うか-1">いつ使うか</h4>
+<p>キックオフ後、人材育成会議の準備時</p>
+<h4 id="supervisor-開き方-2">開き方</h4>
+<p>部下の伴走シート → <strong>「ライフライン」</strong></p>
+<h4 id="supervisor-画面の見方-1">画面の見方</h4>
+<figure>
+<img src="./assets/howto-supervisor/5-2-lifeline.png" alt="ライフライン（上司）" />
+<figcaption aria-hidden="true">ライフライン（上司）</figcaption>
+</figure>
+<p>部下が登録した出来事を閲覧。<strong>鍵付きの詳細は非表示</strong>です。</p>
+<h4 id="supervisor-操作手順-1">操作手順</h4>
+<ol type="1">
+<li>タブを開いて内容を確認</li>
+<li>1on1面談や育成会議の参考にする</li>
+</ol>
+<h4 id="supervisor-保存提出-1">保存・提出</h4>
+<p>上司は通常、編集しません（閲覧中心）。</p>
+<h4 id="supervisor-部下との違い-1">部下との違い</h4>
+<p>鍵付き詳細は見えません。</p>
+<hr />
+<h3 id="supervisor-自分fta上司">5.3 自分FTA（上司）</h3>
+<h4 id="supervisor-このタブの目的-2">このタブの目的</h4>
+<p>部下のありたい姿・アクションを閲覧し、職場での支援に活かします。</p>
+<h4 id="supervisor-いつ使うか-2">いつ使うか</h4>
+<p>部下がFTAを作成した後</p>
+<h4 id="supervisor-開き方-3">開き方</h4>
+<p>部下の伴走シート → <strong>「自分FTA」</strong></p>
+<h4 id="supervisor-画面の見方-2">画面の見方</h4>
+<figure>
+<img src="./assets/howto-supervisor/5-3-fta.png" alt="自分FTA（上司）" />
+<figcaption aria-hidden="true">自分FTA（上司）</figcaption>
+</figure>
+<p>部下が入力した内容を閲覧。ロックされた欄はマスク表示されます。</p>
+<h4 id="supervisor-操作手順-2">操作手順</h4>
+<p>内容を確認し、機会創出や日常の声かけに活かす。</p>
+<h4 id="supervisor-保存提出-2">保存・提出</h4>
+<p>閲覧中心（編集権限は設定により異なります）。</p>
+<h4 id="supervisor-adv-pro-の違い">ADV / PRO の違い</h4>
+<p>両プランとも利用できます。</p>
+<hr />
+<h3 id="supervisor-機会創出上司">5.4 機会創出（上司）</h3>
+<h4 id="supervisor-このタブの目的-3">このタブの目的</h4>
+<p>部下に与える <strong>挑戦機会</strong> を計画・記録します。上司が <strong>編集</strong> するシートです。</p>
+<h4 id="supervisor-いつ使うか-3">いつ使うか</h4>
+<p>キックオフ後、人材育成会議の前後、育成方針の見直し時</p>
+<h4 id="supervisor-開き方-4">開き方</h4>
+<p>部下の伴走シート → <strong>「機会創出」</strong></p>
+<h4 id="supervisor-画面の見方-3">画面の見方</h4>
+<figure>
+<img src="./assets/howto-supervisor/5-4-opportunity-01-tab.png" alt="機会創出タブ" />
+<figcaption aria-hidden="true">機会創出タブ</figcaption>
+</figure>
+<p>挑戦機会候補バンクの例を参考に、各項目を入力します。</p>
+<h4 id="supervisor-操作手順-3">操作手順</h4>
+<ol type="1">
+<li>「機会創出」タブを開く</li>
+<li>本人の重点育成項目と自分FTAのアクションを参考に、挑戦機会を記載</li>
+</ol>
+<figure>
+<img src="./assets/howto-supervisor/5-4-opportunity-02-input.png" alt="挑戦機会の入力" />
+<figcaption aria-hidden="true">挑戦機会の入力</figcaption>
+</figure>
+<ol start="3" type="1">
+<li>例を選ぶと入力欄に反映される。例を参考に <strong>必須</strong> 項目を中心に具体的に記載</li>
+<li>残りの項目を記載</li>
+</ol>
+<figure>
+<img src="./assets/howto-supervisor/5-4-opportunity-03-detail.png" alt="挑戦機会の詳細" />
+<figcaption aria-hidden="true">挑戦機会の詳細</figcaption>
+</figure>
+<ol start="5" type="1">
+<li><strong>「項目と評価を保存する」</strong> をクリック</li>
+</ol>
+<h4 id="supervisor-保存提出-3">保存・提出</h4>
+<p>記載・変更したら <strong>「項目と評価を保存する」</strong> を押してください。</p>
+<h4 id="supervisor-部下との違い-2">部下との違い</h4>
+<p>上司は <strong>編集・保存可</strong>。部下は閲覧のみ。</p>
+<hr />
+<h3 id="supervisor-pdca上司">5.5 PDCA（上司）</h3>
+<h4 id="supervisor-このタブの目的-4">このタブの目的</h4>
+<p>部下の行動記録を閲覧し、<strong>上司コメント</strong> でフィードバックします。</p>
+<h4 id="supervisor-いつ使うか-4">いつ使うか</h4>
+<p>部下がPDCAを更新した後、1on1面談前後</p>
+<h4 id="supervisor-開き方-5">開き方</h4>
+<p>部下の伴走シート → <strong>「PDCA」</strong></p>
+<h4 id="supervisor-画面の見方-4">画面の見方</h4>
+<figure>
+<img src="./assets/howto-supervisor/5-5-pdca-01-tab.png" alt="PDCAタブ" />
+<figcaption aria-hidden="true">PDCAタブ</figcaption>
+</figure>
+<p>部下が入力した各PDCAシートと、<strong>上司コメント</strong> 欄があります。</p>
+<h4 id="supervisor-操作手順-4">操作手順</h4>
+<ol type="1">
+<li>「PDCA」タブを開く</li>
+<li><strong>「過去のPDCAシート」</strong> の <strong>「編集」</strong> を押す</li>
+<li>PDCAシートを上にスクロールし、<strong>「上司コメント」</strong> を記載</li>
+</ol>
+<figure>
+<img src="./assets/howto-supervisor/5-5-pdca-02-comment.png" alt="上司コメントの記入" />
+<figcaption aria-hidden="true">上司コメントの記入</figcaption>
+</figure>
+<ol start="4" type="1">
+<li><strong>「このシートを保存する」</strong> をクリック</li>
+</ol>
+<h4 id="supervisor-保存提出-4">保存・提出</h4>
+<p>記載・変更したら <strong>「このシートを保存する」</strong> を押してください。</p>
+<h4 id="supervisor-部下との違い-3">部下との違い</h4>
+<p>上司は上司コメント欄を編集。本体のPDCA欄は部下が入力。</p>
+<hr />
+<h3 id="supervisor-行き詰まり分析上司">5.6 行き詰まり分析（上司）</h3>
+<h4 id="supervisor-このタブの目的-5">このタブの目的</h4>
+<p>部下の行き詰まり分析を閲覧し、支援のヒントを得ます。</p>
+<h4 id="supervisor-いつ使うか-5">いつ使うか</h4>
+<p>部下が行き詰まり分析を作成した後</p>
+<h4 id="supervisor-開き方-6">開き方</h4>
+<p>部下の伴走シート → <strong>「行き詰まり分析」</strong></p>
+<h4 id="supervisor-画面の見方-5">画面の見方</h4>
+<figure>
+<img src="./assets/howto-supervisor/5-6-stagnation.png" alt="行き詰まり分析（上司）" />
+<figcaption aria-hidden="true">行き詰まり分析（上司）</figcaption>
+</figure>
+<p>部下が記録した出来事・思考の癖・次回から変えたいことを閲覧します。</p>
+<h4 id="supervisor-操作手順-5">操作手順</h4>
+<p>内容を確認し、職場での支援や機会創出に活かす。</p>
+<h4 id="supervisor-保存提出-5">保存・提出</h4>
+<p>閲覧中心です。</p>
+<hr />
+<h3 id="supervisor-振り返り上司">5.7 振り返り（上司）</h3>
+<h4 id="supervisor-このタブの目的-6">このタブの目的</h4>
+<p>部下のセッション振り返りを閲覧し、<strong>アフタースキルチェックの上司評価</strong> を入力します。</p>
+<h4 id="supervisor-いつ使うか-6">いつ使うか</h4>
+<p>プログラム最終月（6か月目）。部下の6か月振り返りに対するアフター上司評価を入力するとき</p>
+<h4 id="supervisor-開き方-7">開き方</h4>
+<p>部下の伴走シート → <strong>「振り返り」</strong></p>
+<h4 id="supervisor-画面の見方-6">画面の見方</h4>
+<figure>
+<img src="./assets/howto-supervisor/5-7-reflection.png" alt="振り返り（上司）" />
+<figcaption aria-hidden="true">振り返り（上司）</figcaption>
+</figure>
+<p>部下の振り返りと、アフター評価（重点育成項目）の上司欄があります。</p>
+<h4 id="supervisor-操作手順-6">操作手順</h4>
+<ol type="1">
+<li>「振り返り」タブを開く</li>
+<li>重点育成項目について <strong>アフター上司評価</strong> を実施（4点以上は具体的な事例を理由欄に記載）</li>
+<li><strong>「アフター評価を保存する」</strong> をクリック</li>
+</ol>
+<h4 id="supervisor-保存提出-6">保存・提出</h4>
+<p><strong>「アフター評価を保存する」</strong> で保存。スキルチェックに反映されます。</p>
+<h4 id="supervisor-部下との違い-4">部下との違い</h4>
+<p>上司はアフター評価の上司欄のみ編集。</p>
+<hr />
+<h3 id="supervisor-総括レポート上司向け">5.8 総括レポート（上司向け）</h3>
+<h4 id="supervisor-このタブの目的-7">このタブの目的</h4>
+<p><strong>モチベイジから上司への、プログラム終了時の最終報告レポート</strong>です。部下が6か月間に記入した振り返り、パートナー所感、モチベイジの総括コメントなどが含まれます。<strong>部下のマッチルームには表示されません。</strong></p>
+<h4 id="supervisor-いつ使うか-7">いつ使うか</h4>
+<p>プログラム終了時、人材育成会議の準備時</p>
+<h4 id="supervisor-開き方-8">開き方</h4>
+<p>部下の伴走シート → <strong>「総括レポート」</strong></p>
+<h4 id="supervisor-画面の見方-7">画面の見方</h4>
+<figure>
+<img src="./assets/howto-supervisor/5-8-summary-01-chart.png" alt="総括レポート（Before/After）" />
+<figcaption aria-hidden="true">総括レポート（Before/After）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-supervisor/5-8-summary-02-reflection.png" alt="総括レポート（本人の振り返り）" />
+<figcaption aria-hidden="true">総括レポート（本人の振り返り）</figcaption>
+</figure>
+<ul>
+<li><strong>重点育成項目のBefore / After</strong> — 左が開始時、右が終了時（本人・上司評価）</li>
+<li><strong>本人の振り返り</strong> — 部下が記載した振り返り</li>
+<li><strong>パートナー所感</strong> — パートナーが記載（<a href="#partner">パートナー向けガイド</a> 参照）</li>
+<li><strong>モチベイジ総括コメント・今後の提言</strong> — 運営が記載</li>
+</ul>
+<h4 id="supervisor-操作手順-7">操作手順</h4>
+<ol type="1">
+<li>「総括レポート」タブを開く</li>
+<li>レーダーチャートで Before/After の変化を確認</li>
+<li>本人の振り返り・各コメント欄を確認</li>
+<li>上司として記入欄があれば所見を記入し <strong>「コメントを保存」</strong> をクリック</li>
+</ol>
+<h4 id="supervisor-部下との違い-5">部下との違い</h4>
+<p><strong>部下のマッチルームには総括タブはありません。</strong></p>
+<h4 id="supervisor-つまずきポイント">つまずきポイント</h4>
+<p>スキルチェックに before/after データがあると、レーダーチャートが表示されます。</p>
+<hr />
+
+    </section>
+    <section id="panel-partner" class="tab-panel" data-tab="partner" role="tabpanel" hidden>
+<h1 id="partner-パートナー向けガイド">パートナー向けガイド</h1>
+<blockquote>
+<p><strong>対象:</strong> パートナー（PARTNER）<br />
+<strong>プラン:</strong> エグゼクティブ伴走 / スタンダード伴走<br />
+<strong>最終更新:</strong> 2026年8月14日</p>
+</blockquote>
+<h2 id="partner-はじめに">1. はじめに</h2>
+<h3 id="partner-パートナーの役割">1.1 パートナーの役割</h3>
+<ul>
+<li>1on1セッションのファシリテーション（問いかけ・内省の支援）</li>
+<li>マッチルームでのチャット・日程調整・セッション運用</li>
+<li>成果物シートの閲覧（スキルチェック・機会創出は<strong>閲覧のみ</strong>。編集は受講者本人または上司の欄）</li>
+<li>プログラム終了時の <strong>総括レポート「パートナー所感」</strong> の記入</li>
+</ul>
+<p>人物評価・査定は行いません。</p>
+<h3 id="partner-情報共有の範囲">1.2 情報共有の範囲</h3>
+<p><strong>共有しないもの</strong></p>
+<ul>
+<li>セッションで話した具体的な内容</li>
+<li>本人の個人的な悩みや感情</li>
+<li>本人が共有を希望しない情報</li>
+</ul>
+<p><strong>人物評価・査定について</strong></p>
+<ul>
+<li>パートナーは人物評価・査定を<strong>行いません</strong></li>
+<li>パートナー所感は、成長プロセスへのフィードバックとして総括レポートに記載されます（査定ではありません）</li>
+</ul>
+<p><strong>組織と共有するもの</strong></p>
+<ul>
+<li>成果物シートに基づく成長テーマ・行動計画・進捗の要点</li>
+<li>総括レポートを通じた、上司・組織への所感の共有</li>
+</ul>
+<hr />
+<h2 id="partner-ログインとマッチルーム入口">2. ログインとマッチルーム入口</h2>
+<h3 id="partner-ログイン">2.1 ログイン</h3>
+<ol type="1">
+<li>https://companion-scheduling–motive-iji-cloud-1e300.asia-east1.hosted.app/login</li>
+<li>運営から案内されたメールでログイン（Google またはメール＋パスワード）</li>
+<li><strong>マッチ割当が完了している場合</strong>、ログイン後に <strong>担当マッチの一覧</strong> が表示される（未割当の間は表示されません）</li>
+</ol>
+<figure>
+<img src="./assets/howto-partner/match-list.png" alt="担当マッチ一覧" />
+<figcaption aria-hidden="true">担当マッチ一覧</figcaption>
+</figure>
+<p>詳細は <a href="#ops-パートナーpartner-登録マッチ割当後">モチベイジタブ §3</a> を参照。</p>
+<h3 id="partner-マッチルームを開く">2.2 マッチルームを開く</h3>
+<ol type="1">
+<li>ホーム画面で担当部下とのマッチ（伴走ルーム）を選択</li>
+<li><strong>「ルームを開く」</strong> を押してマッチルームに入る</li>
+</ol>
+<figure>
+<img src="./assets/howto-partner/match-room.png" alt="マッチルーム" />
+<figcaption aria-hidden="true">マッチルーム</figcaption>
+</figure>
+<hr />
+<h2 id="partner-マッチルームでできること">3. マッチルームでできること</h2>
+<figure>
+<img src="./assets/howto-partner/match-room.png" alt="マッチルームのタブ一覧" />
+<figcaption aria-hidden="true">マッチルームのタブ一覧</figcaption>
+</figure>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 75%" />
+</colgroup>
+<thead>
+<tr>
+<th>タブ</th>
+<th>パートナーの権限</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>プロジェクト概要</td>
+<td>閲覧</td>
+</tr>
+<tr>
+<td><strong>1on1セッション</strong></td>
+<td>チャット・日程候補送信・セッション詳細・セッション振り返りの閲覧</td>
+</tr>
+<tr>
+<td>スキルチェック</td>
+<td><strong>閲覧のみ</strong></td>
+</tr>
+<tr>
+<td>ライフライン</td>
+<td>閲覧</td>
+</tr>
+<tr>
+<td>自分FTA</td>
+<td>閲覧</td>
+</tr>
+<tr>
+<td>機会創出</td>
+<td><strong>閲覧のみ</strong>（編集は上司）</td>
+</tr>
+<tr>
+<td>PDCA / 行き詰まり分析 / 振り返り</td>
+<td>閲覧</td>
+</tr>
+<tr>
+<td><strong>クライアント情報</strong></td>
+<td>パートナー専用タブ</td>
+</tr>
+<tr>
+<td><strong>総括レポート</strong></td>
+<td>パートナー所感の編集可</td>
+</tr>
+</tbody>
+</table>
+<p>部下向けの各シート操作の詳細は <a href="#client">受講者タブ</a> を参照（権限の違いに注意）。</p>
+<p><strong>セッション振り返りと振り返りタブ:</strong> 「1on1セッション」タブ内の <strong>セッション振り返り</strong> は各回の所感メモです。6か月プログラム全体の振り返りシートは <strong>振り返り</strong> タブ（別タブ）です。</p>
+<h3 id="partner-on1セッションの日程調整詳細版">3.1 1on1セッションの日程調整（詳細版）</h3>
+<p>スケジュール調整の画面操作を、資料のページ順（PPT 53〜73ページ）に説明します。パートナーと受講者の双方の操作が含まれます。</p>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-54.png" alt="「1on1セッション」タブを開いた画面" />
+<figcaption aria-hidden="true">「1on1セッション」タブを開いた画面</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-55.png" alt="パートナー向け：日程調整機能の使い方（チャット）" />
+<figcaption aria-hidden="true">パートナー向け：日程調整機能の使い方（チャット）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-56.png" alt="パートナー向け：1on1セッション日程の決め方" />
+<figcaption aria-hidden="true">パートナー向け：1on1セッション日程の決め方</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-57.png" alt="候補日をまとめて作る（第1回）" />
+<figcaption aria-hidden="true">候補日をまとめて作る（第1回）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-58.png" alt="候補日をまとめて作る（第2回）" />
+<figcaption aria-hidden="true">候補日をまとめて作る（第2回）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-59.png" alt="すべての調整ログ（パートナー）" />
+<figcaption aria-hidden="true">すべての調整ログ（パートナー）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-60.png" alt="実施・振り返りのステータス（パートナー）" />
+<figcaption aria-hidden="true">実施・振り返りのステータス（パートナー）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-61.png" alt="ホーム：候補日への回答（受講者）" />
+<figcaption aria-hidden="true">ホーム：候補日への回答（受講者）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-62.png" alt="1on1セッションタブ：日程調整（受講者）" />
+<figcaption aria-hidden="true">1on1セッションタブ：日程調整（受講者）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-63.png" alt="日程調整：第1回の回答（受講者）" />
+<figcaption aria-hidden="true">日程調整：第1回の回答（受講者）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-64.png" alt="日程調整：第2回の回答（受講者）" />
+<figcaption aria-hidden="true">日程調整：第2回の回答（受講者）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-65.png" alt="すべての調整ログ（受講者）" />
+<figcaption aria-hidden="true">すべての調整ログ（受講者）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-66.png" alt="ホーム：日程を決定する（パートナー）" />
+<figcaption aria-hidden="true">ホーム：日程を決定する（パートナー）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-67.png" alt="日程を確定する：第1回（パートナー）" />
+<figcaption aria-hidden="true">日程を確定する：第1回（パートナー）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-68.png" alt="日程を確定する：第2回・開始時間の微調整（パートナー）" />
+<figcaption aria-hidden="true">日程を確定する：第2回・開始時間の微調整（パートナー）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-69.png" alt="すべての調整ログ（パートナー・確定後）" />
+<figcaption aria-hidden="true">すべての調整ログ（パートナー・確定後）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-70.png" alt="実施・振り返り：会議リンク設定後" />
+<figcaption aria-hidden="true">実施・振り返り：会議リンク設定後</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-71.png" alt="1回目のセッション：ガイドライン確認（パートナー）" />
+<figcaption aria-hidden="true">1回目のセッション：ガイドライン確認（パートナー）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-72.png" alt="設定済セッションの日程変更（案内）" />
+<figcaption aria-hidden="true">設定済セッションの日程変更（案内）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-shared/1on1-schedule-detail-73.png" alt="設定済セッションの日程変更：候補日の送り方（パートナー）" />
+<figcaption aria-hidden="true">設定済セッションの日程変更：候補日の送り方（パートナー）</figcaption>
+</figure>
+<hr />
+<h2 id="partner-総括レポートパートナー所感">4. 総括レポート（パートナー所感）</h2>
+<h3 id="partner-いつ使うか">4.1 いつ使うか</h3>
+<p>プログラム終了時（6か月目）。モチベイジから上司への最終報告レポートのうち、<strong>パートナー所感欄</strong>を記入するとき。</p>
+<h3 id="partner-開き方">4.2 開き方</h3>
+<ol type="1">
+<li>マッチルームを開く</li>
+<li><strong>「総括レポート」</strong> タブをクリック</li>
+</ol>
+<figure>
+<img src="./assets/howto-partner/summary-report-01.png" alt="総括レポート（Before/After）" />
+<figcaption aria-hidden="true">総括レポート（Before/After）</figcaption>
+</figure>
+<figure>
+<img src="./assets/howto-partner/summary-report-02.png" alt="総括レポート（本人の振り返り）" />
+<figcaption aria-hidden="true">総括レポート（本人の振り返り）</figcaption>
+</figure>
+<h3 id="partner-操作手順">4.3 操作手順</h3>
+<ol type="1">
+<li><strong>重点育成項目のBefore / After</strong> レーダーチャートで変化を確認</li>
+<li><strong>パートナー所感</strong> 欄に、受講者の取り組みについて感じたことを記載（人物評価・査定ではなく、成長プロセスへの所感）</li>
+<li><strong>「コメントを保存」</strong> をクリック</li>
+</ol>
+<h3 id="partner-記載のヒント">4.4 記載のヒント</h3>
+<ul>
+<li>具体的な発言や行動の特徴を含めると、上司・人事への共有に役立ちます</li>
+<li>人物評価・査定ではなく、成長プロセスへの所感として記載してください</li>
+</ul>
+<hr />
+<h2 id="partner-セッションガイドライン目次">5. セッションガイドライン（目次）</h2>
+<p>各回のテーマと対話の目指す状態。詳細はスライド資料または今後拡充予定。</p>
+<table>
+<thead>
+<tr>
+<th>回</th>
+<th>テーマ（クライアント向け）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>第1回</td>
+<td>これまでの経験を振り返る（ライフラインチャート）</td>
+</tr>
+<tr>
+<td>第2回</td>
+<td>幸福度が動いた理由を振り返る</td>
+</tr>
+<tr>
+<td>第3回</td>
+<td>自分が大切にしてきたことを見つける</td>
+</tr>
+<tr>
+<td>第4回</td>
+<td>自分の価値観を整理する</td>
+</tr>
+</tbody>
+</table>
+<p>パートナー向けの進め方: 「クライアントの状況に合わせて、パートナーの専門性を活かしてご判断ください。」</p>
+<hr />
+<h2 id="partner-セッション別所感メモ目次">6. セッション別所感メモ（目次）</h2>
+<p>総括レポート作成時の参考メモ（プログラム中に記録）。</p>
+<table>
+<colgroup>
+<col style="width: 26%" />
+<col style="width: 73%" />
+</colgroup>
+<thead>
+<tr>
+<th>回</th>
+<th>記録テーマ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>第7回</td>
+<td>クライアントの強み（具体的な発言・行動の特徴）</td>
+</tr>
+<tr>
+<td>第8回</td>
+<td>今後向き合うと成長につながるテーマ</td>
+</tr>
+<tr>
+<td>第14回</td>
+<td>初回と比較した考え方・捉え方の変化</td>
+</tr>
+<tr>
+<td>第15回</td>
+<td>ありたい姿に向けて業務で始めたこと・変えたこと</td>
+</tr>
+<tr>
+<td>第16回</td>
+<td>行動を後押し/難しくしている職場環境の要因（本人の語りベース）</td>
+</tr>
+<tr>
+<td>第22回</td>
+<td>最も大きな変化</td>
+</tr>
+<tr>
+<td>第23回</td>
+<td>継続して行うようになったこと</td>
+</tr>
+<tr>
+<td>第24回</td>
+<td>今後さらに取り組むと有効なテーマ</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><em>本ガイドは QA 検証結果（2026年8月）および個別伴走プラン仕様に基づいています。画面はアップデートにより変更される場合があります。</em></p>
+
+    </section>
+    <section id="panel-ops" class="tab-panel" data-tab="ops" role="tabpanel" hidden>
+<h1 id="ops-モチベイジ運営-登録初回入口">モチベイジ（運営）— 登録・初回入口</h1>
+<blockquote>
+<p><strong>対象:</strong> 運営（モチベイジ）が主な読者。クライアント・パートナーも「自分の入口はここ」を確認できます。<br />
+<strong>最終更新:</strong> 2026年8月14日</p>
+</blockquote>
+<p><strong>タブ間リンク</strong></p>
+<ul>
+<li><a href="#client">受講者タブ</a> — マッチルーム・各シートの使い方</li>
+<li><a href="#supervisor">上司タブ</a> — 部下の伴走シート</li>
+<li><a href="#partner">パートナータブ</a> — パートナー向け入口・総括レポート</li>
+</ul>
+<blockquote>
+<p>初期設定・受講者・上司・パートナー・運営向け操作ガイド<br />
+最終更新: 2026年8月14日</p>
+</blockquote>
+<h2 id="ops-初期設定">1. 初期設定</h2>
+<h3 id="ops-本ガイドの目的">1.1 本ガイドの目的</h3>
+<p>Motive-iji Cloud は、1on1セッションと成果物シートを通じて、<strong>本人の成長を継続的に支援する</strong>クラウドツールです。本ガイドでは、個別伴走プランにおける、<strong>部下（受講者）</strong> と <strong>上司</strong> の基本的な操作方法を説明します。</p>
+<h3 id="ops-関係者と役割">1.2 関係者と役割</h3>
+<table>
+<colgroup>
+<col style="width: 57%" />
+<col style="width: 42%" />
+</colgroup>
+<thead>
+<tr>
+<th>関係者</th>
+<th>役割</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>受講者（部下）</strong></td>
+<td>1on1への参加、各シートへの入力、職場での行動実践</td>
+</tr>
+<tr>
+<td><strong>パートナー</strong></td>
+<td>内省の支援、問いかけ、行動計画の具体化（人物評価・査定は行いません）</td>
+</tr>
+<tr>
+<td><strong>直属上司</strong></td>
+<td>職場での実践を見て、上司評価の入力、育成方針の検討</td>
+</tr>
+<tr>
+<td><strong>モチベイジ</strong></td>
+<td>プログラム運営、本人支援と組織支援の接続</td>
+</tr>
+</tbody>
+</table>
+<h3 id="ops-情報共有の範囲">1.3 情報共有の範囲</h3>
+<p><strong>共有しないもの</strong></p>
+<ul>
+<li>セッションで話した具体的な内容</li>
+<li>本人の個人的な悩みや感情</li>
+<li>本人が共有を希望しない情報</li>
+</ul>
+<p><strong>人物評価・査定について</strong></p>
+<ul>
+<li>パートナーは人物評価・査定を<strong>行いません</strong></li>
+<li>パートナー所感や成長プロセスへのフィードバックは、成果物シートや総括レポートを通じて上司・組織と共有されます（査定ではありません）</li>
+</ul>
+<p><strong>組織と共有するもの</strong></p>
+<ul>
+<li>本人が取り組む成長テーマ</li>
+<li>職場で実践する行動</li>
+<li>上司に求める支援</li>
+<li>成果物シートに基づく進捗の要点</li>
+<li>組織側で検討すべき環境上の課題</li>
+</ul>
+<h3 id="ops-主な成果物">1.4 主な成果物</h3>
+<table>
+<colgroup>
+<col style="width: 57%" />
+<col style="width: 42%" />
+</colgroup>
+<thead>
+<tr>
+<th>成果物</th>
+<th>目的</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ライフラインチャート</td>
+<td>経験や感情の変化を振り返り、自己理解を深める</td>
+</tr>
+<tr>
+<td>スキルチェック</td>
+<td>本人と上司の評価から、強みや育成課題を把握する</td>
+</tr>
+<tr>
+<td>自分FTA</td>
+<td>ありたい姿と、そこへ向かう行動を整理する</td>
+</tr>
+<tr>
+<td>PDCA</td>
+<td>小さな行動と振り返りを積み重ね、行動変容につなげる</td>
+</tr>
+<tr>
+<td>行き詰まり分析</td>
+<td>行動がうまくいかなかったときの思考の癖を整理する</td>
+</tr>
+<tr>
+<td>振り返り</td>
+<td>プログラム終了時（6か月目）に、6か月間の活動と変化を振り返るシート</td>
+</tr>
+<tr>
+<td>総括レポート</td>
+<td>モチベイジから上司への最終報告レポート（部下には非表示）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="ops-ログインとホーム">2. ログインとホーム</h2>
+<h3 id="ops-ログイン-url">2.1 ログイン URL</h3>
+<p>https://companion-scheduling–motive-iji-cloud-1e300.asia-east1.hosted.app/login</p>
+<h3 id="ops-ログイン方法">2.2 ログイン方法</h3>
+<ol type="1">
+<li>上記 URL をブラウザで開く（Chrome 推奨）</li>
+<li>登録済みの <strong>メールアドレス</strong> と <strong>パスワード</strong> を入力して「ログイン」（または <strong>Google でログイン</strong>）</li>
+<li>初回は運営から案内されたパスワードでログインし、必要に応じて変更</li>
+</ol>
+<p>初回ログインの詳細は <a href="#ops">モチベイジタブ</a> を参照してください。</p>
+<p>Google アカウントでのログインに対応している場合は、案内に従ってください。</p>
+<h3 id="ops-ログイン後のホーム">2.3 ログイン後のホーム</h3>
+<p>ログイン直後は、<strong>企業への割当とパートナーのアサインが完了している場合</strong>に、マッチ（伴走ルーム）の一覧が表示されます。割当・アサインが済んでいない間は、伴走ルームは表示されません。</p>
+<ul>
+<li><strong>部下（受講者）:</strong> 割当後、自分が受講するプランのルームのみが表示されます</li>
+<li><strong>上司:</strong> 割当後、ヘッダーに <strong>「部下の伴走シート」</strong> が表示されます（後述 §5）</li>
+</ul>
+<h3 id="ops-マッチルームを開く部下">2.4 マッチルームを開く（部下）</h3>
+<ol type="1">
+<li>ホーム画面で、担当パートナーとのマッチ（伴走ルーム）をクリック</li>
+<li>画面上部の <strong>タブ</strong> で各機能に切り替えます</li>
+</ol>
+<hr />
+<h2 id="ops-エグゼクティブ伴走とスタンダード伴走の違い">3. エグゼクティブ伴走とスタンダード伴走の違い</h2>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>エグゼクティブ伴走（ADV）</th>
+<th>スタンダード伴走（PRO）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>目的</td>
+<td>次の役割への挑戦とリーダー育成</td>
+<td>重点行動の習慣化と行動定着</td>
+</tr>
+<tr>
+<td>1on1</td>
+<td>週1回・月4回・45分</td>
+<td>隔週・月2回・45分</td>
+</tr>
+<tr>
+<td>期間</td>
+<td>6か月（全24回想定）</td>
+<td>6か月（全12回想定）</td>
+</tr>
+<tr>
+<td>組織連携</td>
+<td>月1回の人材育成会議</td>
+<td>隔月の人材育成会議</td>
+</tr>
+</tbody>
+</table>
+<p>※ 利用できるタブ（ツール）の種類は両プランとも同じです。上記の <strong>1on1の頻度・回数・組織連携の頻度</strong> が主な違いです。</p>
+<hr />
+<hr />
+<h2 id="ops-運営向け-登録初回入口">運営向け — 登録・初回入口</h2>
+<h2 id="ops-全体像4ロールと紐づけ">0. 全体像（4ロールと紐づけ）</h2>
+<p>Motive-iji Cloud では、<strong>4つの立場</strong> がそれぞれ異なる入口からアプリに入ります。運営（ADMIN）が企業・マッチ・上司リンクを設定したうえで、各ユーザーがログインします。</p>
+<pre class="mermaid"><code>flowchart TB
+  admin[ADMIN]
+  tenant[企業テナント]
+  match[マッチルーム]
+  client[部下 CLIENT]
+  partner[パートナー PARTNER]
+  supervisor[上司 CLIENT_ADMIN]
+  sheets[部下の伴走シート]
+
+  admin --&gt; tenant
+  admin --&gt;|&quot;マッチ管理&quot;| match
+  admin --&gt;|&quot;上司割当（シート閲覧）&quot;| sheets
+  partner --&gt; match
+  client --&gt; match
+  supervisor --&gt; sheets
+  sheets -.-&gt;|&quot;同じ部下のシート&quot;| client</code></pre>
+<h3 id="ops-ロール一覧">ロール一覧</h3>
+<table>
+<colgroup>
+<col style="width: 13%" />
+<col style="width: 27%" />
+<col style="width: 27%" />
+<col style="width: 31%" />
+</colgroup>
+<thead>
+<tr>
+<th>ロール</th>
+<th>呼び方</th>
+<th>誰が設定するか</th>
+<th>ログイン後の入口</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ADMIN</strong></td>
+<td>運営（モチベイジ）</td>
+<td>既存の運営アカウント</td>
+<td>企業・マッチ管理</td>
+</tr>
+<tr>
+<td><strong>PARTNER</strong></td>
+<td>パートナー</td>
+<td>ADMIN がマッチ管理で割当</td>
+<td>担当マッチ一覧</td>
+</tr>
+<tr>
+<td><strong>CLIENT</strong></td>
+<td>受講者（部下）</td>
+<td>ADMIN がマッチ管理で割当</td>
+<td>自分のマッチルーム</td>
+</tr>
+<tr>
+<td><strong>CLIENT_ADMIN</strong></td>
+<td>直属上司</td>
+<td>ADMIN がロール変更＋上司リンク</td>
+<td><strong>部下の伴走シート</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="ops-つの紐づけ重要">2つの紐づけ（重要）</h3>
+<table>
+<colgroup>
+<col style="width: 57%" />
+<col style="width: 42%" />
+</colgroup>
+<thead>
+<tr>
+<th>仕組み</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>マッチ</strong></td>
+<td>パートナー ↔︎ 部下。チャット・日程・1on1・マッチルーム</td>
+</tr>
+<tr>
+<td><strong>上司リンク</strong></td>
+<td>上司 ↔︎ 部下。シート閲覧・上司評価。<strong>チャットには入らない</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="ops-共通ログイン-url-と初回登録画面">1. 共通ログイン URL と初回登録画面</h2>
+<h3 id="ops-ログイン-url-1">1.1 ログイン URL</h3>
+<p>https://companion-scheduling–motive-iji-cloud-1e300.asia-east1.hosted.app/login</p>
+<p>全ロール共通です。ブックマークして案内してください。</p>
+<h3 id="ops-ログイン画面の見方">1.2 ログイン画面の見方</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>要素</th>
+<th>説明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Google でログイン</strong></td>
+<td>Google アカウントでサインイン</td>
+</tr>
+<tr>
+<td><strong>メールアドレス / パスワード</strong></td>
+<td>メール＋パスワードでログイン（運営から案内された場合）</td>
+</tr>
+</tbody>
+</table>
+<figure>
+<img src="./assets/howto-reg/login-page.png" alt="ログイン画面" />
+<figcaption aria-hidden="true">ログイン画面</figcaption>
+</figure>
+<h3 id="ops-初回ログインの流れ部下上司パートナー共通">1.3 初回ログインの流れ（部下・上司・パートナー共通）</h3>
+<ol type="1">
+<li>運営から <strong>ログイン URL</strong> と <strong>使用するメールアドレス</strong> を案内される</li>
+<li>ブラウザで <code>/login</code> を開く（Chrome 推奨。ロールごとに <strong>別ウィンドウ</strong> またはシークレット推奨）</li>
+<li>案内された方法（Google またはメール）でログイン</li>
+<li>初回はパスワード設定やプロフィール入力を求められる場合あり</li>
+<li>ADMIN による <strong>マッチ割当・上司リンク・パートナーアサイン</strong> が済んでいれば、ログイン後に担当画面が表示される（未設定の間は伴走ルーム等は表示されません）</li>
+</ol>
+<p><strong>注意:</strong> Staging は本番 Firestore を共有しています。検証は <strong>QA専用テナント</strong> で行い、実在のクライアントデータは読み取り中心にしてください。</p>
+<hr />
+<h2 id="ops-運営-admin-登録権限企業作成">2. 運営 ADMIN — 登録・権限・企業作成</h2>
+<h3 id="ops-この章の目的">2.1 この章の目的</h3>
+<p>エグゼクティブ伴走 向けに <strong>企業テナントを作成</strong>し、部下・パートナー・上司を割り当て、キックオフ前に全員がログインできる状態にします。</p>
+<h3 id="ops-誰が使うか">2.2 誰が使うか</h3>
+<p>モチベイジ運営（ADMIN ロール）。例: <code>admin@example.com</code></p>
+<h3 id="ops-入口">2.3 入口</h3>
+<ol type="1">
+<li><code>/login</code> から ADMIN アカウントでログイン</li>
+<li>画面上部の <strong>「企業」</strong> タブを開く</li>
+</ol>
+<h3 id="ops-企業テナントの新規登録">2.4 企業（テナント）の新規登録</h3>
+<ol type="1">
+<li><strong>企業</strong> → <strong>アプリ設定</strong></li>
+<li><strong>企業（テナント）登録</strong> をクリック<br />
+※ 「企業」タブ直下ではなく、<strong>アプリ設定</strong> 経由が正しい導線です</li>
+<li>以下を入力して <strong>保存</strong></li>
+</ol>
+<table>
+<colgroup>
+<col style="width: 24%" />
+<col style="width: 76%" />
+</colgroup>
+<thead>
+<tr>
+<th>項目</th>
+<th>エグゼクティブ伴走 の典型値</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>テナント名</td>
+<td>例: <code>エグゼクティブ伴走プラン</code>（QA 時は <code>QA個別伴走_*</code>）</td>
+</tr>
+<tr>
+<td>プラン</td>
+<td><strong>個別伴走プラン</strong>（Exec）</td>
+</tr>
+<tr>
+<td>セッション回数</td>
+<td>24 回（6か月・週1）</td>
+</tr>
+<tr>
+<td>ライフライン</td>
+<td>ON</td>
+</tr>
+<tr>
+<td>スキルマップ</td>
+<td>ON</td>
+</tr>
+<tr>
+<td>自分FTA</td>
+<td><strong>ON</strong></td>
+</tr>
+<tr>
+<td>PDCA / 振り返り 等</td>
+<td>ON</td>
+</tr>
+<tr>
+<td>業務課題</td>
+<td><strong>OFF</strong>（デフォルト）</td>
+</tr>
+</tbody>
+</table>
+<ol start="4" type="1">
+<li><strong>保存</strong> → ページを再読み込み（F5）→ 設定が残っていることを確認</li>
+<li><strong>companyId</strong> をメモ（マッチ作成時に使用）</li>
+</ol>
+<figure>
+<img src="./assets/howto-reg/admin-tenant-register.png" alt="企業テナント登録" />
+<figcaption aria-hidden="true">企業テナント登録</figcaption>
+</figure>
+<h3 id="ops-ユーザーの所属企業を設定">2.5 ユーザーの所属企業を設定</h3>
+<p>マッチ作成の前に、対象ユーザーが <strong>当該企業に所属</strong> している必要があります。</p>
+<ol type="1">
+<li><strong>マッチ管理</strong>（またはアプリ設定のユーザー一覧）を開く</li>
+<li>対象メール（部下・パートナー・上司）を検索</li>
+<li><strong>所属企業</strong> に、作成した Exec テナントを設定</li>
+<li>企業画面の警告（「この companyId のユーザーがいない」等）が消えることを確認</li>
+</ol>
+<h3 id="ops-マッチ管理-部下とパートナーの割当">2.6 マッチ管理 — 部下とパートナーの割当</h3>
+<ol type="1">
+<li><strong>マッチ管理</strong> を開く</li>
+<li><strong>企業</strong> に Exec テナントを明示選択</li>
+<li>新規マッチを作成（または既存マッチを編集）</li>
+<li>以下を割り当て</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>ロール</th>
+<th>画面での名称</th>
+<th>例（QA）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>部下</td>
+<td>CLIENT / クライアント</td>
+<td><code>participant@example.com</code></td>
+</tr>
+<tr>
+<td>パートナー</td>
+<td>PARTNER / パートナー</td>
+<td><code>partner@example.com</code></td>
+</tr>
+</tbody>
+</table>
+<ol start="5" type="1">
+<li><strong>保存</strong> → <strong>matchId</strong> をメモ<br />
+ルーム URL 例: <code>https://companion-scheduling--motive-iji-cloud-1e300.asia-east1.hosted.app/match/{matchId}</code></li>
+</ol>
+<figure>
+<img src="./assets/howto-reg/admin-match-assign.png" alt="マッチ管理" />
+<figcaption aria-hidden="true">マッチ管理</figcaption>
+</figure>
+<h3 id="ops-上司リンクの設定">2.7 上司リンクの設定</h3>
+<ol type="1">
+<li>同じ <strong>マッチ管理</strong> 画面の <strong>下部</strong> を開く</li>
+<li><strong>上司割当（シート閲覧）</strong> で上司と部下を紐づける</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>値（QA 例）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>上司</td>
+<td><code>supervisor@example.com</code>（CLIENT_ADMIN）</td>
+</tr>
+<tr>
+<td>部下</td>
+<td><code>participant@example.com</code>（CLIENT）</td>
+</tr>
+</tbody>
+</table>
+<ol start="3" type="1">
+<li>上司アカウントのロールが <strong>CLIENT_ADMIN</strong> であることを確認（ロール管理で変更した場合は <strong>再ログイン</strong> が必要）</li>
+</ol>
+<figure>
+<img src="./assets/howto-reg/supervisor-sheets.png" alt="上司の伴走シート" />
+<figcaption aria-hidden="true">上司の伴走シート</figcaption>
+</figure>
+<h3 id="ops-ログイン後の-admin-画面">2.8 ログイン後の ADMIN 画面</h3>
+<ul>
+<li><strong>企業</strong> タブ — テナント一覧・アプリ設定</li>
+<li><strong>マッチ管理</strong> — マッチ作成・ユーザー割当・上司リンク</li>
+<li>各マッチルーム — 全シート編集可、総括の Motive 欄も編集可</li>
+</ul>
+<hr />
+<h2 id="ops-パートナーpartner-登録マッチ割当後">3. パートナー（PARTNER）— 登録〜マッチ割当後</h2>
+<h3 id="ops-この章の目的-1">3.1 この章の目的</h3>
+<p>パートナーが初回ログインし、担当部下の <strong>マッチルーム</strong> に入れることを確認します。</p>
+<h3 id="ops-運営が事前に行うこと">3.2 運営が事前に行うこと</h3>
+<ul>
+<li>パートナー用メールアドレスをマッチ管理で <strong>PARTNER</strong> として割当</li>
+<li>所属企業を Exec テナントに設定</li>
+</ul>
+<h3 id="ops-パートナーの入口">3.3 パートナーの入口</h3>
+<ol type="1">
+<li><code>/login</code> を開く</li>
+<li><strong>Google でログイン</strong> または案内されたメールでログイン</li>
+<li>ログイン後、<strong>マッチ割当が完了している場合</strong>に担当マッチの一覧が表示される</li>
+<li>部下とのマッチルームをクリック</li>
+</ol>
+<h3 id="ops-ログイン後に見える画面">3.4 ログイン後に見える画面</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>表示</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>マッチ一覧</td>
+<td>割り当てられた伴走ルーム</td>
+</tr>
+<tr>
+<td>マッチルーム上部タブ</td>
+<td>プロジェクト概要、<strong>1on1セッション</strong>、スキルチェック、ライフライン、PDCA、振り返り、<strong>総括レポート</strong> 等</td>
+</tr>
+<tr>
+<td><strong>クライアント情報</strong> タブ</td>
+<td>パートナー専用（部下には非表示）</td>
+</tr>
+</tbody>
+</table>
+<p>パートナーはスキルチェック・機会創出は <strong>閲覧のみ</strong>（編集は受講者本人または上司）。</p>
+<h3 id="ops-初回確認チェック">3.5 初回確認チェック</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />マッチルームが開ける</label></li>
+<li><label><input type="checkbox" />「1on1セッション」タブが1つある（チャット・日程・振り返りが統合）</label></li>
+<li><label><input type="checkbox" />担当部下名が正しい</label></li>
+</ul>
+<p><strong>操作の詳細:</strong> 日常操作は <a href="#partner">パートナー向けガイド</a> を参照。</p>
+<hr />
+<h2 id="ops-部下client-登録マッチルーム入口">4. 部下（CLIENT）— 登録〜マッチルーム入口</h2>
+<h3 id="ops-この章の目的-2">4.1 この章の目的</h3>
+<p>受講者（部下）が初回ログインし、自分の <strong>マッチルーム</strong> に入れることを確認します。</p>
+<h3 id="ops-運営が事前に行うこと-1">4.2 運営が事前に行うこと</h3>
+<ul>
+<li>部下用メールをマッチ管理で <strong>CLIENT</strong> として割当</li>
+<li>所属企業を Exec テナントに設定</li>
+<li>企業設定で <strong>個別伴走プランへの参加</strong> が ON であること（研修など別プランと併用時は参加チェックに注意）</li>
+</ul>
+<h3 id="ops-部下の入口">4.3 部下の入口</h3>
+<ol type="1">
+<li>運営から <strong>ログイン URL</strong> と <strong>メールアドレス</strong> を受け取る</li>
+<li><code>/login</code> を開く（シークレットウィンドウ推奨）</li>
+<li>案内どおりログイン</li>
+<li><strong>マッチ割当が完了している場合</strong>、ホームに <strong>自分の伴走ルーム</strong> が表示される（未割当の間は表示されません）</li>
+<li>ルームをクリック → マッチルームが開く</li>
+</ol>
+<h3 id="ops-ログイン後に見える画面exec-典型">4.4 ログイン後に見える画面（Exec 典型）</h3>
+<p>マッチルーム上部タブ（左から）:</p>
+<ol type="1">
+<li>プロジェクト概要</li>
+<li>1on1セッション</li>
+<li>スキルチェック</li>
+<li>ライフライン</li>
+<li>自分FTA</li>
+<li>機会創出（<strong>閲覧のみ</strong>）</li>
+<li>PDCA</li>
+<li>行き詰まり分析</li>
+<li>振り返り</li>
+</ol>
+<p><strong>総括レポート</strong> は部下には表示されません。</p>
+<h3 id="ops-初回確認チェック-1">4.5 初回確認チェック</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />不要な研修ルームなどが混在していない</label></li>
+<li><label><input type="checkbox" />Exec 個別伴走ルームのみ（または意図したルームのみ）表示</label></li>
+<li><label><input type="checkbox" />プロジェクト概要タブが開ける</label></li>
+</ul>
+<p><strong>操作の詳細:</strong> <a href="#client">受講者タブ</a> を参照。</p>
+<hr />
+<h2 id="ops-上司client_admin-登録部下の伴走シート入口">5. 上司（CLIENT_ADMIN）— 登録〜部下の伴走シート入口</h2>
+<h3 id="ops-この章の目的-3">5.1 この章の目的</h3>
+<p>直属上司が初回ログインし、部下の成果物シートにアクセスできることを確認します。上司は <strong>マッチルームには入りません</strong>（sheets-only）。</p>
+<h3 id="ops-運営が事前に行うこと-2">5.2 運営が事前に行うこと</h3>
+<ol type="1">
+<li>上司用メールのロールを <strong>CLIENT_ADMIN</strong> に設定（ロール管理）</li>
+<li><strong>上司割当（シート閲覧）</strong> で上司 ↔︎ 部下を紐づけ（マッチ管理下部）</li>
+<li>所属企業を Exec テナントに設定</li>
+</ol>
+<h3 id="ops-上司の入口">5.3 上司の入口</h3>
+<ol type="1">
+<li><code>/login</code> を開く（部下・パートナーと <strong>別ブラウザ</strong> 推奨）</li>
+<li>案内どおりログイン</li>
+<li><strong>上司リンクが完了している場合</strong>、画面上部に <strong>「部下の伴走シート」</strong> が表示される（未リンクの間は表示されません）<br />
+※ グローバルな <strong>「スキルチェック」単独タブはありません</strong>（旧 URL は新画面へリダイレクト）</li>
+<li><strong>部下の伴走シート</strong> をクリック</li>
+<li>部下一覧から対象者を選択</li>
+<li>スキルチェック・ライフライン等のタブが開く</li>
+</ol>
+<h3 id="ops-ログイン後に見える画面-1">5.4 ログイン後に見える画面</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>あるもの</th>
+<th>ないもの</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>スキルチェック、ライフライン、PDCA、振り返り、機会創出、<strong>総括レポート</strong></td>
+<td>チャット、日程、1on1、プロジェクト概要</td>
+</tr>
+</tbody>
+</table>
+<p>上司が書ける欄の例:</p>
+<ul>
+<li>スキルチェックの <strong>上司評価</strong></li>
+<li>機会創出の編集</li>
+<li>PDCA の <strong>上司コメント</strong></li>
+<li>振り返りのアフター評価（上司欄）</li>
+</ul>
+<h3 id="ops-初回確認チェック-2">5.5 初回確認チェック</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />「部下の伴走シート」から部下を選べる</label></li>
+<li><label><input type="checkbox" />スキルチェックで上司評価を入力・保存できる</label></li>
+<li><label><input type="checkbox" />チャット・1on1タブが <strong>表示されない</strong></label></li>
+</ul>
+<p><strong>操作の詳細:</strong> <a href="#supervisor">上司タブ</a> を参照。</p>
+<hr />
+<h2 id="ops-admin-紐づけチェックリスト">6. ADMIN 紐づけチェックリスト</h2>
+<p>キックオフ前に、運営が以下をすべて完了していることを確認してください。</p>
+<h3 id="ops-企業プラン">6.1 企業・プラン</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />Exec 用テナント作成済み（個別伴走プラン）</label></li>
+<li><label><input type="checkbox" />シート設定: ライフライン ON、スキル ON、FTA ON、PDCA ON、業務課題 OFF</label></li>
+<li><label><input type="checkbox" />保存後 F5 で設定が残る</label></li>
+</ul>
+<h3 id="ops-ユーザー所属">6.2 ユーザー所属</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />部下（CLIENT）が Exec テナントに所属</label></li>
+<li><label><input type="checkbox" />パートナー（PARTNER）が Exec テナントに所属</label></li>
+<li><label><input type="checkbox" />上司（CLIENT_ADMIN）が Exec テナントに所属</label></li>
+</ul>
+<h3 id="ops-マッチ">6.3 マッチ</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />部下 + パートナーのマッチ作成済み</label></li>
+<li><label><input type="checkbox" />matchId を記録済み</label></li>
+<li><label><input type="checkbox" />部下・パートナー双方でマッチルームが開ける</label></li>
+</ul>
+<h3 id="ops-上司リンク">6.4 上司リンク</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />上司ロール = CLIENT_ADMIN</label></li>
+<li><label><input type="checkbox" />上司割当（シート閲覧）で上司 ↔︎ 部下を紐づけ済み</label></li>
+<li><label><input type="checkbox" />上司で「部下の伴走シート」→ スキルチェック入力可</label></li>
+</ul>
+<h3 id="ops-ログイン確認各ロール1回ずつ">6.5 ログイン確認（各ロール1回ずつ）</h3>
+<table>
+<thead>
+<tr>
+<th>ロール</th>
+<th>確認アカウント（QA 例）</th>
+<th>OK</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ADMIN</td>
+<td><code>admin@example.com</code></td>
+<td>☐</td>
+</tr>
+<tr>
+<td>パートナー</td>
+<td><code>partner@example.com</code></td>
+<td>☐</td>
+</tr>
+<tr>
+<td>部下</td>
+<td><code>participant@example.com</code></td>
+<td>☐</td>
+</tr>
+<tr>
+<td>上司</td>
+<td><code>supervisor@example.com</code></td>
+<td>☐</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="ops-つまずきポイント">7. つまずきポイント</h2>
+<h3 id="ops-ログイン権限">7.1 ログイン・権限</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>症状</th>
+<th>対処</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>「登録されていません」等でログインできない</td>
+<td>招待メールとログインメールが一致しているか確認。ADMIN が所属企業・マッチ割当済みか確認</td>
+</tr>
+<tr>
+<td>ロール変更後に操作できない</td>
+<td><strong>一度ログアウトして再ログイン</strong>（Cookie 古い問題）</td>
+</tr>
+<tr>
+<td>上司で「部下の伴走シート」が出ない</td>
+<td>CLIENT_ADMIN ロールと上司リンクの両方が必要。運営に連絡</td>
+</tr>
+<tr>
+<td>一瞬「閲覧できません」と表示</td>
+<td>読み込み中のことがある。数秒待つか再読み込み</td>
+</tr>
+</tbody>
+</table>
+<h3 id="ops-マッチルーム">7.2 マッチ・ルーム</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>症状</th>
+<th>対処</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>部下に研修ルームなど不要なルームが出る</td>
+<td>企業の <strong>プラン参加チェック</strong> を確認。研修 OFF・Exec ON か</td>
+</tr>
+<tr>
+<td>マッチルームが「読込中…」で止まる</td>
+<td>ユーザーの所属企業を再設定。ロール管理から削除・再登録（運営作業）</td>
+</tr>
+<tr>
+<td>パートナー未割当のルームが一覧に残る</td>
+<td>ADMIN でマッチ状態を確認</td>
+</tr>
+</tbody>
+</table>
+<h3 id="ops-上司画面">7.3 上司画面</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>症状</th>
+<th>対処</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>旧 URL <code>/client-admin/skill-check</code> を開いた</td>
+<td><strong>部下の伴走シート</strong> へリダイレクトされる（正常）</td>
+</tr>
+<tr>
+<td>スキルチェック単独タブを探している</td>
+<td>廃止済み。「部下の伴走シート」から部下を選んでスキルチェックタブを開く</td>
+</tr>
+</tbody>
+</table>
+<h3 id="ops-ブラウザ運用">7.4 ブラウザ運用</h3>
+<ul>
+<li><strong>受講者・パートナー・上司・運営（モチベイジ）のアカウントを、同じブラウザウィンドウで切り替えない</strong>（ログイン情報が混在し、意図しないロールの画面が表示される原因になります）</li>
+<li>検証時は、ロールごとに <strong>別のシークレットウィンドウ</strong>（または別ブラウザ）を使う</li>
+</ul>
+
+    </section>
+    </main>
+  </div>
+
+  <footer class="site-footer">
+    <p>最終更新: 2026年8月14日 — Motive-iji Cloud 個別伴走プラン</p>
+  </footer>
+
+  <script>
+(function () {
+  const TAB_IDS = ["client", "supervisor", "partner", "ops"];
+  const DEFAULT_TAB = "client";
+  const buttons = document.querySelectorAll(".tab-btn");
+  const panels = document.querySelectorAll(".tab-panel");
+  const sidebar = document.getElementById("sidebar-toc");
+  const sidebarList = sidebar ? sidebar.querySelector(".sidebar-toc-list") : null;
+  let tocObserver = null;
+
+  function getActivePanel(tabId) {
+    return document.getElementById("panel-" + tabId);
+  }
+
+  function updateSidebar(panelEl) {
+    if (!sidebarList || !panelEl) return;
+
+    const headings = panelEl.querySelectorAll("h2[id], h3[id]");
+    sidebarList.innerHTML = "";
+
+    headings.forEach((h) => {
+      const li = document.createElement("li");
+      if (h.tagName === "H3") li.classList.add("toc-sub");
+      const a = document.createElement("a");
+      a.href = "#" + h.id;
+      a.textContent = h.textContent;
+      a.dataset.target = h.id;
+      li.appendChild(a);
+      sidebarList.appendChild(li);
+    });
+
+    setupTocObserver(panelEl, headings);
+  }
+
+  function setActiveTocLink(id) {
+    if (!sidebarList) return;
+    sidebarList.querySelectorAll("a").forEach((a) => {
+      a.classList.toggle("toc-active", a.dataset.target === id);
+    });
+  }
+
+  function setupTocObserver(panelEl, headings) {
+    if (tocObserver) tocObserver.disconnect();
+    if (!headings.length) return;
+
+    tocObserver = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length) {
+          setActiveTocLink(visible[0].target.id);
+        }
+      },
+      { rootMargin: "-20% 0px -70% 0px", threshold: 0 }
+    );
+
+    headings.forEach((h) => tocObserver.observe(h));
+    setActiveTocLink(headings[0].id);
+  }
+
+  function showTab(tabId, opts = {}) {
+    panels.forEach((p) => {
+      p.hidden = p.dataset.tab !== tabId;
+    });
+    buttons.forEach((btn) => {
+      const active = btn.dataset.tab === tabId;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    if (!opts.preserveHash) {
+      history.replaceState(null, "", "#" + tabId);
+    }
+    updateSidebar(getActivePanel(tabId));
+  }
+
+  function tabFromHash() {
+    const hash = (location.hash || "").replace(/^#/, "");
+    if (TAB_IDS.includes(hash)) return hash;
+    if (hash.startsWith("client-")) return "client";
+    if (hash.startsWith("supervisor-")) return "supervisor";
+    if (hash.startsWith("partner-")) return "partner";
+    if (hash.startsWith("ops-")) return "ops";
+    return null;
+  }
+
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => showTab(btn.dataset.tab));
+  });
+
+  window.addEventListener("hashchange", () => {
+    const hash = (location.hash || "").replace(/^#/, "");
+    const tab = tabFromHash();
+    if (tab) showTab(tab, { preserveHash: hash.includes("-") && hash !== tab });
+    if (hash && hash.includes("-")) scrollToAnchor(hash);
+  });
+
+  function scrollToAnchor(id) {
+    requestAnimationFrame(() => {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest('a[href^="#"]');
+    if (!a) return;
+    const href = a.getAttribute("href").slice(1);
+    if (TAB_IDS.includes(href)) {
+      e.preventDefault();
+      showTab(href);
+      return;
+    }
+    if (href.startsWith("client-")) {
+      e.preventDefault();
+      showTab("client");
+      history.replaceState(null, "", "#" + href);
+      scrollToAnchor(href);
+    } else if (href.startsWith("supervisor-")) {
+      e.preventDefault();
+      showTab("supervisor");
+      history.replaceState(null, "", "#" + href);
+      scrollToAnchor(href);
+    } else if (href.startsWith("partner-")) {
+      e.preventDefault();
+      showTab("partner");
+      history.replaceState(null, "", "#" + href);
+      scrollToAnchor(href);
+    } else if (href.startsWith("ops-")) {
+      e.preventDefault();
+      showTab("ops");
+      history.replaceState(null, "", "#" + href);
+      scrollToAnchor(href);
+    }
+  });
+
+  const initialHash = (location.hash || "").replace(/^#/, "");
+  const initial = tabFromHash();
+  if (initial) {
+    showTab(initial, { preserveHash: initialHash.includes("-") && initialHash !== initial });
+    if (initialHash.includes("-")) scrollToAnchor(initialHash);
+  } else {
+    showTab(DEFAULT_TAB);
+  }
+})();
+
+  </script>
+</body>
+</html>

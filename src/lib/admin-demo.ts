@@ -101,6 +101,13 @@ function matchRoomTabs(planFeatures: PlanFeatures, role: DemoRole | "ADMIN"): st
   if (planFeatures.pdca) tabs.push("PDCA");
   if (planFeatures.reflection) tabs.push("振り返り");
   if (planFeatures.summaryReport) tabs.push("サマリーレポート");
+  if (planFeatures.skillCheck || planFeatures.lifelineChart) {
+    if (role === "ADMIN") {
+      tabs.push("操作ガイド（受講者）", "操作ガイド（上司）", "操作ガイド（パートナー）");
+    } else {
+      tabs.push("操作ガイド");
+    }
+  }
   if (planFeatures.coachingQuestions) tabs.push("質問リスト");
   if (planFeatures.coachingIcebreaker) tabs.push("アイスブレイク");
   if (planFeatures.coachingOneOnOneFormat) tabs.push("1on1フォーマット");

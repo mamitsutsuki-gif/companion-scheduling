@@ -9,6 +9,7 @@ import { normalizePdcaStore, pdcaSkillCounts } from "../src/lib/companion-pdca";
 import { normalizeReflectionSheet } from "../src/lib/companion-reflection";
 import { normalizeLifelineChart, filterLifelineForViewer } from "../src/lib/companion-lifeline";
 import { normalizeSummaryReportDoc } from "../src/lib/companion-summary";
+import { companionHowtoAudiencesForViewer, companionHowtoEnabled } from "../src/lib/companion-howto";
 import {
   getPdcaStore,
   upsertPdcaEntry,
@@ -140,7 +141,15 @@ function checkNormalizers() {
     masked.events[1]?.detail === "" &&
     masked.events[1]?.insights === "公開の気づき" &&
     masked.coreValuesText === "誠実さ" &&
-    summary.motiveSummary === "総括";
+    summary.motiveSummary === "総括" &&
+    companionHowtoEnabled("individual_companion_exec") &&
+    !companionHowtoEnabled("workplace_activation") &&
+    companionHowtoAudiencesForViewer({ role: "CLIENT", supervisorViewer: false }).join() === "client" &&
+    companionHowtoAudiencesForViewer({ role: "CLIENT_ADMIN", supervisorViewer: true }).join() ===
+      "supervisor" &&
+    companionHowtoAudiencesForViewer({ role: "PARTNER", supervisorViewer: false }).join() === "partner" &&
+    companionHowtoAudiencesForViewer({ role: "ADMIN", supervisorViewer: false }).join() ===
+      "client,supervisor,partner";
   console.log(`  ${ok ? "✓" : "✗"} 正規化・マスク・集計ロジック`);
   return ok;
 }

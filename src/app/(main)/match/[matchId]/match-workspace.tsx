@@ -15,6 +15,7 @@ import { ActionBrakePanel } from "@/components/action-brake-panel";
 import { ReflectionPanel } from "@/components/reflection-panel";
 import { LifelinePanel } from "@/components/lifeline-panel";
 import { SummaryReportPanel } from "@/components/summary-report-panel";
+import { CompanionHowtoFrame } from "@/components/companion-howto-frame";
 import { CoachingQuestionsPanel } from "@/components/coaching-questions-panel";
 import { CoachingIcebreakerPanel } from "@/components/coaching-icebreaker-panel";
 import { CoachingOneOnOneFormatPanel } from "@/components/coaching-one-on-one-format-panel";
@@ -30,6 +31,12 @@ import {
   type CompanyPlan,
   type PlanFeatures,
 } from "@/lib/company-plan";
+import {
+  companionHowtoAudiencesForViewer,
+  companionHowtoEnabled,
+  companionHowtoLabel,
+  type CompanionHowtoAudience,
+} from "@/lib/companion-howto";
 import {
   meetingProviderLabel,
   normalizeMeetingProvider,
@@ -160,6 +167,9 @@ type MatchTab =
   | "reflection"
   | "summaryReport"
   | "lifelineChart"
+  | "howtoClient"
+  | "howtoSupervisor"
+  | "howtoPartner"
   | "coachingQuestions"
   | "coachingIcebreaker"
   | "coachingOneOnOneFormat";
@@ -182,6 +192,9 @@ const TAB_HASH_MAP: Record<string, MatchTab> = {
   reflection: "reflection",
   "summary-report": "summaryReport",
   "lifeline-chart": "lifelineChart",
+  "howto-client": "howtoClient",
+  "howto-supervisor": "howtoSupervisor",
+  "howto-partner": "howtoPartner",
   roleplay: "sessions",
   "coaching-roleplay": "sessions",
   questions: "coachingQuestions",
@@ -213,6 +226,9 @@ function hashFromTab(tab: MatchTab): string {
   if (tab === "actionBrakeAnalysis") return "action-brake";
   if (tab === "summaryReport") return "summary-report";
   if (tab === "lifelineChart") return "lifeline-chart";
+  if (tab === "howtoClient") return "howto-client";
+  if (tab === "howtoSupervisor") return "howto-supervisor";
+  if (tab === "howtoPartner") return "howto-partner";
   if (tab === "coachingQuestions") return "questions";
   if (tab === "coachingIcebreaker") return "icebreaker";
   if (tab === "coachingOneOnOneFormat") return "one-on-one-format";
@@ -245,8 +261,15 @@ function isSupervisorSheetTab(tab: MatchTab): boolean {
     tab === "pdca" ||
     tab === "actionBrakeAnalysis" ||
     tab === "reflection" ||
-    tab === "summaryReport"
+    tab === "summaryReport" ||
+    tab === "howtoSupervisor"
   );
+}
+
+function howtoTabFromAudience(audience: CompanionHowtoAudience): MatchTab {
+  if (audience === "client") return "howtoClient";
+  if (audience === "supervisor") return "howtoSupervisor";
+  return "howtoPartner";
 }
 
 function firstSupervisorSheetTab(features: PlanFeatures): MatchTab {
@@ -1049,6 +1072,30 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   }, [me, activeTab, tryGoTab]);
 
   useEffect(() => {
+    if (!me) return;
+    const isHowto =
+      activeTab === "howtoClient" ||
+      activeTab === "howtoSupervisor" ||
+      activeTab === "howtoPartner";
+    if (!isHowto) return;
+    if (!companionHowtoEnabled(scheduleSettings.companyPlan)) {
+      goTab(supervisorViewer ? firstSupervisorSheetTab(scheduleSettings.planFeatures) : "chat");
+      return;
+    }
+    const allowed = companionHowtoAudiencesForViewer({
+      role: me.role,
+      supervisorViewer,
+    });
+    const ok =
+      (activeTab === "howtoClient" && allowed.includes("client")) ||
+      (activeTab === "howtoSupervisor" && allowed.includes("supervisor")) ||
+      (activeTab === "howtoPartner" && allowed.includes("partner"));
+    if (!ok) {
+      goTab(allowed[0] ? howtoTabFromAudience(allowed[0]) : "chat");
+    }
+  }, [me, activeTab, supervisorViewer, scheduleSettings.companyPlan, scheduleSettings.planFeatures, goTab]);
+
+  useEffect(() => {
     if (activeTab !== "chat") setChatFullscreen(false);
   }, [activeTab]);
 
@@ -1763,6 +1810,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const showCoachingFormatTab =
     !supervisorViewer &&
     showCoachingTabForViewer("coachingOneOnOneFormat", scheduleSettings, me.role);
+  const howtoAudiences = companionHowtoEnabled(scheduleSettings.companyPlan)
+    ? companionHowtoAudiencesForViewer({ role: me.role, supervisorViewer })
+    : [];
+  const howtoShowAudienceInLabel = howtoAudiences.length > 1;
 
   return (
     <>
@@ -2195,6 +2246,28 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 総括レポート
               </button>
             ) : null}
+            {howtoAudiences.map((audience) => {
+              const tab = howtoTabFromAudience(audience);
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab}
+                  onClick={() => goTab(tab)}
+                  className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                    activeTab === tab
+                      ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                      : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                  }`}
+                >
+                  {companionHowtoLabel({
+                    audience,
+                    showAudienceInLabel: howtoShowAudienceInLabel,
+                  })}
+                </button>
+              );
+            })}
             {showCoachingIcebreakerTab ? (
               <button
                 type="button"
@@ -2936,6 +3009,12 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       {activeTab === "summaryReport" && scheduleSettings.planFeatures.summaryReport ? (
         <SummaryReportPanel matchId={matchId} />
       ) : null}
+
+      {howtoAudiences.map((audience) => {
+        const tab = howtoTabFromAudience(audience);
+        if (activeTab !== tab) return null;
+        return <CompanionHowtoFrame key={tab} audience={audience} />;
+      })}
 
       {activeTab === "coachingQuestions" && showCoachingQuestionsTab && !coachingQuestionsLocked ? (
         <CoachingQuestionsPanel matchId={matchId} />
