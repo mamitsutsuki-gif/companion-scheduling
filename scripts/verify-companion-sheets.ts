@@ -9,7 +9,9 @@ import { normalizePdcaStore, pdcaSkillCounts } from "../src/lib/companion-pdca";
 import { normalizeReflectionSheet } from "../src/lib/companion-reflection";
 import { normalizeLifelineChart, filterLifelineForViewer } from "../src/lib/companion-lifeline";
 import { normalizeSummaryReportDoc } from "../src/lib/companion-summary";
-import { companionHowtoAudiencesForViewer, companionHowtoEnabled } from "../src/lib/companion-howto";
+import { companionHowtoAudiencesForViewer, companionHowtoEnabled, canViewCompanionHowtoAudience, filterCompanionHowtoHtml } from "../src/lib/companion-howto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import {
   getPdcaStore,
   upsertPdcaEntry,
@@ -149,7 +151,28 @@ function checkNormalizers() {
       "supervisor" &&
     companionHowtoAudiencesForViewer({ role: "PARTNER", supervisorViewer: false }).join() === "partner" &&
     companionHowtoAudiencesForViewer({ role: "ADMIN", supervisorViewer: false }).join() ===
-      "client,supervisor,partner";
+      "client,supervisor,partner" &&
+    canViewCompanionHowtoAudience("PARTNER", "partner") &&
+    !canViewCompanionHowtoAudience("PARTNER", "client") &&
+    !canViewCompanionHowtoAudience("PARTNER", "supervisor") &&
+    !canViewCompanionHowtoAudience("CLIENT", "partner") &&
+    !canViewCompanionHowtoAudience("CLIENT_ADMIN", "partner") &&
+    (() => {
+      const raw = readFileSync(
+        path.join(process.cwd(), "content/howto-companion/index.html"),
+        "utf8",
+      );
+      const partner = filterCompanionHowtoHtml(raw, "partner");
+      return (
+        partner.includes('id="panel-partner"') &&
+        !partner.includes('id="panel-client"') &&
+        !partner.includes('id="panel-supervisor"') &&
+        !partner.includes('id="panel-ops"') &&
+        !partner.includes("data-tab=\"client\"") &&
+        !partner.includes("data-tab=\"ops\"") &&
+        !partner.includes("ロール別ガイド")
+      );
+    })();
   console.log(`  ${ok ? "✓" : "✗"} 正規化・マスク・集計ロジック`);
   return ok;
 }
