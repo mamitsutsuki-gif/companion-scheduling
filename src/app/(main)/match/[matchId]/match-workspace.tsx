@@ -2048,6 +2048,28 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           role="tablist"
         >
           <div className="-mx-1 flex flex-nowrap items-end gap-1 overflow-x-auto overscroll-x-contain px-1 pb-0 sm:mx-0 sm:gap-1.5 sm:px-0">
+            {howtoAudiences.map((audience) => {
+              const tab = howtoTabFromAudience(audience);
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab}
+                  onClick={() => goTab(tab)}
+                  className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
+                    activeTab === tab
+                      ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
+                      : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                  }`}
+                >
+                  {companionHowtoLabel({
+                    audience,
+                    showAudienceInLabel: howtoShowAudienceInLabel,
+                  })}
+                </button>
+              );
+            })}
             {!supervisorViewer ? (
             <button
               type="button"
@@ -2246,28 +2268,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 総括レポート
               </button>
             ) : null}
-            {howtoAudiences.map((audience) => {
-              const tab = howtoTabFromAudience(audience);
-              return (
-                <button
-                  key={tab}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === tab}
-                  onClick={() => goTab(tab)}
-                  className={`shrink-0 rounded-t-lg px-3.5 py-2.5 text-base font-semibold transition sm:px-4 ${
-                    activeTab === tab
-                      ? "relative z-[1] -mb-px border border-slate-200 border-b-white bg-white text-indigo-950 shadow-sm"
-                      : "border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
-                  }`}
-                >
-                  {companionHowtoLabel({
-                    audience,
-                    showAudienceInLabel: howtoShowAudienceInLabel,
-                  })}
-                </button>
-              );
-            })}
             {showCoachingIcebreakerTab ? (
               <button
                 type="button"
