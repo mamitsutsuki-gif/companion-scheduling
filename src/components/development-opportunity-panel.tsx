@@ -14,6 +14,7 @@ import {
   type DevelopmentOpportunityStatus,
   type DevelopmentOpportunityTemplate,
 } from "@/lib/companion-development-opportunity";
+import { SheetSaveButton, SheetStickySaveBar } from "@/components/sheet-save-controls";
 
 type Permissions = { canEditManager: boolean };
 
@@ -209,7 +210,9 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
         <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
           閲覧のみです。内容の編集は上司・管理者が行います。
         </p>
-      ) : null}
+      ) : (
+        <SheetStickySaveBar saving={saving} onClick={() => void save()} />
+      )}
 
       {editable ? (
         <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 sm:p-5">
@@ -383,14 +386,7 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
 
       {editable ? (
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => void save()}
-            disabled={saving}
-            className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-800 disabled:opacity-60"
-          >
-            {saving ? "保存中…" : "保存する"}
-          </button>
+          <SheetSaveButton saving={saving} onClick={() => void save()} />
         </div>
       ) : null}
     </div>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PdcaEntry } from "@/lib/companion-pdca";
+import { SheetSaveButton, SheetStickySaveBar } from "@/components/sheet-save-controls";
 
 type Skill = { id: string; name: string };
 
@@ -211,6 +212,11 @@ export function PdcaPanel({
 
       {(perms.canEditClient || perms.canEditCoach) && (
         <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+          <SheetStickySaveBar
+            saving={saving}
+            onClick={() => void save()}
+            label="このシートを保存する"
+          />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-lg font-semibold text-slate-900">
               {editingId ? "シートを編集" : "新しいPDCAシート"}
@@ -374,14 +380,11 @@ export function PdcaPanel({
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
             />
           </label>
-          <button
-            type="button"
-            disabled={saving}
+          <SheetSaveButton
+            saving={saving}
             onClick={() => void save()}
-            className="rounded-xl bg-indigo-700 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {saving ? "保存中…" : "このシートを保存する"}
-          </button>
+            label="このシートを保存する"
+          />
         </div>
       )}
 

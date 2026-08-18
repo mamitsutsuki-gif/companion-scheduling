@@ -7,6 +7,7 @@ import {
   type BusinessProblemSheet,
   type BusinessProblemStepDef,
 } from "@/lib/companion-business-problem";
+import { SheetSaveButton } from "@/components/sheet-save-controls";
 
 type Permissions = { canEditClient: boolean; canEditPartner: boolean };
 type FillCount = { stepId: number; filled: number; total: number };
@@ -290,20 +291,12 @@ export function BusinessProblemPanel({ matchId }: { matchId: string }) {
                 );
               })}
             </div>
+            {canEditFields ? (
+              <div className="pt-1">
+                <SheetSaveButton saving={saving} onClick={() => void save()} />
+              </div>
+            ) : null}
           </div>
-        </div>
-      ) : null}
-
-      {canEditFields ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => void save()}
-            disabled={saving}
-            className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-800 disabled:opacity-60"
-          >
-            {saving ? "保存中…" : "保存する"}
-          </button>
         </div>
       ) : null}
     </div>

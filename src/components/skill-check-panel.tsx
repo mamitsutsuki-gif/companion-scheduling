@@ -14,6 +14,7 @@ import {
   type SkillScore,
 } from "@/lib/skill-check";
 import { SkillRadarChart, scoreSelectValue } from "@/components/skill-radar-chart";
+import { SheetSaveButton } from "@/components/sheet-save-controls";
 
 type Permissions = {
   canEditSelf: boolean;
@@ -326,6 +327,13 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
     permissions.canEditManager ||
     permissions.canEditFocusSkills ||
     (permissions.canEditSkillDefinitions && editingSkills);
+  const saveControls = canSave ? (
+    <SheetSaveButton
+      saving={saving}
+      onClick={() => void save()}
+      label={editingSkills ? "項目と評価を保存する" : "保存する"}
+    />
+  ) : null;
 
   return (
     <section className="space-y-8">
@@ -343,6 +351,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
           <li>重点育成項目（1〜{SKILL_CHECK_FOCUS_MAX}項目）を設定する</li>
           <li>成長・挑戦合意を記入する</li>
         </ol>
+        <p className="mt-3 text-sm text-slate-500">各ステップの「保存する」から、途中でも保存できます。</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -366,6 +375,9 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
           </span>
         ) : null}
       </div>
+
+      {error ? <p className="text-sm text-red-700">{error}</p> : null}
+      {notice ? <p className="text-sm text-emerald-800">{notice}</p> : null}
 
       {/* ① スキル定義 */}
       <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 sm:p-5">
@@ -474,6 +486,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
             ))}
           </ul>
         )}
+        {saveControls ? <div className="mt-4">{saveControls}</div> : null}
       </div>
 
       {/* ② スキルごとの点数 */}
@@ -535,6 +548,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
             </article>
           );
         })}
+        {saveControls ? <div className="pt-1">{saveControls}</div> : null}
       </div>
 
       {/* ③ ギャップ可視化 */}
@@ -557,6 +571,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
         <div className="mt-4 min-w-0 overflow-x-auto sm:mt-6">
           <SkillRadarChart labels={chartLabels} series={chartSeries} size={480} />
         </div>
+        {saveControls ? <div className="mt-4">{saveControls}</div> : null}
       </div>
 
       {/* ④ 重点育成項目 */}
@@ -598,6 +613,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
             );
           })}
         </ul>
+        {saveControls ? <div className="mt-4">{saveControls}</div> : null}
       </div>
 
       {/* ⑤ 成長・挑戦合意（最下部） */}
@@ -673,23 +689,10 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
             </label>
           </div>
         </div>
+        {saveControls ? <div className="mt-4">{saveControls}</div> : null}
       </div>
 
-      {error ? <p className="text-sm text-red-700">{error}</p> : null}
-      {notice ? <p className="text-sm text-emerald-800">{notice}</p> : null}
-
-      {canSave ? (
-        <button
-          type="button"
-          onClick={() => void save()}
-          disabled={saving}
-          className="rounded-xl bg-indigo-700 px-5 py-2.5 text-base font-semibold text-white hover:bg-indigo-800 disabled:opacity-50"
-        >
-          {saving ? "保存中…" : editingSkills ? "項目と評価を保存する" : "保存する"}
-        </button>
-      ) : (
-        <p className="text-sm text-slate-500">閲覧のみ可能です。</p>
-      )}
+      {!canSave ? <p className="text-sm text-slate-500">閲覧のみ可能です。</p> : null}
     </section>
   );
 }

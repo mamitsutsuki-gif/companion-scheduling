@@ -6,6 +6,7 @@ import {
   type LifelineChart,
   type LifelineEvent,
 } from "@/lib/companion-lifeline";
+import { SheetSaveButton, SheetStickySaveBar } from "@/components/sheet-save-controls";
 
 function LifelineGraph({ events }: { events: LifelineEvent[] }) {
   if (events.length === 0) {
@@ -251,6 +252,7 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
 
       {canEdit ? (
         <div className="space-y-6">
+          <SheetStickySaveBar saving={saving} onClick={() => void save()} />
           <div>
             <h3 className="text-lg font-semibold text-slate-900">人生の出来事（喜び・挫折）</h3>
             <p className="mt-1 text-sm text-slate-600">
@@ -343,6 +345,10 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
             </article>
           ))}
 
+          {events.length > 0 ? (
+            <SheetSaveButton saving={saving} onClick={() => void save()} />
+          ) : null}
+
           {events.length === 0 ? (
             <div className="rounded-xl border border-dashed border-indigo-300 bg-indigo-50/40 px-4 py-8 text-center">
               <p className="text-sm text-indigo-950">まだ出来事がありません。まずは1件追加してみましょう。</p>
@@ -406,14 +412,7 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => void save()}
-              className="rounded-xl bg-indigo-700 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {saving ? "保存中…" : "保存する"}
-            </button>
+            <SheetSaveButton saving={saving} onClick={() => void save()} />
           </div>
         </div>
       ) : (

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ActionBrakeEntry } from "@/lib/companion-action-brake";
 import { ACTION_BRAKE_TEXT_MAX } from "@/lib/companion-action-brake";
+import { SheetSaveButton, SheetStickySaveBar } from "@/components/sheet-save-controls";
 
 type PdcaLink = {
   id: string;
@@ -188,6 +189,7 @@ export function ActionBrakePanel({
 
       {canEdit ? (
         <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+          <SheetStickySaveBar saving={saving} disabled={!perms.canEditClient} onClick={() => void save()} />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-lg font-semibold text-slate-900">
               {editingId ? "分析を編集" : "新しい分析"}
@@ -283,14 +285,11 @@ export function ActionBrakePanel({
             />
           </div>
 
-          <button
-            type="button"
-            disabled={saving || !perms.canEditClient}
+          <SheetSaveButton
+            saving={saving}
+            disabled={!perms.canEditClient}
             onClick={() => void save()}
-            className="rounded-xl bg-indigo-700 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {saving ? "保存中…" : "保存する"}
-          </button>
+          />
         </div>
       ) : (
         <p className="text-sm text-slate-500">閲覧のみです。</p>
