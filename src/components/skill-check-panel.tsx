@@ -566,7 +566,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
         <p className="mt-1 text-sm text-slate-600">
           これから伸ばすスキルは、本人が{" "}
           <strong className="font-semibold text-slate-800">1〜{SKILL_CHECK_FOCUS_MAX}項目</strong>
-          決めます。
+          （最大{SKILL_CHECK_FOCUS_MAX}）決めます。
         </p>
         <p className="mt-2 text-xs text-slate-500">
           選択中: {focusSkillIds.length} / {SKILL_CHECK_FOCUS_MAX}
