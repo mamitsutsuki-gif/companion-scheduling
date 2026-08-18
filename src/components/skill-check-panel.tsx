@@ -564,9 +564,9 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
         <p className="text-xs font-semibold tracking-wide text-indigo-800 uppercase">Step 4</p>
         <h3 className="mt-1 text-lg font-semibold text-slate-900">重点育成項目</h3>
         <p className="mt-1 text-sm text-slate-600">
-          本人が、これから伸ばすスキルを{" "}
-          <strong className="font-semibold text-slate-800">1~{SKILL_CHECK_FOCUS_MAX}項目</strong>
-          選びます。
+          これから伸ばすスキルは、本人が{" "}
+          <strong className="font-semibold text-slate-800">1〜{SKILL_CHECK_FOCUS_MAX}項目</strong>
+          決めます。
         </p>
         <p className="mt-2 text-xs text-slate-500">
           選択中: {focusSkillIds.length} / {SKILL_CHECK_FOCUS_MAX}
