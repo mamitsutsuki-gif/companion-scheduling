@@ -1,5 +1,6 @@
 import { APP_DISPLAY_NAME, APP_SHORT_DESCRIPTION } from "@/lib/brand";
 import { MotiveIjiLogo } from "@/components/motive-iji-logo";
+import { SecurityActionMark } from "@/components/security-action-mark";
 import Link from "next/link";
 
 export default function Home() {
@@ -123,9 +124,15 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-slate-200 bg-white py-10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 text-center text-xs text-slate-500 sm:flex-row sm:text-left sm:px-6">
-          <span className="font-medium text-slate-700">{APP_DISPLAY_NAME}</span>
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 px-4 text-center text-xs text-slate-500 sm:flex-row sm:items-end sm:text-left sm:px-6">
+          <div className="flex flex-col items-center gap-3 sm:items-start">
+            <span className="font-medium text-slate-700">{APP_DISPLAY_NAME}</span>
+            <SecurityActionMark size="sm" />
+          </div>
           <div className="flex flex-wrap justify-center gap-4">
+            <Link href="/legal/privacy" className="text-slate-600 no-underline hover:text-slate-900">
+              プライバシーポリシー
+            </Link>
             <Link href="/login" className="text-slate-600 no-underline hover:text-slate-900">
               ログイン
             </Link>

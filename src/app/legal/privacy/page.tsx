@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PRIVACY_POLICY } from "./content";
+import { SecurityActionMark } from "@/components/security-action-mark";
 
 export default function PrivacyPolicyPage() {
   return (
@@ -13,6 +14,15 @@ export default function PrivacyPolicyPage() {
       <article className="mt-6 space-y-4 text-sm leading-relaxed whitespace-pre-wrap text-slate-800">
         {PRIVACY_POLICY}
       </article>
+      <aside className="mt-10 border-t border-slate-200 pt-8">
+        <p className="text-sm font-semibold text-slate-900">情報セキュリティへの取り組み</p>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+          当社は、独立行政法人情報処理推進機構（IPA）の SECURITY ACTION（二つ星）に基づき、情報セキュリティ対策に取り組むことを自己宣言しています。マークの詳細は IPA の案内をご覧ください。
+        </p>
+        <div className="mt-4">
+          <SecurityActionMark size="md" />
+        </div>
+      </aside>
     </div>
   );
 }
