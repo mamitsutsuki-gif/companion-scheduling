@@ -1,6 +1,6 @@
 import { APP_DISPLAY_NAME, APP_SHORT_DESCRIPTION } from "@/lib/brand";
 import { MotiveIjiLogo } from "@/components/motive-iji-logo";
-import { SecurityActionMark } from "@/components/security-action-mark";
+import { SecurityTrustCards } from "@/components/security-trust-cards";
 import Link from "next/link";
 
 export default function Home() {
@@ -121,14 +121,33 @@ export default function Home() {
             </ul>
           </div>
         </section>
+
+        <section className="border-t border-slate-100 bg-white py-16 sm:py-20">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <h2 className="text-center text-2xl font-semibold tracking-tight text-slate-900">
+              セキュリティへの取り組み
+            </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-center text-sm leading-relaxed text-slate-600">
+              法人向け SaaS として、情報セキュリティの自己宣言とクラウドセキュリティの自己評価を公開しています。
+            </p>
+            <div className="mt-10">
+              <SecurityTrustCards />
+            </div>
+            <p className="mt-8 text-center">
+              <Link
+                href="/legal/security"
+                className="text-sm font-semibold text-indigo-800 underline decoration-indigo-300 underline-offset-2 hover:text-indigo-950"
+              >
+                セキュリティページで詳しく見る
+              </Link>
+            </p>
+          </div>
+        </section>
       </main>
 
       <footer className="border-t border-slate-200 bg-white py-10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 px-4 text-center text-xs text-slate-500 sm:flex-row sm:items-end sm:text-left sm:px-6">
-          <div className="flex flex-col items-center gap-3 sm:items-start">
-            <span className="font-medium text-slate-700">{APP_DISPLAY_NAME}</span>
-            <SecurityActionMark size="sm" />
-          </div>
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 px-4 text-center text-xs text-slate-500 sm:flex-row sm:items-center sm:text-left sm:px-6">
+          <span className="font-medium text-slate-700">{APP_DISPLAY_NAME}</span>
           <div className="flex flex-wrap justify-center gap-4">
             <Link href="/legal/security" className="text-slate-600 no-underline hover:text-slate-900">
               セキュリティ
