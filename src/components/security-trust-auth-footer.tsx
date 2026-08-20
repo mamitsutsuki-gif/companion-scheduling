@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CsaStarMarkPlaceholder } from "@/components/csa-star-mark";
+import { CsaStarMark } from "@/components/csa-star-mark";
 import { SecurityActionMark } from "@/components/security-action-mark";
 
 /** ログイン・登録など AuthShell 向けの控えめな信頼表示 */
@@ -8,7 +8,7 @@ export function SecurityTrustAuthFooter() {
     <div className="mt-8 border-t border-slate-100 pt-5">
       <div className="flex items-center justify-center gap-3">
         <SecurityActionMark size="xs" />
-        <CsaStarMarkPlaceholder size="xs" />
+        <CsaStarMark size="xs" />
       </div>
       <p className="mt-2.5 text-center text-[11px] leading-relaxed text-slate-500">
         <Link

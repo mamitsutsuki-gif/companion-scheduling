@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CsaStarMarkPlaceholder, CSA_STAR_REGISTRY_HREF } from "@/components/csa-star-mark";
+import { CsaStarMark, CSA_STAR_REGISTRY_HREF } from "@/components/csa-star-mark";
 import { SecurityActionMark, SECURITY_ACTION_HREF } from "@/components/security-action-mark";
 
 type SecurityTrustCardProps = {
@@ -47,7 +47,7 @@ export function SecurityTrustCards() {
         ctaHref={SECURITY_ACTION_HREF}
       />
       <SecurityTrustCard
-        logo={<CsaStarMarkPlaceholder size="md" />}
+        logo={<CsaStarMark size="md" />}
         title="CSA STAR Level 1 Self-Assessment"
         description={
           <>

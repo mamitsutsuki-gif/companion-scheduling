@@ -1,38 +1,39 @@
 export const CSA_STAR_REGISTRY_HREF =
   "https://cloudsecurityalliance.org/star/registry/motivage-company-limited";
 
-/** 公式ロゴ取得前の仮表示。後から <img> に差し替え可能 */
-export function CsaStarMarkPlaceholder({ size = "md" }: { size?: "xs" | "sm" | "md" }) {
-  const boxClass =
+const ALT = "CSA STAR Level 1 Self-Assessment（Cloud Security Alliance STAR Registry）";
+
+/**
+ * CSA STAR Level 1 公式バッジ。
+ * 許可済みアセットを改変せず表示し、Registry へリンクする。
+ */
+export function CsaStarMark({
+  size = "md",
+}: {
+  size?: "xs" | "sm" | "md";
+}) {
+  const src =
     size === "md"
-      ? "h-28 w-full sm:h-32"
-      : size === "sm"
-        ? "h-16 w-24"
-        : "h-11 w-[4.5rem]";
-
-  const titleClass =
-    size === "md" ? "text-base sm:text-lg" : size === "sm" ? "text-xs" : "text-[10px]";
-
+      ? "/branding/csa-star-level-1-badge-large.png"
+      : "/branding/csa-star-level-1-badge-small.png";
   return (
-    <div
-      className={`${boxClass} flex flex-col items-center justify-center rounded border border-slate-200 bg-white px-1.5 text-center`}
-      aria-label="CSA STAR Level 1 Self-Assessment（仮表示）"
+    <a
+      href={CSA_STAR_REGISTRY_HREF}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex no-underline"
+      title="CSA STAR Registry で登録内容を確認する"
     >
-      <span className={`font-bold tracking-[0.15em] text-slate-800 ${titleClass}`}>STAR</span>
-      {size !== "xs" ? (
-        <>
-          <span className="mt-0.5 text-[10px] font-semibold tracking-[0.2em] text-slate-600 sm:text-xs">
-            LEVEL ONE
-          </span>
-          <span className="mt-0.5 text-[9px] font-medium uppercase tracking-wide text-slate-500 sm:text-[10px]">
-            Self-Assessment
-          </span>
-        </>
-      ) : (
-        <span className="text-[8px] font-semibold leading-tight tracking-wide text-slate-600">
-          L1
-        </span>
-      )}
-    </div>
+      <img
+        src={src}
+        alt={ALT}
+        className={
+          size === "md" ? "h-28 w-auto sm:h-32" : size === "sm" ? "h-16 w-auto" : "h-11 w-auto"
+        }
+      />
+    </a>
   );
 }
+
+/** @deprecated 公式バッジ差し替え後。既存 import 互換のため残す */
+export const CsaStarMarkPlaceholder = CsaStarMark;
