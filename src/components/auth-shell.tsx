@@ -1,5 +1,6 @@
 import { APP_DISPLAY_NAME } from "@/lib/brand";
 import { MotiveIjiLogo } from "@/components/motive-iji-logo";
+import { SecurityTrustAuthFooter } from "@/components/security-trust-auth-footer";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -11,10 +12,12 @@ export function AuthShell({
   title,
   subtitle,
   children,
+  showSecurityFooter = true,
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
+  showSecurityFooter?: boolean;
 }) {
   return (
     <div className="min-h-full px-4 py-12">
@@ -30,6 +33,7 @@ export function AuthShell({
           {subtitle ? <p className="mt-3 text-base leading-relaxed text-slate-600">{subtitle}</p> : null}
         </div>
         {children}
+        {showSecurityFooter ? <SecurityTrustAuthFooter /> : null}
       </div>
     </div>
   );

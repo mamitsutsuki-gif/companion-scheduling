@@ -5,7 +5,7 @@ const ALT = "SECURITY ACTION 二つ星（IPA セキュリティ対策自己宣�
 export function SecurityActionMark({
   size = "sm",
 }: {
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md";
 }) {
   const src =
     size === "md"
@@ -23,7 +23,7 @@ export function SecurityActionMark({
       <img
         src={src}
         alt={ALT}
-        className={size === "md" ? "h-28 w-auto sm:h-32" : "h-16 w-auto"}
+        className={size === "md" ? "h-28 w-auto sm:h-32" : size === "sm" ? "h-16 w-auto" : "h-11 w-auto"}
       />
     </a>
   );
