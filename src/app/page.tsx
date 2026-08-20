@@ -130,6 +130,9 @@ export default function Home() {
             <SecurityActionMark size="sm" />
           </div>
           <div className="flex flex-wrap justify-center gap-4">
+            <Link href="/legal/security" className="text-slate-600 no-underline hover:text-slate-900">
+              セキュリティ
+            </Link>
             <Link href="/legal/privacy" className="text-slate-600 no-underline hover:text-slate-900">
               プライバシーポリシー
             </Link>
