@@ -31,7 +31,7 @@ export function CoachingOneOnOneFormatPanel({ matchId }: { matchId: string }) {
     if (res.ok && json?.doc) {
       setDoc(json.doc);
       setStepMemos(json.doc.stepMemos ?? {});
-      setCanEdit(Boolean(json.permissions?.canEditClient || json.permissions?.canEditPartner));
+      setCanEdit(Boolean(json.permissions?.canEditClient));
       setDirty(false);
     }
     setLoading(false);

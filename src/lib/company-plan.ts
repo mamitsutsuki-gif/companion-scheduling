@@ -173,19 +173,20 @@ export const COACHING_PARTNER_SHARE_OPTIONS: Array<{
   {
     key: "shareIcebreakerWithPartner",
     label: "アイスブレイク",
-    description: "チェックを入れると、マッチしたパートナーが担当クライアントのアイスブレイクを閲覧できます。",
+    description:
+      "チェックを入れると、マッチしたパートナーが担当クライアントのアイスブレイクを閲覧できます（編集はできません）。",
   },
   {
     key: "shareQuestionsWithPartner",
     label: "質問リスト",
     description:
-      "チェックを入れると、マッチしたパートナーが担当クライアントの質問リストを閲覧できます（クライアント公開後のみ）。",
+      "チェックを入れると、マッチしたパートナーが担当クライアントの質問リストを閲覧できます（クライアント公開後のみ・編集不可）。",
   },
   {
     key: "shareOneOnOneFormatWithPartner",
     label: "1on1フォーマット",
     description:
-      "チェックを入れると、マッチしたパートナーが担当クライアントの1on1フォーマットを閲覧できます（クライアント公開後のみ）。",
+      "チェックを入れると、マッチしたパートナーが担当クライアントの1on1フォーマットを閲覧できます（クライアント公開後のみ・編集不可）。",
   },
 ];
 

@@ -99,13 +99,14 @@ function accessForActor(
     };
   }
   if (opts.isPartnerOnMatch && actor.role === "PARTNER") {
+    // アイスブレイク・質問リスト・1on1フォーマットはクライアント編集の閲覧のみ（共有ONでも編集不可）
     return {
       targetUserId,
       companyId,
       matchId,
       canView: true,
       canEditClient: false,
-      canEditPartner: content === "oneOnOneFormat",
+      canEditPartner: false,
     };
   }
   if (opts.isClient && actor.id === targetUserId) {

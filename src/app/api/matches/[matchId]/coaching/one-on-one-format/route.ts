@@ -59,7 +59,7 @@ export async function PUT(request: Request, ctx: RouteContext) {
   const { matchId } = await ctx.params;
   const access = await resolveCoachingAccessForMatch(matchId, { id: session.sub, role: session.role }, "oneOnOneFormat");
   if ("error" in access) return jsonError("権限がありません。", 403);
-  if (!access.canEditClient && !access.canEditPartner) return jsonError("編集権限がありません。", 403);
+  if (!access.canEditClient) return jsonError("編集権限がありません。", 403);
 
   const body = await request.json().catch(() => null);
   const parsed = patchSchema.safeParse(body);
