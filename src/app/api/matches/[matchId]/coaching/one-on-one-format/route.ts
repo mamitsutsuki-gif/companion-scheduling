@@ -11,6 +11,16 @@ type RouteContext = { params: Promise<{ matchId: string }> };
 
 const patchSchema = z.object({
   notes: z.string().max(4000).optional(),
+  stepMemos: z
+    .object({
+      icebreak: z.string().max(4000).optional(),
+      intent: z.string().max(4000).optional(),
+      theme: z.string().max(4000).optional(),
+      organize: z.string().max(4000).optional(),
+      learning: z.string().max(4000).optional(),
+      action: z.string().max(4000).optional(),
+    })
+    .optional(),
   fields: z
     .array(
       z.object({
@@ -36,7 +46,6 @@ export async function GET(_req: Request, ctx: RouteContext) {
   const doc = await getOneOnOneFormat(matchId);
   return jsonOk({
     doc,
-    placeholder: true,
     permissions: {
       canEditClient: access.canEditClient,
       canEditPartner: access.canEditPartner,
@@ -63,10 +72,15 @@ export async function PUT(request: Request, ctx: RouteContext) {
           .map((f, i) => normalizeFormatField(f, f.id || `f-${i + 1}`))
           .filter((f): f is NonNullable<typeof f> => f !== null)
       : current.fields;
+  const nextStepMemos =
+    parsed.data.stepMemos !== undefined
+      ? { ...current.stepMemos, ...parsed.data.stepMemos }
+      : current.stepMemos;
   const saved = await saveOneOnOneFormat({
     ...current,
     matchId,
     notes: parsed.data.notes !== undefined ? parsed.data.notes : current.notes,
+    stepMemos: nextStepMemos,
     fields: nextFields,
   });
   return jsonOk({ doc: saved });
