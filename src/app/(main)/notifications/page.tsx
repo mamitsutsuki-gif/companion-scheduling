@@ -16,6 +16,7 @@ type NotificationRow = {
     | "INVOICE_RETURNED"
     | "MATCH_ASSIGNED"
     | "ROLEPLAY_REVEALED"
+    | "ROLEPLAY_PEER_SUBMITTED"
     | "INQUIRY_REPLIED";
   matchId: string | null;
   sessionNumber: number | null;
@@ -37,6 +38,7 @@ const typeLabel: Record<NotificationRow["type"], string> = {
   INVOICE_RETURNED: "🧾 請求書 差し戻し",
   MATCH_ASSIGNED: "👥 マッチング成立",
   ROLEPLAY_REVEALED: "📊 ロールプレイ開示",
+  ROLEPLAY_PEER_SUBMITTED: "📝 ロールプレイ入力催促",
   INQUIRY_REPLIED: "✉️ お問い合わせ回答",
 };
 
@@ -50,6 +52,7 @@ const typeBadgeClass: Record<NotificationRow["type"], string> = {
   INVOICE_RETURNED: "border-rose-300 bg-rose-50 text-rose-900",
   MATCH_ASSIGNED: "border-indigo-300 bg-indigo-50 text-indigo-950",
   ROLEPLAY_REVEALED: "border-violet-300 bg-violet-50 text-violet-900",
+  ROLEPLAY_PEER_SUBMITTED: "border-violet-200 bg-violet-50/70 text-violet-950",
   INQUIRY_REPLIED: "border-sky-300 bg-sky-50 text-sky-900",
 };
 

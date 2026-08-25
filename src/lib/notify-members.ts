@@ -231,3 +231,55 @@ export async function notifyRoleplayMutualReveal(input: {
     console.error("[notify] notifyRoleplayMutualReveal failed", input.matchId, e);
   }
 }
+
+/**
+ * ロールプレイ評価で片方が先に入力完了したとき、もう一方へ催促通知。
+ * （双方完了時の相互開示通知とは別）
+ */
+export async function notifyRoleplayPeerSubmitted(input: {
+  matchId: string;
+  sessionNumber: number;
+  /** 先に入力を完了した側 */
+  submittedBy: "client" | "partner";
+  appOrigin?: string;
+}) {
+  try {
+    const m = await getMatchById(input.matchId);
+    if (!m?.partner?.id || !m.client?.id) return;
+    const sn = input.sessionNumber;
+    const roomPath = `/match/${encodeURIComponent(input.matchId)}/sessions/${sn}`;
+    const appBase = (process.env.APP_ORIGIN || input.appOrigin || "").replace(/\/$/, "");
+    const absLink = appBase ? `${appBase}${roomPath}` : roomPath;
+
+    const recipientIsPartner = input.submittedBy === "client";
+    const recipientId = recipientIsPartner ? m.partner.id : m.client.id;
+    const recipientName = recipientIsPartner ? m.partner.displayName : m.client.displayName;
+    const peerLabel = input.submittedBy === "client" ? "クライアント" : "パートナー";
+
+    const summary = `第 ${sn} 回のロールプレイ評価を${peerLabel}が入力しました。あなたの評価も入力してください。`;
+    const emailSubject = `ロールプレイ評価：相手の入力が完了しました（第 ${sn} 回）`;
+    const emailBody =
+      `第 ${sn} 回のロールプレイ評価について、${peerLabel}の入力が完了しました。\n` +
+      `双方の入力が揃うとフィードバックが開示されますので、あなたの評価もアプリから入力してください。\n\n${absLink}`;
+
+    await appendMemberNotification({
+      recipientUserId: recipientId,
+      type: "ROLEPLAY_PEER_SUBMITTED",
+      matchId: input.matchId,
+      sessionNumber: sn,
+      summary,
+      link: roomPath,
+    });
+
+    const email = await resolveUserEmailForNotifications(recipientId);
+    if (email?.trim()) {
+      await sendMail({
+        to: email.trim(),
+        subject: emailSubject,
+        text: `${recipientName}さん\n\n${emailBody}`,
+      });
+    }
+  } catch (e) {
+    console.error("[notify] notifyRoleplayPeerSubmitted failed", input.matchId, e);
+  }
+}

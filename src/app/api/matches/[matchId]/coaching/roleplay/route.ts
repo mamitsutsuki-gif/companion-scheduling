@@ -15,7 +15,7 @@ import {
   roleplayRoundStatus,
 } from "@/lib/coaching-roleplay";
 import { getRoleplayStore, saveRoleplayStore } from "@/lib/repositories/coaching-repository";
-import { notifyRoleplayMutualReveal } from "@/lib/notify-members";
+import { notifyRoleplayMutualReveal, notifyRoleplayPeerSubmitted } from "@/lib/notify-members";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import {
   coachingSessionModeContextFromEffective,
@@ -203,6 +203,8 @@ export async function PUT(request: Request, ctx: RouteContext) {
   );
 
   const wasBothSubmitted = roleplayBothSubmitted(prev);
+  const hadClientSubmitted = Boolean(prev.clientSubmittedAt);
+  const hadPartnerSubmitted = Boolean(prev.partnerSubmittedAt);
 
   if (access.canEditClient && roleplayClientSubmissionComplete(merged) && !merged.clientSubmittedAt) {
     merged.clientSubmittedAt = new Date().toISOString();
@@ -219,12 +221,29 @@ export async function PUT(request: Request, ctx: RouteContext) {
   nextSessions[idx] = merged;
   const saved = await saveRoleplayStore({ ...store, matchId, sessions: nextSessions });
 
+  const origin = new URL(request.url).origin;
   const nowBothSubmitted = roleplayBothSubmitted(merged);
+  const clientJustSubmitted = !hadClientSubmitted && Boolean(merged.clientSubmittedAt);
+  const partnerJustSubmitted = !hadPartnerSubmitted && Boolean(merged.partnerSubmittedAt);
+
   if (!wasBothSubmitted && nowBothSubmitted) {
-    const origin = new URL(request.url).origin;
     await notifyRoleplayMutualReveal({
       matchId,
       sessionNumber: round,
+      appOrigin: origin,
+    }).catch(() => null);
+  } else if (clientJustSubmitted && !merged.partnerSubmittedAt) {
+    await notifyRoleplayPeerSubmitted({
+      matchId,
+      sessionNumber: round,
+      submittedBy: "client",
+      appOrigin: origin,
+    }).catch(() => null);
+  } else if (partnerJustSubmitted && !merged.clientSubmittedAt) {
+    await notifyRoleplayPeerSubmitted({
+      matchId,
+      sessionNumber: round,
+      submittedBy: "partner",
       appOrigin: origin,
     }).catch(() => null);
   }
