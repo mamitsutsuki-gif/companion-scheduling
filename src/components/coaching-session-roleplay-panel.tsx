@@ -7,6 +7,7 @@ import {
   scoreOptionLabel,
   scoreHintsForItem,
   categoryRadarValues,
+  normalizeRoleplaySession,
   type RoleplayCategoryDef,
   type RoleplayItemDef,
   type RoleplayItemScore,
@@ -264,11 +265,14 @@ export function CoachingSessionRoleplayPanel({
   matchId,
   sessionNumber,
   readOnly = false,
+  /** セッション終了前の項目プレビュー（入力・保存不可） */
+  previewBeforeSession = false,
   viewerRole,
 }: {
   matchId: string;
   sessionNumber: number;
   readOnly?: boolean;
+  previewBeforeSession?: boolean;
   viewerRole: ViewerRole;
 }) {
   const round = sessionNumber;
@@ -309,7 +313,7 @@ export function CoachingSessionRoleplayPanel({
 
   useEffect(() => {
     if (!store) return;
-    setDraft(store.sessions[round - 1] ?? null);
+    setDraft(store.sessions[round - 1] ?? normalizeRoleplaySession({}, round));
   }, [store, round]);
 
   const categoryLabels = useMemo(() => ROLEPLAY_CATEGORIES.map((c) => c.label), []);
@@ -387,11 +391,21 @@ export function CoachingSessionRoleplayPanel({
       mutualReveal: false,
     };
   const mutualReveal = roundStatus.mutualReveal;
-  const canEditClient = !readOnly && permissions.canEditClient && !mutualReveal;
-  const canEditPartner = !readOnly && permissions.canEditPartner && !mutualReveal;
+  const locked = readOnly || previewBeforeSession;
+  const canEditClient = !locked && permissions.canEditClient && !mutualReveal;
+  const canEditPartner = !locked && permissions.canEditPartner && !mutualReveal;
   const canSave = canEditClient || canEditPartner;
-  const showClientInput = !mutualReveal && (canEditClient || isAdminViewer);
-  const showPartnerInput = !mutualReveal && (canEditPartner || isAdminViewer);
+  // 事前プレビュー時は、終了後と同じ「自分側のフォーム」を閲覧のみ表示
+  const showClientInput =
+    !mutualReveal &&
+    (canEditClient ||
+      isAdminViewer ||
+      (previewBeforeSession && (isClientViewer || isAdminViewer)));
+  const showPartnerInput =
+    !mutualReveal &&
+    (canEditPartner ||
+      isAdminViewer ||
+      (previewBeforeSession && (isPartnerViewer || isAdminViewer)));
 
   const fieldClass =
     "mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-slate-50 disabled:text-slate-500";
@@ -495,7 +509,11 @@ export function CoachingSessionRoleplayPanel({
         </p>
       </div>
 
-      {!isAdminViewer ? (
+      {previewBeforeSession ? (
+        <VisibilityNote tone="neutral">
+          これはセッション終了後に入力する評価フォームのプレビューです。項目の確認のみ可能で、入力・保存はセッション終了後に行えます。
+        </VisibilityNote>
+      ) : !isAdminViewer ? (
         <VisibilityNote>
           {isClientViewer
             ? roundStatus.clientSubmitted
@@ -507,7 +525,7 @@ export function CoachingSessionRoleplayPanel({
         </VisibilityNote>
       ) : null}
 
-      {(showClientInput || showPartnerInput) && (canEditClient || canEditPartner) ? (
+      {showClientInput || showPartnerInput ? (
         <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5">
           <label className="block text-base">
             <span className="font-medium text-slate-800">テーマ</span>
@@ -516,6 +534,7 @@ export function CoachingSessionRoleplayPanel({
               disabled={!canEditClient && !canEditPartner}
               onChange={(e) => setDraft({ ...draft, theme: e.target.value })}
               className={fieldClass}
+              placeholder={previewBeforeSession ? "（セッション後に入力）" : undefined}
             />
           </label>
         </div>
@@ -691,7 +710,11 @@ export function CoachingSessionRoleplayPanel({
           {notice ? <span className="text-base text-emerald-700">{notice}</span> : null}
           {error ? <span className="text-base text-rose-700">{error}</span> : null}
         </div>
-      ) : readOnly ? (
+      ) : previewBeforeSession ? (
+        <p className="text-base text-slate-500">
+          プレビューのため保存できません。セッション終了後に入力してください。
+        </p>
+      ) : locked ? (
         <p className="text-base text-slate-500">閲覧のみ（編集不可）</p>
       ) : null}
     </div>

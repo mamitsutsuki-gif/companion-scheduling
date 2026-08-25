@@ -486,22 +486,25 @@ export function SessionWorkspace({
         <section className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 sm:px-5">
           <h2 className="text-lg font-semibold text-slate-900">
             {isCoachingRoleplay
-              ? "ロールプレイ評価はセッション終了後に入力できます"
+              ? "ロールプレイ評価の入力はセッション終了後です"
               : "振り返り・セッションレポートはセッション終了後に入力できます"}
           </h2>
           <p className="text-sm text-slate-600">
-            セッション詳細とガイドラインは事前に確認できます。
+            {isCoachingRoleplay
+              ? "下のフォームは項目確認用のプレビューです。入力・保存はセッション終了後に行えます。"
+              : "セッション詳細とガイドラインは事前に確認できます。"}
             {detail.plan.endAt ? ` 終了予定：${formatJa(detail.plan.endAt)}` : ""}
           </p>
         </section>
       ) : null}
 
-      {postSessionOpenable && isCoachingRoleplay && !isAbandoned ? (
+      {isCoachingRoleplay && !isAbandoned ? (
         <section className="space-y-4 rounded-3xl border border-indigo-100 bg-white p-4 shadow-sm sm:p-6">
           <CoachingSessionRoleplayPanel
             matchId={matchId}
             sessionNumber={detail.sessionNumber}
-            readOnly={roleplayReadOnly}
+            readOnly={roleplayReadOnly || !postSessionOpenable}
+            previewBeforeSession={!postSessionOpenable}
             viewerRole={role}
           />
         </section>
