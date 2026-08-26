@@ -17,7 +17,11 @@ function buildSteps(
   if (isCoachingPlan) {
     return isClient
       ? [
-          { title: "チャットでパートナーに挨拶", tab: "chat", tabLabel: "チャット" },
+          {
+            title: "パートナーから日程調整の連絡が届くまでお待ちください",
+            tab: "sessions",
+            tabLabel: "1on1セッション",
+          },
           {
             title: "候補日が届いたら 1on1セッションで ○× 回答",
             tab: "sessions",
@@ -46,7 +50,11 @@ function buildSteps(
 
   if (isClient) {
     const steps: GuideStep[] = [
-      { title: "チャットでパートナーに挨拶", tab: "chat", tabLabel: "チャット" },
+      {
+        title: "パートナーから日程調整の連絡が届くまでお待ちください",
+        tab: "sessions",
+        tabLabel: "1on1セッション",
+      },
       {
         title: "候補日が届いたら 1on1セッションで ○× 回答",
         tab: "sessions",
@@ -95,7 +103,7 @@ export function MatchRoomGuideBanner({
   isCoachingPlan: boolean;
   onGoTab: (tab: string) => void;
 }) {
-  const storageKey = `companion:match-room-guide:v1:${userId}`;
+  const storageKey = `companion:match-room-guide:v2:${userId}`;
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
