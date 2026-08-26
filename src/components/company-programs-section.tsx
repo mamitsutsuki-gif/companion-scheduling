@@ -27,6 +27,9 @@ export function CompanyProgramsSection({ companyId }: { companyId: string }) {
   const [creating, setCreating] = useState(false);
   const [consolidating, setConsolidating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPlan, setNewPlan] = useState<CompanyPlan>("individual_companion_pro");
 
@@ -146,6 +149,37 @@ export function CompanyProgramsSection({ companyId }: { companyId: string }) {
     }
   }
 
+  async function onRename(programId: string) {
+    const name = renameDraft.trim();
+    if (!name) {
+      setError("名称を入力してください。");
+      return;
+    }
+    setRenaming(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/programs/${encodeURIComponent(programId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        setError(typeof json?.error === "string" ? json.error : "名称の変更に失敗しました。");
+        return;
+      }
+      setMessage(`プログラム名を「${name}」に更新しました。`);
+      setRenamingId(null);
+      setRenameDraft("");
+      await reload();
+    } catch {
+      setError("ネットワークエラーが発生しました。");
+    } finally {
+      setRenaming(false);
+    }
+  }
+
   async function onDelete(program: ProgramRow) {
     if (
       !confirm(
@@ -179,8 +213,9 @@ export function CompanyProgramsSection({ companyId }: { companyId: string }) {
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <h2 className="text-lg font-semibold text-slate-900">導入プログラム</h2>
       <p className="mt-1 text-sm text-slate-600">
-        1企業内で<strong>別プラン同士</strong>（例: 個別伴走 + コーチング研修）は並行できます。
-        同じプランを2つ以上追加することはできません。
+        1企業内で<strong>別プラン同士</strong>は並行できます（例: Pro + Exec +
+        追加枠）。同じプランを2つ以上追加することはできません。
+        クライアントに見えるのは<strong>プログラム名称</strong>です（「旧」などの内部ラベルは出しません）。
       </p>
       {hasDuplicatePlans ? (
         <div className="mt-3 space-y-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950">
@@ -221,16 +256,48 @@ export function CompanyProgramsSection({ companyId }: { companyId: string }) {
                 className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm"
               >
                 <div>
-                  <p className="font-semibold text-slate-900">
-                    {p.name}
-                    {dupCount > 1 ? (
-                      <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
-                        プラン重複
-                      </span>
-                    ) : null}
-                  </p>
+                  {renamingId === p.id ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        value={renameDraft}
+                        onChange={(e) => setRenameDraft(e.target.value)}
+                        maxLength={80}
+                        className="min-w-[12rem] rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                      />
+                      <button
+                        type="button"
+                        disabled={renaming}
+                        onClick={() => void onRename(p.id)}
+                        className="rounded-lg bg-indigo-700 px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                      >
+                        {renaming ? "保存中…" : "保存"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={renaming}
+                        onClick={() => {
+                          setRenamingId(null);
+                          setRenameDraft("");
+                        }}
+                        className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="font-semibold text-slate-900">
+                      {p.name}
+                      {dupCount > 1 ? (
+                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                          プラン重複
+                        </span>
+                      ) : null}
+                    </p>
+                  )}
                   <p className="mt-0.5 text-xs text-slate-500">
-                    {companyPlanLabel(p.plan)} · ID: <span className="font-mono">{p.id}</span>
+                    内部プラン: {companyPlanLabel(p.plan)} · ID:{" "}
+                    <span className="font-mono">{p.id}</span>
                     {typeof p.assignedMatchCount === "number" ? (
                       <>
                         {" "}
@@ -256,6 +323,18 @@ export function CompanyProgramsSection({ companyId }: { companyId: string }) {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  {renamingId !== p.id ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRenamingId(p.id);
+                        setRenameDraft(p.name);
+                      }}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+                    >
+                      名称変更
+                    </button>
+                  ) : null}
                   <Link
                     href={`/admin/companies/${encodeURIComponent(companyId)}/settings?programId=${encodeURIComponent(p.id)}`}
                     className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-900 no-underline hover:bg-indigo-100"
@@ -292,7 +371,11 @@ export function CompanyProgramsSection({ companyId }: { companyId: string }) {
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="例: 2026年度 個別伴走"
+                  placeholder={
+                    newPlan === "individual_companion"
+                      ? "例: コーチング体験"
+                      : "例: 2026年度 個別伴走"
+                  }
                   maxLength={80}
                   className="min-w-[14rem] rounded-lg border border-slate-300 px-3 py-2"
                 />
@@ -301,7 +384,13 @@ export function CompanyProgramsSection({ companyId }: { companyId: string }) {
                 <span className="text-slate-600">プラン（未追加のみ）</span>
                 <select
                   value={newPlan}
-                  onChange={(e) => setNewPlan(e.target.value as CompanyPlan)}
+                  onChange={(e) => {
+                    const v = e.target.value as CompanyPlan;
+                    setNewPlan(v);
+                    if (v === "individual_companion" && !newName.trim()) {
+                      setNewName("コーチング体験");
+                    }
+                  }}
                   className="min-w-[14rem] rounded-lg border border-slate-300 px-3 py-2"
                 >
                   {availablePlanOptions.map((o) => (

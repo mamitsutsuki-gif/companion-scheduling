@@ -1236,7 +1236,7 @@ export default function AdminCompanySettingsPage({
             </>
           ) : (
             <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              導入プラン: {companyPlanLabel(companyPlan)} — 成果物の個別選択は個別伴走プラン（Exec / Pro）のみ利用できます。
+              導入プラン: {companyPlanLabel(companyPlan)} — 成果物の個別選択は個別伴走系プランのみ利用できます。
             </p>
           )}
 

@@ -123,16 +123,35 @@ export async function createProgram(input: {
 
   const id = newProgramId();
   const now = new Date().toISOString();
+  const defaultName =
+    plan === "individual_companion" ? "コーチング体験" : companyPlanLabel(plan);
   const row: ProgramRow = {
     id,
     companyId: cid,
     plan,
-    name: (input.name ?? companyPlanLabel(plan)).trim().slice(0, 80),
+    name: (input.name ?? defaultName).trim().slice(0, 80),
     createdAt: now,
     updatedAt: now,
   };
   await db.collection("programs").doc(id).set(row);
   return { ok: true, program: row };
+}
+
+export async function renameProgram(
+  programId: string,
+  name: string,
+): Promise<{ ok: true; program: ProgramRow } | { ok: false; error: string }> {
+  const pid = (programId ?? "").trim();
+  const nextName = name.trim().slice(0, 80);
+  if (!pid || !nextName) return { ok: false, error: "名称を入力してください。" };
+  if (!isFirebaseDataBackend()) return { ok: false, error: "プログラムを更新できません。" };
+  const db = getFirebaseFirestoreClient();
+  if (!db) return { ok: false, error: "Firestore 未設定です。" };
+  const existing = await getProgramById(pid);
+  if (!existing) return { ok: false, error: "プログラムが見つかりません。" };
+  const now = new Date().toISOString();
+  await db.collection("programs").doc(pid).set({ name: nextName, updatedAt: now }, { merge: true });
+  return { ok: true, program: { ...existing, name: nextName, updatedAt: now } };
 }
 
 export function dedupeProgramsByPlan(programs: ProgramRow[]): ProgramRow[] {

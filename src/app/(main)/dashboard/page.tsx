@@ -273,10 +273,11 @@ export default async function DashboardPage({
                       クライアント企業: {(match.client as { companyName?: string | null }).companyName}
                     </p>
                   ) : null}
-                  {(match as { programName?: string | null; programPlanLabel?: string | null }).programName ? (
+                  {(match as { programName?: string | null }).programName ? (
                     <p className="mt-1 text-sm text-slate-600">
                       プログラム: {(match as { programName: string }).programName}
-                      {(match as { programPlanLabel?: string | null }).programPlanLabel
+                      {isAdmin &&
+                      (match as { programPlanLabel?: string | null }).programPlanLabel
                         ? `（${(match as { programPlanLabel: string }).programPlanLabel}）`
                         : ""}
                     </p>

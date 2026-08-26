@@ -33,14 +33,17 @@ export const COMPANY_PLAN_OPTIONS: Array<{ value: CompanyPlan; label: string }> 
   { value: "workplace_activation", label: "職場活性プラン" },
   { value: "individual_companion_exec", label: "個別伴走プラン（Exec）" },
   { value: "individual_companion_pro", label: "個別伴走プラン（Pro）" },
+  // Pro/Exec と並走する3本目用。機能セットは個別伴走と同じ。クライアント向け表示名はプログラム名称で付ける。
+  {
+    value: "individual_companion",
+    label: "個別伴走プラン（追加枠・表示名自由）",
+  },
   { value: "coaching_management_training", label: "コーチングマネジメント研修" },
   { value: "monthly_session", label: "月額プラン（セッション申し込み）" },
 ];
 
-/** 新規作成UIには出さないが、既存データ表示用 */
-const LEGACY_COMPANY_PLAN_LABELS: Partial<Record<CompanyPlan, string>> = {
-  individual_companion: "個別伴走プラン（旧）",
-};
+/** 旧データ互換（OPTIONS に無い場合の表示フォールバック） */
+const LEGACY_COMPANY_PLAN_LABELS: Partial<Record<CompanyPlan, string>> = {};
 
 export function companyPlanLabel(plan: CompanyPlan | null | undefined): string {
   if (!plan) return COMPANY_PLAN_OPTIONS[0]!.label;
