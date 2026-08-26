@@ -47,7 +47,10 @@ export function canViewCompanionHowtoAudience(
 ): boolean {
   if (role === "ADMIN" || role === "ADMIN_ASSISTANT") return true;
   if (role === "PARTNER") return audience === "partner";
-  if (role === "CLIENT_ADMIN") return audience === "supervisor" || audience === "client";
+  // 上司・人事: 部下シート閲覧時は supervisor、本人ルームでは client
+  if (role === "CLIENT_ADMIN" || role === "CLIENT_HR") {
+    return audience === "supervisor" || audience === "client";
+  }
   return audience === "client";
 }
 

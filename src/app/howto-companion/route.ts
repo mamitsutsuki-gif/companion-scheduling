@@ -16,7 +16,7 @@ const HOWTO_INDEX = path.join(process.cwd(), "content", "howto-companion", "inde
 
 function defaultAudienceForRole(role: string): CompanionHowtoAudience {
   if (role === "PARTNER") return "partner";
-  if (role === "CLIENT_ADMIN") return "supervisor";
+  if (role === "CLIENT_ADMIN" || role === "CLIENT_HR") return "supervisor";
   return "client";
 }
 
