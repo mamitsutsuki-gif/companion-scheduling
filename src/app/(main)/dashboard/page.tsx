@@ -42,12 +42,11 @@ export default async function DashboardPage({
     getAppSettingsRow(),
   ]);
   const showFta = shouldShowGlobalFta(me.role);
-  const hasCoachingMatch = allMatches.some(
-    (m) =>
-      (m as { programPlanLabel?: string | null }).programPlanLabel ===
-        "コーチングマネジメント研修" ||
-      String((m as { programName?: string | null }).programName ?? "").includes("コーチング"),
-  );
+  const hasCoachingMatch = allMatches.some((m) => {
+    const planLabel = (m as { programPlanLabel?: string | null }).programPlanLabel ?? "";
+    // プログラム表示名に「コーチング」が含まれる個別伴走（例: コーチング体験）は研修扱いしない
+    return planLabel === "コーチングマネジメント研修";
+  });
   const roomSectionTitle =
     isClientMember && hasCoachingMatch ? "セッション・研修ルーム" : isClientMember ? "セッションルーム" : "担当ペア";
   const roomSectionDescription = isClientMember
