@@ -1825,7 +1825,11 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           </p>
           <p className="text-sm text-slate-600 sm:text-base">
             {withHonorificSan(me.displayName)} として表示中
-            {supervisorViewer ? "（部下の伴走シート）" : "（メールなどは公開されません）"}
+            {supervisorViewer
+              ? me.role === "CLIENT_HR"
+                ? "（社内の伴走シート）"
+                : "（部下の伴走シート）"
+              : "（メールなどは公開されません）"}
           </p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
             {me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT" ? (

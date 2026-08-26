@@ -155,8 +155,11 @@ export function ApplicationChrome({
   }
   if (profile.role === "CLIENT_ADMIN" || profile.role === "CLIENT_HR") {
     nav.push({ href: "/client-admin/sessions", label: "1on1セッション一覧" });
-    // スキルチェックは「部下の伴走シート」に統合済み（入り口を分けない）
-    nav.push({ href: "/client-admin/companion-sheets", label: "部下の伴走シート" });
+    // スキルチェックは伴走シート画面に統合済み（入り口を分けない）
+    nav.push({
+      href: "/client-admin/companion-sheets",
+      label: profile.role === "CLIENT_HR" ? "社内の伴走シート" : "部下の伴走シート",
+    });
   }
   if (profile.role === "PARTNER") {
     nav.push({ href: "/partner/invoices", label: "請求書", badge: invoiceBadge });

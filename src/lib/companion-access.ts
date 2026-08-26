@@ -130,7 +130,8 @@ export async function resolveCompanionAccessForMatch(
   });
   if (base) return base;
 
-  if (isClientAdminLike(actor.role)) {
+  // 人事のみ: 同企業 CLIENT のシートを閲覧可（編集なし）。上司は紐づけ必須。
+  if (actor.role === "CLIENT_HR") {
     const actorUser = await getUserById(actor.id);
     const actorCompanyId = ((actorUser as { companyId?: string | null } | null)?.companyId ?? "").trim();
     if (actorCompanyId && actorCompanyId === companyId) {
@@ -181,7 +182,8 @@ export async function resolveCompanionAccessForUser(
   });
   if (base) return base;
 
-  if (isClientAdminLike(actor.role) && target.role === "CLIENT") {
+  // 人事のみ: 同企業 CLIENT のシートを閲覧可（編集なし）。上司は紐づけ必須。
+  if (actor.role === "CLIENT_HR" && target.role === "CLIENT") {
     const actorUser = await getUserById(actor.id);
     const actorCompanyId = ((actorUser as { companyId?: string | null } | null)?.companyId ?? "").trim();
     if (actorCompanyId && actorCompanyId === companyId) {

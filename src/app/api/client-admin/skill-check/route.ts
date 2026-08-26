@@ -67,11 +67,15 @@ export async function GET(request: Request) {
   const members = await listClientsInCompany(companyId);
   const clientsAll = members.filter((u) => u.role === "CLIENT");
 
-  // 先にマッチした上司ペアを判定（enrollment より優先）
-  const pairedFlags = await Promise.all(
-    clientsAll.map((c) => isPairedIndividualCompanionSupervisor(session.sub, c.id)),
-  );
-  let clients = clientsAll.filter((_, i) => pairedFlags[i]);
+  let clients = clientsAll;
+  if (me.role === "CLIENT_ADMIN") {
+    // 上司: マッチ／紐づけした部下のみ
+    const pairedFlags = await Promise.all(
+      clientsAll.map((c) => isPairedIndividualCompanionSupervisor(session.sub, c.id)),
+    );
+    clients = clientsAll.filter((_, i) => pairedFlags[i]);
+  }
+  // CLIENT_HR: 同企業 CLIENT 全員（閲覧中心。編集可否は各シート API 側）
 
   // programId 指定時は、そのプログラムに明示登録されている受講者だけに絞る
   // （未設定 enrolled は残す＝レガシー）

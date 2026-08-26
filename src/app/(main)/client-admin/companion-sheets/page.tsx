@@ -15,16 +15,21 @@ type Row = {
   managerCurrentFilled: number;
 };
 
+type Scope = "company" | "subordinates";
+
 function withHonorificSan(name: string) {
   return `${name}さん`;
 }
 
 export default function ClientAdminCompanionSheetsPage() {
   const [clients, setClients] = useState<Row[]>([]);
+  const [scope, setScope] = useState<Scope>("subordinates");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+
+  const isHr = scope === "company";
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -39,6 +44,7 @@ export default function ClientAdminCompanionSheetsPage() {
     }
     const list: Row[] = Array.isArray(data?.clients) ? data.clients : [];
     setClients(list);
+    setScope(data?.scope === "company" ? "company" : "subordinates");
     if (typeof data?.message === "string") setInfo(data.message);
     setSelectedId((prev) => {
       if (prev && list.some((c) => c.clientId === prev)) return prev;
@@ -56,15 +62,15 @@ export default function ClientAdminCompanionSheetsPage() {
     <div className="mx-auto flex max-w-5xl flex-col gap-6 sm:gap-10">
       <header className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-8">
         <p className="text-xs font-semibold tracking-[0.14em] text-indigo-800 uppercase">
-          Client Administrator
+          {isHr ? "Client HR" : "Client Administrator"}
         </p>
         <h1 className="mt-2 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
-          部下の伴走シート
+          {isHr ? "社内の伴走シート" : "部下の伴走シート"}
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          紐づけられた部下のスキルチェック（上司評価・重点育成項目）をこの画面で入力できます。
-          ライフライン・FTA などのシートは「シートを開く」から確認できます。チャット・1on1
-          セッションには入りません。
+          {isHr
+            ? "同じ企業に割り当てられた受講者の伴走シートを確認できます（閲覧中心）。スキルチェックの上司評価入力やチャット・1on1 セッションには入りません。"
+            : "紐づけられた部下のスキルチェック（上司評価・重点育成項目）をこの画面で入力できます。ライフライン・FTA などのシートは「シートを開く」から確認できます。チャット・1on1 セッションには入りません。"}
         </p>
         <button
           type="button"
@@ -82,12 +88,14 @@ export default function ClientAdminCompanionSheetsPage() {
         <p className="text-sm text-slate-500">読込中…</p>
       ) : clients.length === 0 ? (
         <p className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center text-slate-600">
-          表示できる部下がいません。
+          {isHr ? "表示できる受講者がいません。" : "表示できる部下がいません。"}
         </p>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(12rem,17rem)_1fr]">
           <aside className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-            <h2 className="px-2 text-sm font-semibold text-slate-800">部下一覧</h2>
+            <h2 className="px-2 text-sm font-semibold text-slate-800">
+              {isHr ? "受講者一覧" : "部下一覧"}
+            </h2>
             <ul className="mt-2 space-y-1">
               {clients.map((row) => (
                 <li key={row.clientId}>
@@ -142,7 +150,9 @@ export default function ClientAdminCompanionSheetsPage() {
                 <SkillCheckPanel key={selected.clientId} userId={selected.clientId} />
               </>
             ) : (
-              <p className="text-sm text-slate-500">一覧から部下を選んでください。</p>
+              <p className="text-sm text-slate-500">
+                {isHr ? "一覧から受講者を選んでください。" : "一覧から部下を選んでください。"}
+              </p>
             )}
           </div>
         </div>

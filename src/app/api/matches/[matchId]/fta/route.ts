@@ -34,7 +34,8 @@ export async function GET(_request: Request, context: RouteContext) {
     const paired =
       match.partnerId === session.sub ||
       (await isPairedIndividualCompanionSupervisor(session.sub, match.clientId));
-    if (paired) {
+    // 人事の企業横断閲覧（supervisorViewer）もマスク済みで閲覧可
+    if (paired || (session.role === "CLIENT_HR" && gate.supervisorViewer)) {
       const chart = maskedFtaChartForViewer(await getFtaByUserId(match.clientId));
       return jsonOk({ targetRole: "CLIENT", targetName: match.client.displayName, chart });
     }

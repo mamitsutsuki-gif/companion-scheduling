@@ -11,8 +11,8 @@ import { isPairedIndividualCompanionSupervisor } from "@/lib/skill-check-access"
 export const dynamic = "force-dynamic";
 
 /**
- * 上司向け: 紐づけ済み部下の伴走シート（パートナールーム）とスキルチェックの一覧。
- * 上司の入り口はこの 1 つに集約する（スキルチェックも同じ画面から入力する）。
+ * 上司（CLIENT_ADMIN）: 紐づけ済み部下の伴走シート一覧。
+ * 人事（CLIENT_HR）: 同企業の CLIENT 全員の伴走シート一覧（閲覧中心）。
  */
 export async function GET() {
   const session = await readSession();
@@ -24,21 +24,35 @@ export async function GET() {
     return jsonError("権限がありません。", 403);
   }
 
-  const links = await listSupervisorLinksForSupervisor(session.sub);
-  const clientIds = new Map<string, string | null>();
-  for (const link of links) clientIds.set(link.clientId, link.id);
-
-  // 紐づけ未登録でも、レガシーの上司マッチでペアになっている部下は同じ一覧に出す。
   const companyId = ((me as { companyId?: string | null }).companyId ?? "").trim();
-  if (companyId) {
+  const isHr = me.role === "CLIENT_HR";
+  const clientIds = new Map<string, string | null>();
+
+  if (isHr) {
+    if (!companyId) {
+      return jsonOk({
+        scope: "company" as const,
+        clients: [],
+        message: "所属企業が設定されていないため、一覧を表示できません。",
+      });
+    }
     const members = (await listClientsInCompany(companyId)).filter((u) => u.role === "CLIENT");
-    const pending = members.filter((u) => !clientIds.has(u.id));
-    const paired = await Promise.all(
-      pending.map((u) => isPairedIndividualCompanionSupervisor(session.sub, u.id)),
-    );
-    pending.forEach((u, i) => {
-      if (paired[i]) clientIds.set(u.id, null);
-    });
+    for (const u of members) clientIds.set(u.id, null);
+  } else {
+    const links = await listSupervisorLinksForSupervisor(session.sub);
+    for (const link of links) clientIds.set(link.clientId, link.id);
+
+    // 紐づけ未登録でも、レガシーの上司マッチでペアになっている部下は同じ一覧に出す。
+    if (companyId) {
+      const members = (await listClientsInCompany(companyId)).filter((u) => u.role === "CLIENT");
+      const pending = members.filter((u) => !clientIds.has(u.id));
+      const paired = await Promise.all(
+        pending.map((u) => isPairedIndividualCompanionSupervisor(session.sub, u.id)),
+      );
+      pending.forEach((u, i) => {
+        if (paired[i]) clientIds.set(u.id, null);
+      });
+    }
   }
 
   const rows = await Promise.all(
@@ -66,11 +80,13 @@ export async function GET() {
   );
   rows.sort((a, b) => a.clientName.localeCompare(b.clientName, "ja"));
 
+  const emptyMessage = isHr
+    ? "同じ企業に登録された受講者がいません。"
+    : "紐づけられた部下がいません。管理者に上司割当を依頼してください。";
+
   return jsonOk({
+    scope: isHr ? ("company" as const) : ("subordinates" as const),
     clients: rows,
-    message:
-      rows.length === 0
-        ? "紐づけられた部下がいません。管理者に上司割当を依頼してください。"
-        : null,
+    message: rows.length === 0 ? emptyMessage : null,
   });
 }

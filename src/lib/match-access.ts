@@ -6,6 +6,7 @@ import { isPairedIndividualCompanionSupervisor } from "@/lib/skill-check-access"
 import { isClientAdminLike } from "@/lib/role-aliases";
 import { isIndividualCompanionPlan } from "@/lib/company-plan";
 import { resolveActorRole } from "@/lib/actor-role";
+import { getUserById } from "@/lib/repositories/user-repository";
 
 export type MatchAccessOk = {
   match: NonNullable<Awaited<ReturnType<typeof getMatchById>>>;
@@ -64,6 +65,26 @@ export async function getMatchIfAllowed(
     if (paired) {
       const program = match.programId ? await getProgramById(match.programId) : null;
       if (!program || isIndividualCompanionPlan(program.plan)) {
+        return { match, supervisorViewer: true };
+      }
+    }
+  }
+
+  // クライアント人事: 同企業の個別伴走パートナールームをシート専用で閲覧可（編集は各 API で拒否）
+  if (actor.role === "CLIENT_HR" && match.clientId !== actor.id) {
+    const [actorUser, clientUser, partnerUser] = await Promise.all([
+      getUserById(actor.id),
+      getUserById(match.clientId),
+      getUserById(match.partnerId),
+    ]);
+    const actorCompanyId = ((actorUser as { companyId?: string | null } | null)?.companyId ?? "").trim();
+    const clientCompanyId = ((clientUser as { companyId?: string | null } | null)?.companyId ?? "").trim();
+    if (actorCompanyId && clientCompanyId && actorCompanyId === clientCompanyId) {
+      const program = match.programId ? await getProgramById(match.programId) : null;
+      const isIc =
+        (program && isIndividualCompanionPlan(program.plan)) ||
+        (!program && partnerUser?.role === "PARTNER");
+      if (isIc) {
         return { match, supervisorViewer: true };
       }
     }

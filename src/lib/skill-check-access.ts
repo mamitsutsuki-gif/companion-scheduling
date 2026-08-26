@@ -165,16 +165,29 @@ export async function resolveSkillCheckAccessForMatch(
     const actorCompanyId = ((actorUser as { companyId?: string | null } | null)?.companyId ?? "").trim();
     if (actorCompanyId && actorCompanyId === companyId) {
       const paired = await isPairedIndividualCompanionSupervisor(actor.id, targetUserId);
-      // 評価・重点スキルはマッチした上司のみ。スキル項目名は同社上司も編集可。
-      return {
-        targetUserId,
-        companyId,
-        canView: true,
-        canEditSelf: false,
-        canEditManager: paired,
-        canEditFocusSkills: paired,
-        canEditSkillDefinitions: true,
-      };
+      if (paired) {
+        return {
+          targetUserId,
+          companyId,
+          canView: true,
+          canEditSelf: false,
+          canEditManager: true,
+          canEditFocusSkills: true,
+          canEditSkillDefinitions: true,
+        };
+      }
+      // 人事のみ: 紐づけなしでも同企業 CLIENT を閲覧可（編集なし）
+      if (actor.role === "CLIENT_HR") {
+        return {
+          targetUserId,
+          companyId,
+          canView: true,
+          canEditSelf: false,
+          canEditManager: false,
+          canEditFocusSkills: false,
+          canEditSkillDefinitions: false,
+        };
+      }
     }
   }
 
@@ -240,8 +253,19 @@ export async function resolveSkillCheckAccessForUser(
     const actorCompanyId = ((actorUser as { companyId?: string | null } | null)?.companyId ?? "").trim();
     if (actorCompanyId && actorCompanyId === companyId && target.role === "CLIENT") {
       const paired = await isPairedIndividualCompanionSupervisor(actor.id, targetUserId);
-      // 評価はマッチ上司のみ。スキル項目名は同社上司（CLIENT_ADMIN/HR）も編集可。
-      if (!paired) {
+      if (paired) {
+        return {
+          targetUserId,
+          companyId,
+          canView: true,
+          canEditSelf: false,
+          canEditManager: true,
+          canEditFocusSkills: true,
+          canEditSkillDefinitions: true,
+        };
+      }
+      // 人事のみ: 紐づけなしでも同企業 CLIENT を閲覧可（編集なし）
+      if (actor.role === "CLIENT_HR") {
         return {
           targetUserId,
           companyId,
@@ -249,18 +273,9 @@ export async function resolveSkillCheckAccessForUser(
           canEditSelf: false,
           canEditManager: false,
           canEditFocusSkills: false,
-          canEditSkillDefinitions: true,
+          canEditSkillDefinitions: false,
         };
       }
-      return {
-        targetUserId,
-        companyId,
-        canView: true,
-        canEditSelf: false,
-        canEditManager: true,
-        canEditFocusSkills: true,
-        canEditSkillDefinitions: true,
-      };
     }
   }
 
