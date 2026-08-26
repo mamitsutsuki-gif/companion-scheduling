@@ -9,7 +9,7 @@ type Row = {
   clientId: string;
   clientName: string;
   matchId: string | null;
-  partnerName: string | null;
+  hasPartnerRoom: boolean;
   programId: string | null;
   managerBaselineFilled: number;
   managerCurrentFilled: number;
@@ -131,9 +131,9 @@ export default function ClientAdminCompanionSheetsPage() {
                       {withHonorificSan(selected.clientName)}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {selected.partnerName
-                        ? `パートナー: ${withHonorificSan(selected.partnerName)}`
-                        : "パートナールーム未作成"}
+                      {selected.matchId || selected.hasPartnerRoom
+                        ? "シートルームあり"
+                        : "シートルーム未作成"}
                     </p>
                   </div>
                   {selected.matchId ? (

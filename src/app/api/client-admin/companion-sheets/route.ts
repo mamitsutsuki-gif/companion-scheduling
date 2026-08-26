@@ -67,7 +67,8 @@ export async function GET() {
         clientId,
         clientName: client?.displayName ?? "不明",
         matchId: room?.id ?? null,
-        partnerName: room?.partnerName ?? null,
+        // 上司・人事向け一覧ではパートナー名は出さない（プライバシー）
+        hasPartnerRoom: Boolean(room?.id),
         programId: room?.programId ?? null,
         managerBaselineFilled: profile
           ? Object.values(profile.baseline).filter((v) => v.managerScore !== null).length

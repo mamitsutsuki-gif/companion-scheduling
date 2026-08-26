@@ -20,15 +20,17 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const { match } = gate;
   const partnerPending = isPartnerPendingMatch(match);
+  const sheetsOnly = gate.supervisorViewer === true;
 
   return jsonOk({
     matchId: match.id,
     partnerPending,
     /** 上司紐づけによるシート専用ビュー（チャット・日程・1on1 は非表示） */
-    supervisorViewer: gate.supervisorViewer === true,
+    supervisorViewer: sheetsOnly,
     partner: {
-      id: match.partner?.id ?? "",
-      displayName: match.partner?.displayName ?? "未決定",
+      id: sheetsOnly ? "" : (match.partner?.id ?? ""),
+      // 上司・人事のシート閲覧ではパートナー名を出さない
+      displayName: sheetsOnly ? "" : (match.partner?.displayName ?? "未決定"),
     },
     client: {
       id: match.client.id,
