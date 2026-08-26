@@ -134,7 +134,9 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
   if (loading) return <p className="text-sm text-slate-500">読込中…</p>;
 
   const isManagerView = viewMode === "manager";
-  const sharedInsights = events.filter((e) => e.insights.trim().length > 0);
+  const sharedInsights = events.filter((e) => !e.locked && e.insights.trim().length > 0);
+  const lockedInsightCount = events.filter((e) => e.locked).length;
+  const emptyInsightCount = events.filter((e) => !e.locked && !e.insights.trim()).length;
 
   return (
     <section className="space-y-8">
@@ -154,7 +156,10 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
               鍵がかかっていない項目では、「価値観・強みの気づき」と、まとめの価値観も確認できます。
             </li>
             <li>
-              鍵がかかっている項目では、グラフのみです（気づきは表示されません）。
+              鍵がかかっている項目では、気づきは「🔒 非公開」と表示され、本文は見えません。
+            </li>
+            <li>
+              鍵なしで未記入の気づきは「未入力」と表示されます（非公開とは区別されます）。
             </li>
             <li>
               人生の出来事の詳細（時期・タイトル・本文・理由など）は、プライバシーのため表示されません。
@@ -173,7 +178,7 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
               <strong>鍵なし:</strong> グラフ（感情の波）と、価値観の気づき・まとめが相手に見えます。
             </li>
             <li>
-              <strong>鍵あり:</strong> グラフだけが見えます（価値観の気づきは非公開）。
+              <strong>鍵あり:</strong> 相手には気づきが「🔒 非公開」と見え、本文は見えません（グラフは見えます）。
             </li>
           </ul>
         </aside>
@@ -420,23 +425,48 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
           {isManagerView ? (
             <>
               <p className="text-sm text-slate-600">
-                出来事は {events.length} 件あります（詳細は非公開）。鍵なしの項目では価値観の気づきのみ表示します。
+                出来事は {events.length} 件あります（詳細は非公開）。価値観の気づき: 共有{" "}
+                {sharedInsights.length} / 🔒 非公開 {lockedInsightCount} / 未入力 {emptyInsightCount}
               </p>
-              {sharedInsights.length > 0 ? (
+              {events.length > 0 ? (
                 <div className="space-y-3">
-                  <h3 className="text-base font-semibold text-slate-900">共有されている価値観・気づき</h3>
+                  <h3 className="text-base font-semibold text-slate-900">価値観・気づきの一覧</h3>
                   <ul className="space-y-3">
-                    {sharedInsights.map((e, i) => (
-                      <li key={e.id || i} className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4">
-                        <p className="text-xs font-semibold text-indigo-800">気づき {i + 1}</p>
-                        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{e.insights}</p>
-                      </li>
-                    ))}
+                    {events.map((e, i) => {
+                      const status = e.locked
+                        ? "locked"
+                        : e.insights.trim()
+                          ? "shared"
+                          : "empty";
+                      return (
+                        <li
+                          key={e.id || i}
+                          className={`rounded-xl border p-4 ${
+                            status === "locked"
+                              ? "border-amber-200 bg-amber-50/50"
+                              : status === "shared"
+                                ? "border-indigo-100 bg-indigo-50/40"
+                                : "border-dashed border-slate-200 bg-slate-50"
+                          }`}
+                        >
+                          <p className="text-xs font-semibold text-slate-600">気づき {i + 1}</p>
+                          {status === "locked" ? (
+                            <p className="mt-1 text-sm font-medium text-amber-900">🔒 非公開</p>
+                          ) : status === "shared" ? (
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">
+                              {e.insights}
+                            </p>
+                          ) : (
+                            <p className="mt-1 text-sm text-slate-500">未入力</p>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               ) : (
                 <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-                  いま上司に共有されている価値観の気づきはありません（すべて鍵付き、または未記入）。
+                  まだ出来事が登録されていません。
                 </p>
               )}
             </>
