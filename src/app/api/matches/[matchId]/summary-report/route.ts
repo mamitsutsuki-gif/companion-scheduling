@@ -9,8 +9,15 @@ import {
   getSummaryReportDoc,
   upsertSummaryReportDoc,
 } from "@/lib/repositories/companion-repository";
-import { getSkillCheckProfile, getCompanySkillDefinitions } from "@/lib/repositories/skill-check-repository";
-import { resolveEffectiveSkillDefinitions } from "@/lib/skill-check";
+import {
+  getSkillCheckProfile,
+  getCompanySkillDefinitions,
+} from "@/lib/repositories/skill-check-repository";
+import {
+  normalizeSkillCheckProfile,
+  redactSkillCheckProfileForViewer,
+  resolveEffectiveSkillDefinitions,
+} from "@/lib/skill-check";
 import { getFtaByUserId } from "@/lib/repositories/fta-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
 import { filterLifelineForViewer } from "@/lib/companion-lifeline";
@@ -54,13 +61,26 @@ export async function GET(_req: Request, ctx: RouteContext) {
   ]);
 
   const lifeline = filterLifelineForViewer(lifelineRaw, access.lifelineViewMode);
-  const effectiveSkills = resolveEffectiveSkillDefinitions(skillProfile, skills);
+  const normalizedSkillProfile =
+    skillProfile ??
+    normalizeSkillCheckProfile(access.targetUserId, access.companyId, {
+      focusSkillIds: [],
+      baseline: {},
+      current: {},
+    });
+  const effectiveSkills = resolveEffectiveSkillDefinitions(normalizedSkillProfile, skills);
+  const { profile: redactedSkillProfile } = redactSkillCheckProfileForViewer({
+    profile: normalizedSkillProfile,
+    skills: effectiveSkills,
+    viewerRole: session.role,
+    viewerUserId: session.sub,
+  });
   const skillName = new Map(effectiveSkills.map((s) => [s.id, s.name]));
 
   return jsonOk({
     targetName: target?.displayName ?? "",
     adminDoc,
-    skillProfile,
+    skillProfile: redactedSkillProfile,
     skills,
     pdca: {
       entries: pdca.entries,
@@ -72,7 +92,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
     reflection,
     lifeline,
     fta,
-    focusSkillNames: (skillProfile?.focusSkillIds ?? []).map((id) => skillName.get(id) ?? id),
+    focusSkillNames: (normalizedSkillProfile?.focusSkillIds ?? []).map((id) => skillName.get(id) ?? id),
     permissions: {
       canEditAdminSummary: access.canEditAdminSummary,
       // パートナー所見は PARTNER / ADMIN のみ。上司（CLIENT_ADMIN）は閲覧のみ。

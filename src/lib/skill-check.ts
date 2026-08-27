@@ -222,6 +222,129 @@ export function emptySkillAssessment(): SkillAssessmentEntry {
   return { selfScore: null, managerScore: null, selfReason: "", managerReason: "" };
 }
 
+/** 相互開示（ブラインド入力）のフェーズ別進捗・開示状態 */
+export type PhaseRevealStatus = {
+  selfComplete: boolean;
+  managerComplete: boolean;
+  mutualReveal: boolean;
+};
+
+export type SkillCheckRevealStatus = {
+  baseline: PhaseRevealStatus;
+  current: PhaseRevealStatus;
+};
+
+/**
+ * 指定フェーズ（開始時／終了時）において、対象ロール（本人 or 上司）が全スキル項目を入力完了しているか判定
+ */
+export function isPhaseAssessmentComplete(
+  assessments: Record<string, SkillAssessmentEntry> | undefined,
+  skills: SkillDefinition[],
+  role: "self" | "manager",
+): boolean {
+  if (!assessments || skills.length === 0) return false;
+  return skills.every((skill) => {
+    const entry = assessments[skill.id];
+    if (!entry) return false;
+    const score = role === "self" ? entry.selfScore : entry.managerScore;
+    return score !== null && score !== undefined;
+  });
+}
+
+/**
+ * 指定フェーズの相互開示ステータスを計算
+ */
+export function computePhaseRevealStatus(
+  assessments: Record<string, SkillAssessmentEntry> | undefined,
+  skills: SkillDefinition[],
+): PhaseRevealStatus {
+  const selfComplete = isPhaseAssessmentComplete(assessments, skills, "self");
+  const managerComplete = isPhaseAssessmentComplete(assessments, skills, "manager");
+  return {
+    selfComplete,
+    managerComplete,
+    mutualReveal: selfComplete && managerComplete,
+  };
+}
+
+/**
+ * スキルチェック全体の相互開示ステータス（開始時・終了時）を計算
+ */
+export function computeSkillCheckRevealStatus(
+  profile: SkillCheckProfile,
+  skills: SkillDefinition[],
+): SkillCheckRevealStatus {
+  return {
+    baseline: computePhaseRevealStatus(profile.baseline, skills),
+    current: computePhaseRevealStatus(profile.current, skills),
+  };
+}
+
+/**
+ * 閲覧者のロール・立場に応じて、相互開示前（未完了）の相手スコア・理由をマスクする
+ */
+export function redactSkillCheckProfileForViewer(params: {
+  profile: SkillCheckProfile;
+  skills: SkillDefinition[];
+  viewerRole: string;
+  viewerUserId: string;
+}): { profile: SkillCheckProfile; revealStatus: SkillCheckRevealStatus } {
+  const { profile, skills, viewerRole, viewerUserId } = params;
+  const isTargetClient = viewerUserId === profile.userId;
+  const isAdmin = viewerRole === "ADMIN" || viewerRole === "ADMIN_ASSISTANT";
+
+  const revealStatus = computeSkillCheckRevealStatus(profile, skills);
+
+  // システム管理者は常にフル開示
+  if (isAdmin) {
+    return { profile, revealStatus };
+  }
+
+  const redactPhase = (
+    assessments: Record<string, SkillAssessmentEntry>,
+    status: PhaseRevealStatus,
+  ): Record<string, SkillAssessmentEntry> => {
+    // 双方が入力完了していればそのまま開示
+    if (status.mutualReveal) return assessments;
+
+    const out: Record<string, SkillAssessmentEntry> = {};
+    for (const [skillId, entry] of Object.entries(assessments)) {
+      if (isTargetClient) {
+        // 本人閲覧時: 相手（上司）のスコア・理由をマスク
+        out[skillId] = {
+          ...entry,
+          managerScore: null,
+          managerReason: "",
+        };
+      } else if (viewerRole === "CLIENT_ADMIN") {
+        // 上司閲覧時: 相手（本人）のスコア・理由をマスク
+        out[skillId] = {
+          ...entry,
+          selfScore: null,
+          selfReason: "",
+        };
+      } else {
+        // 第三者（PARTNER, CLIENT_HR 等）: 相互開示前は両方マスク
+        out[skillId] = {
+          selfScore: null,
+          managerScore: null,
+          selfReason: "",
+          managerReason: "",
+        };
+      }
+    }
+    return out;
+  };
+
+  const redactedProfile: SkillCheckProfile = {
+    ...profile,
+    baseline: redactPhase(profile.baseline, revealStatus.baseline),
+    current: redactPhase(profile.current, revealStatus.current),
+  };
+
+  return { profile: redactedProfile, revealStatus };
+}
+
 /** 4点以上の評価には理由が必要か */
 export function needsScoreReason(score: SkillScore | null | undefined): boolean {
   return score != null && score >= SKILL_CHECK_REASON_REQUIRED_MIN_SCORE;

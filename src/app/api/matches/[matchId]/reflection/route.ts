@@ -12,7 +12,11 @@ import {
   getCompanySkillDefinitions,
   getSkillCheckProfile,
 } from "@/lib/repositories/skill-check-repository";
-import { normalizeSkillCheckProfile, resolveEffectiveSkillDefinitions } from "@/lib/skill-check";
+import {
+  normalizeSkillCheckProfile,
+  redactSkillCheckProfileForViewer,
+  resolveEffectiveSkillDefinitions,
+} from "@/lib/skill-check";
 
 export const dynamic = "force-dynamic";
 
@@ -70,10 +74,18 @@ export async function GET(_req: Request, ctx: RouteContext) {
           canEditManager: skillAccess.canEditManager,
         };
 
+  const effectiveSkills = resolveEffectiveSkillDefinitions(normalizedProfile, companySkills);
+  const { profile: redactedProfile } = redactSkillCheckProfileForViewer({
+    profile: normalizedProfile,
+    skills: effectiveSkills,
+    viewerRole: session.role,
+    viewerUserId: session.sub,
+  });
+
   return jsonOk({
     sheet,
-    skillProfile: normalizedProfile,
-    skills: resolveEffectiveSkillDefinitions(normalizedProfile, companySkills),
+    skillProfile: redactedProfile,
+    skills: effectiveSkills,
     pdcaEntries: pdca.entries.slice(0, 20),
     permissions: {
       canEditClient: access.canEditClient,

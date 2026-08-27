@@ -11,6 +11,7 @@ import { getUserById } from "@/lib/repositories/user-repository";
 import {
   normalizeCompanySkillDefinitions,
   normalizeSkillCheckProfile,
+  redactSkillCheckProfileForViewer,
   resolveEffectiveSkillDefinitions,
   SKILL_CHECK_AGREEMENT_TEXT_MAX,
   type SkillCheckPhase,
@@ -89,9 +90,18 @@ export async function GET(_request: Request, context: RouteContext) {
       current: {},
     });
 
-  return jsonOk({
-    skills: resolveEffectiveSkillDefinitions(normalizedProfile, companySkills),
+  const effectiveSkills = resolveEffectiveSkillDefinitions(normalizedProfile, companySkills);
+  const { profile: redactedProfile, revealStatus } = redactSkillCheckProfileForViewer({
     profile: normalizedProfile,
+    skills: effectiveSkills,
+    viewerRole: session.role,
+    viewerUserId: session.sub,
+  });
+
+  return jsonOk({
+    skills: effectiveSkills,
+    profile: redactedProfile,
+    revealStatus,
     targetName: client?.displayName ?? "",
     permissions: {
       canEditSelf: access.canEditSelf,
@@ -198,5 +208,14 @@ export async function PUT(request: Request, context: RouteContext) {
     managerNextRoleText: parsed.data.managerNextRoleText,
   });
 
-  return jsonOk({ profile });
+  const companySkills = await getCompanySkillDefinitions(access.companyId);
+  const effectiveSkills = resolveEffectiveSkillDefinitions(profile, companySkills);
+  const { profile: redactedProfile, revealStatus } = redactSkillCheckProfileForViewer({
+    profile,
+    skills: effectiveSkills,
+    viewerRole: session.role,
+    viewerUserId: session.sub,
+  });
+
+  return jsonOk({ profile: redactedProfile, revealStatus });
 }

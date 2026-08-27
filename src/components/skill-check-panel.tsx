@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  computePhaseRevealStatus,
   criteriaLabel,
   emptySkillAssessment,
   scoreGap,
   SKILL_CHECK_AGREEMENT_TEXT_MAX,
   SKILL_CHECK_FOCUS_MAX,
+  type PhaseRevealStatus,
   type SkillAssessmentEntry,
   type SkillCheckPhase,
   type SkillCheckProfile,
+  type SkillCheckRevealStatus,
   type SkillDefinition,
   type SkillScore,
 } from "@/lib/skill-check";
@@ -26,6 +29,7 @@ type Permissions = {
 type ApiPayload = {
   skills: SkillDefinition[];
   profile: SkillCheckProfile;
+  revealStatus?: SkillCheckRevealStatus;
   targetName: string;
   permissions: Permissions;
 };
@@ -65,6 +69,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
   const [phase, setPhase] = useState<SkillCheckPhase>("baseline");
   const [skills, setSkills] = useState<SkillDefinition[]>([]);
   const [profile, setProfile] = useState<SkillCheckProfile | null>(null);
+  const [revealStatus, setRevealStatus] = useState<SkillCheckRevealStatus | null>(null);
   const [targetName, setTargetName] = useState("");
   const [permissions, setPermissions] = useState<Permissions>({
     canEditSelf: false,
@@ -99,6 +104,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
       setSkills(json?.skills ?? []);
       setSkillDraft(json?.skills ?? []);
       setProfile(json?.profile ?? null);
+      setRevealStatus(json?.revealStatus ?? null);
       setTargetName(json?.targetName ?? "");
       setPermissions(
         json?.permissions ?? {
@@ -200,19 +206,45 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
     setPhase(next);
   }
 
+  const currentRevealStatus = useMemo<PhaseRevealStatus>(() => {
+    if (revealStatus?.[phase]) return revealStatus[phase];
+    if (!profile) return { selfComplete: false, managerComplete: false, mutualReveal: false };
+    const activeSkills = editingSkills ? skillDraft : skills;
+    const stored = phase === "baseline" ? profile.baseline : profile.current;
+    return computePhaseRevealStatus(stored, activeSkills);
+  }, [revealStatus, phase, profile, editingSkills, skillDraft, skills]);
+
+  const isMutualRevealed = currentRevealStatus.mutualReveal;
+
   const chartLabels = useMemo(
     () => displaySkills.map((s, i) => s.name.trim() || `（項目${i + 1}）`),
     [displaySkills],
   );
 
+  const isAdminViewer = permissions.canEditSelf && permissions.canEditManager;
+
   const chartSeries = useMemo(() => {
     const selfValues = displaySkills.map((s) => draft[s.id]?.selfScore ?? null);
     const managerValues = displaySkills.map((s) => draft[s.id]?.managerScore ?? null);
-    return [
-      { label: "本人評価", color: "#4f46e5", values: selfValues },
-      { label: "上司評価", color: "#059669", values: managerValues },
-    ];
-  }, [displaySkills, draft]);
+
+    // 相互開示済み、または管理者は両系列を表示
+    if (isMutualRevealed || isAdminViewer) {
+      return [
+        { label: "本人評価", color: "#4f46e5", values: selfValues },
+        { label: "上司評価", color: "#059669", values: managerValues },
+      ];
+    }
+
+    // 相互開示前: 自分が入力している側のみ表示
+    if (permissions.canEditSelf) {
+      return [{ label: "本人評価（入力中）", color: "#4f46e5", values: selfValues }];
+    }
+    if (permissions.canEditManager) {
+      return [{ label: "上司評価（入力中）", color: "#059669", values: managerValues }];
+    }
+
+    return [];
+  }, [displaySkills, draft, isMutualRevealed, isAdminViewer, permissions]);
 
   function setScore(skillId: string, field: "selfScore" | "managerScore", raw: string) {
     const score = parseScore(raw);
@@ -300,12 +332,17 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = await res.json().catch(() => null);
+      const json = (await res.json().catch(() => null)) as
+        | { profile?: SkillCheckProfile; revealStatus?: SkillCheckRevealStatus; error?: string }
+        | null;
       if (!res.ok) {
-        setError((json as { error?: string } | null)?.error ?? "保存に失敗しました。");
+        setError(json?.error ?? "保存に失敗しました。");
         return;
       }
-      setProfile((json as { profile?: SkillCheckProfile }).profile ?? profile);
+      setProfile(json?.profile ?? profile);
+      if (json?.revealStatus) {
+        setRevealStatus(json.revealStatus);
+      }
       if (editingSkills) {
         setSkills(skillDraft.map((s) => ({ ...s, name: s.name.trim() })));
         setEditingSkills(false);
@@ -498,9 +535,101 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
             本人評価と上司評価をそれぞれ 1〜5 点で入力します。基準の文言を参考にしてください。
           </p>
         </div>
+
+        {/* 相互開示ステータスバナー */}
+        {isMutualRevealed ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3.5 sm:p-4 text-emerald-950">
+            <div className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">✓</span>
+              <p className="text-sm font-semibold text-emerald-900">相互開示中</p>
+            </div>
+            <p className="mt-1 text-xs sm:text-sm text-emerald-800">
+              本人・上司の双方が評価を入力完了したため、結果が相互開示されています。Step 3 でギャップを確認し、Step 4 の重点育成項目の設定へ進みましょう。
+            </p>
+          </div>
+        ) : permissions.canEditSelf ? (
+          currentRevealStatus.selfComplete ? (
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/80 p-3.5 sm:p-4 text-indigo-950">
+              <div className="flex items-center gap-2">
+                <span className="text-base">⏳</span>
+                <p className="text-sm font-semibold text-indigo-900">上司の入力待ちです</p>
+              </div>
+              <p className="mt-1 text-xs sm:text-sm text-indigo-800">
+                あなたの本人評価は入力完了しています。上司が評価を入力して保存すると、双方の結果が開示されます。
+              </p>
+            </div>
+          ) : currentRevealStatus.managerComplete ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 sm:p-4 text-amber-950">
+              <div className="flex items-center gap-2">
+                <span className="text-base">💡</span>
+                <p className="text-sm font-semibold text-amber-900">上司の入力が完了しています</p>
+              </div>
+              <p className="mt-1 text-xs sm:text-sm text-amber-800">
+                上司側の評価入力が完了しています。あなたが全項目の評価を入力して保存すると、結果が相互開示されます。
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 sm:p-4 text-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🔒</span>
+                <p className="text-sm font-semibold text-slate-900">ブラインド評価入力</p>
+              </div>
+              <p className="mt-1 text-xs sm:text-sm text-slate-600">
+                相手に遠慮せず率直に評価できるよう、双方が入力完了するまで相手の評価は非公開となります。まずはご自身の評価を入力してください。
+              </p>
+            </div>
+          )
+        ) : permissions.canEditManager ? (
+          currentRevealStatus.managerComplete ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3.5 sm:p-4 text-emerald-950">
+              <div className="flex items-center gap-2">
+                <span className="text-base">⏳</span>
+                <p className="text-sm font-semibold text-emerald-900">部下の入力待ちです</p>
+              </div>
+              <p className="mt-1 text-xs sm:text-sm text-emerald-800">
+                あなたの上司評価は入力完了しています。部下が評価を入力して保存すると、双方の結果が開示されます。
+              </p>
+            </div>
+          ) : currentRevealStatus.selfComplete ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 sm:p-4 text-amber-950">
+              <div className="flex items-center gap-2">
+                <span className="text-base">💡</span>
+                <p className="text-sm font-semibold text-amber-900">部下の入力が完了しています</p>
+              </div>
+              <p className="mt-1 text-xs sm:text-sm text-amber-800">
+                部下側の評価入力が完了しています。あなたが全項目の評価を入力して保存すると、結果が相互開示されます。
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 sm:p-4 text-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🔒</span>
+                <p className="text-sm font-semibold text-slate-900">ブラインド評価入力</p>
+              </div>
+              <p className="mt-1 text-xs sm:text-sm text-slate-600">
+                相手に遠慮せず率直に評価できるよう、双方が入力完了するまで相手の評価は非公開となります。まずは上司としての評価を入力してください。
+              </p>
+            </div>
+          )
+        ) : (
+          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 sm:p-4 text-slate-800">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🔒</span>
+              <p className="text-sm font-semibold text-slate-900">相互開示前（入力中）</p>
+            </div>
+            <p className="mt-1 text-xs sm:text-sm text-slate-600">
+              進捗状況: 本人 {currentRevealStatus.selfComplete ? "【入力済】" : "【未完了】"} / 上司 {currentRevealStatus.managerComplete ? "【入力済】" : "【未完了】"}。双方が完了すると開示されます。
+            </p>
+          </div>
+        )}
+
         {displaySkills.map((skill) => {
           const row = draft[skill.id] ?? emptySkillAssessment();
-          const gap = scoreGap(row.selfScore, row.managerScore);
+          const showGap = isMutualRevealed || isAdminViewer;
+          const gap = showGap ? scoreGap(row.selfScore, row.managerScore) : null;
+          const showSelfScore = permissions.canEditSelf || isMutualRevealed || isAdminViewer;
+          const showManagerScore = permissions.canEditManager || isMutualRevealed || isAdminViewer;
+
           return (
             <article key={skill.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -514,35 +643,49 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <label className="block text-sm">
                   <span className="font-semibold text-indigo-900">本人評価（クライアント）</span>
-                  <select
-                    value={scoreSelectValue(row.selfScore)}
-                    disabled={!permissions.canEditSelf}
-                    onChange={(e) => setScore(skill.id, "selfScore", e.target.value)}
-                    className="mt-1 w-full min-w-0 max-w-full rounded-lg border border-slate-300 px-3 py-2"
-                  >
-                    <option value="">未入力 — まずは現状の自己認識で選ぶ</option>
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <option key={n} value={n}>
-                        {n}点 — {criteriaLabel(skill.criteria, n as SkillScore)}
-                      </option>
-                    ))}
-                  </select>
+                  {showSelfScore ? (
+                    <select
+                      value={scoreSelectValue(row.selfScore)}
+                      disabled={!permissions.canEditSelf}
+                      onChange={(e) => setScore(skill.id, "selfScore", e.target.value)}
+                      className="mt-1 w-full min-w-0 max-w-full rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-50 disabled:text-slate-700"
+                    >
+                      <option value="">未入力 — まずは現状の自己認識で選ぶ</option>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <option key={n} value={n}>
+                          {n}点 — {criteriaLabel(skill.criteria, n as SkillScore)}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="mt-1 flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50/90 px-3 py-2 text-xs text-slate-500">
+                      <span>🔒</span>
+                      <span>双方が入力完了すると開示されます</span>
+                    </div>
+                  )}
                 </label>
                 <label className="block text-sm">
                   <span className="font-semibold text-emerald-900">上司評価</span>
-                  <select
-                    value={scoreSelectValue(row.managerScore)}
-                    disabled={!permissions.canEditManager}
-                    onChange={(e) => setScore(skill.id, "managerScore", e.target.value)}
-                    className="mt-1 w-full min-w-0 max-w-full rounded-lg border border-slate-300 px-3 py-2"
-                  >
-                    <option value="">未入力 — 日常の発揮度で選ぶ</option>
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <option key={n} value={n}>
-                        {n}点 — {criteriaLabel(skill.criteria, n as SkillScore)}
-                      </option>
-                    ))}
-                  </select>
+                  {showManagerScore ? (
+                    <select
+                      value={scoreSelectValue(row.managerScore)}
+                      disabled={!permissions.canEditManager}
+                      onChange={(e) => setScore(skill.id, "managerScore", e.target.value)}
+                      className="mt-1 w-full min-w-0 max-w-full rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-50 disabled:text-slate-700"
+                    >
+                      <option value="">未入力 — 日常の発揮度で選ぶ</option>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <option key={n} value={n}>
+                          {n}点 — {criteriaLabel(skill.criteria, n as SkillScore)}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="mt-1 flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50/90 px-3 py-2 text-xs text-slate-500">
+                      <span>🔒</span>
+                      <span>双方が入力完了すると開示されます</span>
+                    </div>
+                  )}
                 </label>
               </div>
             </article>
@@ -558,16 +701,22 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
         <p className="mt-1 text-sm text-slate-600">
           本人評価と上司評価の差が大きい項目ほど、対話の手がかりになります。
         </p>
-        <div className="mt-4 flex flex-wrap justify-center gap-4 text-sm text-slate-600">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-indigo-600" />
-            本人評価
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
-            上司評価
-          </span>
-        </div>
+        {isMutualRevealed || isAdminViewer ? (
+          <div className="mt-4 flex flex-wrap justify-center gap-4 text-sm text-slate-600">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-indigo-600" />
+              本人評価
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
+              上司評価
+            </span>
+          </div>
+        ) : (
+          <div className="mt-4 rounded-lg bg-slate-50 p-3 text-center text-xs text-slate-600">
+            🔒 双方が入力完了するまで、ご自身の入力スコアのみ表示されます。
+          </div>
+        )}
         <div className="mt-4 min-w-0 overflow-x-auto sm:mt-6">
           <SkillRadarChart labels={chartLabels} series={chartSeries} size={480} />
         </div>
