@@ -49,7 +49,7 @@ function buildSteps(
   }
 
   if (isClient) {
-    const steps: GuideStep[] = [
+    return [
       {
         title: "パートナーから日程調整の連絡が届くまでお待ちください",
         tab: "sessions",
@@ -66,10 +66,6 @@ function buildSteps(
         tabLabel: "1on1セッション",
       },
     ];
-    if (planFeatures.fta) {
-      steps.unshift({ title: "自分FTA でありたい姿を整理", tab: "fta", tabLabel: "自分FTA" });
-    }
-    return steps;
   }
 
   return [
@@ -103,7 +99,7 @@ export function MatchRoomGuideBanner({
   isCoachingPlan: boolean;
   onGoTab: (tab: string) => void;
 }) {
-  const storageKey = `companion:match-room-guide:v2:${userId}`;
+  const storageKey = `companion:match-room-guide:v3:${userId}`;
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
