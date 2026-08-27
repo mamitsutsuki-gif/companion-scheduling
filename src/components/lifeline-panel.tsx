@@ -149,7 +149,7 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
 
       {isManagerView ? (
         <aside className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm leading-relaxed break-words text-amber-950">
-          <p className="font-semibold">上司・パートナー向けの表示について</p>
+          <p className="font-semibold">上司・人事向けの表示について</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>感情の推移（グラフ）は、鍵の有無にかかわらず確認できます。</li>
             <li>
@@ -162,25 +162,36 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
               鍵なしで未記入の気づきは「未入力」と表示されます（非公開とは区別されます）。
             </li>
             <li>
-              人生の出来事の詳細（時期・タイトル・本文・理由など）は、プライバシーのため表示されません。
+              人生の出来事の詳細（時期・タイトル・本文・理由など）は、プライバシーのため上司・人事には表示されません。
+            </li>
+          </ul>
+        </aside>
+      ) : canEdit ? (
+        <aside className="rounded-2xl border border-indigo-200 bg-indigo-50/60 px-4 py-3 text-sm leading-relaxed break-words text-indigo-950">
+          <p className="font-semibold">安心して本音で書くための公開範囲</p>
+          <p className="mt-2">
+            上司・人事には、あなたの人生のエピソード詳細（時期・タイトル・本文・理由）は見えません。
+            対話パートナーには1on1セッションでの対話のために共有されます。飾らずにそのまま書いて大丈夫です。
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>
+              <strong>上司への共有（鍵なし）:</strong> グラフ（感情の波）と、価値観の気づき・まとめが上司に見えます。
+            </li>
+            <li>
+              <strong>上司への非公開（鍵あり 🔒）:</strong> 上司には気づきが「🔒 非公開」と見え、本文は見えません（グラフは見えます）。
+            </li>
+            <li>
+              <strong>パートナーへの共有:</strong> エピソード詳細を含めてパートナーに共有され、セッションでの自己探求に活用されます。
             </li>
           </ul>
         </aside>
       ) : (
         <aside className="rounded-2xl border border-indigo-200 bg-indigo-50/60 px-4 py-3 text-sm leading-relaxed break-words text-indigo-950">
-          <p className="font-semibold">安心して本音で書くための公開範囲</p>
-          <p className="mt-2">
-            上司・パートナーには、あなたの人生のエピソード詳細（時期・タイトル・本文・理由）は見えません。
-            飾らずにそのまま書いて大丈夫です。
+          <p className="font-semibold">パートナー・管理者向けの表示</p>
+          <p className="mt-1">
+            受講者本人が記入した人生の出来事、感情スコア、エピソード詳細、理由、価値観の気づきをすべて確認できます。
+            1on1セッションでの対話や自己探求の支援にご活用ください。
           </p>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>
-              <strong>鍵なし:</strong> グラフ（感情の波）と、価値観の気づき・まとめが相手に見えます。
-            </li>
-            <li>
-              <strong>鍵あり:</strong> 相手には気づきが「🔒 非公開」と見え、本文は見えません（グラフは見えます）。
-            </li>
-          </ul>
         </aside>
       )}
 
@@ -471,20 +482,70 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
               )}
             </>
           ) : (
-            <ul className="space-y-3">
-              {events.map((e) => (
-                <li key={e.id} className="rounded-xl border border-slate-200 bg-white p-4">
-                  <p className="font-semibold text-slate-900">{e.title || "（無題）"}</p>
-                  <p className="text-xs text-slate-500">{e.ageOrPeriod}</p>
-                  {e.detail ? (
-                    <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{e.detail}</p>
-                  ) : null}
-                  {e.insights ? (
-                    <p className="mt-2 text-sm text-indigo-900">洞察: {e.insights}</p>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
+            <div className="space-y-4">
+              <h3 className="text-base font-semibold text-slate-900">人生の出来事一覧（{events.length} 件）</h3>
+              {events.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                  まだ出来事が登録されていません。
+                </p>
+              ) : (
+                <ul className="space-y-4">
+                  {events.map((e, idx) => (
+                    <li key={e.id || idx} className="rounded-xl border border-slate-200 bg-white p-5 space-y-3 shadow-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-600 text-xs font-bold text-white">
+                            {idx + 1}
+                          </span>
+                          <span className="font-bold text-slate-900 text-base">{e.title || "（無題）"}</span>
+                          {e.ageOrPeriod ? (
+                            <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600 font-medium">
+                              {e.ageOrPeriod}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`rounded-full px-2.5 py-0.5 text-xs font-black ${
+                              e.emotionScore > 0
+                                ? "bg-emerald-100 text-emerald-800"
+                                : e.emotionScore < 0
+                                  ? "bg-rose-100 text-rose-800"
+                                  : "bg-slate-100 text-slate-700"
+                            }`}
+                          >
+                            感情スコア: {e.emotionScore > 0 ? `+${e.emotionScore}` : e.emotionScore}
+                          </span>
+                          {e.locked ? (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-900">
+                              🔒 上司非公開
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      {e.detail ? (
+                        <div>
+                          <p className="text-xs font-semibold text-slate-500">出来事の詳細</p>
+                          <p className="mt-0.5 whitespace-pre-wrap text-sm text-slate-800">{e.detail}</p>
+                        </div>
+                      ) : null}
+                      {e.emotionReason ? (
+                        <div>
+                          <p className="text-xs font-semibold text-slate-500">なぜ気持ちが上がった／下がったか</p>
+                          <p className="mt-0.5 whitespace-pre-wrap text-sm text-slate-800">{e.emotionReason}</p>
+                        </div>
+                      ) : null}
+                      {e.insights ? (
+                        <div className="rounded-lg bg-indigo-50/50 p-3 border border-indigo-100">
+                          <p className="text-xs font-bold text-indigo-950">価値観・強みの気づき</p>
+                          <p className="mt-0.5 whitespace-pre-wrap text-sm text-indigo-950">{e.insights}</p>
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
           {(energySourcesText || coreValuesText) && (
             <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4 space-y-2 text-sm">

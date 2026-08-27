@@ -76,8 +76,8 @@ export function normalizeLifelineChart(userId: string, companyId: string, input:
 
 /**
  * 閲覧者ごとの公開範囲。
- * - self / full: 全項目
- * - manager（上司・パートナー）:
+ * - self / full（本人、管理者、対話パートナー）: 全項目（エピソード詳細・理由・気づきすべて閲覧可）
+ * - manager（上司・人事）:
  *   - エピソード詳細（時期・タイトル・本文・理由）は常に非公開
  *   - 鍵なし: グラフ（感情スコア）＋価値観の気づき（insights）
  *   - 鍵あり: グラフのみ（insights も非公開）

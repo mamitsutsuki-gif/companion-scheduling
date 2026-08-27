@@ -65,7 +65,7 @@ function accessForActor(
       canEditCoach: true,
       canEditSupervisor: false,
       canEditAdminSummary: false,
-      lifelineViewMode: "manager",
+      lifelineViewMode: "full",
     };
   }
   // 個別伴走の上司（CLIENT_ADMIN / CLIENT_HR：partnerId または紐づけ）

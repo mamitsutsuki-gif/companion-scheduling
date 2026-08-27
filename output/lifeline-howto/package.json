@@ -1,0 +1,9 @@
+{
+  "name": "lifeline-howto",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "puppeteer-core": "^25.9.0"
+  }
+}
