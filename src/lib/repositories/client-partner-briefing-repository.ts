@@ -254,7 +254,7 @@ export async function upsertBriefingForCompanyClient(input: {
   return { ok: true };
 }
 
-/** マッチルーム「クライアント情報」：パートナー本人または運用 ADMIN */
+/** マッチルーム「クライアント情報」：パートナー本人または運用 ADMIN（クライアント系ロールは API で拒否） */
 export async function getMatchClientBriefingForViewer(input: {
   matchId: string;
   viewerUserId: string;

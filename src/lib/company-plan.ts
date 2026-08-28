@@ -276,7 +276,7 @@ export function getPlanFeatures(plan: CompanyPlan): PlanFeatures {
     case "coaching_management_training":
       return {
         overview: true,
-        clientInfo: false,
+        clientInfo: true,
         chat: true,
         schedule: true,
         fta: false,
