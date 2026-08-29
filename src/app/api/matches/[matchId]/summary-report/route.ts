@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Role } from "@prisma/client";
 import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
-import { resolveCompanionAccessForMatch } from "@/lib/companion-access";
+import { resolveCompanionAccessForMatch, canUseSummaryReport } from "@/lib/companion-access";
 import {
   getLifelineChart,
   getPdcaStore,
@@ -50,6 +50,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
   const { matchId } = await ctx.params;
   const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role }, { feature: "summaryReport" });
   if ("error" in access) return jsonError("権限がありません。", 403);
+  if (!canUseSummaryReport(access, session.role)) return jsonError("権限がありません。", 403);
 
   const [
     target,
@@ -127,6 +128,7 @@ export async function PUT(request: Request, ctx: RouteContext) {
   const { matchId } = await ctx.params;
   const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role }, { feature: "summaryReport" });
   if ("error" in access) return jsonError("権限がありません。", 403);
+  if (!canUseSummaryReport(access, session.role)) return jsonError("権限がありません。", 403);
   const canEditPartnerComment =
     session.role === "ADMIN" || (session.role === "PARTNER" && access.canEditCoach);
   if (!access.canEditAdminSummary && !canEditPartnerComment) {

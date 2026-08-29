@@ -203,9 +203,15 @@ export async function resolveCompanionAccessForUser(
   return { error: "forbidden" };
 }
 
+/** 総括レポートの閲覧可否（受講者 CLIENT は対象外） */
 export function canUseSummaryReport(access: CompanionSheetAccess, role: Role) {
+  if (!access.canView || role === "CLIENT") return false;
   return (
-    access.canView &&
-    (isAnyAdmin(role) || role === "PARTNER" || access.canEditAdminSummary || access.canEditCoach)
+    isAnyAdmin(role) ||
+    role === "PARTNER" ||
+    role === "CLIENT_ADMIN" ||
+    role === "CLIENT_HR" ||
+    access.canEditAdminSummary ||
+    access.canEditCoach
   );
 }
