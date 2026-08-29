@@ -3,6 +3,14 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { CoachingSessionRoleplayPanel } from "@/components/coaching-session-roleplay-panel";
+import {
+  emptySessionReportAnswers,
+  parsePartnerQuestionAnswers,
+  parseSessionReportAnswers,
+  SESSION_REPORT_FIELDS,
+  SESSION_REPORT_MOTIVEAGE_NOTICE,
+  type SessionReportAnswers,
+} from "@/lib/session-report-fields";
 
 type Role =
   | "ADMIN"
@@ -101,7 +109,9 @@ export function SessionWorkspace({
   const [clientExtraAnswers, setClientExtraAnswers] = useState<Record<number, string>>({});
 
   // partner form state
-  const [reflection, setReflection] = useState("");
+  const [reportAnswers, setReportAnswers] = useState<SessionReportAnswers>(
+    emptySessionReportAnswers,
+  );
   const [extraAnswers, setExtraAnswers] = useState<Record<number, string>>({});
   const [abandonSubmitting, setAbandonSubmitting] = useState(false);
 
@@ -134,12 +144,8 @@ export function SessionWorkspace({
       setClientExtraAnswers(cea);
     }
     if (d.report) {
-      setReflection(d.report.reflection ?? "");
-      const ea: Record<number, string> = {};
-      for (const [k, v] of Object.entries(d.report.extraAnswers)) {
-        ea[Number(k)] = v;
-      }
-      setExtraAnswers(ea);
+      setReportAnswers(parseSessionReportAnswers(d.report));
+      setExtraAnswers(parsePartnerQuestionAnswers(d.report.extraAnswers));
     }
   }, [matchId, sessionNumber]);
 
@@ -279,10 +285,13 @@ export function SessionWorkspace({
     setNotice(null);
     setError(null);
 
-    if (!reflection.trim()) {
-      setError("クライアントに対する所感を入力してください。");
-      setSubmitting(false);
-      return;
+    for (const field of SESSION_REPORT_FIELDS) {
+      if (!field.required) continue;
+      if (!reportAnswers[field.key].trim()) {
+        setError(`「${field.label}」を入力してください。`);
+        setSubmitting(false);
+        return;
+      }
     }
     for (let i = 0; i < detail.partnerExtraQuestions.length; i++) {
       if (!(extraAnswers[i] ?? "").trim()) {
@@ -296,7 +305,17 @@ export function SessionWorkspace({
     for (const [k, v] of Object.entries(extraAnswers)) {
       extra[String(k)] = v.trim();
     }
-    const body = { reflection: reflection.trim(), extraAnswers: extra };
+    const body = {
+      reflection: reportAnswers.partnerReflection.trim(),
+      answers: {
+        sessionTheme: reportAnswers.sessionTheme.trim(),
+        clientCurrentFocus: reportAnswers.clientCurrentFocus.trim(),
+        clientSmallChange: reportAnswers.clientSmallChange.trim(),
+        partnerReflection: reportAnswers.partnerReflection.trim(),
+        partnerMemo: reportAnswers.partnerMemo.trim(),
+      },
+      extraAnswers: extra,
+    };
     const res = await fetch(
       `/api/matches/${matchId}/sessions/${sessionNumber}/report`,
       {
@@ -335,8 +354,8 @@ export function SessionWorkspace({
   if (!detail) return null;
 
   const role = detail.viewerRole;
-  const reflectionLength = reflection.length;
-  const reflectionTooLong = reflectionLength > 800;
+  const partnerReflectionLength = reportAnswers.partnerReflection.length;
+  const partnerReflectionTooLong = partnerReflectionLength > 800;
 
   const now = Date.now();
   const startMs = detail.plan.startAt ? new Date(detail.plan.startAt).getTime() : null;
@@ -807,13 +826,12 @@ export function SessionWorkspace({
         <section className="space-y-4 rounded-3xl border border-amber-100 bg-white p-4 shadow-sm sm:p-6">
           <header>
             <h2 className="text-xl font-semibold text-amber-900">1on1セッションレポート（パートナー）</h2>
-            {role === "ADMIN" || role === "ADMIN_ASSISTANT" ? (
-              <p className="text-sm text-zinc-600">管理者として閲覧しています（編集不可）。</p>
-            ) : (
-              <p className="text-sm text-zinc-600">
-                内容は相手（クライアント）には表示されません。匿名性を持ってモチベイジからスポンサーへ報告します。
-              </p>
-            )}
+            <p className="text-sm text-zinc-600">
+              {SESSION_REPORT_MOTIVEAGE_NOTICE}
+              {role === "ADMIN" || role === "ADMIN_ASSISTANT"
+                ? "（管理者として閲覧しています。編集はできません。）"
+                : null}
+            </p>
           </header>
 
           {formPreview ? (
@@ -833,26 +851,33 @@ export function SessionWorkspace({
               onSubmit={formPreview ? (e) => e.preventDefault() : onSubmitReport}
               className="space-y-5"
             >
-              <label className="block space-y-1 text-base font-medium text-zinc-900">
-                クライアントに対する所感（200字程度） <span className="text-red-600">*</span>
-                <textarea
-                  value={reflection}
-                  onChange={(e) => setReflection(e.target.value)}
-                  rows={6}
-                  maxLength={4000}
-                  required={!formPreview}
-                  disabled={formPreview || role !== "PARTNER"}
-                  placeholder={formPreview ? "（セッション後に入力）" : undefined}
-                  className={`mt-1 w-full rounded-lg border bg-white px-3 py-2 text-base disabled:cursor-not-allowed disabled:bg-zinc-50 ${
-                    reflectionTooLong ? "border-red-400" : "border-zinc-300"
-                  }`}
-                />
-                {!formPreview ? (
-                  <span className="mt-1 block text-xs text-zinc-500">
-                    目安: 200字程度（現在 {reflectionLength} 字）
-                  </span>
-                ) : null}
-              </label>
+              {SESSION_REPORT_FIELDS.map((field) => (
+                <label key={field.key} className="block space-y-1 text-base font-medium text-zinc-900">
+                  {field.label}
+                  {field.required ? <span className="text-red-600"> *</span> : null}
+                  <textarea
+                    value={reportAnswers[field.key]}
+                    onChange={(e) =>
+                      setReportAnswers((prev) => ({ ...prev, [field.key]: e.target.value }))
+                    }
+                    rows={field.rows ?? 4}
+                    maxLength={4000}
+                    required={!formPreview && field.required}
+                    disabled={formPreview || role !== "PARTNER"}
+                    placeholder={formPreview ? "（セッション後に入力）" : undefined}
+                    className={`mt-1 w-full rounded-lg border bg-white px-3 py-2 text-base disabled:cursor-not-allowed disabled:bg-zinc-50 ${
+                      field.key === "partnerReflection" && partnerReflectionTooLong
+                        ? "border-red-400"
+                        : "border-zinc-300"
+                    }`}
+                  />
+                  {!formPreview && field.key === "partnerReflection" ? (
+                    <span className="mt-1 block text-xs text-zinc-500">
+                      {field.hint}（現在 {partnerReflectionLength} 字）
+                    </span>
+                  ) : null}
+                </label>
+              ))}
 
               {detail.partnerExtraQuestions.length > 0 ? (
                 <fieldset
@@ -898,16 +923,17 @@ export function SessionWorkspace({
                   ) : null}
                 </div>
               ) : null}
-              {role === "PARTNER" && !formPreview ? (
-                <p className="text-xs text-zinc-500">
-                  → 提出内容はクライアント（ご本人様）には表示されません。
-                </p>
-              ) : null}
             </form>
           ) : (
             detail.report && (
               <dl className="grid gap-3 text-sm">
-                <ReadOnlyItem label="クライアントに対する所感" value={detail.report.reflection} />
+                {SESSION_REPORT_FIELDS.map((field) => (
+                  <ReadOnlyItem
+                    key={field.key}
+                    label={field.label}
+                    value={parseSessionReportAnswers(detail.report!)[field.key]}
+                  />
+                ))}
                 {detail.partnerExtraQuestions.map((q, i) => (
                   <ReadOnlyItem key={i} label={q} value={detail.report?.extraAnswers[String(i)] ?? ""} />
                 ))}

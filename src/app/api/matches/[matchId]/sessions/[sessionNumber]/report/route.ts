@@ -9,9 +9,26 @@ import {
 import { upsertSessionReport } from "@/lib/repositories/session-report-repository";
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
+import {
+  emptySessionReportAnswers,
+  mergeSessionReportExtraAnswers,
+  parseSessionReportAnswers,
+  validateSessionReportAnswers,
+} from "@/lib/session-report-fields";
+
+const answerFieldSchema = z.string().trim().max(4000);
 
 const bodySchema = z.object({
-  reflection: z.string().trim().min(1, "レポート本文を入力してください。").max(4000),
+  reflection: answerFieldSchema.optional(),
+  answers: z
+    .object({
+      sessionTheme: answerFieldSchema,
+      clientCurrentFocus: answerFieldSchema,
+      clientSmallChange: answerFieldSchema.optional(),
+      partnerReflection: answerFieldSchema,
+      partnerMemo: answerFieldSchema.optional(),
+    })
+    .optional(),
   extraAnswers: z.record(z.string(), z.string().max(4000)).optional(),
 });
 
@@ -45,12 +62,33 @@ export async function PUT(request: Request, context: RouteContext) {
     return jsonError(first ?? "入力内容が不正です。");
   }
 
+  const answers = parsed.data.answers
+    ? {
+        ...emptySessionReportAnswers(),
+        ...parsed.data.answers,
+      }
+    : parseSessionReportAnswers({
+        reflection: parsed.data.reflection,
+        extraAnswers: parsed.data.extraAnswers,
+      });
+
+  const validationError = validateSessionReportAnswers(answers);
+  if (validationError) return jsonError(validationError);
+
+  const partnerQuestionAnswers: Record<string, string> = {};
+  for (const [k, v] of Object.entries(parsed.data.extraAnswers ?? {})) {
+    if (/^\d+$/.test(k)) partnerQuestionAnswers[k] = v;
+  }
+
+  const reflection = answers.partnerReflection;
+  const extraAnswers = mergeSessionReportExtraAnswers(answers, partnerQuestionAnswers);
+
   const saved = await upsertSessionReport({
     matchId,
     sessionNumber: n,
     partnerId: session.sub,
-    reflection: parsed.data.reflection,
-    extraAnswers: parsed.data.extraAnswers ?? {},
+    reflection,
+    extraAnswers,
   });
 
   const usersMap = await getUserMapByIds([session.sub]);
