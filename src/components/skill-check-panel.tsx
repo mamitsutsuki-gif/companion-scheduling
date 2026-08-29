@@ -16,6 +16,7 @@ import {
   type SkillDefinition,
   type SkillScore,
 } from "@/lib/skill-check";
+import { SheetAudienceNotice } from "@/components/sheet-audience-notice";
 import { SkillRadarChart, scoreSelectValue } from "@/components/skill-radar-chart";
 import { SheetSaveButton } from "@/components/sheet-save-controls";
 
@@ -389,6 +390,7 @@ export function SkillCheckPanel({ matchId, userId }: { matchId?: string; userId?
           <li>成長・挑戦合意を記入する</li>
         </ol>
         <p className="mt-3 text-sm text-slate-500">各ステップの「保存する」から、途中でも保存できます。</p>
+        <SheetAudienceNotice sheet="skillCheck" className="mt-4" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

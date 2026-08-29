@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SummaryReportDoc } from "@/lib/companion-summary";
 import type { SkillCheckProfile, SkillDefinition } from "@/lib/skill-check";
 import { resolveEffectiveSkillDefinitions } from "@/lib/skill-check";
+import { SheetAudienceNotice } from "@/components/sheet-audience-notice";
 import { SkillRadarChart } from "@/components/skill-radar-chart";
 
 type SummaryReportPermissions = {
@@ -146,6 +147,7 @@ export function SummaryReportPanel({ matchId }: { matchId: string }) {
           <p className="mt-2 text-sm text-slate-600">
             これまでのシートの内容をまとめた最終レポートです。印刷機能から PDF として保存できます。
           </p>
+          <SheetAudienceNotice sheet="summaryReport" className="mt-4" hideOnPrint />
           {canEditComments && !perms.commentsPublished ? (
             <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
               コメント3項目は、運用管理者が「上司・人事に提出」するまで、クライアント管理者・クライアント人事には表示されません。

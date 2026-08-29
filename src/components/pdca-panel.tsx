@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PdcaEntry } from "@/lib/companion-pdca";
+import { SheetAudienceNotice } from "@/components/sheet-audience-notice";
 import { SheetSaveButton, SheetStickySaveBar } from "@/components/sheet-save-controls";
 
 type Skill = { id: string; name: string };
@@ -192,6 +193,7 @@ export function PdcaPanel({
         <p className="mt-2 text-sm text-slate-500">
           「新規作成」で次のサイクル用の空シートを開けます（重点テーマ・育成項目・前回の次回アクションを引き継ぎます）。保存だけでも記録は残ります。
         </p>
+        <SheetAudienceNotice sheet="pdca" className="mt-4" />
       </div>
 
       {error ? <p className="text-sm text-red-700">{error}</p> : null}

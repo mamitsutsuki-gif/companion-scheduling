@@ -15,6 +15,7 @@ import {
   type SkillScore,
 } from "@/lib/skill-check";
 import type { PdcaEntry } from "@/lib/companion-pdca";
+import { SheetAudienceNotice } from "@/components/sheet-audience-notice";
 import { scoreSelectValue } from "@/components/skill-radar-chart";
 
 type Skill = { id: string; name: string };
@@ -232,6 +233,7 @@ export function ReflectionPanel({ matchId }: { matchId: string }) {
         <p className="mt-2 text-sm text-slate-600">
           最終月に、活動を通じた変化を言語化します。はじめに重点育成項目のアフター評価を更新し、そのうえで振り返りを書きます。
         </p>
+        <SheetAudienceNotice sheet="reflection" className="mt-4" />
       </div>
 
       <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 sm:p-5 space-y-4">
