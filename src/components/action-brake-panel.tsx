@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ActionBrakeEntry } from "@/lib/companion-action-brake";
 import { ACTION_BRAKE_TEXT_MAX } from "@/lib/companion-action-brake";
+import { SheetAudienceNotice } from "@/components/sheet-audience-notice";
 import { SheetSaveButton, SheetStickySaveBar } from "@/components/sheet-save-controls";
 
 type PdcaLink = {
@@ -176,6 +177,7 @@ export function ActionBrakePanel({
         <p className="mt-2 text-sm text-slate-600">
           認知行動療法の考え方で、行動を止めている思考パターンを整理し、思考の癖に気づくためのシートです（旧称：行動ブレーキ分析）。
         </p>
+        <SheetAudienceNotice sheet="actionBrakeAnalysis" className="mt-4" />
       </div>
 
       <aside className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/50 p-4 text-sm text-indigo-950/90">
