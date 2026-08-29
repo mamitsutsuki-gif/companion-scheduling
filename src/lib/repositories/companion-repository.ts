@@ -203,6 +203,29 @@ export async function upsertSummaryReportDoc(
   return next;
 }
 
+export async function publishSummaryReportDoc(
+  userId: string,
+  companyId: string,
+  publishedBy: string,
+): Promise<SummaryReportDoc> {
+  const current = await getSummaryReportDoc(userId, companyId);
+  const now = new Date().toISOString();
+  const next = normalizeSummaryReportDoc(
+    userId,
+    companyId,
+    {
+      ...current,
+      publishedAt: now,
+      publishedBy,
+      updatedBy: publishedBy,
+      updatedAt: now,
+    },
+    publishedBy,
+  );
+  await writeJsonDoc(SUMMARY_COL, userId, companyId, next);
+  return next;
+}
+
 export async function getDevelopmentOpportunitySheet(
   userId: string,
   companyId: string,

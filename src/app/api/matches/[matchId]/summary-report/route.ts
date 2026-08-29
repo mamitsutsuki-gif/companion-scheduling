@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Role } from "@prisma/client";
 import { readSession } from "@/lib/session";
 import { jsonError, jsonOk } from "@/lib/json";
 import { resolveCompanionAccessForMatch } from "@/lib/companion-access";
@@ -7,6 +8,7 @@ import {
   getPdcaStore,
   getReflectionSheet,
   getSummaryReportDoc,
+  publishSummaryReportDoc,
   upsertSummaryReportDoc,
 } from "@/lib/repositories/companion-repository";
 import {
@@ -22,6 +24,10 @@ import { getFtaByUserId } from "@/lib/repositories/fta-repository";
 import { getUserById } from "@/lib/repositories/user-repository";
 import { filterLifelineForViewer } from "@/lib/companion-lifeline";
 import { pdcaSkillCounts } from "@/lib/companion-pdca";
+import {
+  isSummaryCommentsPublished,
+  redactSummaryCommentsForSupervisor,
+} from "@/lib/companion-summary";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +39,11 @@ const putSchema = z.object({
   recommendations: z.string().max(8000).optional(),
 });
 
+/** コメント3項目の提出ゲート対象（上司・人事のみ） */
+function shouldGateSummaryCommentsForRole(role: Role): boolean {
+  return role === "CLIENT_ADMIN" || role === "CLIENT_HR";
+}
+
 export async function GET(_req: Request, ctx: RouteContext) {
   const session = await readSession();
   if (!session) return jsonError("未ログインです。", 401);
@@ -42,7 +53,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
 
   const [
     target,
-    adminDoc,
+    adminDocRaw,
     skillProfile,
     skills,
     pdca,
@@ -59,6 +70,11 @@ export async function GET(_req: Request, ctx: RouteContext) {
     getLifelineChart(access.targetUserId, access.companyId),
     getFtaByUserId(access.targetUserId),
   ]);
+
+  const commentsPublished = isSummaryCommentsPublished(adminDocRaw);
+  const gateComments = shouldGateSummaryCommentsForRole(session.role);
+  const adminDoc =
+    gateComments && !commentsPublished ? redactSummaryCommentsForSupervisor(adminDocRaw) : adminDocRaw;
 
   const lifeline = filterLifelineForViewer(lifelineRaw, access.lifelineViewMode);
   const normalizedSkillProfile =
@@ -95,10 +111,12 @@ export async function GET(_req: Request, ctx: RouteContext) {
     focusSkillNames: (normalizedSkillProfile?.focusSkillIds ?? []).map((id) => skillName.get(id) ?? id),
     permissions: {
       canEditAdminSummary: access.canEditAdminSummary,
-      // パートナー所見は PARTNER / ADMIN のみ。上司（CLIENT_ADMIN）は閲覧のみ。
       canEditPartnerComment:
         session.role === "ADMIN" ||
         (session.role === "PARTNER" && access.canEditCoach),
+      commentsPublished,
+      canViewComments: !gateComments || commentsPublished,
+      canPublishComments: session.role === "ADMIN" && access.canEditAdminSummary,
     },
   });
 }
@@ -132,5 +150,44 @@ export async function PUT(request: Request, ctx: RouteContext) {
     patch,
     session.sub,
   );
-  return jsonOk({ adminDoc });
+  const commentsPublished = isSummaryCommentsPublished(adminDoc);
+  const gateComments = shouldGateSummaryCommentsForRole(session.role);
+  return jsonOk({
+    adminDoc:
+      gateComments && !commentsPublished ? redactSummaryCommentsForSupervisor(adminDoc) : adminDoc,
+    permissions: {
+      canEditAdminSummary: access.canEditAdminSummary,
+      canEditPartnerComment:
+        session.role === "ADMIN" ||
+        (session.role === "PARTNER" && access.canEditCoach),
+      commentsPublished,
+      canViewComments: !gateComments || commentsPublished,
+      canPublishComments: session.role === "ADMIN" && access.canEditAdminSummary,
+    },
+  });
+}
+
+/** ADMIN がコメント3項目を上司・人事に公開する */
+export async function POST(_request: Request, ctx: RouteContext) {
+  const session = await readSession();
+  if (!session) return jsonError("未ログインです。", 401);
+  if (session.role !== "ADMIN") return jsonError("権限がありません。", 403);
+
+  const { matchId } = await ctx.params;
+  const access = await resolveCompanionAccessForMatch(matchId, { id: session.sub, role: session.role }, { feature: "summaryReport" });
+  if ("error" in access) return jsonError("権限がありません。", 403);
+  if (!access.canEditAdminSummary) return jsonError("権限がありません。", 403);
+
+  const adminDoc = await publishSummaryReportDoc(access.targetUserId, access.companyId, session.sub);
+
+  return jsonOk({
+    adminDoc,
+    permissions: {
+      canEditAdminSummary: true,
+      canEditPartnerComment: true,
+      commentsPublished: true,
+      canViewComments: true,
+      canPublishComments: true,
+    },
+  });
 }
