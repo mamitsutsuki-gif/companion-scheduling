@@ -9,7 +9,7 @@ export type SummaryReportDoc = {
   coachComment: string;
   motiveSummary: string;
   recommendations: string;
-  /** コメント3項目を上司・人事に公開した日時（ISO）。未設定時は後方互換ルールで判定。 */
+  /** コメント3項目を上司・人事に公開した日時（ISO）。未設定なら未提出。 */
   publishedAt: string | null;
   publishedBy: string;
   updatedAt: string;
@@ -39,20 +39,11 @@ export function normalizeSummaryReportDoc(
   };
 }
 
-/** コメント3項目に入力があるか（空白のみは未入力扱い） */
-export function summaryCommentsHasContent(doc: Pick<SummaryReportDoc, "coachComment" | "motiveSummary" | "recommendations">): boolean {
-  return Boolean(doc.coachComment.trim() || doc.motiveSummary.trim() || doc.recommendations.trim());
-}
-
-/**
- * 上司・人事にコメント3項目を公開済みか。
- * 既存データ互換: publishedAt がなくても、いずれかのコメントが保存済みなら「提出済み」とみなす。
- */
+/** 上司・人事にコメント3項目を公開済みか（ADMIN が「提出」したときのみ true） */
 export function isSummaryCommentsPublished(
-  doc: Pick<SummaryReportDoc, "coachComment" | "motiveSummary" | "recommendations" | "publishedAt">,
+  doc: Pick<SummaryReportDoc, "publishedAt">,
 ): boolean {
-  if (doc.publishedAt) return true;
-  return summaryCommentsHasContent(doc);
+  return Boolean(doc.publishedAt);
 }
 
 /** 上司・人事向けにコメント3項目をマスク（集約セクションはそのまま） */
