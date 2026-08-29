@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ActionBrakeEntry } from "@/lib/companion-action-brake";
-import { ACTION_BRAKE_TEXT_MAX } from "@/lib/companion-action-brake";
+import { ACTION_BRAKE_TEXT_MAX, isActionBrakeEntryHiddenFromManager } from "@/lib/companion-action-brake";
 import { SheetAudienceNotice } from "@/components/sheet-audience-notice";
 import { SheetSaveButton, SheetStickySaveBar } from "@/components/sheet-save-controls";
 
@@ -41,6 +41,7 @@ const emptyEntry = (): ActionBrakeEntry => ({
   thoughtRewriteText: "",
   habitNotesText: "",
   nextChangeText: "",
+  locked: false,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 });
@@ -69,7 +70,7 @@ export function ActionBrakePanel({
   const [notice, setNotice] = useState<string | null>(null);
   const [entries, setEntries] = useState<ActionBrakeEntry[]>([]);
   const [pdcaLinks, setPdcaLinks] = useState<PdcaLink[]>([]);
-  const [perms, setPerms] = useState({ canEditClient: false, canEditCoach: false });
+  const [perms, setPerms] = useState({ canEditClient: false, canEditCoach: false, sheetViewMode: "self" });
   const [draft, setDraft] = useState<ActionBrakeEntry>(emptyEntry());
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -87,7 +88,13 @@ export function ActionBrakePanel({
     }
     setEntries((json as { store?: { entries?: ActionBrakeEntry[] } }).store?.entries ?? []);
     setPdcaLinks(Array.isArray((json as { pdcaLinks?: PdcaLink[] }).pdcaLinks) ? (json as { pdcaLinks: PdcaLink[] }).pdcaLinks : []);
-    setPerms((json as { permissions?: typeof perms }).permissions ?? perms);
+    setPerms(
+      (json as { permissions?: typeof perms }).permissions ?? {
+        canEditClient: false,
+        canEditCoach: false,
+        sheetViewMode: "self",
+      },
+    );
   }, [matchId]);
 
   useEffect(() => {
@@ -118,6 +125,11 @@ export function ActionBrakePanel({
   }, [initialPdcaEntryId, pdcaById, editingId]);
 
   const canEdit = perms.canEditClient || perms.canEditCoach;
+  const managerView = perms.sheetViewMode === "manager";
+
+  function entryIsPrivate(e: ActionBrakeEntry): boolean {
+    return managerView && isActionBrakeEntryHiddenFromManager(e);
+  }
 
   function startNew() {
     setEditingId(null);
@@ -287,6 +299,20 @@ export function ActionBrakePanel({
             />
           </div>
 
+          {perms.canEditClient ? (
+            <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={draft.locked}
+                onChange={(e) => setDraft({ ...draft, locked: e.target.checked })}
+              />
+              <span>
+                鍵付き（上司・人事には非公開。パートナーには共有されます）
+              </span>
+            </label>
+          ) : null}
+
           <SheetSaveButton
             saving={saving}
             disabled={!perms.canEditClient}
@@ -304,8 +330,21 @@ export function ActionBrakePanel({
         ) : (
           entries.map((e) => {
             const source = e.pdcaEntryId ? formatPdcaSource(pdcaById.get(e.pdcaEntryId)) : null;
+            const isPrivate = entryIsPrivate(e);
             return (
               <article key={e.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                {isPrivate ? (
+                  <div className="space-y-2">
+                    <p className="font-semibold text-amber-900">🔒 非公開の分析</p>
+                    <p className="text-sm text-slate-600">
+                      受講者が上司・人事向けに非公開にした記録です。内容は表示されません。
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      更新: {e.updatedAt ? new Date(e.updatedAt).toLocaleString("ja-JP") : "—"}
+                    </p>
+                  </div>
+                ) : (
+                  <>
                 {source ? (
                   <p className="mb-2 rounded-lg border border-amber-100 bg-amber-50/70 px-3 py-2 text-xs text-amber-950">
                     元のPDCA: {source}
@@ -313,7 +352,12 @@ export function ActionBrakePanel({
                 ) : null}
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <p className="font-semibold text-slate-900">{e.title || "（無題）"}</p>
+                    <p className="font-semibold text-slate-900">
+                      {e.title || "（無題）"}
+                      {e.locked && !managerView ? (
+                        <span className="ml-2 text-xs font-medium text-amber-800">🔒 上司・人事非公開</span>
+                      ) : null}
+                    </p>
                     <p className="text-xs text-slate-500">
                       更新: {e.updatedAt ? new Date(e.updatedAt).toLocaleString("ja-JP") : "—"}
                     </p>
@@ -357,6 +401,8 @@ export function ActionBrakePanel({
                     <dd className="whitespace-pre-wrap">{e.nextChangeText || "—"}</dd>
                   </div>
                 </dl>
+                  </>
+                )}
               </article>
             );
           })

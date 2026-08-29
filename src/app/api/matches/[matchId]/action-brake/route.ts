@@ -9,7 +9,7 @@ import {
   newActionBrakeEntryId,
   upsertActionBrakeEntry,
 } from "@/lib/repositories/companion-repository";
-import { ACTION_BRAKE_TEXT_MAX, normalizeActionBrakeEntry } from "@/lib/companion-action-brake";
+import { ACTION_BRAKE_TEXT_MAX, filterActionBrakeStoreForViewer, normalizeActionBrakeEntry } from "@/lib/companion-action-brake";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +27,7 @@ const entrySchema = z.object({
   thoughtRewriteText: z.string().max(ACTION_BRAKE_TEXT_MAX).optional(),
   habitNotesText: z.string().max(ACTION_BRAKE_TEXT_MAX).optional(),
   nextChangeText: z.string().max(ACTION_BRAKE_TEXT_MAX).optional(),
+  locked: z.boolean().optional(),
 });
 
 export async function GET(_req: Request, ctx: RouteContext) {
@@ -43,10 +44,11 @@ export async function GET(_req: Request, ctx: RouteContext) {
     if (access.error === "plan_disabled") return jsonError("このプランでは利用できません。", 403);
     return jsonError("権限がありません。", 403);
   }
-  const [store, pdca] = await Promise.all([
+  const [storeRaw, pdca] = await Promise.all([
     getActionBrakeStore(access.targetUserId, access.companyId),
     getPdcaStore(access.targetUserId, access.companyId),
   ]);
+  const store = filterActionBrakeStoreForViewer(storeRaw, access.lifelineViewMode);
   return jsonOk({
     store,
     pdcaLinks: pdca.entries.map((e) => ({
@@ -58,6 +60,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
     permissions: {
       canEditClient: access.canEditClient,
       canEditCoach: access.canEditCoach,
+      sheetViewMode: access.lifelineViewMode,
     },
   });
 }
@@ -88,13 +91,20 @@ export async function PUT(request: Request, ctx: RouteContext) {
       ...prev,
       ...parsed.data,
       id,
+      locked:
+        parsed.data.locked !== undefined
+          ? access.canEditClient
+            ? parsed.data.locked
+            : (prev?.locked ?? false)
+          : (prev?.locked ?? false),
       createdAt: prev?.createdAt,
     },
     id,
   );
   if (!merged) return jsonError("入力内容を確認してください。", 400);
 
-  const store = await upsertActionBrakeEntry(access.targetUserId, access.companyId, merged);
+  const storeRaw = await upsertActionBrakeEntry(access.targetUserId, access.companyId, merged);
+  const store = filterActionBrakeStoreForViewer(storeRaw, access.lifelineViewMode);
   return jsonOk({ store });
 }
 
@@ -112,6 +122,7 @@ export async function DELETE(request: Request, ctx: RouteContext) {
 
   const entryId = new URL(request.url).searchParams.get("entryId")?.trim() || "";
   if (!entryId) return jsonError("entryId が必要です。");
-  const store = await deleteActionBrakeEntry(access.targetUserId, access.companyId, entryId);
+  const storeRaw = await deleteActionBrakeEntry(access.targetUserId, access.companyId, entryId);
+  const store = filterActionBrakeStoreForViewer(storeRaw, access.lifelineViewMode);
   return jsonOk({ store });
 }

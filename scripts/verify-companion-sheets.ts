@@ -8,6 +8,10 @@ import { resolveCompanyPlan, isIndividualCompanionPlan, type CompanyPlan } from 
 import { normalizePdcaStore, pdcaSkillCounts } from "../src/lib/companion-pdca";
 import { normalizeReflectionSheet } from "../src/lib/companion-reflection";
 import { normalizeLifelineChart, filterLifelineForViewer } from "../src/lib/companion-lifeline";
+import {
+  filterActionBrakeStoreForViewer,
+  normalizeActionBrakeStore,
+} from "../src/lib/companion-action-brake";
 import { normalizeSummaryReportDoc } from "../src/lib/companion-summary";
 import { companionHowtoAudiencesForViewer, companionHowtoEnabled, canViewCompanionHowtoAudience, filterCompanionHowtoHtml } from "../src/lib/companion-howto";
 import { readFileSync } from "node:fs";
@@ -130,6 +134,23 @@ function checkNormalizers() {
     coreValuesText: "誠実さ",
   });
   const masked = filterLifelineForViewer(lifeline, "manager");
+  const actionBrake = normalizeActionBrakeStore("u1", "c1", {
+    entries: [
+      {
+        id: "b1",
+        title: "秘密",
+        eventText: "本音",
+        locked: true,
+      },
+      {
+        id: "b2",
+        title: "公開",
+        eventText: "共有OK",
+        locked: false,
+      },
+    ],
+  });
+  const maskedBrake = filterActionBrakeStoreForViewer(actionBrake, "manager");
   const summary = normalizeSummaryReportDoc("u1", "c1", { motiveSummary: "総括" });
   const ok =
     pdca.entries.length === 1 &&
@@ -143,6 +164,12 @@ function checkNormalizers() {
     masked.events[1]?.detail === "" &&
     masked.events[1]?.insights === "公開の気づき" &&
     masked.coreValuesText === "誠実さ" &&
+    maskedBrake.entries.length === 2 &&
+    maskedBrake.entries[0]?.title === "" &&
+    maskedBrake.entries[0]?.eventText === "" &&
+    maskedBrake.entries[0]?.locked === true &&
+    maskedBrake.entries[1]?.eventText === "共有OK" &&
+    filterActionBrakeStoreForViewer(actionBrake, "full").entries[0]?.eventText === "本音" &&
     summary.motiveSummary === "総括" &&
     companionHowtoEnabled("individual_companion_exec") &&
     !companionHowtoEnabled("workplace_activation") &&

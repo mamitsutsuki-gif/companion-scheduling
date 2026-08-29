@@ -82,5 +82,6 @@ export const SHEET_AUDIENCE: Record<SheetAudienceKey, SheetAudienceDef> = {
       { role: "supervisor", label: "上司", access: "view" },
       { role: "hr", label: "人事", access: "view" },
     ],
+    footnote: "🔒を付けた分析は上司・人事には非公開です。パートナーには共有されます。",
   },
 };

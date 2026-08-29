@@ -1,3 +1,5 @@
+import type { LifelineViewMode } from "@/lib/companion-access";
+
 function trim(v: unknown, max: number): string {
   if (typeof v !== "string") return "";
   return v.trim().slice(0, max);
@@ -30,6 +32,8 @@ export type ActionBrakeEntry = {
   habitNotesText: string;
   /** 次回から変えたいこと（旧データは habitNotesText にまとまっている場合あり） */
   nextChangeText: string;
+  /** 上司・人事には本文を非公開（パートナー・本人は閲覧可） */
+  locked: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -40,6 +44,50 @@ export type ActionBrakeStore = {
   entries: ActionBrakeEntry[];
   updatedAt: string;
 };
+
+const EMPTY_REDACTED_TEXT_FIELDS = {
+  title: "",
+  pdcaEntryId: null as string | null,
+  eventText: "",
+  emotionText: "",
+  actionTakenText: "",
+  resultText: "",
+  automaticThoughtText: "",
+  thoughtRewriteText: "",
+  habitNotesText: "",
+  nextChangeText: "",
+};
+
+/** 上司・人事向けに鍵付きエントリの本文を除去する */
+export function redactActionBrakeEntryForManager(entry: ActionBrakeEntry): ActionBrakeEntry {
+  if (!entry.locked) return entry;
+  return {
+    ...entry,
+    ...EMPTY_REDACTED_TEXT_FIELDS,
+    locked: true,
+  };
+}
+
+/**
+ * 閲覧者ごとの公開範囲（ライフラインと同じ viewMode を流用）。
+ * - full / self: 全文
+ * - manager（上司・人事）: 鍵付きは本文非公開
+ */
+export function filterActionBrakeStoreForViewer(
+  store: ActionBrakeStore,
+  mode: LifelineViewMode,
+): ActionBrakeStore {
+  if (mode === "full" || mode === "self") return store;
+  if (mode === "none") return { ...store, entries: [] };
+  return {
+    ...store,
+    entries: store.entries.map((e) => redactActionBrakeEntryForManager(e)),
+  };
+}
+
+export function isActionBrakeEntryHiddenFromManager(entry: ActionBrakeEntry): boolean {
+  return entry.locked;
+}
 
 export function normalizeActionBrakeEntry(input: unknown, fallbackId: string): ActionBrakeEntry | null {
   if (!input || typeof input !== "object") return null;
@@ -61,6 +109,7 @@ export function normalizeActionBrakeEntry(input: unknown, fallbackId: string): A
     thoughtRewriteText: trim(o.thoughtRewriteText, ACTION_BRAKE_TEXT_MAX),
     habitNotesText: trim(o.habitNotesText, ACTION_BRAKE_TEXT_MAX),
     nextChangeText: trim(o.nextChangeText, ACTION_BRAKE_TEXT_MAX),
+    locked: Boolean(o.locked),
     createdAt: typeof o.createdAt === "string" ? o.createdAt : now,
     updatedAt: typeof o.updatedAt === "string" ? o.updatedAt : now,
   };
