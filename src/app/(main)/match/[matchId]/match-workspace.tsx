@@ -2763,8 +2763,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
           <div className="space-y-1 border-b border-indigo-200/80 pb-3">
             <h3 className="text-xl font-semibold text-indigo-950">実施・振り返り</h3>
             <p className="text-sm text-indigo-800">
-              セッション計画（全 {scheduleSettings.totalSessions} 回）。未確定の回も含めて一覧できます。
-              日程確定後は詳細を確認でき、振り返り・レポートはセッション終了後に入力できます。
+              セッション計画（全 {scheduleSettings.totalSessions} 回）。各回のガイドラインと振り返りフォームはいつでも確認できます。
+              振り返り・レポートの入力はセッション終了後です。
             </p>
           </div>
 
@@ -2842,9 +2842,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                   );
                 }
               }
-              const canOpen =
-                scheduleSettings.planFeatures.sessions &&
-                (row.openable || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT");
+              const canOpen = scheduleSettings.planFeatures.sessions;
               const openLabel = !row.postSessionOpenable
                 ? "詳細を開く"
                 : scheduleSettings.companyPlan === "coaching_management_training"
@@ -2925,19 +2923,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                       ) : null}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      {scheduleSettings.planFeatures.sessions ? (
-                        canOpen ? (
-                          <Link
-                            href={`/match/${matchId}/sessions/${row.sessionNumber}`}
-                            className="app-btn-primary rounded-md px-3 py-1.5 text-sm no-underline"
-                          >
-                            {openLabel}
-                          </Link>
-                        ) : (
-                          <span className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-500">
-                            日程確定後に開けます
-                          </span>
-                        )
+                      {canOpen ? (
+                        <Link
+                          href={`/match/${matchId}/sessions/${row.sessionNumber}`}
+                          className="app-btn-primary rounded-md px-3 py-1.5 text-sm no-underline"
+                        >
+                          {openLabel}
+                        </Link>
                       ) : null}
                       {scheduleSettings.planFeatures.schedule ? (
                         isRescheduling ? (

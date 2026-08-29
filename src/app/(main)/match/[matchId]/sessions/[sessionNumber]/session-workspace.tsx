@@ -372,6 +372,28 @@ export function SessionWorkspace({
   const isCoachingRoleplay = detail.isCoachingRoleplaySession === true;
   const roleplayReadOnly =
     role === "ADMIN_ASSISTANT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR";
+  const formPreview = !postSessionOpenable && !isAbandoned && !isCoachingRoleplay;
+  const showClientFeedbackSection =
+    !isCoachingRoleplay &&
+    !isAbandoned &&
+    ((postSessionOpenable &&
+      (role === "CLIENT" ||
+        role === "CLIENT_ADMIN" ||
+        role === "CLIENT_HR" ||
+        role === "PARTNER" ||
+        role === "ADMIN" ||
+        role === "ADMIN_ASSISTANT")) ||
+      (formPreview &&
+        (role === "CLIENT" ||
+          role === "CLIENT_ADMIN" ||
+          role === "CLIENT_HR" ||
+          role === "ADMIN" ||
+          role === "ADMIN_ASSISTANT")));
+  const showPartnerReportSection =
+    !isCoachingRoleplay &&
+    !isAbandoned &&
+    ((postSessionOpenable && (role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT")) ||
+      (formPreview && (role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT")));
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-3 py-5 sm:gap-8 sm:px-6 sm:py-8">
@@ -482,7 +504,7 @@ export function SessionWorkspace({
         ) : null
       ) : null}
 
-      {!postSessionOpenable ? (
+      {!postSessionOpenable && !isAbandoned ? (
         <section className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 sm:px-5">
           <h2 className="text-lg font-semibold text-slate-900">
             {isCoachingRoleplay
@@ -490,10 +512,9 @@ export function SessionWorkspace({
               : "振り返り・セッションレポートはセッション終了後に入力できます"}
           </h2>
           <p className="text-sm text-slate-600">
-            {isCoachingRoleplay
-              ? "下のフォームは項目確認用のプレビューです。入力・保存はセッション終了後に行えます。"
-              : "セッション詳細とガイドラインは事前に確認できます。"}
-            {detail.plan.endAt ? ` 終了予定：${formatJa(detail.plan.endAt)}` : ""}
+            下のフォームは項目確認用のプレビューです。入力・保存はセッション終了後に行えます。ガイドラインはこのページで確認できます。
+            {detail.plan.endAt ? ` 終了予定：${formatJa(detail.plan.endAt)}` : null}
+            {!detail.plan.confirmed ? " 日程は未確定です。" : null}
           </p>
         </section>
       ) : null}
@@ -510,7 +531,7 @@ export function SessionWorkspace({
         </section>
       ) : null}
 
-      {postSessionOpenable && !isCoachingRoleplay && (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR" || role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT") ? (
+      {showClientFeedbackSection ? (
         <section className="space-y-4 rounded-3xl border border-indigo-100 bg-white p-4 shadow-sm sm:p-6">
           <header>
             <h2 className="text-xl font-semibold text-indigo-900">クライアント振り返り</h2>
@@ -527,28 +548,30 @@ export function SessionWorkspace({
             )}
           </header>
 
-          {isAbandoned ? (
-            <div className="space-y-2 rounded-2xl border border-red-200 bg-red-50/70 px-4 py-3 text-sm text-red-900">
-              <p className="font-semibold">この回は【未実施・消化】としてマークされています。</p>
-              {abandonReasonLabel ? <p>理由：{abandonReasonLabel}</p> : null}
-              <p className="text-xs text-red-800/85">
-                振り返りの入力はできません。本件は実施回としてカウントされません。
-              </p>
-            </div>
+          {formPreview ? (
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              クライアント振り返りフォームのプレビューです。セッション終了後に入力・保存できます。
+            </p>
           ) : null}
 
-          {!isAbandoned && (role === "ADMIN" || role === "ADMIN_ASSISTANT" || role === "PARTNER") && !detail.feedback ? (
+          {!formPreview && (role === "ADMIN" || role === "ADMIN_ASSISTANT" || role === "PARTNER") && !detail.feedback ? (
             <p className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-sm text-zinc-600">
               まだクライアントの振り返りは提出されていません。
             </p>
           ) : null}
 
-          {!isAbandoned && (role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR") ? (
-            <form onSubmit={onSubmitFeedback} className="space-y-5">
-              <p className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-sm text-indigo-950">
-                <span className="font-semibold text-red-600">*</span>{" "}
-                は必須項目です。未入力の項目があると、提出時にどの項目かをお知らせします。
-              </p>
+          {(role === "CLIENT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR") ||
+          (formPreview && (role === "ADMIN" || role === "ADMIN_ASSISTANT")) ? (
+            <form
+              onSubmit={formPreview ? (e) => e.preventDefault() : onSubmitFeedback}
+              className="space-y-5"
+            >
+              {!formPreview ? (
+                <p className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-sm text-indigo-950">
+                  <span className="font-semibold text-red-600">*</span>{" "}
+                  は必須項目です。未入力の項目があると、提出時にどの項目かをお知らせします。
+                </p>
+              ) : null}
               <label className="block space-y-1 text-base font-medium text-zinc-900">
                 1. 今回の1on1でどのような気づきがありましたか？ <span className="text-red-600">*</span>
                 <textarea
@@ -556,8 +579,10 @@ export function SessionWorkspace({
                   onChange={(e) => setInsight(e.target.value)}
                   rows={4}
                   maxLength={4000}
-                  required
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
+                  required={!formPreview}
+                  disabled={formPreview}
+                  placeholder={formPreview ? "（セッション後に入力）" : undefined}
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base disabled:cursor-not-allowed disabled:bg-zinc-50"
                 />
               </label>
               <label className="block space-y-1 text-base font-medium text-zinc-900">
@@ -567,8 +592,10 @@ export function SessionWorkspace({
                   onChange={(e) => setFeeling(e.target.value)}
                   rows={4}
                   maxLength={4000}
-                  required
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
+                  required={!formPreview}
+                  disabled={formPreview}
+                  placeholder={formPreview ? "（セッション後に入力）" : undefined}
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base disabled:cursor-not-allowed disabled:bg-zinc-50"
                 />
               </label>
               <label className="block space-y-1 text-base font-medium text-zinc-900">
@@ -578,11 +605,14 @@ export function SessionWorkspace({
                   onChange={(e) => setNextActions(e.target.value)}
                   rows={4}
                   maxLength={4000}
-                  required
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
+                  required={!formPreview}
+                  disabled={formPreview}
+                  placeholder={formPreview ? "（セッション後に入力）" : undefined}
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base disabled:cursor-not-allowed disabled:bg-zinc-50"
                 />
               </label>
               <fieldset
+                disabled={formPreview}
                 className={`space-y-3 rounded-2xl border px-4 py-3 ${
                   satisfactionScore === ""
                     ? "border-amber-300 bg-amber-50/50"
@@ -622,13 +652,16 @@ export function SessionWorkspace({
                     onChange={(e) => setSatisfactionReason(e.target.value)}
                     rows={3}
                     maxLength={4000}
-                    required
-                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
+                    required={!formPreview}
+                    disabled={formPreview}
+                    placeholder={formPreview ? "（セッション後に入力）" : undefined}
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base disabled:cursor-not-allowed disabled:bg-zinc-50"
                   />
                 </label>
               </fieldset>
 
               <fieldset
+                disabled={formPreview}
                 className={`space-y-2 rounded-2xl border px-4 py-3 ${
                   partnerChange === ""
                     ? "border-amber-300 bg-amber-50/50"
@@ -674,12 +707,17 @@ export function SessionWorkspace({
                   onChange={(e) => setOther(e.target.value)}
                   rows={3}
                   maxLength={4000}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
+                  disabled={formPreview}
+                  placeholder={formPreview ? "（セッション後に入力）" : undefined}
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base disabled:cursor-not-allowed disabled:bg-zinc-50"
                 />
               </label>
 
               {detail.clientExtraQuestions.length > 0 ? (
-                <fieldset className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3">
+                <fieldset
+                  disabled={formPreview}
+                  className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3"
+                >
                   <legend className="px-1 text-base font-semibold text-indigo-900">
                     {detail.sessionNumber} 回目の追加質問
                   </legend>
@@ -693,38 +731,39 @@ export function SessionWorkspace({
                         }
                         rows={3}
                         maxLength={4000}
-                        required
-                        className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
+                        required={!formPreview}
+                        disabled={formPreview}
+                        placeholder={formPreview ? "（セッション後に入力）" : undefined}
+                        className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base disabled:cursor-not-allowed disabled:bg-zinc-50"
                       />
                     </label>
                   ))}
                 </fieldset>
               ) : null}
 
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="rounded-lg bg-indigo-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-800 disabled:opacity-60"
-                >
-                  {submitting ? "送信中…" : detail.feedback ? "上書き保存" : "提出する"}
-                </button>
-                {detail.feedback ? (
-                  <span className="text-sm text-zinc-600">
-                    最終更新: {formatJa(detail.feedback.updatedAt)}
-                  </span>
-                ) : null}
-              </div>
-              {/*
-                クライアントが「提出する」を押した結果、何が起きるのかを 1 行で明示。
-                内容がパートナーに開示されるか・管理者に通知が飛ぶかなど、
-                プライバシー上の不安を取り除く文言にする。
-              */}
-              <p className="text-xs text-zinc-500">
-                → ご記入内容は担当パートナーにも表示されます。提出後も「上書き保存」で内容を更新できます。
-              </p>
+              {!formPreview ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="rounded-lg bg-indigo-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-800 disabled:opacity-60"
+                  >
+                    {submitting ? "送信中…" : detail.feedback ? "上書き保存" : "提出する"}
+                  </button>
+                  {detail.feedback ? (
+                    <span className="text-sm text-zinc-600">
+                      最終更新: {formatJa(detail.feedback.updatedAt)}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+              {!formPreview ? (
+                <p className="text-xs text-zinc-500">
+                  → ご記入内容は担当パートナーにも表示されます。提出後も「上書き保存」で内容を更新できます。
+                </p>
+              ) : null}
             </form>
-          ) : !isAbandoned ? (
+          ) : postSessionOpenable ? (
             detail.feedback && (
               <dl className="grid gap-3 text-sm">
                 <ReadOnlyItem label="1. 気づき" value={detail.feedback.answers.insight} />
@@ -764,7 +803,7 @@ export function SessionWorkspace({
         </section>
       ) : null}
 
-      {postSessionOpenable && !isCoachingRoleplay && (role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT") ? (
+      {showPartnerReportSection ? (
         <section className="space-y-4 rounded-3xl border border-amber-100 bg-white p-4 shadow-sm sm:p-6">
           <header>
             <h2 className="text-xl font-semibold text-amber-900">1on1セッションレポート（パートナー）</h2>
@@ -777,14 +816,23 @@ export function SessionWorkspace({
             )}
           </header>
 
-          {(role === "ADMIN" || role === "ADMIN_ASSISTANT") && !detail.report ? (
+          {formPreview ? (
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              パートナーレポートフォームのプレビューです。セッション終了後に入力・保存できます。
+            </p>
+          ) : null}
+
+          {!formPreview && (role === "ADMIN" || role === "ADMIN_ASSISTANT") && !detail.report ? (
             <p className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-sm text-zinc-600">
               まだパートナーのレポートは提出されていません。
             </p>
           ) : null}
 
-          {role === "PARTNER" ? (
-            <form onSubmit={onSubmitReport} className="space-y-5">
+          {role === "PARTNER" || (formPreview && (role === "ADMIN" || role === "ADMIN_ASSISTANT")) ? (
+            <form
+              onSubmit={formPreview ? (e) => e.preventDefault() : onSubmitReport}
+              className="space-y-5"
+            >
               <label className="block space-y-1 text-base font-medium text-zinc-900">
                 クライアントに対する所感（200字程度） <span className="text-red-600">*</span>
                 <textarea
@@ -792,18 +840,25 @@ export function SessionWorkspace({
                   onChange={(e) => setReflection(e.target.value)}
                   rows={6}
                   maxLength={4000}
-                  required
-                  className={`mt-1 w-full rounded-lg border bg-white px-3 py-2 text-base ${
+                  required={!formPreview}
+                  disabled={formPreview || role !== "PARTNER"}
+                  placeholder={formPreview ? "（セッション後に入力）" : undefined}
+                  className={`mt-1 w-full rounded-lg border bg-white px-3 py-2 text-base disabled:cursor-not-allowed disabled:bg-zinc-50 ${
                     reflectionTooLong ? "border-red-400" : "border-zinc-300"
                   }`}
                 />
-                <span className="mt-1 block text-xs text-zinc-500">
-                  目安: 200字程度（現在 {reflectionLength} 字）
-                </span>
+                {!formPreview ? (
+                  <span className="mt-1 block text-xs text-zinc-500">
+                    目安: 200字程度（現在 {reflectionLength} 字）
+                  </span>
+                ) : null}
               </label>
 
               {detail.partnerExtraQuestions.length > 0 ? (
-                <fieldset className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/40 px-4 py-3">
+                <fieldset
+                  disabled={formPreview || role !== "PARTNER"}
+                  className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/40 px-4 py-3"
+                >
                   <legend className="px-1 text-base font-semibold text-amber-900">
                     {detail.sessionNumber} 回目の追加質問
                   </legend>
@@ -817,36 +872,37 @@ export function SessionWorkspace({
                         }
                         rows={4}
                         maxLength={4000}
-                        required
-                        className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base"
+                        required={!formPreview}
+                        disabled={formPreview || role !== "PARTNER"}
+                        placeholder={formPreview ? "（セッション後に入力）" : undefined}
+                        className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base disabled:cursor-not-allowed disabled:bg-zinc-50"
                       />
                     </label>
                   ))}
                 </fieldset>
               ) : null}
 
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="rounded-lg bg-amber-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-amber-800 disabled:opacity-60"
-                >
-                  {submitting ? "送信中…" : detail.report ? "上書き保存" : "提出する"}
-                </button>
-                {detail.report ? (
-                  <span className="text-sm text-zinc-600">
-                    最終更新: {formatJa(detail.report.updatedAt)}
-                  </span>
-                ) : null}
-              </div>
-              {/*
-                パートナー側のレポート提出後の挙動を明示。
-                クライアントには見えない／管理者にのみ届く、というプライバシーの保証は
-                安心して書いてもらう上で重要なため、UI 側でも繰り返し伝える。
-              */}
-              <p className="text-xs text-zinc-500">
-                → 提出内容はクライアント（ご本人様）には表示されません。
-              </p>
+              {role === "PARTNER" && !formPreview ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="rounded-lg bg-amber-700 px-4 py-2.5 text-base font-semibold text-white shadow-sm transition hover:bg-amber-800 disabled:opacity-60"
+                  >
+                    {submitting ? "送信中…" : detail.report ? "上書き保存" : "提出する"}
+                  </button>
+                  {detail.report ? (
+                    <span className="text-sm text-zinc-600">
+                      最終更新: {formatJa(detail.report.updatedAt)}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+              {role === "PARTNER" && !formPreview ? (
+                <p className="text-xs text-zinc-500">
+                  → 提出内容はクライアント（ご本人様）には表示されません。
+                </p>
+              ) : null}
             </form>
           ) : (
             detail.report && (

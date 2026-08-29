@@ -46,11 +46,6 @@ export async function GET(_request: Request, context: RouteContext) {
       meetingProvider: null,
     };
 
-  const adminBypass = session.role === "ADMIN" || session.role === "ADMIN_ASSISTANT";
-  const openable = adminBypass || target.confirmed;
-  if (!openable) {
-    return jsonError("この回はまだ開けません。日程確定後に再度お試しください。", 403);
-  }
   const postSessionOpenable = isSessionEnded(target);
 
   // この match のクライアント企業に効く実効設定で、ガイドライン・追加質問を返す。
