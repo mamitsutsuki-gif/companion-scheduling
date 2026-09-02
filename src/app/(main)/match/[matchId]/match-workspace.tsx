@@ -47,7 +47,7 @@ import {
   zonedWallClockToUtc,
   calendarDateInTimeZone,
 } from "@/lib/slot-schedule";
-import { sessionAbandonmentReasonLabel } from "@/lib/session-abandonment-labels";
+import { sessionAbandonmentReasonLabel, sessionAbandonmentDisplayForViewer, isClientFacingRole } from "@/lib/session-abandonment-labels";
 import type { SessionAbandonmentReason } from "@/lib/repositories/session-abandonment-repository";
 import { ScheduleProposeForm } from "@/components/schedule-propose-form";
 import { ScheduleClientVoteForm } from "@/components/schedule-client-vote-form";
@@ -2850,11 +2850,17 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               const isAbandoned = !!row.abandonment;
               const isRescheduling = isReschedulingSession(row.sessionNumber);
               const eligibility = getRescheduleEligibility(row.sessionNumber, planRow.slot);
-              const showAbandonReasonToClient =
+              const isClientViewer = isClientRole(me.role);
+              const abandonmentDisplay =
+                isAbandoned && row.abandonment
+                  ? sessionAbandonmentDisplayForViewer(row.abandonment.reason, { isClientViewer })
+                  : null;
+              const showAbandonReasonToStaff =
                 isAbandoned &&
+                !isClientViewer &&
                 (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT");
               const abandonReasonLabel =
-                showAbandonReasonToClient && row.abandonment
+                showAbandonReasonToStaff && row.abandonment
                   ? sessionAbandonmentReasonLabel(row.abandonment.reason)
                   : null;
               // ステータスバッジ用。壁時計との比較のため render 時の現在時刻を使う。
@@ -2862,8 +2868,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               const now = Date.now();
               const endMs = row.endAt ? new Date(row.endAt).getTime() : null;
               const isPast = endMs !== null && endMs <= now;
-              const statusBadge: { label: string; className: string } | null = isAbandoned
-                ? { label: "未実施・消化", className: "border-red-300 bg-red-50 text-red-800" }
+              const statusBadge: { label: string; className: string } | null = abandonmentDisplay
+                ? { label: abandonmentDisplay.label, className: abandonmentDisplay.badgeClass }
                 : !row.startAt
                   ? { label: "未確定", className: "border-slate-300 bg-white text-slate-700" }
                   : isPast
@@ -2906,8 +2912,8 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 <li
                   key={row.sessionNumber}
                   className={`rounded-xl border px-3 py-2 ${
-                    isAbandoned
-                      ? "border-red-200 bg-red-50/60"
+                    abandonmentDisplay
+                      ? abandonmentDisplay.rowClass
                       : "border-indigo-100 bg-indigo-50/40"
                   }`}
                 >
@@ -2933,6 +2939,11 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                       </div>
                       {isAbandoned && abandonReasonLabel ? (
                         <p className="mt-1 text-xs text-red-800">理由：{abandonReasonLabel}</p>
+                      ) : null}
+                      {abandonmentDisplay?.clientNotice ? (
+                        <p className="mt-2 text-sm leading-relaxed text-amber-950/90">
+                          {abandonmentDisplay.clientNotice}
+                        </p>
                       ) : null}
                       {!isAbandoned && (row.zoomUrl || row.zoomMeetingId || row.zoomPass) ? (
                         <p className="mt-1 text-xs text-indigo-900/85">

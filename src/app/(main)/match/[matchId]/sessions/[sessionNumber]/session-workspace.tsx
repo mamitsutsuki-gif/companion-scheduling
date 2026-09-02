@@ -11,7 +11,11 @@ import {
   SESSION_REPORT_MOTIVEAGE_NOTICE,
   type SessionReportAnswers,
 } from "@/lib/session-report-fields";
-import { sessionAbandonmentReasonLabel } from "@/lib/session-abandonment-labels";
+import {
+  sessionAbandonmentReasonLabel,
+  sessionAbandonmentDisplayForViewer,
+  isClientFacingRole,
+} from "@/lib/session-abandonment-labels";
 import type { SessionAbandonmentReason } from "@/lib/repositories/session-abandonment-repository";
 
 type Role =
@@ -364,18 +368,24 @@ export function SessionWorkspace({
   const isPast = endMs !== null && endMs <= now;
   const postSessionOpenable = detail.postSessionOpenable;
   const isAbandoned = detail.abandonment !== null;
-  const statusInfo: { label: string; tone: string } = isAbandoned
-    ? { label: "未実施・消化", tone: "border-red-300 bg-red-50 text-red-800" }
+  const isClientViewer = isClientFacingRole(role);
+  const abandonmentDisplay =
+    isAbandoned && detail.abandonment
+      ? sessionAbandonmentDisplayForViewer(detail.abandonment.reason, { isClientViewer })
+      : null;
+  const statusInfo: { label: string; tone: string } = abandonmentDisplay
+    ? { label: abandonmentDisplay.label, tone: abandonmentDisplay.badgeClass }
     : !detail.plan.confirmed
       ? { label: "未確定", tone: "border-zinc-300 bg-white text-zinc-700" }
       : isPast
         ? { label: "実施済", tone: "border-emerald-300 bg-emerald-50 text-emerald-800" }
         : { label: "予定", tone: "border-indigo-300 bg-indigo-50 text-indigo-800" };
-  const showAbandonReasonToClient =
+  const showAbandonReasonToStaff =
     isAbandoned &&
+    !isClientViewer &&
     (role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT");
   const abandonReasonLabel =
-    showAbandonReasonToClient && detail.abandonment
+    showAbandonReasonToStaff && detail.abandonment
       ? sessionAbandonmentReasonLabel(detail.abandonment.reason)
       : null;
   const guidelineText =
@@ -447,10 +457,13 @@ export function SessionWorkspace({
           >
             {statusInfo.label}
           </span>
-          {isAbandoned ? (
+          {isAbandoned && abandonReasonLabel ? (
             <span className="text-sm text-zinc-700">理由：{abandonReasonLabel}</span>
           ) : null}
         </div>
+        {abandonmentDisplay?.clientNotice ? (
+          <p className="text-sm leading-relaxed text-amber-950/90">{abandonmentDisplay.clientNotice}</p>
+        ) : null}
 
         {role === "PARTNER" && isStarted ? (
           isAbandoned ? (
