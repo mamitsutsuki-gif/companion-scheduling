@@ -62,7 +62,12 @@ type SessionDetail = {
    */
   clientExtraQuestions: string[];
   guideline: { client: string; partner: string } | null;
-  abandonment: { reason: AbandonReason; markedAt: string; markedBy: string } | null;
+  abandonment: {
+    reason: AbandonReason;
+    markedAt: string;
+    markedBy: string;
+    excludeFromPartnerInvoice?: boolean;
+  } | null;
   feedback: {
     answers: FeedbackAnswers;
     extraAnswers: Record<string, string>;
@@ -386,7 +391,9 @@ export function SessionWorkspace({
     (role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT");
   const abandonReasonLabel =
     showAbandonReasonToStaff && detail.abandonment
-      ? sessionAbandonmentReasonLabel(detail.abandonment.reason)
+      ? sessionAbandonmentReasonLabel(detail.abandonment.reason, {
+          excludeFromPartnerInvoice: detail.abandonment.excludeFromPartnerInvoice,
+        })
       : null;
   const guidelineText =
     role === "PARTNER"

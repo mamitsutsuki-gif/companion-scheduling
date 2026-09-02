@@ -16,6 +16,8 @@ import { readSession } from "@/lib/session";
 
 const bodySchema = z.object({
   reason: z.string().trim().min(1, "解除理由を入力してください。").max(2000),
+  /** true のとき当該回の実施分をパートナー請求候補に残す（やり直しで実施済み扱いにする場合） */
+  partnerBillable: z.boolean().optional(),
 });
 
 type RouteContext = { params: Promise<{ matchId: string; sessionNumber: string }> };
@@ -44,19 +46,25 @@ export async function POST(request: Request, context: RouteContext) {
   });
   if (!released.ok) return jsonError(released.error, 409);
 
+  const partnerBillable = parsed.data.partnerBillable === true;
+  const excludeFromPartnerInvoice = !partnerBillable;
+
   await upsertSessionAbandonment({
     matchId,
     sessionNumber: n,
     reason: "admin_reschedule",
     markedBy: session!.sub,
+    excludeFromPartnerInvoice,
   });
 
-  const invoiceReconcile = await reconcilePartnerInvoiceAfterScheduleRelease({
-    partnerId: match.partnerId,
-    matchId,
-    sessionNumber: n,
-    previousStartAt: released.previousStartAt,
-  });
+  const invoiceReconcile = excludeFromPartnerInvoice
+    ? await reconcilePartnerInvoiceAfterScheduleRelease({
+        partnerId: match.partnerId,
+        matchId,
+        sessionNumber: n,
+        previousStartAt: released.previousStartAt,
+      })
+    : { draftLineRemoved: false, lockedInvoiceNeedsReview: false };
 
   const settings = await getEffectiveAppSettingsForMatch(matchId);
   const displayTz = settings.timezone || "Asia/Tokyo";
@@ -66,9 +74,15 @@ export async function POST(request: Request, context: RouteContext) {
     displayTz,
   );
 
+  const sessionEnded =
+    !Number.isNaN(new Date(released.previousEndAt).getTime()) &&
+    new Date(released.previousEndAt).getTime() <= Date.now();
+
   const messageBody =
     `【運営による日程解除のお知らせ】\n` +
-    `第${n}回の確定済み日程（${pretty}）を解除し、再調整を開始します。\n` +
+    (sessionEnded
+      ? `第${n}回は再実施のため、確定済み日程（${pretty}）を解除し、再調整を開始します。\n`
+      : `第${n}回の確定済み日程（${pretty}）を解除し、再調整を開始します。\n`) +
     `理由: ${parsed.data.reason}\n\n` +
     `以前お送りした確定メール・カレンダー登録の日程は無効となります。\n` +
     `担当パートナーが新しい候補日時を提示します。お手数ですがご確認ください。`;
@@ -92,13 +106,14 @@ export async function POST(request: Request, context: RouteContext) {
   const adminUser = usersMap.get(session!.sub);
   const adminName = adminUser?.displayName ?? "運営";
 
+  const billingNote = partnerBillable ? "（パートナー請求: 対象）" : "（パートナー請求: 対象外）";
   await appendAdminNotification({
     type: "RESCHEDULE",
     matchId,
     sessionNumber: n,
     actorUserId: session!.sub,
     actorRole: session!.role,
-    summary: `${adminName}が第${n}回の確定日程（${pretty}）を解除しました。理由: ${parsed.data.reason}`,
+    summary: `${adminName}が第${n}回の確定日程（${pretty}）を解除しました${billingNote}。理由: ${parsed.data.reason}`,
     link: `/match/${matchId}#schedule`,
   });
 
@@ -125,8 +140,9 @@ export async function POST(request: Request, context: RouteContext) {
     });
   }
 
-  const memberSummary =
-    `運営が第${n}回の確定日程（${pretty}）を解除しました。担当パートナーが新しい候補日時を提示します。`;
+  const memberSummary = sessionEnded
+    ? `運営が第${n}回の日程（${pretty}）を再実施のため解除しました。担当パートナーが新しい候補日時を提示します。`
+    : `運営が第${n}回の確定日程（${pretty}）を解除しました。担当パートナーが新しい候補日時を提示します。`;
   await appendMemberNotification({
     recipientUserId: match.clientId,
     type: "RESCHEDULE",

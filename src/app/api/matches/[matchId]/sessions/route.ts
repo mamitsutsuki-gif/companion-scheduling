@@ -68,7 +68,12 @@ export async function GET(_request: Request, context: RouteContext) {
       hasClientFeedback,
       hasPartnerReport,
       abandonment: ab
-        ? { reason: ab.reason, markedAt: ab.markedAt, markedBy: ab.markedBy }
+        ? {
+            reason: ab.reason,
+            markedAt: ab.markedAt,
+            markedBy: ab.markedBy,
+            excludeFromPartnerInvoice: ab.excludeFromPartnerInvoice,
+          }
         : null,
     };
   });

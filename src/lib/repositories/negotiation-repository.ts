@@ -524,11 +524,6 @@ export async function adminReleaseConfirmedScheduleForReschedule(input: {
     return { ok: false, error: "確定スロットが見つかりません。" };
   }
 
-  const endMs = new Date(slot.endAt).getTime();
-  if (!Number.isNaN(endMs) && endMs <= Date.now()) {
-    return { ok: false, error: "終了済みのセッションの確定日程は解除できません。" };
-  }
-
   const now = new Date().toISOString();
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();

@@ -362,6 +362,7 @@ type SessionAbandonmentApi = {
   reason: SessionAbandonmentReason;
   markedAt: string;
   markedBy: string;
+  excludeFromPartnerInvoice?: boolean;
 };
 
 type SessionPlanApiRow = {
@@ -965,8 +966,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [adminReleaseTarget, setAdminReleaseTarget] = useState<{
     sessionNumber: number;
     dateLabel: string;
+    isPast: boolean;
   } | null>(null);
   const [adminReleaseReason, setAdminReleaseReason] = useState("");
+  const [adminReleasePartnerBillable, setAdminReleasePartnerBillable] = useState(false);
   const [adminReleaseSubmitting, setAdminReleaseSubmitting] = useState(false);
   const [clientFta, setClientFta] = useState<MatchFtaPayload | null>(null);
   const [myFtaChart, setMyFtaChart] = useState<FtaChart>(defaultFtaChart());
@@ -1783,13 +1786,19 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       setError("解除理由を入力してください。");
       return;
     }
-    const { sessionNumber } = adminReleaseTarget;
+    const { sessionNumber, isPast } = adminReleaseTarget;
+    const partnerBillable = adminReleasePartnerBillable;
+    const billingNote = partnerBillable
+      ? "・パートナー請求: 当該回の実施分を請求候補に残します"
+      : "・パートナー請求: 当該回は請求候補から外します";
     if (
       !window.confirm(
         `第${sessionNumber}回の確定日程を解除します。\n\n` +
+          (isPast ? "・セッション終了後のやり直し用の操作です\n" : "") +
           "・画面上の確定日時は即座に消えます\n" +
           "・クライアント・パートナーへメールと通知が送られます\n" +
-          "・以前の確定メールの日程は無効となります\n\n" +
+          "・以前の確定メールの日程は無効となります\n" +
+          `${billingNote}\n\n` +
           "よろしいですか？",
       )
     ) {
@@ -1803,7 +1812,10 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({
+          reason,
+          partnerBillable,
+        }),
       },
     );
     const json = await res.json().catch(() => null);
@@ -1814,8 +1826,13 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     }
     setAdminReleaseTarget(null);
     setAdminReleaseReason("");
+    setAdminReleasePartnerBillable(false);
     setNotice(
-      `第${sessionNumber}回の確定日程を解除しました。クライアント・パートナーへ通知済みです。下書き請求書の明細は自動調整済み（提出済みの場合は管理者通知を確認）。パートナーに候補日時の再提示を依頼してください。`,
+      `第${sessionNumber}回の確定日程を解除しました。クライアント・パートナーへ通知済みです。` +
+        (partnerBillable
+          ? " パートナー請求は当該実施分を対象に残しています。"
+          : " 下書き請求書の明細は自動調整済み（提出済みの場合は管理者通知を確認）。") +
+        " パートナーに候補日時の再提示を依頼してください。",
     );
     await load();
   }
@@ -2861,7 +2878,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT");
               const abandonReasonLabel =
                 showAbandonReasonToStaff && row.abandonment
-                  ? sessionAbandonmentReasonLabel(row.abandonment.reason)
+                  ? sessionAbandonmentReasonLabel(row.abandonment.reason, {
+                      excludeFromPartnerInvoice: row.abandonment.excludeFromPartnerInvoice,
+                    })
                   : null;
               // ステータスバッジ用。壁時計との比較のため render 時の現在時刻を使う。
               // eslint-disable-next-line react-hooks/purity -- session status vs wall clock
@@ -2987,7 +3006,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                       row.confirmed &&
                       row.startAt &&
                       !isAbandoned &&
-                      !isPast &&
                       !isRescheduling &&
                       adminReleaseTarget?.sessionNumber === row.sessionNumber ? (
                         <div className="mt-3 space-y-2 rounded-xl border border-rose-200 bg-rose-50/80 p-3">
@@ -2995,7 +3013,9 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                             確定日程の解除（管理者のみ）
                           </p>
                           <p className="text-sm leading-relaxed text-rose-900/90">
-                            {dateLabel} の確定を解除します。クライアント・パートナーへ通知され、画面上の確定日時は「未確定」になります。
+                            {isPast
+                              ? `${dateLabel} の確定を解除し、やり直しのため再調整を開始します。クライアント・人事には「日程再調整中」と表示されます（未実施・消化には見えません）。`
+                              : `${dateLabel} の確定を解除します。クライアント・パートナーへ通知され、画面上の確定日時は「未確定」になります。`}
                           </p>
                           <label className="block text-sm">
                             <span className="font-medium text-rose-950">解除理由（必須）</span>
@@ -3003,9 +3023,28 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                               rows={3}
                               value={adminReleaseReason}
                               onChange={(e) => setAdminReleaseReason(e.target.value)}
-                              placeholder="例: 体調不良によるリスケのため"
+                              placeholder={
+                                isPast
+                                  ? "例: 音声不良のためやり直し"
+                                  : "例: 体調不良によるリスケのため"
+                              }
                               className="mt-1 w-full resize-y rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm text-slate-900"
                             />
+                          </label>
+                          <label className="flex items-start gap-2 text-sm text-rose-950">
+                            <input
+                              type="checkbox"
+                              checked={adminReleasePartnerBillable}
+                              onChange={(e) => setAdminReleasePartnerBillable(e.target.checked)}
+                              className="mt-0.5 rounded border-rose-300"
+                            />
+                            <span>
+                              <span className="font-medium">パートナー請求の対象にする</span>
+                              <span className="mt-0.5 block text-xs leading-relaxed text-rose-900/85">
+                                当該回を実施済みとして請求候補に残します（音声不良などでやり直すが実施分は支払う場合）。
+                                未チェックのときは請求候補から外します。
+                              </span>
+                            </span>
                           </label>
                           <div className="flex flex-wrap gap-2">
                             <button
@@ -3022,6 +3061,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                               onClick={() => {
                                 setAdminReleaseTarget(null);
                                 setAdminReleaseReason("");
+                                setAdminReleasePartnerBillable(false);
                               }}
                               className="rounded-md border border-rose-300 bg-white px-3 py-1.5 text-sm font-medium text-rose-900"
                             >
@@ -3045,7 +3085,6 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                       row.confirmed &&
                       row.startAt &&
                       !isAbandoned &&
-                      !isPast &&
                       !isRescheduling &&
                       adminReleaseTarget?.sessionNumber !== row.sessionNumber ? (
                         <button
@@ -3054,6 +3093,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                             setAdminReleaseTarget({
                               sessionNumber: row.sessionNumber,
                               dateLabel,
+                              isPast,
                             })
                           }
                           className="rounded-md border border-rose-300 bg-rose-50 px-3 py-1.5 text-sm font-semibold text-rose-900 hover:bg-rose-100"
@@ -3095,7 +3135,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               </p>
               {me.role === "ADMIN" ? (
                 <p className="text-sm text-rose-900">
-                  管理者: 24時間を過ぎた確定済み日程のリスケは、各回の「確定解除（再調整）」から行えます。解除時に双方へ通知され、確定日時は即座に未確定になります。
+                  管理者: 確定済み日程のリスケは各回の「確定解除（再調整）」から行えます（セッション終了後のやり直しも可）。請求対象かどうかは解除時に選択できます。クライアント・人事には「日程再調整中」と表示されます。
                 </p>
               ) : null}
             </>

@@ -187,8 +187,8 @@ export async function enrichInvoiceItemsClientCompanyNames(
  *     - 通常プラン（個別伴走・職場活性）: セッションレポートに 1 文字以上
  *     - コーチング研修 1〜3 回目: ロールプレイのパートナー評価が入力済み
  *     - コーチング研修 4 回目以降: セッションレポートに 1 文字以上
- *   - 運営リスケ（admin_reschedule）で未実施・消化になっていないこと
- *     （クライアント都合の no_show / late_cancel は請求対象）
+ *   - 運営リスケ（admin_reschedule）で請求対象外にした場合は候補から除外
+ *     （クライアント都合の no_show / late_cancel、請求対象に残した運営リスケは候補に含む）
  *
  * unitPriceExclTax はパートナー入力のため 0 で初期化。
  */

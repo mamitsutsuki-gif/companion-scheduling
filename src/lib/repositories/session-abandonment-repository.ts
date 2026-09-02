@@ -10,7 +10,21 @@ export type SessionAbandonmentRow = {
   reason: SessionAbandonmentReason;
   markedBy: string;
   markedAt: string;
+  /**
+   * admin_reschedule 時: パートナー請求明細候補から除外するか。
+   * 未設定は true（後方互換・請求対象外）。
+   */
+  excludeFromPartnerInvoice?: boolean;
 };
+
+function parseExcludeFromPartnerInvoice(
+  raw: unknown,
+  reason: SessionAbandonmentReason,
+): boolean | undefined {
+  if (reason !== "admin_reschedule") return undefined;
+  if (raw === false) return false;
+  return true;
+}
 
 function docId(matchId: string, sessionNumber: number) {
   return `${matchId}_${sessionNumber}`;
@@ -40,6 +54,10 @@ export async function getSessionAbandonment(
       reason,
       markedBy: String(raw.markedBy ?? ""),
       markedAt: String(raw.markedAt ?? new Date().toISOString()),
+      excludeFromPartnerInvoice: parseExcludeFromPartnerInvoice(
+        raw.excludeFromPartnerInvoice,
+        reason,
+      ),
     };
   }
   // Local SQLite: 任意モデル。Prisma に未追加なら null を返してビルドを通す（本番は Firestore 経由）。
@@ -63,6 +81,10 @@ export async function getSessionAbandonment(
         row.markedAt instanceof Date
           ? row.markedAt.toISOString()
           : String(row.markedAt ?? new Date().toISOString()),
+      excludeFromPartnerInvoice: parseExcludeFromPartnerInvoice(
+        row.excludeFromPartnerInvoice,
+        reason,
+      ),
     };
   } catch {
     return null;
@@ -90,6 +112,10 @@ export async function listSessionAbandonmentsForMatch(
           reason,
           markedBy: String(raw.markedBy ?? ""),
           markedAt: String(raw.markedAt ?? new Date().toISOString()),
+          excludeFromPartnerInvoice: parseExcludeFromPartnerInvoice(
+            raw.excludeFromPartnerInvoice,
+            reason,
+          ),
         } as SessionAbandonmentRow;
       })
       .filter((r): r is SessionAbandonmentRow => r != null)
@@ -117,6 +143,10 @@ export async function listSessionAbandonmentsForMatch(
             row.markedAt instanceof Date
               ? row.markedAt.toISOString()
               : String(row.markedAt ?? new Date().toISOString()),
+          excludeFromPartnerInvoice: parseExcludeFromPartnerInvoice(
+            row.excludeFromPartnerInvoice,
+            reason,
+          ),
         } as SessionAbandonmentRow;
       })
       .filter((r): r is SessionAbandonmentRow => r != null);
@@ -141,6 +171,10 @@ export async function listAllSessionAbandonments(): Promise<SessionAbandonmentRo
           reason,
           markedBy: String(raw.markedBy ?? ""),
           markedAt: String(raw.markedAt ?? new Date().toISOString()),
+          excludeFromPartnerInvoice: parseExcludeFromPartnerInvoice(
+            raw.excludeFromPartnerInvoice,
+            reason,
+          ),
         } as SessionAbandonmentRow;
       })
       .filter((r): r is SessionAbandonmentRow => r != null);
@@ -164,6 +198,10 @@ export async function listAllSessionAbandonments(): Promise<SessionAbandonmentRo
             row.markedAt instanceof Date
               ? row.markedAt.toISOString()
               : String(row.markedAt ?? new Date().toISOString()),
+          excludeFromPartnerInvoice: parseExcludeFromPartnerInvoice(
+            row.excludeFromPartnerInvoice,
+            reason,
+          ),
         } as SessionAbandonmentRow;
       })
       .filter((r): r is SessionAbandonmentRow => r != null);
@@ -177,14 +215,20 @@ export async function upsertSessionAbandonment(input: {
   sessionNumber: number;
   reason: SessionAbandonmentReason;
   markedBy: string;
+  excludeFromPartnerInvoice?: boolean;
 }): Promise<SessionAbandonmentRow> {
   const now = new Date().toISOString();
+  const excludeFromPartnerInvoice =
+    input.reason === "admin_reschedule"
+      ? input.excludeFromPartnerInvoice !== false
+      : undefined;
   const data: SessionAbandonmentRow = {
     matchId: input.matchId,
     sessionNumber: input.sessionNumber,
     reason: input.reason,
     markedBy: input.markedBy,
     markedAt: now,
+    ...(excludeFromPartnerInvoice !== undefined ? { excludeFromPartnerInvoice } : {}),
   };
   if (isFirebaseDataBackend()) {
     const db = getFirebaseFirestoreClient();
@@ -248,9 +292,12 @@ export async function deleteSessionAbandonment(
   }
 }
 
-/** パートナー請求の明細候補から除外する未実施理由（運営リスケのみ）。 */
-export function excludesSessionFromPartnerInvoice(reason: SessionAbandonmentReason): boolean {
-  return reason === "admin_reschedule";
+/** パートナー請求の明細候補から除外するか（運営リスケで請求対象外にした場合のみ）。 */
+export function excludesSessionFromPartnerInvoice(
+  row: Pick<SessionAbandonmentRow, "reason" | "excludeFromPartnerInvoice">,
+): boolean {
+  if (row.reason !== "admin_reschedule") return false;
+  return row.excludeFromPartnerInvoice !== false;
 }
 
 export function partnerInvoiceExcludedAbandonmentKeys(
@@ -258,7 +305,7 @@ export function partnerInvoiceExcludedAbandonmentKeys(
 ): Set<string> {
   const out = new Set<string>();
   for (const row of rows) {
-    if (excludesSessionFromPartnerInvoice(row.reason)) {
+    if (excludesSessionFromPartnerInvoice(row)) {
       out.add(`${row.matchId}#${row.sessionNumber}`);
     }
   }

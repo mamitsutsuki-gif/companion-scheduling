@@ -5,10 +5,16 @@ export function isClientFacingRole(role: string): boolean {
 }
 
 /** パートナー・管理者向けの未実施・消化理由の表示文言 */
-export function sessionAbandonmentReasonLabel(reason: SessionAbandonmentReason): string {
+export function sessionAbandonmentReasonLabel(
+  reason: SessionAbandonmentReason,
+  options?: { excludeFromPartnerInvoice?: boolean },
+): string {
   if (reason === "no_show") return "クライアントが連絡なく参加しなかった";
   if (reason === "late_cancel") return "クライアントが24時間前を過ぎてキャンセルした";
-  return "運営により日程再調整（当該日時は未実施・消化）";
+  if (options?.excludeFromPartnerInvoice === false) {
+    return "運営により日程再調整（やり直し・当該実施分は請求対象）";
+  }
+  return "運営により日程再調整（当該日時は未実施・消化・請求対象外）";
 }
 
 export type SessionAbandonmentDisplay = {
@@ -30,7 +36,7 @@ export function sessionAbandonmentDisplayForViewer(
       badgeClass: "border-amber-300 bg-amber-50 text-amber-900",
       rowClass: "border-amber-200 bg-amber-50/60",
       clientNotice:
-        "運営の都合により、確定していた日程を解除しました。チャットの案内どおり、担当パートナーから新しい候補日時をご案内します。以前お送りした確定メールの日程は無効です。",
+        "この回は再実施のため、日程を調整しています。担当パートナーから新しい候補日時をご案内します。以前お送りした確定メールの日程は無効です。",
     };
   }
   return {

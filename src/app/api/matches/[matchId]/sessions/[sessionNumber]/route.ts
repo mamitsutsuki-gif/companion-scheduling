@@ -103,6 +103,7 @@ export async function GET(_request: Request, context: RouteContext) {
           reason: abandonmentRow.reason,
           markedAt: abandonmentRow.markedAt,
           markedBy: abandonmentRow.markedBy,
+          excludeFromPartnerInvoice: abandonmentRow.excludeFromPartnerInvoice,
         }
       : null,
     feedback: includeFeedback ? feedbackRow : null,
