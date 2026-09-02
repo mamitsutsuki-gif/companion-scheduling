@@ -47,6 +47,7 @@ type SessionDetail = {
   openable: boolean;
   postSessionOpenable: boolean;
   viewerRole: Role;
+  viewerIsMatchClient?: boolean;
   partnerExtraQuestions: string[];
   /**
    * 管理者が「企業ごとの設定 → クライアント振り返りの追加質問」で
@@ -389,8 +390,12 @@ export function SessionWorkspace({
         : detail.guideline?.client?.trim() ?? "";
 
   const isCoachingRoleplay = detail.isCoachingRoleplaySession === true;
+  const viewerIsMatchClient =
+    detail.viewerIsMatchClient ?? (role === "CLIENT" && detail.match.clientId !== "");
+  // 人事・上司ロールでも、このマッチの受講者本人なら自己評価を入力できる（API と同じ判定）
   const roleplayReadOnly =
-    role === "ADMIN_ASSISTANT" || role === "CLIENT_ADMIN" || role === "CLIENT_HR";
+    role === "ADMIN_ASSISTANT" ||
+    ((role === "CLIENT_ADMIN" || role === "CLIENT_HR") && !viewerIsMatchClient);
   const formPreview = !postSessionOpenable && !isAbandoned && !isCoachingRoleplay;
   const showClientFeedbackSection =
     !isCoachingRoleplay &&

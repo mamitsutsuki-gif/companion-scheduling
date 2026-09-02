@@ -93,6 +93,8 @@ export async function GET(_request: Request, context: RouteContext) {
     openable: true,
     postSessionOpenable,
     viewerRole: session.role,
+    /** ログイン中のユーザーがこのマッチの受講者（clientId）本人か */
+    viewerIsMatchClient: session.sub === gate.match.clientId,
     partnerExtraQuestions,
     clientExtraQuestions,
     guideline,
