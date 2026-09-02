@@ -1,6 +1,9 @@
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
 import { listSessionPlanForMatch } from "@/lib/repositories/match-sessions-repository";
-import { listAllSessionAbandonments } from "@/lib/repositories/session-abandonment-repository";
+import {
+  listAllSessionAbandonments,
+  partnerInvoiceExcludedAbandonmentKeys,
+} from "@/lib/repositories/session-abandonment-repository";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { getRoleplayStore } from "@/lib/repositories/coaching-repository";
@@ -184,7 +187,8 @@ export async function enrichInvoiceItemsClientCompanyNames(
  *     - 通常プラン（個別伴走・職場活性）: セッションレポートに 1 文字以上
  *     - コーチング研修 1〜3 回目: ロールプレイのパートナー評価が入力済み
  *     - コーチング研修 4 回目以降: セッションレポートに 1 文字以上
- *   - 当該セッションが **未実施・消化ではない**こと（no_show / late_cancel / admin_reschedule）
+ *   - 運営リスケ（admin_reschedule）で未実施・消化になっていないこと
+ *     （クライアント都合の no_show / late_cancel は請求対象）
  *
  * unitPriceExclTax はパートナー入力のため 0 で初期化。
  */
@@ -202,10 +206,11 @@ export async function buildInvoiceCandidatesForPartner(
   );
 
   const abandonmentKey = (m: string, n: number) => `${m}#${n}`;
-  const abandonedSet = new Set<string>();
+  let invoiceExcludedAbandonments = new Set<string>();
   try {
-    const all = await listAllSessionAbandonments();
-    for (const a of all) abandonedSet.add(abandonmentKey(a.matchId, a.sessionNumber));
+    invoiceExcludedAbandonments = partnerInvoiceExcludedAbandonmentKeys(
+      await listAllSessionAbandonments(),
+    );
   } catch {
     /* best-effort */
   }
@@ -229,7 +234,9 @@ export async function buildInvoiceCandidatesForPartner(
         if (!session.confirmed || !session.startAt) continue;
         const d = new Date(session.startAt);
         if (d.getFullYear() !== year || d.getMonth() + 1 !== month) continue;
-        if (abandonedSet.has(abandonmentKey(match.id, session.sessionNumber))) continue;
+        if (invoiceExcludedAbandonments.has(abandonmentKey(match.id, session.sessionNumber))) {
+          continue;
+        }
 
         const report = reportByKey.get(reportKey(match.id, session.sessionNumber)) ?? null;
         if (
@@ -266,8 +273,8 @@ export async function getPartnerDisplayNames(partnerIds: string[]): Promise<Map<
 }
 
 /**
- * 対象月 (year, month) に **実施済（= レポート記載あり、かつ未実施・消化でない）**
- * セッションを 1 件以上持つパートナーの id 一覧。未提出の請求書も管理者画面に並べるために使用。
+ * 対象月 (year, month) に **請求候補になりうるセッション**（レポート等あり、運営リスケ未実施でない）
+ * を 1 件以上持つパートナーの id 一覧。未提出の請求書も管理者画面に並べるために使用。
  */
 export async function listPartnersWithReportsForMonth(
   year: number,
@@ -302,10 +309,11 @@ export async function listPartnersWithReportsForMonth(
   );
 
   const abandonmentKey = (m: string, n: number) => `${m}#${n}`;
-  const abandonedSet = new Set<string>();
+  let invoiceExcludedAbandonments = new Set<string>();
   try {
-    const all = await listAllSessionAbandonments();
-    for (const a of all) abandonedSet.add(abandonmentKey(a.matchId, a.sessionNumber));
+    invoiceExcludedAbandonments = partnerInvoiceExcludedAbandonmentKeys(
+      await listAllSessionAbandonments(),
+    );
   } catch {
     /* best-effort */
   }
@@ -327,7 +335,9 @@ export async function listPartnersWithReportsForMonth(
         if (!session.confirmed || !session.startAt) continue;
         const d = new Date(session.startAt);
         if (d.getFullYear() !== year || d.getMonth() + 1 !== month) continue;
-        if (abandonedSet.has(abandonmentKey(match.id, session.sessionNumber))) continue;
+        if (invoiceExcludedAbandonments.has(abandonmentKey(match.id, session.sessionNumber))) {
+          continue;
+        }
         const report = reportByKey.get(reportKey(match.id, session.sessionNumber)) ?? null;
         if (
           !partnerSessionHasBillableContent({

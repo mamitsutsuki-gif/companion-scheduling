@@ -6,7 +6,7 @@ export function invoiceItemKey(item: { matchId: string; sessionNumber: number })
 
 /**
  * 既存の請求明細と候補をマージする。
- * pruneStale=true のとき、候補に無い行（確定解除・未実施消化など）は落とす。
+ * pruneStale=true のとき、候補に無い行（運営リスケ後の確定解除など）は落とす。
  */
 export function mergeInvoiceItems(
   existing: PartnerInvoiceItem[],

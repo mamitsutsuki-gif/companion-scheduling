@@ -248,6 +248,23 @@ export async function deleteSessionAbandonment(
   }
 }
 
+/** パートナー請求の明細候補から除外する未実施理由（運営リスケのみ）。 */
+export function excludesSessionFromPartnerInvoice(reason: SessionAbandonmentReason): boolean {
+  return reason === "admin_reschedule";
+}
+
+export function partnerInvoiceExcludedAbandonmentKeys(
+  rows: SessionAbandonmentRow[],
+): Set<string> {
+  const out = new Set<string>();
+  for (const row of rows) {
+    if (excludesSessionFromPartnerInvoice(row.reason)) {
+      out.add(`${row.matchId}#${row.sessionNumber}`);
+    }
+  }
+  return out;
+}
+
 /** 再日程確定時に、運営解除由来の未実施マークだけを外す（請求対象に戻す）。 */
 export async function clearAdminRescheduleAbandonmentIfPresent(
   matchId: string,
