@@ -480,3 +480,80 @@ export async function setRescheduleRequestedFlag(negotiationId: string) {
     /* ignore */
   }
 }
+
+export type AdminReleaseConfirmedScheduleResult =
+  | {
+      ok: true;
+      negotiationId: string;
+      previousStartAt: string;
+      previousEndAt: string;
+      round: number;
+    }
+  | { ok: false; error: string };
+
+/**
+ * 管理者が確定済み日程を解除し、再調整を開始できる状態にする。
+ * 旧 negotiation は SUPERSEDED とし、画面上の確定日時を即座に消す。
+ */
+export async function adminReleaseConfirmedScheduleForReschedule(input: {
+  matchId: string;
+  sessionNumber: number;
+  releasedByUserId: string;
+}): Promise<AdminReleaseConfirmedScheduleResult> {
+  const sn = Math.max(1, input.sessionNumber);
+  const rows = await listNegotiationsForMatch(input.matchId);
+  const forSession = rows.filter((n) => Math.max(1, n.sessionNumber ?? 1) === sn);
+
+  const open = forSession.find((n) => blocksNewProposalForSession(n.status));
+  if (open) {
+    return {
+      ok: false,
+      error: "この回はすでに日程調整中です。先に調整を完了してから解除してください。",
+    };
+  }
+
+  const confirmed = forSession
+    .filter((n) => n.status === "CONFIRMED")
+    .sort((a, b) => b.round - a.round)[0];
+  if (!confirmed) {
+    return { ok: false, error: "確定済みの日程がありません。" };
+  }
+
+  const slot = confirmed.slots.find((s) => s.isConfirmed);
+  if (!slot) {
+    return { ok: false, error: "確定スロットが見つかりません。" };
+  }
+
+  const endMs = new Date(slot.endAt).getTime();
+  if (!Number.isNaN(endMs) && endMs <= Date.now()) {
+    return { ok: false, error: "終了済みのセッションの確定日程は解除できません。" };
+  }
+
+  const now = new Date().toISOString();
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return { ok: false, error: "Firestore が未設定です。" };
+    await db.collection("negotiations").doc(confirmed.id).set(
+      {
+        status: "SUPERSEDED",
+        adminReleasedAt: now,
+        adminReleasedBy: input.releasedByUserId,
+        updatedAt: now,
+      },
+      { merge: true },
+    );
+  } else {
+    await prisma.negotiation.update({
+      where: { id: confirmed.id },
+      data: { status: "SUPERSEDED" },
+    });
+  }
+
+  return {
+    ok: true,
+    negotiationId: confirmed.id,
+    previousStartAt: slot.startAt,
+    previousEndAt: slot.endAt,
+    round: confirmed.round,
+  };
+}

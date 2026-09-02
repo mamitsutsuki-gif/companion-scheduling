@@ -960,6 +960,12 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [rescheduleSubmittingSession, setRescheduleSubmittingSession] = useState<number | null>(null);
+  const [adminReleaseTarget, setAdminReleaseTarget] = useState<{
+    sessionNumber: number;
+    dateLabel: string;
+  } | null>(null);
+  const [adminReleaseReason, setAdminReleaseReason] = useState("");
+  const [adminReleaseSubmitting, setAdminReleaseSubmitting] = useState(false);
   const [clientFta, setClientFta] = useState<MatchFtaPayload | null>(null);
   const [myFtaChart, setMyFtaChart] = useState<FtaChart>(defaultFtaChart());
   const [myFtaDirty, setMyFtaDirty] = useState(false);
@@ -1765,6 +1771,50 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
       return;
     }
     setNotice(`第${sessionNumber}回の日程について変更希望を送信しました。相手に通知し、再調整を開始できます。`);
+    await load();
+  }
+
+  async function onAdminReleaseSchedule() {
+    if (!adminReleaseTarget) return;
+    const reason = adminReleaseReason.trim();
+    if (!reason) {
+      setError("解除理由を入力してください。");
+      return;
+    }
+    const { sessionNumber } = adminReleaseTarget;
+    if (
+      !window.confirm(
+        `第${sessionNumber}回の確定日程を解除します。\n\n` +
+          "・画面上の確定日時は即座に消えます\n" +
+          "・クライアント・パートナーへメールと通知が送られます\n" +
+          "・以前の確定メールの日程は無効となります\n\n" +
+          "よろしいですか？",
+      )
+    ) {
+      return;
+    }
+    setNotice(null);
+    setError(null);
+    setAdminReleaseSubmitting(true);
+    const res = await fetch(
+      `/api/admin/matches/${encodeURIComponent(matchId)}/sessions/${sessionNumber}/release-schedule`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      },
+    );
+    const json = await res.json().catch(() => null);
+    setAdminReleaseSubmitting(false);
+    if (!res.ok) {
+      setError(json?.error ?? "確定日程の解除に失敗しました。");
+      return;
+    }
+    setAdminReleaseTarget(null);
+    setAdminReleaseReason("");
+    setNotice(
+      `第${sessionNumber}回の確定日程を解除しました。クライアント・パートナーへ通知済みです。パートナーに候補日時の再提示を依頼してください。`,
+    );
     await load();
   }
 
@@ -2921,6 +2971,54 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                           この日程は変更不可: {eligibility.reason}（日程変更は開始24時間前まで可能です）
                         </p>
                       ) : null}
+                      {me.role === "ADMIN" &&
+                      scheduleSettings.planFeatures.schedule &&
+                      row.confirmed &&
+                      row.startAt &&
+                      !isAbandoned &&
+                      !isPast &&
+                      !isRescheduling &&
+                      adminReleaseTarget?.sessionNumber === row.sessionNumber ? (
+                        <div className="mt-3 space-y-2 rounded-xl border border-rose-200 bg-rose-50/80 p-3">
+                          <p className="text-sm font-semibold text-rose-950">
+                            確定日程の解除（管理者のみ）
+                          </p>
+                          <p className="text-sm leading-relaxed text-rose-900/90">
+                            {dateLabel} の確定を解除します。クライアント・パートナーへ通知され、画面上の確定日時は「未確定」になります。
+                          </p>
+                          <label className="block text-sm">
+                            <span className="font-medium text-rose-950">解除理由（必須）</span>
+                            <textarea
+                              rows={3}
+                              value={adminReleaseReason}
+                              onChange={(e) => setAdminReleaseReason(e.target.value)}
+                              placeholder="例: 体調不良によるリスケのため"
+                              className="mt-1 w-full resize-y rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm text-slate-900"
+                            />
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={adminReleaseSubmitting}
+                              onClick={() => void onAdminReleaseSchedule()}
+                              className="rounded-md bg-rose-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+                            >
+                              {adminReleaseSubmitting ? "解除中…" : "確定を解除して再調整開始"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={adminReleaseSubmitting}
+                              onClick={() => {
+                                setAdminReleaseTarget(null);
+                                setAdminReleaseReason("");
+                              }}
+                              className="rounded-md border border-rose-300 bg-white px-3 py-1.5 text-sm font-medium text-rose-900"
+                            >
+                              キャンセル
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {canOpen ? (
@@ -2931,7 +3029,30 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                           {openLabel}
                         </Link>
                       ) : null}
-                      {scheduleSettings.planFeatures.schedule ? (
+                      {me.role === "ADMIN" &&
+                      scheduleSettings.planFeatures.schedule &&
+                      row.confirmed &&
+                      row.startAt &&
+                      !isAbandoned &&
+                      !isPast &&
+                      !isRescheduling &&
+                      adminReleaseTarget?.sessionNumber !== row.sessionNumber ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAdminReleaseTarget({
+                              sessionNumber: row.sessionNumber,
+                              dateLabel,
+                            })
+                          }
+                          className="rounded-md border border-rose-300 bg-rose-50 px-3 py-1.5 text-sm font-semibold text-rose-900 hover:bg-rose-100"
+                        >
+                          確定解除（再調整）
+                        </button>
+                      ) : null}
+                      {scheduleSettings.planFeatures.schedule &&
+                      me.role !== "ADMIN" &&
+                      me.role !== "ADMIN_ASSISTANT" ? (
                         isRescheduling ? (
                           <span className="rounded-md border border-amber-300 bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-900">
                             再調整中
@@ -2961,6 +3082,11 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
               <p className="text-sm font-medium text-amber-800">
                 開始24時間前を過ぎての変更はできません。体調不良などの場合は、サポートデスクに連絡ください。
               </p>
+              {me.role === "ADMIN" ? (
+                <p className="text-sm text-rose-900">
+                  管理者: 24時間を過ぎた確定済み日程のリスケは、各回の「確定解除（再調整）」から行えます。解除時に双方へ通知され、確定日時は即座に未確定になります。
+                </p>
+              ) : null}
             </>
           ) : null}
         </div>
