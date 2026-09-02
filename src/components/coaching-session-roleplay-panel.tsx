@@ -45,6 +45,78 @@ function VisibilityNote({ children, tone = "neutral" }: { children: ReactNode; t
   );
 }
 
+const ROLEPLAY_FREE_TEXT_HINT =
+  "セッションの具体的な場面や言葉を交えて記入してください（目安: 100字以上）。入力に応じて欄が広がります。";
+
+function AutoGrowTextarea({
+  value,
+  onChange,
+  disabled,
+  placeholder,
+  className,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
+  className?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  const syncHeight = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+
+  useEffect(() => {
+    syncHeight();
+  }, [value, syncHeight]);
+
+  return (
+    <textarea
+      ref={ref}
+      rows={6}
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+      onInput={syncHeight}
+      placeholder={placeholder}
+      className={className}
+    />
+  );
+}
+
+function RoleplayFreeTextField({
+  label,
+  value,
+  disabled,
+  onChange,
+  placeholder,
+  className,
+}: {
+  label: string;
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  className: string;
+}) {
+  return (
+    <label className="block text-base">
+      <span className="font-medium text-slate-800">{label}</span>
+      <AutoGrowTextarea
+        value={value}
+        disabled={disabled}
+        onChange={onChange}
+        placeholder={placeholder}
+        className={className}
+      />
+    </label>
+  );
+}
+
 function ScoreSelect({
   item,
   value,
@@ -415,6 +487,7 @@ export function CoachingSessionRoleplayPanel({
 
   const fieldClass =
     "mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-slate-50 disabled:text-slate-500";
+  const textareaClass = `${fieldClass} min-h-[9.5rem] resize-y py-3 leading-relaxed`;
 
   if (loading) return <p className="text-base text-slate-500">読込中…</p>;
   if (error && !store) return <p className="text-base text-rose-700">{error}</p>;
@@ -561,38 +634,37 @@ export function CoachingSessionRoleplayPanel({
             ))}
           </div>
 
-          <div className="space-y-3 rounded-2xl border border-indigo-100 bg-indigo-50/25 p-5">
-            <h3 className="text-lg font-semibold text-indigo-950">自由記述（クライアント）</h3>
-            <label className="block text-base">
-              <span className="font-medium text-slate-800">良かった点</span>
-              <textarea
-                rows={3}
-                disabled={!canEditClient}
-                value={draft.clientReflection.good}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    clientReflection: { ...draft.clientReflection, good: e.target.value },
-                  })
-                }
-                className={fieldClass}
-              />
-            </label>
-            <label className="block text-base">
-              <span className="font-medium text-slate-800">もっと良くなると思うこと</span>
-              <textarea
-                rows={3}
-                disabled={!canEditClient}
-                value={draft.clientReflection.improve}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    clientReflection: { ...draft.clientReflection, improve: e.target.value },
-                  })
-                }
-                className={fieldClass}
-              />
-            </label>
+          <div className="space-y-4 rounded-2xl border border-indigo-100 bg-indigo-50/25 p-5">
+            <div className="space-y-1">
+              <h3 className="text-lg font-semibold text-indigo-950">自由記述（クライアント）</h3>
+              <p className="text-sm leading-relaxed text-slate-600">{ROLEPLAY_FREE_TEXT_HINT}</p>
+            </div>
+            <RoleplayFreeTextField
+              label="良かった点"
+              disabled={!canEditClient}
+              value={draft.clientReflection.good}
+              onChange={(good) =>
+                setDraft({
+                  ...draft,
+                  clientReflection: { ...draft.clientReflection, good },
+                })
+              }
+              placeholder="例: 相手の話を最後まで聞き、安心して話せた"
+              className={textareaClass}
+            />
+            <RoleplayFreeTextField
+              label="もっと良くなると思うこと"
+              disabled={!canEditClient}
+              value={draft.clientReflection.improve}
+              onChange={(improve) =>
+                setDraft({
+                  ...draft,
+                  clientReflection: { ...draft.clientReflection, improve },
+                })
+              }
+              placeholder="例: もう一歩、背景を掘り下げる質問があるとよかった"
+              className={textareaClass}
+            />
           </div>
 
           <div className="space-y-4 rounded-2xl border border-violet-100 bg-violet-50/30 p-5">
@@ -634,18 +706,20 @@ export function CoachingSessionRoleplayPanel({
               <span className="font-medium text-slate-800">
                 満足度の理由 <span className="text-red-600">*</span>
               </span>
-              <textarea
-                rows={3}
-                disabled={!canEditClient}
+              <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                点数の根拠になる具体的な場面を記入してください。
+              </p>
+              <AutoGrowTextarea
                 value={draft.sessionFeedback.satisfactionReason}
-                onChange={(e) =>
+                disabled={!canEditClient}
+                onChange={(satisfactionReason) =>
                   setDraft({
                     ...draft,
-                    sessionFeedback: { ...draft.sessionFeedback, satisfactionReason: e.target.value },
+                    sessionFeedback: { ...draft.sessionFeedback, satisfactionReason },
                   })
                 }
-                className={fieldClass}
                 placeholder="良かった点、もっとこうだったらよかった点など"
+                className={textareaClass}
               />
             </label>
           </div>
@@ -667,38 +741,37 @@ export function CoachingSessionRoleplayPanel({
             ))}
           </div>
 
-          <div className="space-y-3 rounded-2xl border border-emerald-100 bg-emerald-50/25 p-5">
-            <h3 className="text-lg font-semibold text-emerald-950">自由記述（パートナー）</h3>
-            <label className="block text-base">
-              <span className="font-medium text-slate-800">良かった点</span>
-              <textarea
-                rows={3}
-                disabled={!canEditPartner}
-                value={draft.partnerFeedback.good}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    partnerFeedback: { ...draft.partnerFeedback, good: e.target.value },
-                  })
-                }
-                className={fieldClass}
-              />
-            </label>
-            <label className="block text-base">
-              <span className="font-medium text-slate-800">もっと良くなると思うこと</span>
-              <textarea
-                rows={3}
-                disabled={!canEditPartner}
-                value={draft.partnerFeedback.improve}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    partnerFeedback: { ...draft.partnerFeedback, improve: e.target.value },
-                  })
-                }
-                className={fieldClass}
-              />
-            </label>
+          <div className="space-y-4 rounded-2xl border border-emerald-100 bg-emerald-50/25 p-5">
+            <div className="space-y-1">
+              <h3 className="text-lg font-semibold text-emerald-950">自由記述（パートナー）</h3>
+              <p className="text-sm leading-relaxed text-slate-600">{ROLEPLAY_FREE_TEXT_HINT}</p>
+            </div>
+            <RoleplayFreeTextField
+              label="良かった点"
+              disabled={!canEditPartner}
+              value={draft.partnerFeedback.good}
+              onChange={(good) =>
+                setDraft({
+                  ...draft,
+                  partnerFeedback: { ...draft.partnerFeedback, good },
+                })
+              }
+              placeholder="例: 相手の感情に寄り添いながら、質問のタイミングがよかった"
+              className={textareaClass}
+            />
+            <RoleplayFreeTextField
+              label="もっと良くなると思うこと"
+              disabled={!canEditPartner}
+              value={draft.partnerFeedback.improve}
+              onChange={(improve) =>
+                setDraft({
+                  ...draft,
+                  partnerFeedback: { ...draft.partnerFeedback, improve },
+                })
+              }
+              placeholder="例: 沈黙の間をもう少し待てると、相手が考えを深められそう"
+              className={textareaClass}
+            />
           </div>
         </>
       ) : null}
