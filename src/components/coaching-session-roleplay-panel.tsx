@@ -8,6 +8,7 @@ import {
   scoreHintsForItem,
   categoryRadarValues,
   normalizeRoleplaySession,
+  roleplaySideComplete,
   type RoleplayCategoryDef,
   type RoleplayItemDef,
   type RoleplayItemScore,
@@ -345,7 +346,12 @@ export function CoachingSessionRoleplayPanel({
 
   async function save() {
     if (!draft) return;
-    if (canEditClient) {
+    const isClientRole =
+      viewerRole === "CLIENT" || viewerRole === "CLIENT_ADMIN" || viewerRole === "CLIENT_HR";
+    // クライアント本人は常に満足度必須。管理者はクライアント欄を触るときだけ必須（パートナー評価のみの修正は保存可）。
+    const requireClientSatisfaction =
+      canEditClient && (isClientRole || (viewerRole === "ADMIN" && roleplaySideComplete(draft, "client")));
+    if (requireClientSatisfaction) {
       if (draft.sessionFeedback.satisfactionScore == null) {
         setError("セッション満足度（1〜10）を選択してください。");
         return;
