@@ -15,6 +15,7 @@ import {
   buildInvoiceCandidatesForPartner,
   enrichInvoiceItemsClientCompanyNames,
 } from "@/lib/invoice-candidates";
+import { mergeInvoiceItems, invoiceItemKey } from "@/lib/invoice-merge";
 import { isMonthWithinDefaultEditWindow } from "@/lib/invoice-editability";
 
 const itemSchema = z.object({
@@ -35,28 +36,6 @@ const putSchema = z.object({
   bankAccount: z.string().max(1000).default(""),
   items: z.array(itemSchema).max(200).default([]),
 });
-
-function mergeItems(
-  existing: PartnerInvoiceItem[],
-  candidates: PartnerInvoiceItem[],
-): PartnerInvoiceItem[] {
-  const key = (i: PartnerInvoiceItem) => `${i.matchId}|${i.sessionNumber}`;
-  const candByKey = new Map(candidates.map((c) => [key(c), c]));
-  const seen = new Set(existing.map(key));
-  const out: PartnerInvoiceItem[] = existing.map((ex) => {
-    const c = candByKey.get(key(ex));
-    const company =
-      (ex.clientCompanyName ?? "").trim() || (c?.clientCompanyName ?? "").trim() || "";
-    return { ...ex, clientCompanyName: company };
-  });
-  for (const c of candidates) {
-    if (!seen.has(key(c))) {
-      out.push({ ...c, clientCompanyName: c.clientCompanyName ?? "" });
-      seen.add(key(c));
-    }
-  }
-  return out;
-}
 
 export async function GET(request: Request) {
   const session = await readSession();
@@ -90,9 +69,30 @@ export async function GET(request: Request) {
   let itemsForView: PartnerInvoiceItem[] = existing
     ? existing.status === "CONFIRMED" || existing.status === "SUBMITTED"
       ? existing.items
-      : mergeItems(existing.items, candidates)
+      : mergeInvoiceItems(existing.items, candidates, { pruneStale: true })
     : candidates;
   itemsForView = await enrichInvoiceItemsClientCompanyNames(itemsForView);
+
+  if (
+    existing &&
+    (existing.status === "DRAFT" || existing.status === "RETURNED") &&
+    itemsForView.map(invoiceItemKey).join("|") !== existing.items.map(invoiceItemKey).join("|")
+  ) {
+    try {
+      await upsertPartnerInvoice({
+        partnerId: session.sub,
+        year,
+        month,
+        partnerName: existing.partnerName || partnerName,
+        address: existing.address,
+        phone: existing.phone,
+        bankAccount: existing.bankAccount,
+        items: itemsForView,
+      });
+    } catch {
+      /* 表示は整合済み。保存失敗時も画面は pruned のまま返す */
+    }
+  }
 
   const editable = isMonthWithinDefaultEditWindow(year, month) || unlocked;
 

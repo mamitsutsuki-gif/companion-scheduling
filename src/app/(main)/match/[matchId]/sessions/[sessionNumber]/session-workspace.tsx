@@ -11,6 +11,8 @@ import {
   SESSION_REPORT_MOTIVEAGE_NOTICE,
   type SessionReportAnswers,
 } from "@/lib/session-report-fields";
+import { sessionAbandonmentReasonLabel } from "@/lib/session-abandonment-labels";
+import type { SessionAbandonmentReason } from "@/lib/repositories/session-abandonment-repository";
 
 type Role =
   | "ADMIN"
@@ -29,7 +31,7 @@ type FeedbackAnswers = {
 };
 type PartnerChange = "continue" | "undecided" | "want_change";
 
-type AbandonReason = "no_show" | "late_cancel";
+type AbandonReason = SessionAbandonmentReason;
 
 type SessionDetail = {
   matchId: string;
@@ -235,10 +237,7 @@ export function SessionWorkspace({
 
   async function onMarkAbandoned(reason: AbandonReason) {
     if (!detail) return;
-    const reasonLabel =
-      reason === "no_show"
-        ? "クライアントが連絡なく参加しなかった"
-        : "クライアントが24時間前を過ぎてキャンセルした";
+    const reasonLabel = sessionAbandonmentReasonLabel(reason);
     if (!window.confirm(`この回を【未実施・消化】(${reasonLabel}) としてマークします。よろしいですか？`)) {
       return;
     }
@@ -377,9 +376,7 @@ export function SessionWorkspace({
     (role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT");
   const abandonReasonLabel =
     showAbandonReasonToClient && detail.abandonment
-      ? detail.abandonment.reason === "no_show"
-        ? "クライアントが連絡なく参加しなかった"
-        : "クライアントが24時間前を過ぎてキャンセルした"
+      ? sessionAbandonmentReasonLabel(detail.abandonment.reason)
       : null;
   const guidelineText =
     role === "PARTNER"

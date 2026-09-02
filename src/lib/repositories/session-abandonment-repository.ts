@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebase-admin";
 
 /** 「未実施・消化」の理由コード。表示文言は UI 側で解決。 */
-export type SessionAbandonmentReason = "no_show" | "late_cancel";
+export type SessionAbandonmentReason = "no_show" | "late_cancel" | "admin_reschedule";
 
 export type SessionAbandonmentRow = {
   matchId: string;
@@ -17,7 +17,9 @@ function docId(matchId: string, sessionNumber: number) {
 }
 
 function normalizeReason(input: unknown): SessionAbandonmentReason | null {
-  return input === "no_show" || input === "late_cancel" ? input : null;
+  return input === "no_show" || input === "late_cancel" || input === "admin_reschedule"
+    ? input
+    : null;
 }
 
 export async function getSessionAbandonment(
@@ -244,4 +246,14 @@ export async function deleteSessionAbandonment(
   } catch {
     // 行が無いだけなら無視。
   }
+}
+
+/** 再日程確定時に、運営解除由来の未実施マークだけを外す（請求対象に戻す）。 */
+export async function clearAdminRescheduleAbandonmentIfPresent(
+  matchId: string,
+  sessionNumber: number,
+): Promise<void> {
+  const row = await getSessionAbandonment(matchId, sessionNumber);
+  if (!row || row.reason !== "admin_reschedule") return;
+  await deleteSessionAbandonment(matchId, sessionNumber);
 }

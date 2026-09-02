@@ -47,6 +47,8 @@ import {
   zonedWallClockToUtc,
   calendarDateInTimeZone,
 } from "@/lib/slot-schedule";
+import { sessionAbandonmentReasonLabel } from "@/lib/session-abandonment-labels";
+import type { SessionAbandonmentReason } from "@/lib/repositories/session-abandonment-repository";
 import { ScheduleProposeForm } from "@/components/schedule-propose-form";
 import { ScheduleClientVoteForm } from "@/components/schedule-client-vote-form";
 import { MatchRoomGuideBanner } from "@/components/match-room-guide-banner";
@@ -357,7 +359,7 @@ function ftaTabLabel(
 }
 
 type SessionAbandonmentApi = {
-  reason: "no_show" | "late_cancel";
+  reason: SessionAbandonmentReason;
   markedAt: string;
   markedBy: string;
 };
@@ -1813,7 +1815,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
     setAdminReleaseTarget(null);
     setAdminReleaseReason("");
     setNotice(
-      `第${sessionNumber}回の確定日程を解除しました。クライアント・パートナーへ通知済みです。パートナーに候補日時の再提示を依頼してください。`,
+      `第${sessionNumber}回の確定日程を解除しました。クライアント・パートナーへ通知済みです。下書き請求書の明細は自動調整済み（提出済みの場合は管理者通知を確認）。パートナーに候補日時の再提示を依頼してください。`,
     );
     await load();
   }
@@ -2853,9 +2855,7 @@ export function MatchWorkspace({ matchId }: { matchId: string }) {
                 (me.role === "PARTNER" || me.role === "ADMIN" || me.role === "ADMIN_ASSISTANT");
               const abandonReasonLabel =
                 showAbandonReasonToClient && row.abandonment
-                  ? row.abandonment.reason === "no_show"
-                    ? "クライアントが連絡なく参加しなかった"
-                    : "クライアントが24時間前を過ぎてキャンセルした"
+                  ? sessionAbandonmentReasonLabel(row.abandonment.reason)
                   : null;
               // ステータスバッジ用。壁時計との比較のため render 時の現在時刻を使う。
               // eslint-disable-next-line react-hooks/purity -- session status vs wall clock

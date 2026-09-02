@@ -13,6 +13,7 @@ import {
   confirmNegotiationSlot,
   getNegotiationById,
 } from "@/lib/repositories/negotiation-repository";
+import { clearAdminRescheduleAbandonmentIfPresent } from "@/lib/repositories/session-abandonment-repository";
 import { enqueueSessionFeedbackEmailJob } from "@/lib/repositories/session-feedback-job-repository";
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
 import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
@@ -96,6 +97,10 @@ export async function POST(request: Request, context: RouteContext) {
   });
   // 同じセッション番号で過去に立てられた「再調整中」フラグをクリア
   await clearRescheduleFlagsForSession(matchId, Number(negotiation.sessionNumber ?? 1)).catch(() => null);
+  await clearAdminRescheduleAbandonmentIfPresent(
+    matchId,
+    Number(negotiation.sessionNumber ?? 1),
+  ).catch(() => null);
 
   const meetingLines = formatMeetingLines(meeting);
   const meetingLine = meetingLines.join("\n");

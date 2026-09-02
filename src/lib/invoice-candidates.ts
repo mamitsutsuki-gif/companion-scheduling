@@ -184,7 +184,7 @@ export async function enrichInvoiceItemsClientCompanyNames(
  *     - 通常プラン（個別伴走・職場活性）: セッションレポートに 1 文字以上
  *     - コーチング研修 1〜3 回目: ロールプレイのパートナー評価が入力済み
  *     - コーチング研修 4 回目以降: セッションレポートに 1 文字以上
- *   - 当該セッションが **未実施・消化（no_show / late_cancel）ではない**こと
+ *   - 当該セッションが **未実施・消化ではない**こと（no_show / late_cancel / admin_reschedule）
  *
  * unitPriceExclTax はパートナー入力のため 0 で初期化。
  */

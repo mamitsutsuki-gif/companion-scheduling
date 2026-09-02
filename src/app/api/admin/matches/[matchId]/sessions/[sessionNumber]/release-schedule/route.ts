@@ -9,6 +9,8 @@ import { appendAdminNotification } from "@/lib/repositories/admin-notification-r
 import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
 import { adminReleaseConfirmedScheduleForReschedule } from "@/lib/repositories/negotiation-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
+import { upsertSessionAbandonment } from "@/lib/repositories/session-abandonment-repository";
+import { reconcilePartnerInvoiceAfterScheduleRelease } from "@/lib/invoice-schedule-release";
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
 import { readSession } from "@/lib/session";
 
@@ -41,6 +43,20 @@ export async function POST(request: Request, context: RouteContext) {
     releasedByUserId: session!.sub,
   });
   if (!released.ok) return jsonError(released.error, 409);
+
+  await upsertSessionAbandonment({
+    matchId,
+    sessionNumber: n,
+    reason: "admin_reschedule",
+    markedBy: session!.sub,
+  });
+
+  const invoiceReconcile = await reconcilePartnerInvoiceAfterScheduleRelease({
+    partnerId: match.partnerId,
+    matchId,
+    sessionNumber: n,
+    previousStartAt: released.previousStartAt,
+  });
 
   const settings = await getEffectiveAppSettingsForMatch(matchId);
   const displayTz = settings.timezone || "Asia/Tokyo";
@@ -86,6 +102,29 @@ export async function POST(request: Request, context: RouteContext) {
     link: `/match/${matchId}#schedule`,
   });
 
+  if (invoiceReconcile.draftLineRemoved) {
+    await appendAdminNotification({
+      type: "RESCHEDULE",
+      matchId,
+      sessionNumber: n,
+      actorUserId: session!.sub,
+      actorRole: session!.role,
+      summary: `第${n}回: パートナーの下書き／差し戻し請求書から当該明細行を自動削除しました。`,
+      link: `/admin/invoices`,
+    });
+  }
+  if (invoiceReconcile.lockedInvoiceNeedsReview) {
+    await appendAdminNotification({
+      type: "RESCHEDULE",
+      matchId,
+      sessionNumber: n,
+      actorUserId: session!.sub,
+      actorRole: session!.role,
+      summary: `【要確認】第${n}回: 提出済み／確定済み請求書に当該明細が残っています。差し戻し等で修正してください。`,
+      link: `/admin/invoices`,
+    });
+  }
+
   const memberSummary =
     `運営が第${n}回の確定日程（${pretty}）を解除しました。担当パートナーが新しい候補日時を提示します。`;
   await appendMemberNotification({
@@ -114,5 +153,6 @@ export async function POST(request: Request, context: RouteContext) {
     sessionNumber: n,
     previousStartAt: released.previousStartAt,
     previousEndAt: released.previousEndAt,
+    invoiceReconcile,
   });
 }
