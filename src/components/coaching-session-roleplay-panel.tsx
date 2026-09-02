@@ -45,8 +45,11 @@ function VisibilityNote({ children, tone = "neutral" }: { children: ReactNode; t
   );
 }
 
-const ROLEPLAY_FREE_TEXT_HINT =
+const ROLEPLAY_CLIENT_FREE_TEXT_HINT =
   "セッションの具体的な場面や言葉を交えて記入してください（目安: 100字以上）。入力に応じて欄が広がります。";
+
+const ROLEPLAY_PARTNER_FREE_TEXT_HINT =
+  "セッションの具体的な場面や言葉を交えて記入してください。「良かった点」「もっと良くなると思うこと」の各項目とも、最低200文字を目安にしてください。入力に応じて欄が広がります。";
 
 function AutoGrowTextarea({
   value,
@@ -637,7 +640,7 @@ export function CoachingSessionRoleplayPanel({
           <div className="space-y-4 rounded-2xl border border-indigo-100 bg-indigo-50/25 p-5">
             <div className="space-y-1">
               <h3 className="text-lg font-semibold text-indigo-950">自由記述（クライアント）</h3>
-              <p className="text-sm leading-relaxed text-slate-600">{ROLEPLAY_FREE_TEXT_HINT}</p>
+              <p className="text-sm leading-relaxed text-slate-600">{ROLEPLAY_CLIENT_FREE_TEXT_HINT}</p>
             </div>
             <RoleplayFreeTextField
               label="良かった点"
@@ -744,7 +747,9 @@ export function CoachingSessionRoleplayPanel({
           <div className="space-y-4 rounded-2xl border border-emerald-100 bg-emerald-50/25 p-5">
             <div className="space-y-1">
               <h3 className="text-lg font-semibold text-emerald-950">自由記述（パートナー）</h3>
-              <p className="text-sm leading-relaxed text-slate-600">{ROLEPLAY_FREE_TEXT_HINT}</p>
+              {isPartnerViewer ? (
+                <p className="text-sm leading-relaxed text-slate-600">{ROLEPLAY_PARTNER_FREE_TEXT_HINT}</p>
+              ) : null}
             </div>
             <RoleplayFreeTextField
               label="良かった点"
