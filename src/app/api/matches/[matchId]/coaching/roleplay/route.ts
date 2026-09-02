@@ -13,6 +13,7 @@ import {
   roleplayClientSubmissionComplete,
   roleplayPartnerSubmissionComplete,
   roleplayRoundStatus,
+  roleplayClientFieldsChanged,
   validateRoleplayClientSaveFields,
 } from "@/lib/coaching-roleplay";
 import { getRoleplayStore, saveRoleplayStore } from "@/lib/repositories/coaching-repository";
@@ -206,10 +207,7 @@ export async function PUT(request: Request, ctx: RouteContext) {
   const clientSideSave =
     access.canEditClient &&
     (session.role === "CLIENT" ||
-      (session.role === "ADMIN" &&
-        (parsed.data.selfScores !== undefined ||
-          parsed.data.clientReflection !== undefined ||
-          parsed.data.sessionFeedback !== undefined)));
+      (session.role === "ADMIN" && roleplayClientFieldsChanged(prev, merged)));
   if (clientSideSave) {
     const clientValidationError = validateRoleplayClientSaveFields(merged);
     if (clientValidationError) return jsonError(clientValidationError, 400);

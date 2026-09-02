@@ -351,6 +351,17 @@ export function roleplaySideComplete(
   return ROLEPLAY_ITEM_IDS.some((id) => scores[id]?.score != null);
 }
 
+/** クライアント側の自己評価・自由記述・満足度に変更があったか */
+export function roleplayClientFieldsChanged(prev: RoleplaySession, next: RoleplaySession): boolean {
+  if (JSON.stringify(prev.selfScores) !== JSON.stringify(next.selfScores)) return true;
+  if (prev.clientReflection.good !== next.clientReflection.good) return true;
+  if (prev.clientReflection.improve !== next.clientReflection.improve) return true;
+  if (prev.clientReflection.nextFocus !== next.clientReflection.nextFocus) return true;
+  if (prev.sessionFeedback.satisfactionScore !== next.sessionFeedback.satisfactionScore) return true;
+  if (prev.sessionFeedback.satisfactionReason !== next.sessionFeedback.satisfactionReason) return true;
+  return false;
+}
+
 /** クライアント側の保存時に必須の自由記述・満足度。未入力ならエラーメッセージを返す。 */
 export function validateRoleplayClientSaveFields(session: RoleplaySession): string | null {
   if (!session.clientReflection.good.trim()) {
