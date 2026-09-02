@@ -13,6 +13,7 @@ import {
   roleplayClientSubmissionComplete,
   roleplayPartnerSubmissionComplete,
   roleplayRoundStatus,
+  validateRoleplayClientSaveFields,
 } from "@/lib/coaching-roleplay";
 import { getRoleplayStore, saveRoleplayStore } from "@/lib/repositories/coaching-repository";
 import { notifyRoleplayMutualReveal, notifyRoleplayPeerSubmitted } from "@/lib/notify-members";
@@ -201,6 +202,18 @@ export async function PUT(request: Request, ctx: RouteContext) {
     },
     round,
   );
+
+  const clientSideSave =
+    access.canEditClient &&
+    (session.role === "CLIENT" ||
+      (session.role === "ADMIN" &&
+        (parsed.data.selfScores !== undefined ||
+          parsed.data.clientReflection !== undefined ||
+          parsed.data.sessionFeedback !== undefined)));
+  if (clientSideSave) {
+    const clientValidationError = validateRoleplayClientSaveFields(merged);
+    if (clientValidationError) return jsonError(clientValidationError, 400);
+  }
 
   const wasBothSubmitted = roleplayBothSubmitted(prev);
   const hadClientSubmitted = Boolean(prev.clientSubmittedAt);

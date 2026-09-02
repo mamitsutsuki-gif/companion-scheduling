@@ -9,6 +9,7 @@ import {
   categoryRadarValues,
   normalizeRoleplaySession,
   roleplaySideComplete,
+  validateRoleplayClientSaveFields,
   type RoleplayCategoryDef,
   type RoleplayItemDef,
   type RoleplayItemScore,
@@ -98,6 +99,7 @@ function RoleplayFreeTextField({
   onChange,
   placeholder,
   className,
+  required = false,
 }: {
   label: string;
   value: string;
@@ -105,10 +107,14 @@ function RoleplayFreeTextField({
   onChange: (value: string) => void;
   placeholder?: string;
   className: string;
+  required?: boolean;
 }) {
   return (
     <label className="block text-base">
-      <span className="font-medium text-slate-800">{label}</span>
+      <span className="font-medium text-slate-800">
+        {label}
+        {required ? <span className="text-red-600"> *</span> : null}
+      </span>
       <AutoGrowTextarea
         value={value}
         disabled={disabled}
@@ -423,16 +429,13 @@ export function CoachingSessionRoleplayPanel({
     if (!draft) return;
     const isClientRole =
       viewerRole === "CLIENT" || viewerRole === "CLIENT_ADMIN" || viewerRole === "CLIENT_HR";
-    // クライアント本人は常に満足度必須。管理者はクライアント欄を触るときだけ必須（パートナー評価のみの修正は保存可）。
-    const requireClientSatisfaction =
-      canEditClient && (isClientRole || (viewerRole === "ADMIN" && roleplaySideComplete(draft, "client")));
-    if (requireClientSatisfaction) {
-      if (draft.sessionFeedback.satisfactionScore == null) {
-        setError("セッション満足度（1〜10）を選択してください。");
-        return;
-      }
-      if (!draft.sessionFeedback.satisfactionReason.trim()) {
-        setError("満足度の理由を入力してください。");
+    const requireClientFields =
+      canEditClient &&
+      (isClientRole || (viewerRole === "ADMIN" && roleplaySideComplete(draft, "client")));
+    if (requireClientFields) {
+      const validationError = validateRoleplayClientSaveFields(draft);
+      if (validationError) {
+        setError(validationError);
         return;
       }
     }
@@ -644,6 +647,7 @@ export function CoachingSessionRoleplayPanel({
             </div>
             <RoleplayFreeTextField
               label="良かった点"
+              required
               disabled={!canEditClient}
               value={draft.clientReflection.good}
               onChange={(good) =>
@@ -657,6 +661,7 @@ export function CoachingSessionRoleplayPanel({
             />
             <RoleplayFreeTextField
               label="もっと良くなると思うこと"
+              required
               disabled={!canEditClient}
               value={draft.clientReflection.improve}
               onChange={(improve) =>

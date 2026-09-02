@@ -351,12 +351,27 @@ export function roleplaySideComplete(
   return ROLEPLAY_ITEM_IDS.some((id) => scores[id]?.score != null);
 }
 
+/** クライアント側の保存時に必須の自由記述・満足度。未入力ならエラーメッセージを返す。 */
+export function validateRoleplayClientSaveFields(session: RoleplaySession): string | null {
+  if (!session.clientReflection.good.trim()) {
+    return "「良かった点」を入力してください。";
+  }
+  if (!session.clientReflection.improve.trim()) {
+    return "「もっと良くなると思うこと」を入力してください。";
+  }
+  if (session.sessionFeedback.satisfactionScore == null) {
+    return "セッション満足度（1〜10）を選択してください。";
+  }
+  if (!session.sessionFeedback.satisfactionReason.trim()) {
+    return "満足度の理由を入力してください。";
+  }
+  return null;
+}
+
 /** クライアント側の入力が「提出済み」扱いになる条件（保存時に submittedAt を付与）。 */
 export function roleplayClientSubmissionComplete(session: RoleplaySession): boolean {
   if (!roleplaySideComplete(session, "client")) return false;
-  if (session.sessionFeedback.satisfactionScore == null) return false;
-  if (!session.sessionFeedback.satisfactionReason.trim()) return false;
-  return true;
+  return validateRoleplayClientSaveFields(session) === null;
 }
 
 /** パートナー側の入力が「提出済み」扱いになる条件。 */
