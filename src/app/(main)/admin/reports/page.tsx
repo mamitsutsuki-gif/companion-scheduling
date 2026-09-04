@@ -6,6 +6,20 @@ import type { CompanyOption } from "@/lib/repositories/app-settings-repository";
 
 type ClientUser = { id: string; displayName: string; role: string; companyId?: string | null };
 
+type RoleplayClientAnswers = {
+  good: string;
+  improve: string;
+  nextFocus: string;
+  satisfactionReason: string;
+};
+
+type RoleplayPartnerAnswers = {
+  good: string;
+  improve: string;
+  advice: string;
+  categoryAvgSummary: string;
+};
+
 type PerQuestionResult = {
   format: "per-question";
   itemsCount: number;
@@ -15,6 +29,14 @@ type PerQuestionResult = {
     nextActions: string[];
     satisfactionReason: string[];
     other: string[];
+    roleplayClientGood: string[];
+    roleplayClientImprove: string[];
+    roleplayClientNextFocus: string[];
+    roleplayClientSatisfactionReason: string[];
+    roleplayPartnerGood: string[];
+    roleplayPartnerImprove: string[];
+    roleplayPartnerAdvice: string[];
+    roleplayPartnerCategoryAvg: string[];
   };
   satisfaction: { values: number[]; average: number | null };
 };
@@ -28,6 +50,7 @@ type PerPersonResult = {
     sessions: Array<{
       sessionNumber: number;
       sessionDateIso: string | null;
+      source: "standard" | "roleplay";
       satisfactionScore: number | null;
       answers: {
         insight: string;
@@ -36,6 +59,8 @@ type PerPersonResult = {
         satisfactionReason: string;
         other: string;
       };
+      roleplayClient: RoleplayClientAnswers | null;
+      roleplayPartner: RoleplayPartnerAnswers | null;
     }>;
   }>;
 };
@@ -50,6 +75,66 @@ const QUESTION_LABELS: Record<string, string> = {
   other: "7. その他、ご自由にご記載ください",
 };
 
+const ROLEPLAY_CLIENT_LABELS = {
+  good: "【ロールプレイ・クライアント】良かった点",
+  improve: "【ロールプレイ・クライアント】もっと良くなると思うこと",
+  nextFocus: "【ロールプレイ・クライアント】次回意識したいこと",
+  satisfactionReason: "【ロールプレイ・クライアント】満足度の理由",
+} as const;
+
+const ROLEPLAY_PARTNER_LABELS = {
+  good: "【ロールプレイ・パートナー】良かったところ",
+  improve: "【ロールプレイ・パートナー】改善するともっと良くなるところ",
+  advice: "【ロールプレイ・パートナー】次回に向けたアドバイス",
+  categoryAvgSummary: "【ロールプレイ・パートナー】カテゴリ平均",
+} as const;
+
+type AnswerKey = "insight" | "feeling" | "nextActions" | "satisfactionReason" | "other";
+const ANSWER_KEYS: readonly AnswerKey[] = [
+  "insight",
+  "feeling",
+  "nextActions",
+  "satisfactionReason",
+  "other",
+] as const;
+
+type RoleplayPqKey =
+  | "roleplayClientGood"
+  | "roleplayClientImprove"
+  | "roleplayClientNextFocus"
+  | "roleplayClientSatisfactionReason"
+  | "roleplayPartnerGood"
+  | "roleplayPartnerImprove"
+  | "roleplayPartnerAdvice"
+  | "roleplayPartnerCategoryAvg";
+
+const ROLEPLAY_PQ_KEYS: readonly RoleplayPqKey[] = [
+  "roleplayClientGood",
+  "roleplayClientImprove",
+  "roleplayClientNextFocus",
+  "roleplayClientSatisfactionReason",
+  "roleplayPartnerGood",
+  "roleplayPartnerImprove",
+  "roleplayPartnerAdvice",
+  "roleplayPartnerCategoryAvg",
+] as const;
+
+const ROLEPLAY_PQ_LABELS: Record<RoleplayPqKey, string> = {
+  roleplayClientGood: ROLEPLAY_CLIENT_LABELS.good,
+  roleplayClientImprove: ROLEPLAY_CLIENT_LABELS.improve,
+  roleplayClientNextFocus: ROLEPLAY_CLIENT_LABELS.nextFocus,
+  roleplayClientSatisfactionReason: ROLEPLAY_CLIENT_LABELS.satisfactionReason,
+  roleplayPartnerGood: ROLEPLAY_PARTNER_LABELS.good,
+  roleplayPartnerImprove: ROLEPLAY_PARTNER_LABELS.improve,
+  roleplayPartnerAdvice: ROLEPLAY_PARTNER_LABELS.advice,
+  roleplayPartnerCategoryAvg: ROLEPLAY_PARTNER_LABELS.categoryAvgSummary,
+};
+
+/** per-person 用キー: clientId|sessionNumber|field */
+function ppKey(clientId: string, sessionNumber: number, field: string) {
+  return `${clientId}|${sessionNumber}|${field}`;
+}
+
 function formatJaDate(iso: string | null) {
   if (!iso) return "—";
   try {
@@ -62,20 +147,6 @@ function formatJaDate(iso: string | null) {
   } catch {
     return iso;
   }
-}
-
-type AnswerKey = "insight" | "feeling" | "nextActions" | "satisfactionReason" | "other";
-const ANSWER_KEYS: readonly AnswerKey[] = [
-  "insight",
-  "feeling",
-  "nextActions",
-  "satisfactionReason",
-  "other",
-] as const;
-
-/** per-person 用キー: clientId|sessionNumber|question */
-function ppKey(clientId: string, sessionNumber: number, q: AnswerKey) {
-  return `${clientId}|${sessionNumber}|${q}`;
 }
 
 export default function AdminReportsPage() {
@@ -218,7 +289,7 @@ export default function AdminReportsPage() {
           </span>
         </div>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          クライアントの 1on1 セッション・フィードバック（毎回入力）を、対象者・回・期間・形式で集計し、PDF として出力できます。
+          クライアントの 1on1 セッション・フィードバック（毎回入力）と、コーチングマネジメント研修のロールプレイ評価（クライアント提出済み分＋パートナー評価）を、対象者・回・期間・形式で集計し、PDF として出力できます。
         </p>
       </header>
 
@@ -450,53 +521,107 @@ export default function AdminReportsPage() {
                       {person.displayName}
                     </h3>
                     <div className="mt-3 space-y-4">
-                      {person.sessions.map((s) => (
+                      {person.sessions.map((s) => {
+                        const isRoleplay = s.source === "roleplay";
+                        return (
                         <div key={s.sessionNumber} className="rounded-lg border border-slate-100 bg-slate-50 p-3 print:bg-white">
                           <p className="text-sm font-semibold text-slate-800">
                             第{s.sessionNumber}回　{formatJaDate(s.sessionDateIso)}
+                            <span className="ml-2 text-xs font-medium text-slate-500">
+                              {isRoleplay ? "（ロールプレイ評価）" : "（通常振り返り）"}
+                            </span>
                           </p>
                           <dl className="mt-2 space-y-2 text-sm">
-                            {ANSWER_KEYS.map((q) => {
-                              if (q === "satisfactionReason") return null;
-                              const key = ppKey(person.clientId, s.sessionNumber, q);
-                              const value = key in editedAnswersPp ? editedAnswersPp[key]! : s.answers[q];
-                              return (
-                                <div key={q}>
-                                  <dt className="font-semibold text-slate-700">
-                                    {QUESTION_LABELS[q]}
-                                  </dt>
-                                  <dd>
-                                    <textarea
-                                      value={value}
-                                      onChange={(e) =>
-                                        setEditedAnswersPp((prev) => ({ ...prev, [key]: e.target.value }))
-                                      }
-                                      rows={Math.max(2, Math.min(6, (value || "").split("\n").length))}
-                                      className="mt-1 w-full whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-slate-800 print:border-0 print:bg-transparent print:p-0"
-                                    />
-                                  </dd>
-                                </div>
-                              );
-                            })}
+                            {!isRoleplay
+                              ? ANSWER_KEYS.map((q) => {
+                                  if (q === "satisfactionReason") return null;
+                                  const key = ppKey(person.clientId, s.sessionNumber, q);
+                                  const value =
+                                    key in editedAnswersPp ? editedAnswersPp[key]! : s.answers[q];
+                                  return (
+                                    <div key={q}>
+                                      <dt className="font-semibold text-slate-700">
+                                        {QUESTION_LABELS[q]}
+                                      </dt>
+                                      <dd>
+                                        <textarea
+                                          value={value}
+                                          onChange={(e) =>
+                                            setEditedAnswersPp((prev) => ({
+                                              ...prev,
+                                              [key]: e.target.value,
+                                            }))
+                                          }
+                                          rows={Math.max(2, Math.min(6, (value || "").split("\n").length))}
+                                          className="mt-1 w-full whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-slate-800 print:border-0 print:bg-transparent print:p-0"
+                                        />
+                                      </dd>
+                                    </div>
+                                  );
+                                })
+                              : null}
+                            {isRoleplay && s.roleplayClient
+                              ? (
+                                  [
+                                    ["good", ROLEPLAY_CLIENT_LABELS.good, s.roleplayClient.good],
+                                    ["improve", ROLEPLAY_CLIENT_LABELS.improve, s.roleplayClient.improve],
+                                    ["nextFocus", ROLEPLAY_CLIENT_LABELS.nextFocus, s.roleplayClient.nextFocus],
+                                  ] as const
+                                ).map(([field, label, raw]) => {
+                                  const key = ppKey(person.clientId, s.sessionNumber, `rpClient.${field}`);
+                                  const value = key in editedAnswersPp ? editedAnswersPp[key]! : raw;
+                                  return (
+                                    <div key={field}>
+                                      <dt className="font-semibold text-slate-700">{label}</dt>
+                                      <dd>
+                                        <textarea
+                                          value={value}
+                                          onChange={(e) =>
+                                            setEditedAnswersPp((prev) => ({
+                                              ...prev,
+                                              [key]: e.target.value,
+                                            }))
+                                          }
+                                          rows={Math.max(2, Math.min(6, (value || "").split("\n").length))}
+                                          className="mt-1 w-full whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-slate-800 print:border-0 print:bg-transparent print:p-0"
+                                        />
+                                      </dd>
+                                    </div>
+                                  );
+                                })
+                              : null}
                             <div>
-                              <dt className="font-semibold text-slate-700">4. 満足度（1〜10）</dt>
+                              <dt className="font-semibold text-slate-700">
+                                {isRoleplay
+                                  ? "【ロールプレイ・クライアント】満足度（1〜10）"
+                                  : "4. 満足度（1〜10）"}
+                              </dt>
                               <dd className="text-slate-800">
                                 {s.satisfactionScore != null ? `${s.satisfactionScore} / 10` : "—"}
                               </dd>
                             </div>
                             {(() => {
-                              const key = ppKey(person.clientId, s.sessionNumber, "satisfactionReason");
-                              const value = key in editedAnswersPp ? editedAnswersPp[key]! : s.answers.satisfactionReason;
+                              const field = isRoleplay ? "rpClient.satisfactionReason" : "satisfactionReason";
+                              const key = ppKey(person.clientId, s.sessionNumber, field);
+                              const raw = isRoleplay
+                                ? (s.roleplayClient?.satisfactionReason ?? "")
+                                : s.answers.satisfactionReason;
+                              const value = key in editedAnswersPp ? editedAnswersPp[key]! : raw;
                               return (
                                 <div>
                                   <dt className="font-semibold text-slate-700">
-                                    {QUESTION_LABELS.satisfactionReason}
+                                    {isRoleplay
+                                      ? ROLEPLAY_CLIENT_LABELS.satisfactionReason
+                                      : QUESTION_LABELS.satisfactionReason}
                                   </dt>
                                   <dd>
                                     <textarea
                                       value={value}
                                       onChange={(e) =>
-                                        setEditedAnswersPp((prev) => ({ ...prev, [key]: e.target.value }))
+                                        setEditedAnswersPp((prev) => ({
+                                          ...prev,
+                                          [key]: e.target.value,
+                                        }))
                                       }
                                       rows={Math.max(2, Math.min(6, (value || "").split("\n").length))}
                                       className="mt-1 w-full whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-slate-800 print:border-0 print:bg-transparent print:p-0"
@@ -505,9 +630,49 @@ export default function AdminReportsPage() {
                                 </div>
                               );
                             })()}
+                            {isRoleplay ? (
+                              s.roleplayPartner ? (
+                                (
+                                  [
+                                    ["good", ROLEPLAY_PARTNER_LABELS.good, s.roleplayPartner.good],
+                                    ["improve", ROLEPLAY_PARTNER_LABELS.improve, s.roleplayPartner.improve],
+                                    ["advice", ROLEPLAY_PARTNER_LABELS.advice, s.roleplayPartner.advice],
+                                    [
+                                      "categoryAvgSummary",
+                                      ROLEPLAY_PARTNER_LABELS.categoryAvgSummary,
+                                      s.roleplayPartner.categoryAvgSummary,
+                                    ],
+                                  ] as const
+                                ).map(([field, label, raw]) => {
+                                  const key = ppKey(person.clientId, s.sessionNumber, `rpPartner.${field}`);
+                                  const value = key in editedAnswersPp ? editedAnswersPp[key]! : raw;
+                                  return (
+                                    <div key={field}>
+                                      <dt className="font-semibold text-slate-700">{label}</dt>
+                                      <dd>
+                                        <textarea
+                                          value={value}
+                                          onChange={(e) =>
+                                            setEditedAnswersPp((prev) => ({
+                                              ...prev,
+                                              [key]: e.target.value,
+                                            }))
+                                          }
+                                          rows={Math.max(2, Math.min(6, (value || "").split("\n").length))}
+                                          className="mt-1 w-full whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-slate-800 print:border-0 print:bg-transparent print:p-0"
+                                        />
+                                      </dd>
+                                    </div>
+                                  );
+                                })
+                              ) : (
+                                <p className="text-xs text-slate-500">パートナー評価：未提出</p>
+                              )
+                            ) : null}
                           </dl>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </article>
                 ))
@@ -545,8 +710,43 @@ export default function AdminReportsPage() {
                   </ul>
                 </section>
               ))}
+              {ROLEPLAY_PQ_KEYS.map((k) => {
+                const rows = result.perQuestion[k] ?? [];
+                return (
+                  <section key={k} className="rounded-xl border border-indigo-100 bg-indigo-50/30 p-4 print:break-inside-avoid print:bg-white">
+                    <h3 className="text-base font-semibold text-slate-900">{ROLEPLAY_PQ_LABELS[k]}</h3>
+                    <ul className="mt-2 space-y-2 text-sm text-slate-800">
+                      {rows.length === 0 ? (
+                        <li className="text-slate-500">回答なし</li>
+                      ) : (
+                        rows.map((v, idx) => {
+                          const pqKey = `${k}|${idx}`;
+                          const value = pqKey in editedAnswersPq ? editedAnswersPq[pqKey]! : v;
+                          return (
+                            <li key={idx} className="flex items-start gap-2">
+                              <span aria-hidden className="mt-2 select-none text-slate-400 print:text-slate-700">
+                                •
+                              </span>
+                              <textarea
+                                value={value}
+                                onChange={(e) =>
+                                  setEditedAnswersPq((prev) => ({ ...prev, [pqKey]: e.target.value }))
+                                }
+                                rows={Math.max(2, Math.min(6, (value || "").split("\n").length))}
+                                className="w-full whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-slate-800 print:border-0 print:bg-transparent print:p-0"
+                              />
+                            </li>
+                          );
+                        })
+                      )}
+                    </ul>
+                  </section>
+                );
+              })}
               <section className="rounded-xl border border-slate-200 p-4 print:break-inside-avoid">
-                <h3 className="text-base font-semibold text-slate-900">4. 満足度（1〜10）</h3>
+                <h3 className="text-base font-semibold text-slate-900">
+                  満足度（1〜10）※通常振り返り＋ロールプレイ両方
+                </h3>
                 <p className="mt-1 text-sm text-slate-800">
                   全回答: {result.satisfaction.values.join(", ") || "—"}
                 </p>

@@ -104,6 +104,26 @@ export async function getRoleplayStore(matchId: string): Promise<RoleplayStore> 
   );
 }
 
+/** 管理者レポート用: 全マッチのロールプレイ評価を列挙する。 */
+export async function listAllRoleplayStores(): Promise<RoleplayStore[]> {
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return [];
+    const snap = await db.collection(ROLEPLAY_COL).get();
+    return snap.docs.map((d) => normalizeRoleplayStore(d.id, d.data() ?? {}));
+  }
+  const delegate = (prisma as any).matchCoachingRoleplay;
+  if (!delegate?.findMany) return [];
+  try {
+    const rows = (await delegate.findMany({})) as Array<{ matchId?: string; data?: unknown }>;
+    return rows.map((row) =>
+      normalizeRoleplayStore(String(row.matchId ?? ""), row.data ?? {}),
+    );
+  } catch {
+    return [];
+  }
+}
+
 export async function saveRoleplayStore(store: RoleplayStore): Promise<RoleplayStore> {
   const next = normalizeRoleplayStore(store.matchId, {
     ...store,
