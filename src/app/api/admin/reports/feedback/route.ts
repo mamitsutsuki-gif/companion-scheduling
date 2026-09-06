@@ -150,10 +150,6 @@ export async function POST(request: Request) {
     const roleplayClientImprove: string[] = [];
     const roleplayClientNextFocus: string[] = [];
     const roleplayClientSatisfactionReason: string[] = [];
-    const roleplayPartnerGood: string[] = [];
-    const roleplayPartnerImprove: string[] = [];
-    const roleplayPartnerAdvice: string[] = [];
-    const roleplayPartnerCategoryAvg: string[] = [];
     const satisfaction: number[] = [];
 
     for (const r of filtered) {
@@ -169,14 +165,6 @@ export async function POST(request: Request) {
         if (r.roleplayClient.nextFocus) roleplayClientNextFocus.push(r.roleplayClient.nextFocus);
         if (r.roleplayClient.satisfactionReason) {
           roleplayClientSatisfactionReason.push(r.roleplayClient.satisfactionReason);
-        }
-        if (r.roleplayPartner) {
-          if (r.roleplayPartner.good) roleplayPartnerGood.push(r.roleplayPartner.good);
-          if (r.roleplayPartner.improve) roleplayPartnerImprove.push(r.roleplayPartner.improve);
-          if (r.roleplayPartner.advice) roleplayPartnerAdvice.push(r.roleplayPartner.advice);
-          if (r.roleplayPartner.categoryAvgSummary) {
-            roleplayPartnerCategoryAvg.push(r.roleplayPartner.categoryAvgSummary);
-          }
         }
       }
       if (typeof r.satisfactionScore === "number") satisfaction.push(r.satisfactionScore);
@@ -200,10 +188,6 @@ export async function POST(request: Request) {
         roleplayClientImprove,
         roleplayClientNextFocus,
         roleplayClientSatisfactionReason,
-        roleplayPartnerGood,
-        roleplayPartnerImprove,
-        roleplayPartnerAdvice,
-        roleplayPartnerCategoryAvg,
       },
       satisfaction: { values: satisfaction, average: avg },
     });
@@ -234,7 +218,6 @@ export async function POST(request: Request) {
             other: r.answers.other,
           },
           roleplayClient: r.roleplayClient,
-          roleplayPartner: r.roleplayPartner,
         })),
     }))
     .sort((a, b) => a.displayName.localeCompare(b.displayName, "ja"));

@@ -13,13 +13,6 @@ type RoleplayClientAnswers = {
   satisfactionReason: string;
 };
 
-type RoleplayPartnerAnswers = {
-  good: string;
-  improve: string;
-  advice: string;
-  categoryAvgSummary: string;
-};
-
 type PerQuestionResult = {
   format: "per-question";
   itemsCount: number;
@@ -33,10 +26,6 @@ type PerQuestionResult = {
     roleplayClientImprove: string[];
     roleplayClientNextFocus: string[];
     roleplayClientSatisfactionReason: string[];
-    roleplayPartnerGood: string[];
-    roleplayPartnerImprove: string[];
-    roleplayPartnerAdvice: string[];
-    roleplayPartnerCategoryAvg: string[];
   };
   satisfaction: { values: number[]; average: number | null };
 };
@@ -60,7 +49,6 @@ type PerPersonResult = {
         other: string;
       };
       roleplayClient: RoleplayClientAnswers | null;
-      roleplayPartner: RoleplayPartnerAnswers | null;
     }>;
   }>;
 };
@@ -82,13 +70,6 @@ const ROLEPLAY_CLIENT_LABELS = {
   satisfactionReason: "【ロールプレイ・クライアント】満足度の理由",
 } as const;
 
-const ROLEPLAY_PARTNER_LABELS = {
-  good: "【ロールプレイ・パートナー】良かったところ",
-  improve: "【ロールプレイ・パートナー】改善するともっと良くなるところ",
-  advice: "【ロールプレイ・パートナー】次回に向けたアドバイス",
-  categoryAvgSummary: "【ロールプレイ・パートナー】カテゴリ平均",
-} as const;
-
 type AnswerKey = "insight" | "feeling" | "nextActions" | "satisfactionReason" | "other";
 const ANSWER_KEYS: readonly AnswerKey[] = [
   "insight",
@@ -102,21 +83,13 @@ type RoleplayPqKey =
   | "roleplayClientGood"
   | "roleplayClientImprove"
   | "roleplayClientNextFocus"
-  | "roleplayClientSatisfactionReason"
-  | "roleplayPartnerGood"
-  | "roleplayPartnerImprove"
-  | "roleplayPartnerAdvice"
-  | "roleplayPartnerCategoryAvg";
+  | "roleplayClientSatisfactionReason";
 
 const ROLEPLAY_PQ_KEYS: readonly RoleplayPqKey[] = [
   "roleplayClientGood",
   "roleplayClientImprove",
   "roleplayClientNextFocus",
   "roleplayClientSatisfactionReason",
-  "roleplayPartnerGood",
-  "roleplayPartnerImprove",
-  "roleplayPartnerAdvice",
-  "roleplayPartnerCategoryAvg",
 ] as const;
 
 const ROLEPLAY_PQ_LABELS: Record<RoleplayPqKey, string> = {
@@ -124,10 +97,6 @@ const ROLEPLAY_PQ_LABELS: Record<RoleplayPqKey, string> = {
   roleplayClientImprove: ROLEPLAY_CLIENT_LABELS.improve,
   roleplayClientNextFocus: ROLEPLAY_CLIENT_LABELS.nextFocus,
   roleplayClientSatisfactionReason: ROLEPLAY_CLIENT_LABELS.satisfactionReason,
-  roleplayPartnerGood: ROLEPLAY_PARTNER_LABELS.good,
-  roleplayPartnerImprove: ROLEPLAY_PARTNER_LABELS.improve,
-  roleplayPartnerAdvice: ROLEPLAY_PARTNER_LABELS.advice,
-  roleplayPartnerCategoryAvg: ROLEPLAY_PARTNER_LABELS.categoryAvgSummary,
 };
 
 /** per-person 用キー: clientId|sessionNumber|field */
@@ -289,7 +258,7 @@ export default function AdminReportsPage() {
           </span>
         </div>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          クライアントの 1on1 セッション・フィードバック（毎回入力）と、コーチングマネジメント研修のロールプレイ評価（クライアント提出済み分＋パートナー評価）を、対象者・回・期間・形式で集計し、PDF として出力できます。
+          クライアントの 1on1 セッション・フィードバック（毎回入力）と、コーチングマネジメント研修のロールプレイ評価（クライアント提出済み分）を、対象者・回・期間・形式で集計し、PDF として出力できます。
         </p>
       </header>
 
@@ -630,45 +599,6 @@ export default function AdminReportsPage() {
                                 </div>
                               );
                             })()}
-                            {isRoleplay ? (
-                              s.roleplayPartner ? (
-                                (
-                                  [
-                                    ["good", ROLEPLAY_PARTNER_LABELS.good, s.roleplayPartner.good],
-                                    ["improve", ROLEPLAY_PARTNER_LABELS.improve, s.roleplayPartner.improve],
-                                    ["advice", ROLEPLAY_PARTNER_LABELS.advice, s.roleplayPartner.advice],
-                                    [
-                                      "categoryAvgSummary",
-                                      ROLEPLAY_PARTNER_LABELS.categoryAvgSummary,
-                                      s.roleplayPartner.categoryAvgSummary,
-                                    ],
-                                  ] as const
-                                ).map(([field, label, raw]) => {
-                                  const key = ppKey(person.clientId, s.sessionNumber, `rpPartner.${field}`);
-                                  const value = key in editedAnswersPp ? editedAnswersPp[key]! : raw;
-                                  return (
-                                    <div key={field}>
-                                      <dt className="font-semibold text-slate-700">{label}</dt>
-                                      <dd>
-                                        <textarea
-                                          value={value}
-                                          onChange={(e) =>
-                                            setEditedAnswersPp((prev) => ({
-                                              ...prev,
-                                              [key]: e.target.value,
-                                            }))
-                                          }
-                                          rows={Math.max(2, Math.min(6, (value || "").split("\n").length))}
-                                          className="mt-1 w-full whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-slate-800 print:border-0 print:bg-transparent print:p-0"
-                                        />
-                                      </dd>
-                                    </div>
-                                  );
-                                })
-                              ) : (
-                                <p className="text-xs text-slate-500">パートナー評価：未提出</p>
-                              )
-                            ) : null}
                           </dl>
                         </div>
                         );

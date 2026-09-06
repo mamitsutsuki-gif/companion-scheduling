@@ -1,4 +1,4 @@
-import { categoryAverages, ROLEPLAY_CATEGORIES, type RoleplaySession } from "@/lib/coaching-roleplay";
+import type { RoleplaySession } from "@/lib/coaching-roleplay";
 import type { SessionFeedbackRow } from "@/lib/repositories/session-feedback-repository";
 import type { RoleplayStore } from "@/lib/coaching-roleplay";
 
@@ -19,14 +19,6 @@ export type RoleplayClientAnswers = {
   satisfactionReason: string;
 };
 
-export type RoleplayPartnerAnswers = {
-  good: string;
-  improve: string;
-  advice: string;
-  /** カテゴリ平均の一行要約（提出済み時のみ） */
-  categoryAvgSummary: string;
-};
-
 /** 管理者アンケート集計の統一行（通常振り返り or ロールプレイ） */
 export type AdminFeedbackReportRow = {
   matchId: string;
@@ -37,8 +29,6 @@ export type AdminFeedbackReportRow = {
   /** 通常振り返り用。ロールプレイ行では空文字。 */
   answers: StandardAnswers;
   roleplayClient: RoleplayClientAnswers | null;
-  /** パートナー未提出なら null */
-  roleplayPartner: RoleplayPartnerAnswers | null;
   createdAt: string | null;
 };
 
@@ -50,15 +40,6 @@ function emptyStandardAnswers(): StandardAnswers {
     satisfactionReason: "",
     other: "",
   };
-}
-
-function partnerCategoryAvgSummary(session: RoleplaySession): string {
-  const avg = categoryAverages(session.partnerScores);
-  const parts = ROLEPLAY_CATEGORIES.map((c) => {
-    const v = avg[c.id];
-    return v == null ? null : `${c.label} ${Math.round(v * 10) / 10}`;
-  }).filter((x): x is string => Boolean(x));
-  return parts.length > 0 ? parts.join(" / ") : "";
 }
 
 export function standardFeedbackToReportRow(
@@ -79,14 +60,13 @@ export function standardFeedbackToReportRow(
       other: fb.answers.other ?? "",
     },
     roleplayClient: null,
-    roleplayPartner: null,
     createdAt: fb.createdAt ?? null,
   };
 }
 
 /**
  * クライアント提出済み（clientSubmittedAt）のみ対象。
- * パートナー自由記述・カテゴリ平均は partnerSubmittedAt があるときだけ付与。
+ * パートナーコメント・カテゴリ点数はレポートに含めない。
  */
 export function roleplaySessionToReportRow(
   store: RoleplayStore,
@@ -94,7 +74,6 @@ export function roleplaySessionToReportRow(
   clientId: string,
 ): AdminFeedbackReportRow | null {
   if (!session.clientSubmittedAt) return null;
-  const partnerSubmitted = Boolean(session.partnerSubmittedAt);
   return {
     matchId: store.matchId,
     sessionNumber: session.round,
@@ -108,14 +87,6 @@ export function roleplaySessionToReportRow(
       nextFocus: session.clientReflection.nextFocus,
       satisfactionReason: session.sessionFeedback.satisfactionReason,
     },
-    roleplayPartner: partnerSubmitted
-      ? {
-          good: session.partnerFeedback.good,
-          improve: session.partnerFeedback.improve,
-          advice: session.partnerFeedback.advice,
-          categoryAvgSummary: partnerCategoryAvgSummary(session),
-        }
-      : null,
     createdAt: session.clientSubmittedAt,
   };
 }
