@@ -3,6 +3,7 @@ import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebas
 import { listClientsInCompany } from "@/lib/repositories/user-repository";
 import { getAppSettingsRow } from "@/lib/repositories/app-settings-repository";
 import { companyLabelFromRegistry } from "@/lib/company-display";
+import { listSessionHrPublishKeys } from "@/lib/repositories/session-hr-publish-repository";
 
 export type AdminConfirmedSessionRow = {
   matchId: string;
@@ -21,11 +22,14 @@ export type AdminConfirmedSessionRow = {
 
 export type CompanyConfirmedSessionRow = {
   /** クライアント管理者が見られる範囲では partner の名前を**意図的に隠す** */
+  matchId: string;
   sessionNumber: number;
   round: number;
   clientDisplayName: string;
   startAt: string;
   endAt: string;
+  /** 管理者により人事向けクライアント振り返りが公開済みか */
+  hrReflectionPublished: boolean;
 };
 
 type UserBrief = { displayName: string; companyId: string | null };
@@ -230,6 +234,8 @@ export async function listConfirmedSessionsForCompany(
     }
   }
 
+  const publishKeys = await listSessionHrPublishKeys();
+
   return all
     .filter((row) => {
       const clientId = clientIdByMatch.get(row.matchId) ?? "";
@@ -238,10 +244,12 @@ export async function listConfirmedSessionsForCompany(
       return (programIdByMatch.get(row.matchId) ?? null) === programId;
     })
     .map((row) => ({
+      matchId: row.matchId,
       sessionNumber: row.sessionNumber,
       round: row.round,
       clientDisplayName: row.clientDisplayName,
       startAt: row.startAt,
       endAt: row.endAt,
+      hrReflectionPublished: publishKeys.has(`${row.matchId}#${row.sessionNumber}`),
     }));
 }

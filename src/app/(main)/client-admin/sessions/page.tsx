@@ -3,11 +3,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Row = {
+  matchId: string;
   sessionNumber: number;
   round: number;
   clientDisplayName: string;
   startAt: string;
   endAt: string;
+  hrReflectionPublished?: boolean;
+};
+
+type HrReflection = {
+  good: string;
+  improve: string;
+  satisfactionScore: number | null;
+  satisfactionReason: string;
 };
 
 function formatJa(iso: string) {
@@ -30,6 +39,136 @@ type ProgramOption = {
   name: string;
 };
 
+function HrReflectionPanel({
+  row,
+  onClose,
+}: {
+  row: Row;
+  onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [clientDisplayName, setClientDisplayName] = useState(row.clientDisplayName);
+  const [reflection, setReflection] = useState<HrReflection | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const qs = new URLSearchParams({
+          matchId: row.matchId,
+          sessionNumber: String(row.sessionNumber),
+        });
+        const res = await fetch(`/api/client-admin/sessions/hr-reflection?${qs}`, {
+          cache: "no-store",
+        });
+        const data = await res.json().catch(() => null);
+        if (cancelled) return;
+        if (!res.ok) {
+          setError(typeof data?.error === "string" ? data.error : "取得に失敗しました。");
+          setReflection(null);
+          return;
+        }
+        if (typeof data?.clientDisplayName === "string") {
+          setClientDisplayName(data.clientDisplayName);
+        }
+        const r = data?.reflection;
+        setReflection({
+          good: typeof r?.good === "string" ? r.good : "",
+          improve: typeof r?.improve === "string" ? r.improve : "",
+          satisfactionScore:
+            typeof r?.satisfactionScore === "number" ? r.satisfactionScore : null,
+          satisfactionReason:
+            typeof r?.satisfactionReason === "string" ? r.satisfactionReason : "",
+        });
+      } catch {
+        if (!cancelled) setError("ネットワークエラーが発生しました。");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [row.matchId, row.sessionNumber]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="hr-reflection-title"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-7"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold tracking-[0.14em] text-indigo-800 uppercase">
+              Published reflection
+            </p>
+            <h2 id="hr-reflection-title" className="mt-1 text-xl font-semibold text-slate-900">
+              クライアント振り返り（第{row.sessionNumber}回）
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              {clientDisplayName}さん · 閲覧のみ
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            閉じる
+          </button>
+        </div>
+
+        {loading ? <p className="mt-6 text-slate-600">読込中…</p> : null}
+        {error ? <p className="mt-6 text-sm font-medium text-red-700">{error}</p> : null}
+
+        {!loading && !error && reflection ? (
+          <div className="mt-6 space-y-4">
+            <section className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4">
+              <h3 className="text-base font-semibold text-indigo-950">良かったところ</h3>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
+                {reflection.good.trim() || "（未入力）"}
+              </p>
+            </section>
+            <section className="rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="text-base font-semibold text-slate-900">もっと良くなるところ</h3>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
+                {reflection.improve.trim() || "（未入力）"}
+              </p>
+            </section>
+            <section className="rounded-xl border border-violet-100 bg-violet-50/40 p-4">
+              <h3 className="text-base font-semibold text-slate-900">満足度</h3>
+              <p className="mt-2 text-sm text-slate-800">
+                {reflection.satisfactionScore != null
+                  ? `${reflection.satisfactionScore} / 10`
+                  : "（未入力）"}
+              </p>
+            </section>
+            <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <h3 className="text-base font-semibold text-slate-900">理由</h3>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
+                {reflection.satisfactionReason.trim() || "（未入力）"}
+              </p>
+            </section>
+            <p className="text-xs leading-relaxed text-slate-500">
+              ※ スコア詳細・パートナー評価・マッチルームの他コンテンツは表示されません。
+            </p>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export default function ClientAdminSessionsPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [programs, setPrograms] = useState<ProgramOption[]>([]);
@@ -38,6 +177,7 @@ export default function ClientAdminSessionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
+  const [viewing, setViewing] = useState<Row | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -89,6 +229,7 @@ export default function ClientAdminSessionsPage() {
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
           自社のメンバー（クライアント）の確定済みセッション日程を一覧で確認できます。
           プライバシー保護のため、対話パートナーの名前およびセッション内容は表示されません。
+          管理者が公開したロールプレイ振り返りがある場合のみ、「振り返りを見る」から確認できます。
         </p>
         <div className="mt-4 flex flex-wrap items-end gap-3">
           {programs.length > 1 ? (
@@ -161,12 +302,13 @@ export default function ClientAdminSessionsPage() {
                 <th className="px-3 py-3">クライアント</th>
                 <th className="px-3 py-3">開始</th>
                 <th className="px-3 py-3">終了</th>
+                <th className="px-3 py-3">振り返り</th>
               </tr>
             </thead>
             <tbody>
               {sorted.map((r, idx) => (
                 <tr
-                  key={`${r.clientDisplayName}-${r.sessionNumber}-${r.startAt}-${idx}`}
+                  key={`${r.matchId}-${r.sessionNumber}-${r.startAt}-${idx}`}
                   className="border-b border-slate-100"
                 >
                   <td className="px-3 py-2 font-mono text-xs">
@@ -175,6 +317,19 @@ export default function ClientAdminSessionsPage() {
                   <td className="px-3 py-2">{r.clientDisplayName}さん</td>
                   <td className="px-3 py-2 whitespace-nowrap">{formatJa(r.startAt)}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{formatJa(r.endAt)}</td>
+                  <td className="px-3 py-2">
+                    {r.hrReflectionPublished && r.matchId ? (
+                      <button
+                        type="button"
+                        onClick={() => setViewing(r)}
+                        className="rounded-lg border border-indigo-300 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-900 hover:bg-indigo-100"
+                      >
+                        振り返りを見る
+                      </button>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -183,8 +338,10 @@ export default function ClientAdminSessionsPage() {
       )}
 
       <p className="text-xs leading-relaxed text-slate-500">
-        ※ クリックしても詳細ページには遷移しません。セッションの内容（フィードバック・レポート・チャット等）は表示されません。
+        ※ マッチルームやセッション詳細には遷移しません。公開済みのクライアント振り返りのみ、パネルで確認できます。
       </p>
+
+      {viewing ? <HrReflectionPanel row={viewing} onClose={() => setViewing(null)} /> : null}
     </div>
   );
 }
