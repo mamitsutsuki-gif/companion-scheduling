@@ -635,10 +635,12 @@ export function CoachingSessionRoleplayPanel({
       mutualReveal: false,
     };
   const mutualReveal = roundStatus.mutualReveal;
+  const clientReflectionIncomplete = Boolean(draft) && validateRoleplayClientSaveFields(draft!) !== null;
   const clientMaySupplement =
     Boolean(draft) &&
     roleplayClientMaySupplementAfterReveal(draft!) &&
     permissions.canEditClient &&
+    isClientViewer &&
     !readOnly &&
     !previewBeforeSession;
   const locked = readOnly || previewBeforeSession;
@@ -868,6 +870,12 @@ export function CoachingSessionRoleplayPanel({
               </p>
             ) : null}
           </div>
+        ) : null}
+
+        {isAdminViewer && mutualReveal && clientReflectionIncomplete && !clientMaySupplement ? (
+          <p className="rounded-2xl border border-amber-200 bg-amber-50/70 px-5 py-4 text-sm leading-relaxed text-amber-950">
+            クライアントの必須振り返り（良かった点／もっと良くなると思うこと／満足度と理由）が未入力のため、人事向け公開はまだできません。受講者本人にこの画面での追記保存を依頼してください。
+          </p>
         ) : null}
 
         <AdminHrReflectionPublishControls
