@@ -22,6 +22,9 @@ import {
 } from "@/lib/company-plan";
 import {
   buildDefaultCoachingSessionModes,
+  canAssignCoachingRoleplaySession,
+  defaultCoachingSessionMode,
+  MAX_COACHING_ROLEPLAY_SESSION,
   resolveCoachingSessionMode,
   type CoachingSessionMode,
   type CoachingSessionModesByRound,
@@ -594,7 +597,10 @@ export default function AdminCompanySettingsPage({
     if (companyPlan === "coaching_management_training") {
       const cleaned: CoachingSessionModesByRound = {};
       for (let i = 1; i <= vTotalSessions; i++) {
-        cleaned[String(i)] = vCoachingModes[String(i)] ?? buildDefaultCoachingSessionModes(vTotalSessions)[String(i)]!;
+        const raw =
+          vCoachingModes[String(i)] ?? buildDefaultCoachingSessionModes(vTotalSessions)[String(i)]!;
+        cleaned[String(i)] =
+          raw === "roleplay" && !canAssignCoachingRoleplaySession(i) ? "standard" : raw;
       }
       body.coachingSessionModesByRound = cleaned;
       body.coachingPlanSettings = { ...vCoachingPlanSettings };
@@ -1186,11 +1192,18 @@ export default function AdminCompanySettingsPage({
               <h3 className="text-base font-semibold text-teal-950">各回の 1on1 フォーム種別</h3>
               <p className="mt-2 text-sm leading-relaxed text-teal-900/90">
                 コーチングマネジメント研修では、回ごとに「ロールプレイ評価（双方評価・レーダーチャート）」か
-                「通常のセッションフィードバック」と切り替えられます。未設定の回は 1〜3 回目をロールプレイ、4 回目以降を通常フィードバックとします。
+                「通常のセッションフィードバック」と切り替えられます。ロールプレイ評価は{" "}
+                {MAX_COACHING_ROLEPLAY_SESSION}{" "}
+                回目まで設定できます。未設定の回は 1〜
+                {MAX_COACHING_ROLEPLAY_SESSION} 回目をロールプレイ、
+                {MAX_COACHING_ROLEPLAY_SESSION + 1} 回目以降を通常フィードバックとします。
               </p>
               <ul className="mt-4 space-y-3">
                 {Array.from({ length: Math.max(1, vTotalSessions) }, (_, i) => i + 1).map((round) => {
-                  const mode = vCoachingModes[String(round)] ?? "roleplay";
+                  const roleplayAllowed = canAssignCoachingRoleplaySession(round);
+                  const rawMode = vCoachingModes[String(round)] ?? defaultCoachingSessionMode(round);
+                  const mode: CoachingSessionMode =
+                    rawMode === "roleplay" && !roleplayAllowed ? "standard" : rawMode;
                   return (
                     <li
                       key={round}
@@ -1198,16 +1211,22 @@ export default function AdminCompanySettingsPage({
                     >
                       <p className="text-sm font-semibold text-teal-950">{round} 回目</p>
                       <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-800">
+                        <label
+                          className={`flex items-center gap-2 text-sm text-slate-800 ${
+                            roleplayAllowed ? "cursor-pointer" : "cursor-not-allowed opacity-60"
+                          }`}
+                        >
                           <input
                             type="radio"
                             name={`coaching-mode-${round}`}
                             checked={mode === "roleplay"}
+                            disabled={!roleplayAllowed}
                             onChange={() => {
+                              if (!roleplayAllowed) return;
                               setCoachingModesCustomized(true);
                               setVCoachingModes((p) => ({ ...p, [String(round)]: "roleplay" }));
                             }}
-                            className="h-4 w-4 accent-teal-700"
+                            className="h-4 w-4 accent-teal-700 disabled:cursor-not-allowed"
                           />
                           ロールプレイ評価（双方評価・レーダーチャート）
                         </label>
@@ -1225,6 +1244,12 @@ export default function AdminCompanySettingsPage({
                           通常のセッションフィードバック
                         </label>
                       </div>
+                      {!roleplayAllowed ? (
+                        <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                          {MAX_COACHING_ROLEPLAY_SESSION + 1}{" "}
+                          回目以降はロールプレイ評価を設定できません（通常フィードバック固定）。
+                        </p>
+                      ) : null}
                     </li>
                   );
                 })}
