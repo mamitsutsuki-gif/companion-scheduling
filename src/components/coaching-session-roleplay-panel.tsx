@@ -8,6 +8,7 @@ import {
   scoreHintsForItem,
   categoryRadarValues,
   normalizeRoleplaySession,
+  roleplayClientMaySupplementAfterReveal,
   roleplaySideComplete,
   validateRoleplayClientSaveFields,
   type RoleplayCategoryDef,
@@ -634,8 +635,15 @@ export function CoachingSessionRoleplayPanel({
       mutualReveal: false,
     };
   const mutualReveal = roundStatus.mutualReveal;
+  const clientMaySupplement =
+    Boolean(draft) &&
+    roleplayClientMaySupplementAfterReveal(draft!) &&
+    permissions.canEditClient &&
+    !readOnly &&
+    !previewBeforeSession;
   const locked = readOnly || previewBeforeSession;
-  const canEditClient = !locked && permissions.canEditClient && !mutualReveal;
+  const canEditClient =
+    (!locked && permissions.canEditClient && !mutualReveal) || clientMaySupplement;
   const canEditPartner = !locked && permissions.canEditPartner && !mutualReveal;
   const canSave = canEditClient || canEditPartner;
   // 事前プレビュー時は、終了後と同じ「自分側のフォーム」を閲覧のみ表示
@@ -674,35 +682,158 @@ export function CoachingSessionRoleplayPanel({
           </p>
         </section>
 
-        <div className="grid gap-5 lg:grid-cols-2">
-          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/30 p-5">
-            <h3 className="text-lg font-semibold text-indigo-950">良かったところ（クライアント）</h3>
-            <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">
-              {draft.clientReflection.good.trim() || "（未入力）"}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/30 p-5">
-            <h3 className="text-lg font-semibold text-emerald-950">良かったところ（パートナー）</h3>
-            <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">
-              {draft.partnerFeedback.good.trim() || "（未入力）"}
-            </p>
-          </div>
-        </div>
+        {clientMaySupplement ? (
+          <section className="space-y-4 rounded-2xl border border-amber-200 bg-amber-50/70 px-5 py-5">
+            <div className="space-y-1">
+              <h3 className="text-lg font-semibold text-amber-950">振り返りの追記が必要です</h3>
+              <p className="text-sm leading-relaxed text-amber-950/90">
+                「良かった点」「もっと良くなると思うこと」、および満足度（と理由）が未入力のため、追記して保存してください。保存後は再度編集できません。
+              </p>
+              <p className="text-sm leading-relaxed text-slate-600">{ROLEPLAY_CLIENT_FREE_TEXT_HINT}</p>
+            </div>
+            <RoleplayFreeTextField
+              label="良かった点"
+              required
+              disabled={!canEditClient}
+              value={draft.clientReflection.good}
+              onChange={(good) =>
+                setDraft({
+                  ...draft,
+                  clientReflection: { ...draft.clientReflection, good },
+                })
+              }
+              placeholder="例: 相手の話を最後まで聞き、安心して話せた"
+              className={textareaClass}
+            />
+            <RoleplayFreeTextField
+              label="もっと良くなると思うこと"
+              required
+              disabled={!canEditClient}
+              value={draft.clientReflection.improve}
+              onChange={(improve) =>
+                setDraft({
+                  ...draft,
+                  clientReflection: { ...draft.clientReflection, improve },
+                })
+              }
+              placeholder="例: もう一歩、背景を掘り下げる質問があるとよかった"
+              className={textareaClass}
+            />
+            <div className="space-y-3 rounded-xl border border-violet-100 bg-violet-50/40 p-4">
+              <fieldset className="space-y-3" disabled={!canEditClient}>
+                <legend className="text-base font-medium text-slate-800">
+                  今回のロールプレイセッションの満足度（1〜10） <span className="text-red-600">*</span>
+                </legend>
+                <div className="flex flex-wrap gap-2">
+                  {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                    <label
+                      key={n}
+                      className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-semibold ${
+                        draft.sessionFeedback.satisfactionScore === n
+                          ? "border-indigo-500 bg-indigo-600 text-white"
+                          : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                      } ${!canEditClient ? "cursor-not-allowed opacity-60" : ""}`}
+                    >
+                      <input
+                        type="radio"
+                        name="roleplaySatisfactionSupplement"
+                        value={n}
+                        checked={draft.sessionFeedback.satisfactionScore === n}
+                        disabled={!canEditClient}
+                        onChange={() =>
+                          setDraft({
+                            ...draft,
+                            sessionFeedback: { ...draft.sessionFeedback, satisfactionScore: n },
+                          })
+                        }
+                        className="sr-only"
+                      />
+                      {n}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <label className="block text-base">
+                <span className="font-medium text-slate-800">
+                  満足度の理由 <span className="text-red-600">*</span>
+                </span>
+                <AutoGrowTextarea
+                  value={draft.sessionFeedback.satisfactionReason}
+                  disabled={!canEditClient}
+                  onChange={(satisfactionReason) =>
+                    setDraft({
+                      ...draft,
+                      sessionFeedback: { ...draft.sessionFeedback, satisfactionReason },
+                    })
+                  }
+                  placeholder="良かった点、もっとこうだったらよかった点など"
+                  className={textareaClass}
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                disabled={saving || !canEditClient}
+                onClick={() => void save()}
+                className="rounded-xl bg-indigo-700 px-5 py-2.5 text-base font-semibold text-white disabled:opacity-50"
+              >
+                {saving ? "保存中…" : "追記を保存"}
+              </button>
+              {notice ? <span className="text-base text-emerald-700">{notice}</span> : null}
+              {error ? <span className="text-base text-rose-700">{error}</span> : null}
+            </div>
+          </section>
+        ) : null}
 
-        <div className="grid gap-5 lg:grid-cols-2">
-          <div className="rounded-2xl border border-indigo-100 bg-white p-5">
-            <h3 className="text-lg font-semibold text-indigo-950">もっと良くなると思うこと（クライアント）</h3>
-            <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">
-              {draft.clientReflection.improve.trim() || "（未入力）"}
-            </p>
+        {!clientMaySupplement ? (
+          <>
+            <div className="grid gap-5 lg:grid-cols-2">
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/30 p-5">
+                <h3 className="text-lg font-semibold text-indigo-950">良かったところ（クライアント）</h3>
+                <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">
+                  {draft.clientReflection.good.trim() || "（未入力）"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/30 p-5">
+                <h3 className="text-lg font-semibold text-emerald-950">良かったところ（パートナー）</h3>
+                <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">
+                  {draft.partnerFeedback.good.trim() || "（未入力）"}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-5 lg:grid-cols-2">
+              <div className="rounded-2xl border border-indigo-100 bg-white p-5">
+                <h3 className="text-lg font-semibold text-indigo-950">もっと良くなると思うこと（クライアント）</h3>
+                <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">
+                  {draft.clientReflection.improve.trim() || "（未入力）"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-emerald-100 bg-white p-5">
+                <h3 className="text-lg font-semibold text-emerald-950">もっと良くなると思うこと（パートナー）</h3>
+                <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">
+                  {draft.partnerFeedback.improve.trim() || "（未入力）"}
+                </p>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/30 p-5">
+              <h3 className="text-lg font-semibold text-emerald-950">良かったところ（パートナー）</h3>
+              <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">
+                {draft.partnerFeedback.good.trim() || "（未入力）"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-emerald-100 bg-white p-5">
+              <h3 className="text-lg font-semibold text-emerald-950">もっと良くなると思うこと（パートナー）</h3>
+              <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">
+                {draft.partnerFeedback.improve.trim() || "（未入力）"}
+              </p>
+            </div>
           </div>
-          <div className="rounded-2xl border border-emerald-100 bg-white p-5">
-            <h3 className="text-lg font-semibold text-emerald-950">もっと良くなると思うこと（パートナー）</h3>
-            <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">
-              {draft.partnerFeedback.improve.trim() || "（未入力）"}
-            </p>
-          </div>
-        </div>
+        )}
 
         <ComparisonBlock
           title="レーダーチャート（自己評価 ・パートナーからの評価）"
@@ -725,7 +856,7 @@ export function CoachingSessionRoleplayPanel({
           ))}
         </div>
 
-        {draft.sessionFeedback.satisfactionScore != null ? (
+        {!clientMaySupplement && draft.sessionFeedback.satisfactionScore != null ? (
           <div className="rounded-2xl border border-violet-100 bg-violet-50/30 p-5">
             <h3 className="text-lg font-semibold text-slate-900">セッション満足度（クライアント）</h3>
             <p className="mt-2 text-base text-slate-800">

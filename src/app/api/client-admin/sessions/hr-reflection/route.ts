@@ -1,6 +1,6 @@
 import {
   getRoleplaySessionForNumber,
-  roleplayClientSubmissionComplete,
+  validateRoleplayClientSaveFields,
 } from "@/lib/coaching-roleplay";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { jsonError, jsonOk } from "@/lib/json";
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
   const roleplaySession = getRoleplaySessionForNumber(store, sessionNumber);
   if (
     !roleplaySession.clientSubmittedAt ||
-    !roleplayClientSubmissionComplete(roleplaySession)
+    validateRoleplayClientSaveFields(roleplaySession) !== null
   ) {
     return jsonError("公開可能なクライアント振り返りがありません。", 409);
   }

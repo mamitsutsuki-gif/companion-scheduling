@@ -385,6 +385,14 @@ export function roleplayClientSubmissionComplete(session: RoleplaySession): bool
   return validateRoleplayClientSaveFields(session) === null;
 }
 
+/**
+ * 相互開示後でもクライアント本人が追記してよい状態か。
+ * 必須自由記述・満足度が欠ける旧データ向け（パートナー側はロック維持）。
+ */
+export function roleplayClientMaySupplementAfterReveal(session: RoleplaySession): boolean {
+  return roleplayBothSubmitted(session) && validateRoleplayClientSaveFields(session) !== null;
+}
+
 /** パートナー側の入力が「提出済み」扱いになる条件。 */
 export function roleplayPartnerSubmissionComplete(session: RoleplaySession): boolean {
   return roleplaySideComplete(session, "partner");

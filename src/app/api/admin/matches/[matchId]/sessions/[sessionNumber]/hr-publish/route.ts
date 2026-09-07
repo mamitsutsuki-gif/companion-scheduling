@@ -1,7 +1,7 @@
 import { requireAdminish, requireAdminWriter } from "@/lib/admin-access";
 import {
   getRoleplaySessionForNumber,
-  roleplayClientSubmissionComplete,
+  validateRoleplayClientSaveFields,
   type RoleplaySession,
 } from "@/lib/coaching-roleplay";
 import {
@@ -54,7 +54,7 @@ async function resolvePublishContext(
   const roleplaySession = getRoleplaySessionForNumber(store, sessionNumber);
   const clientReady =
     Boolean(roleplaySession.clientSubmittedAt) &&
-    roleplayClientSubmissionComplete(roleplaySession);
+    validateRoleplayClientSaveFields(roleplaySession) === null;
 
   return { ok: true, roleplaySession, clientReady };
 }

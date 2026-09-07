@@ -11,6 +11,7 @@ import {
   redactRoleplayStoreForViewer,
   roleplayBothSubmitted,
   roleplayClientSubmissionComplete,
+  roleplayClientMaySupplementAfterReveal,
   roleplayPartnerSubmissionComplete,
   roleplayRoundStatus,
   roleplayClientFieldsChanged,
@@ -131,12 +132,13 @@ export async function PUT(request: Request, ctx: RouteContext) {
   const sessions = ensureRoleplayStoreSessions(store, round);
   const prev = sessions[idx] ?? normalizeRoleplaySession({}, round);
 
-  if (
-    roleplayBothSubmitted(prev) &&
-    session.role !== "ADMIN" &&
-    session.role !== "ADMIN_ASSISTANT"
-  ) {
-    return jsonError("双方の入力が完了したため、評価の編集はできません。", 409);
+  if (roleplayBothSubmitted(prev)) {
+    const isPrivilegedAdmin = session.role === "ADMIN" || session.role === "ADMIN_ASSISTANT";
+    const clientMaySupplement =
+      access.canEditClient && roleplayClientMaySupplementAfterReveal(prev);
+    if (!isPrivilegedAdmin && !clientMaySupplement) {
+      return jsonError("双方の入力が完了したため、評価の編集はできません。", 409);
+    }
   }
 
   const merged = normalizeRoleplaySession(
@@ -204,10 +206,13 @@ export async function PUT(request: Request, ctx: RouteContext) {
     round,
   );
 
+  const clientActorRole =
+    session.role === "CLIENT" ||
+    session.role === "CLIENT_ADMIN" ||
+    session.role === "CLIENT_HR";
   const clientSideSave =
     access.canEditClient &&
-    (session.role === "CLIENT" ||
-      (session.role === "ADMIN" && roleplayClientFieldsChanged(prev, merged)));
+    (clientActorRole || (session.role === "ADMIN" && roleplayClientFieldsChanged(prev, merged)));
   if (clientSideSave) {
     const clientValidationError = validateRoleplayClientSaveFields(merged);
     if (clientValidationError) return jsonError(clientValidationError, 400);
