@@ -148,7 +148,6 @@ export async function POST(request: Request) {
     const other: string[] = [];
     const roleplayClientGood: string[] = [];
     const roleplayClientImprove: string[] = [];
-    const roleplayClientNextFocus: string[] = [];
     const roleplayClientSatisfactionReason: string[] = [];
     const satisfaction: number[] = [];
 
@@ -162,7 +161,6 @@ export async function POST(request: Request) {
       } else if (r.roleplayClient) {
         if (r.roleplayClient.good) roleplayClientGood.push(r.roleplayClient.good);
         if (r.roleplayClient.improve) roleplayClientImprove.push(r.roleplayClient.improve);
-        if (r.roleplayClient.nextFocus) roleplayClientNextFocus.push(r.roleplayClient.nextFocus);
         if (r.roleplayClient.satisfactionReason) {
           roleplayClientSatisfactionReason.push(r.roleplayClient.satisfactionReason);
         }
@@ -186,7 +184,6 @@ export async function POST(request: Request) {
         other,
         roleplayClientGood,
         roleplayClientImprove,
-        roleplayClientNextFocus,
         roleplayClientSatisfactionReason,
       },
       satisfaction: { values: satisfaction, average: avg },

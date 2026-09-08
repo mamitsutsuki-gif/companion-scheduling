@@ -9,7 +9,6 @@ type ClientUser = { id: string; displayName: string; role: string; companyId?: s
 type RoleplayClientAnswers = {
   good: string;
   improve: string;
-  nextFocus: string;
   satisfactionReason: string;
 };
 
@@ -24,7 +23,6 @@ type PerQuestionResult = {
     other: string[];
     roleplayClientGood: string[];
     roleplayClientImprove: string[];
-    roleplayClientNextFocus: string[];
     roleplayClientSatisfactionReason: string[];
   };
   satisfaction: { values: number[]; average: number | null };
@@ -66,7 +64,6 @@ const QUESTION_LABELS: Record<string, string> = {
 const ROLEPLAY_CLIENT_LABELS = {
   good: "【ロールプレイ・クライアント】良かった点",
   improve: "【ロールプレイ・クライアント】もっと良くなると思うこと",
-  nextFocus: "【ロールプレイ・クライアント】次回意識したいこと",
   satisfactionReason: "【ロールプレイ・クライアント】満足度の理由",
 } as const;
 
@@ -82,20 +79,17 @@ const ANSWER_KEYS: readonly AnswerKey[] = [
 type RoleplayPqKey =
   | "roleplayClientGood"
   | "roleplayClientImprove"
-  | "roleplayClientNextFocus"
   | "roleplayClientSatisfactionReason";
 
 const ROLEPLAY_PQ_KEYS: readonly RoleplayPqKey[] = [
   "roleplayClientGood",
   "roleplayClientImprove",
-  "roleplayClientNextFocus",
   "roleplayClientSatisfactionReason",
 ] as const;
 
 const ROLEPLAY_PQ_LABELS: Record<RoleplayPqKey, string> = {
   roleplayClientGood: ROLEPLAY_CLIENT_LABELS.good,
   roleplayClientImprove: ROLEPLAY_CLIENT_LABELS.improve,
-  roleplayClientNextFocus: ROLEPLAY_CLIENT_LABELS.nextFocus,
   roleplayClientSatisfactionReason: ROLEPLAY_CLIENT_LABELS.satisfactionReason,
 };
 
@@ -534,7 +528,6 @@ export default function AdminReportsPage() {
                                   [
                                     ["good", ROLEPLAY_CLIENT_LABELS.good, s.roleplayClient.good],
                                     ["improve", ROLEPLAY_CLIENT_LABELS.improve, s.roleplayClient.improve],
-                                    ["nextFocus", ROLEPLAY_CLIENT_LABELS.nextFocus, s.roleplayClient.nextFocus],
                                   ] as const
                                 ).map(([field, label, raw]) => {
                                   const key = ppKey(person.clientId, s.sessionNumber, `rpClient.${field}`);

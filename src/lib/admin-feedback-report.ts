@@ -15,7 +15,6 @@ export type StandardAnswers = {
 export type RoleplayClientAnswers = {
   good: string;
   improve: string;
-  nextFocus: string;
   satisfactionReason: string;
 };
 
@@ -84,7 +83,6 @@ export function roleplaySessionToReportRow(
     roleplayClient: {
       good: session.clientReflection.good,
       improve: session.clientReflection.improve,
-      nextFocus: session.clientReflection.nextFocus,
       satisfactionReason: session.sessionFeedback.satisfactionReason,
     },
     createdAt: session.clientSubmittedAt,
