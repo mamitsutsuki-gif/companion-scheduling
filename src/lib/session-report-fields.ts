@@ -8,7 +8,7 @@ export type SessionReportAnswerKey =
 export type SessionReportAnswers = Record<SessionReportAnswerKey, string>;
 
 export const SESSION_REPORT_MOTIVEAGE_NOTICE =
-  "共有されるのはモチベイジです。ご本人やクライアント管理者にダイレクトに公開されるものではありません。";
+  "このレポートは運営の確認用です。クライアント側には共有されません。";
 
 export const SESSION_REPORT_FIELDS: Array<{
   key: SessionReportAnswerKey;
