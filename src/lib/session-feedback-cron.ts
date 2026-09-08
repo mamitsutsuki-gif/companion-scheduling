@@ -48,11 +48,11 @@ export async function runSessionFeedbackEmailCron(now = new Date()) {
     const sessionUrl = buildSessionUrl(job.matchId, sessionNumber);
 
     const clientBody =
-      `本日は1on1セッションのお疲れ様でした。\n` +
+      `本日は1on1セッション、お疲れ様でした。\n` +
       `お時間を確保してくださってありがとうございました。\n` +
       `このフォームから振り返りをお願いいたします。\n\n${sessionUrl}`;
     const partnerBody =
-      `本日は1on1セッションのお疲れ様でした。\n` +
+      `本日は1on1セッション、お疲れ様でした。\n` +
       `クライアントへの温かなご支援をありがとうございました。\n` +
       `このフォームから振り返りをお願いいたします。\n\n${sessionUrl}`;
 
