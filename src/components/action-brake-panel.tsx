@@ -337,7 +337,7 @@ export function ActionBrakePanel({
                   <div className="space-y-2">
                     <p className="font-semibold text-amber-900">🔒 非公開の分析</p>
                     <p className="text-sm text-slate-600">
-                      受講者が上司・人事向けに非公開にした記録です。内容は表示されません。
+                      受講者が非公開にした分析です。
                     </p>
                     <p className="text-xs text-slate-500">
                       更新: {e.updatedAt ? new Date(e.updatedAt).toLocaleString("ja-JP") : "—"}

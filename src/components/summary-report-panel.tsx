@@ -150,7 +150,7 @@ export function SummaryReportPanel({ matchId }: { matchId: string }) {
           <SheetAudienceNotice sheet="summaryReport" className="mt-4" hideOnPrint />
           {canEditComments && !perms.commentsPublished ? (
             <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-              コメント3項目は、運用管理者が「上司・人事に提出」するまで、クライアント管理者・クライアント人事には表示されません。
+              総括コメントは確認完了後に上司・人事へ共有されます。
             </p>
           ) : null}
         </div>
@@ -249,7 +249,7 @@ export function SummaryReportPanel({ matchId }: { matchId: string }) {
           <section className="mt-6">
             <h4 className="font-semibold text-slate-900">6. コメント（パートナー・モチベイジ）</h4>
             <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-950">
-              コメントはまだ提出されていません。モチベイジによる確認・提出後に表示されます。
+              コメントは準備中です。公開され次第、ここに表示されます。
             </p>
           </section>
         ) : canEditComments ? (

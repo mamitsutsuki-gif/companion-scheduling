@@ -149,39 +149,28 @@ export function LifelinePanel({ matchId }: { matchId: string }) {
 
       {isManagerView ? (
         <aside className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm leading-relaxed break-words text-amber-950">
-          <p className="font-semibold">上司・人事向けの表示について</p>
+          <p className="font-semibold">この画面で確認できる内容</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>感情の推移（グラフ）は、鍵の有無にかかわらず確認できます。</li>
-            <li>
-              鍵がかかっていない項目では、「価値観・強みの気づき」と、まとめの価値観も確認できます。
-            </li>
-            <li>
-              鍵がかかっている項目では、気づきは「🔒 非公開」と表示され、本文は見えません。
-            </li>
-            <li>
-              鍵なしで未記入の気づきは「未入力」と表示されます（非公開とは区別されます）。
-            </li>
-            <li>
-              人生の出来事の詳細（時期・タイトル・本文・理由など）は、プライバシーのため上司・人事には表示されません。
-            </li>
+            <li>感情の推移（グラフ）と、共有された価値観の気づき・まとめを確認できます。</li>
+            <li>鍵付きの気づきは「🔒 非公開」と表示されます。</li>
+            <li>エピソード本文は受講者とパートナーの対話用です。</li>
           </ul>
         </aside>
       ) : canEdit ? (
         <aside className="rounded-2xl border border-indigo-200 bg-indigo-50/60 px-4 py-3 text-sm leading-relaxed break-words text-indigo-950">
           <p className="font-semibold">安心して本音で書くための公開範囲</p>
           <p className="mt-2">
-            上司・人事には、あなたの人生のエピソード詳細（時期・タイトル・本文・理由）は見えません。
-            対話パートナーには1on1セッションでの対話のために共有されます。飾らずにそのまま書いて大丈夫です。
+            エピソード詳細はパートナーとの対話用です。上司・人事にはグラフと、鍵を外した気づきが共有されます。飾らずにそのまま書いて大丈夫です。
           </p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>
               <strong>上司への共有（鍵なし）:</strong> グラフ（感情の波）と、価値観の気づき・まとめが上司に見えます。
             </li>
             <li>
-              <strong>上司への非公開（鍵あり 🔒）:</strong> 上司には気づきが「🔒 非公開」と見え、本文は見えません（グラフは見えます）。
+              <strong>上司への共有範囲（鍵あり 🔒）:</strong> グラフは共有され、気づきは「🔒 非公開」となります。
             </li>
             <li>
-              <strong>パートナーへの共有:</strong> エピソード詳細を含めてパートナーに共有され、セッションでの自己探求に活用されます。
+              <strong>パートナーへの共有:</strong> エピソード詳細を含めて共有され、セッションでの自己探求に活用されます。
             </li>
           </ul>
         </aside>

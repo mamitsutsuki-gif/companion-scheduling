@@ -73,7 +73,7 @@ export const SHEET_AUDIENCE: Record<SheetAudienceKey, SheetAudienceDef> = {
         note: "集計は常時、コメントは提出後",
       },
     ],
-    footnote: "受講者向けのタブはありません（パートナー・上司・人事・運用管理者向け）。",
+    footnote: "このレポートはパートナー・上司・人事向けです。",
   },
   actionBrakeAnalysis: {
     lines: [
@@ -82,6 +82,6 @@ export const SHEET_AUDIENCE: Record<SheetAudienceKey, SheetAudienceDef> = {
       { role: "supervisor", label: "上司", access: "view" },
       { role: "hr", label: "人事", access: "view" },
     ],
-    footnote: "🔒を付けた分析は上司・人事には非公開です。パートナーには共有されます。",
+    footnote: "鍵付きの分析はパートナーとの対話用です。",
   },
 };

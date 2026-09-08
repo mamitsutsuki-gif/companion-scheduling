@@ -69,8 +69,8 @@ export default function ClientAdminCompanionSheetsPage() {
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
           {isHr
-            ? "同じ企業に割り当てられた受講者の伴走シートを確認できます（閲覧中心）。スキルチェックの上司評価入力やチャット・1on1 セッションには入りません。"
-            : "紐づけられた部下のスキルチェック（上司評価・重点育成項目）をこの画面で入力できます。ライフライン・FTA などのシートは「シートを開く」から確認できます。チャット・1on1 セッションには入りません。"}
+            ? "同じ企業の受講者の伴走シートを確認できます。"
+            : "紐づけられた部下のスキルチェック（上司評価・重点育成項目）をこの画面で入力できます。ライフライン・FTA などのシートは「シートを開く」から確認できます。"}
         </p>
         <button
           type="button"

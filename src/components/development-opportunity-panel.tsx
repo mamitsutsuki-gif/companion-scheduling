@@ -208,7 +208,7 @@ export function DevelopmentOpportunityPanel({ matchId }: { matchId: string }) {
 
       {!editable ? (
         <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-          閲覧のみです。内容の編集は上司・管理者が行います。
+          閲覧のみです。内容の編集は上司が行います。
         </p>
       ) : (
         <SheetStickySaveBar saving={saving} onClick={() => void save()} />

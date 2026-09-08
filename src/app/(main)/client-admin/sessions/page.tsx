@@ -159,9 +159,6 @@ function HrReflectionPanel({
                 {reflection.satisfactionReason.trim() || "（未入力）"}
               </p>
             </section>
-            <p className="text-xs leading-relaxed text-slate-500">
-              ※ スコア詳細・パートナー評価・マッチルームの他コンテンツは表示されません。
-            </p>
           </div>
         ) : null}
       </div>
@@ -227,7 +224,7 @@ export default function ClientAdminSessionsPage() {
           1on1セッション一覧
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          自社メンバーの確定済み1on1日程を一覧で確認できます。運営から共有されたロールプレイ振り返りがある場合は、「振り返りを見る」から内容を確認できます。
+          自社メンバーの確定済み1on1日程を一覧で確認できます。ロールプレイ振り返りがある場合のみ、「振り返りを見る」から確認できます。
         </p>
         <div className="mt-4 flex flex-wrap items-end gap-3">
           {programs.length > 1 ? (
@@ -334,10 +331,6 @@ export default function ClientAdminSessionsPage() {
           </table>
         </div>
       )}
-
-      <p className="text-xs leading-relaxed text-slate-500">
-        ※ マッチルームやセッション詳細には遷移しません。公開済みのクライアント振り返りのみ、パネルで確認できます。
-      </p>
 
       {viewing ? <HrReflectionPanel row={viewing} onClose={() => setViewing(null)} /> : null}
     </div>

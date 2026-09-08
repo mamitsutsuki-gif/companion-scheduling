@@ -66,12 +66,12 @@ export async function GET(request: Request) {
 
   const settings = await getEffectiveAppSettingsForMatch(matchId);
   if (settings.companyPlan !== "coaching_management_training") {
-    return jsonError("このプランでは振り返り公開を利用できません。", 403);
+    return jsonError("このプランでは振り返り閲覧を利用できません。", 403);
   }
 
   const published = await getSessionHrPublish(matchId, sessionNumber);
   if (!published) {
-    return jsonError("この振り返りはまだ人事向けに公開されていません。", 404);
+    return jsonError("この振り返りは現在ご確認いただけません。", 404);
   }
 
   const store = await getRoleplayStore(matchId);
@@ -80,7 +80,7 @@ export async function GET(request: Request) {
     !roleplaySession.clientSubmittedAt ||
     validateRoleplayClientSaveFields(roleplaySession) !== null
   ) {
-    return jsonError("公開可能なクライアント振り返りがありません。", 409);
+    return jsonError("表示できる振り返りがありません。", 409);
   }
 
   return jsonOk({
