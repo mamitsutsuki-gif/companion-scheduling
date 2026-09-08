@@ -244,9 +244,13 @@ export async function markNegotiationSuperseded(negotiationId: string) {
       { status: "SUPERSEDED", updatedAt: new Date().toISOString() },
       { merge: true },
     );
-    return;
+  } else {
+    await prisma.negotiation.update({ where: { id: negotiationId }, data: { status: "SUPERSEDED" } });
   }
-  await prisma.negotiation.update({ where: { id: negotiationId }, data: { status: "SUPERSEDED" } });
+  const { cancelSessionReminderEmailJobsForNegotiation } = await import(
+    "@/lib/repositories/session-reminder-job-repository"
+  );
+  await cancelSessionReminderEmailJobsForNegotiation(negotiationId).catch(() => null);
 }
 
 export async function getNegotiationById(negotiationId: string) {

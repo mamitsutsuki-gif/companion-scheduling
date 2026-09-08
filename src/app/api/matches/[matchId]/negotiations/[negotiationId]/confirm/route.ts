@@ -15,6 +15,8 @@ import {
 } from "@/lib/repositories/negotiation-repository";
 import { clearAdminRescheduleAbandonmentIfPresent } from "@/lib/repositories/session-abandonment-repository";
 import { enqueueSessionFeedbackEmailJob } from "@/lib/repositories/session-feedback-job-repository";
+import { enqueueSessionReminderEmailJob } from "@/lib/repositories/session-reminder-job-repository";
+import { computeSessionReminderAt } from "@/lib/session-reminder-cron";
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
 import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
@@ -179,6 +181,16 @@ export async function POST(request: Request, context: RouteContext) {
     matchId,
     clientId: matchFull.clientId,
     slotEndAt: finalEnd,
+  });
+
+  await enqueueSessionReminderEmailJob({
+    negotiationId,
+    slotId: chosen.id,
+    matchId,
+    clientId: matchFull.clientId,
+    partnerId: matchFull.partnerId,
+    slotStartAt: finalStart,
+    remindAt: computeSessionReminderAt(finalStart, displayTz),
   });
 
   await appendAdminNotification({

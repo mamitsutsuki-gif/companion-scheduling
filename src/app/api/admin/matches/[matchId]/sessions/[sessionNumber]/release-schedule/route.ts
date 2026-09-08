@@ -12,6 +12,7 @@ import { getMatchById } from "@/lib/repositories/match-repository";
 import { upsertSessionAbandonment } from "@/lib/repositories/session-abandonment-repository";
 import { reconcilePartnerInvoiceAfterScheduleRelease } from "@/lib/invoice-schedule-release";
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
+import { cancelSessionReminderEmailJobsForNegotiation } from "@/lib/repositories/session-reminder-job-repository";
 import { readSession } from "@/lib/session";
 
 const bodySchema = z.object({
@@ -45,6 +46,8 @@ export async function POST(request: Request, context: RouteContext) {
     releasedByUserId: session!.sub,
   });
   if (!released.ok) return jsonError(released.error, 409);
+
+  await cancelSessionReminderEmailJobsForNegotiation(released.negotiationId).catch(() => null);
 
   const partnerBillable = parsed.data.partnerBillable === true;
   const excludeFromPartnerInvoice = !partnerBillable;
