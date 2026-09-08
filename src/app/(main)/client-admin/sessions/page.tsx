@@ -227,9 +227,7 @@ export default function ClientAdminSessionsPage() {
           1on1セッション一覧
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          自社のメンバー（クライアント）の確定済みセッション日程を一覧で確認できます。
-          プライバシー保護のため、対話パートナーの名前およびセッション内容は表示されません。
-          管理者が公開したロールプレイ振り返りがある場合のみ、「振り返りを見る」から確認できます。
+          自社メンバーの確定済み1on1日程を一覧で確認できます。運営から共有されたロールプレイ振り返りがある場合は、「振り返りを見る」から内容を確認できます。
         </p>
         <div className="mt-4 flex flex-wrap items-end gap-3">
           {programs.length > 1 ? (
