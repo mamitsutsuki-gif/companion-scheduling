@@ -39,9 +39,10 @@ export async function enqueueSessionReminderEmailJob(input: {
     if (!db) return;
     const ref = db.collection(COL).doc(id);
     const existing = await ref.get();
-    if (existing.exists && (existing.data() as { sent?: boolean })?.sent === true) {
-      // 同一スロットで再確定はない想定。別スロットは別 id。
-      return;
+    if (existing.exists) {
+      const raw = (existing.data() ?? {}) as Record<string, unknown>;
+      // 送信済み・キャンセル済みは復活させない（二重送信・解除後再送の防止）
+      if (raw.sent === true || raw.cancelled === true) return;
     }
     await ref.set(
       {
@@ -54,7 +55,9 @@ export async function enqueueSessionReminderEmailJob(input: {
         remindAt: remindIso,
         sent: false,
         cancelled: false,
-        createdAt: nowIso,
+        createdAt: existing.exists
+          ? ((existing.data() as { createdAt?: string })?.createdAt ?? nowIso)
+          : nowIso,
         updatedAt: nowIso,
       },
       { merge: true },
@@ -64,32 +67,37 @@ export async function enqueueSessionReminderEmailJob(input: {
 
   const delegate = (
     prisma as unknown as {
-      sessionReminderEmailJob?: { upsert?: Function };
+      sessionReminderEmailJob?: { findUnique?: Function; create?: Function; update?: Function };
     }
   ).sessionReminderEmailJob;
-  if (!delegate?.upsert) return;
+  if (!delegate?.findUnique || !delegate?.create || !delegate?.update) return;
   try {
-    await delegate.upsert({
+    const prev = (await delegate.findUnique({ where: { id } })) as Record<string, unknown> | null;
+    if (prev?.sentAt || prev?.cancelledAt) return;
+    if (!prev) {
+      await delegate.create({
+        data: {
+          id,
+          negotiationId: input.negotiationId,
+          slotId: input.slotId,
+          matchId: input.matchId,
+          clientId: input.clientId,
+          partnerId: input.partnerId,
+          slotStartAt: input.slotStartAt,
+          remindAt: input.remindAt,
+          sentAt: null,
+          cancelledAt: null,
+        },
+      });
+      return;
+    }
+    await delegate.update({
       where: { id },
-      create: {
-        id,
-        negotiationId: input.negotiationId,
-        slotId: input.slotId,
-        matchId: input.matchId,
-        clientId: input.clientId,
-        partnerId: input.partnerId,
-        slotStartAt: input.slotStartAt,
-        remindAt: input.remindAt,
-        sentAt: null,
-        cancelledAt: null,
-      },
-      update: {
+      data: {
         slotStartAt: input.slotStartAt,
         remindAt: input.remindAt,
         partnerId: input.partnerId,
         clientId: input.clientId,
-        sentAt: null,
-        cancelledAt: null,
       },
     });
   } catch {
@@ -206,6 +214,53 @@ export async function listPendingSessionReminderJobs(now: Date): Promise<Pending
     /* ignore */
   }
   return out;
+}
+
+/** 送信前にジョブを原子的に確保する。取れなければ他ワーカーが処理中／済。 */
+export async function tryClaimSessionReminderJob(jobId: string): Promise<boolean> {
+  const nowIso = new Date().toISOString();
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return false;
+    const ref = db.collection(COL).doc(jobId);
+    try {
+      return await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) return false;
+        const raw = (snap.data() ?? {}) as Record<string, unknown>;
+        if (raw.sent === true || raw.cancelled === true) return false;
+        tx.set(
+          ref,
+          {
+            sent: true,
+            sentAt: nowIso,
+            claimedAt: nowIso,
+            updatedAt: nowIso,
+          },
+          { merge: true },
+        );
+        return true;
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  const delegate = (
+    prisma as unknown as {
+      sessionReminderEmailJob?: { updateMany?: Function };
+    }
+  ).sessionReminderEmailJob;
+  if (!delegate?.updateMany) return false;
+  try {
+    const result = (await delegate.updateMany({
+      where: { id: jobId, sentAt: null, cancelledAt: null },
+      data: { sentAt: new Date() },
+    })) as { count?: number };
+    return Number(result?.count ?? 0) === 1;
+  } catch {
+    return false;
+  }
 }
 
 export async function markSessionReminderJobSent(jobId: string): Promise<void> {

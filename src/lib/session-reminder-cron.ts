@@ -7,7 +7,7 @@ import {
   enqueueSessionReminderEmailJob,
   listPendingSessionReminderJobs,
   markSessionReminderJobCancelled,
-  markSessionReminderJobSent,
+  tryClaimSessionReminderJob,
 } from "@/lib/repositories/session-reminder-job-repository";
 import { resolveUserEmailForNotifications } from "@/lib/repositories/user-repository";
 import { prisma } from "@/lib/prisma";
@@ -182,6 +182,13 @@ export async function runSessionReminderEmailCron(now = new Date()) {
       continue;
     }
 
+    // 二重送信防止: 送信前に原子的に claim（取れなければ他ワーカーが処理中／済）
+    const claimed = await tryClaimSessionReminderJob(job.id);
+    if (!claimed) {
+      skipped += 1;
+      continue;
+    }
+
     const [clientEmail, partnerEmail] = await Promise.all([
       resolveUserEmailForNotifications(match.clientId),
       resolveUserEmailForNotifications(match.partnerId),
@@ -217,25 +224,24 @@ export async function runSessionReminderEmailCron(now = new Date()) {
       `ガイドラインはこちら: ${guidelineUrl}\n\n` +
       `モチベイジクラウド`;
 
-    let okClient = true;
-    let okPartner = true;
     if (clientEmail) {
-      okClient = await sendMail({ to: clientEmail, subject: clientSubject, text: clientBody });
+      const okClient = await sendMail({ to: clientEmail, subject: clientSubject, text: clientBody });
       if (okClient) sent += 1;
       else failed += 1;
     } else {
       skipped += 1;
     }
     if (partnerEmail) {
-      okPartner = await sendMail({ to: partnerEmail, subject: partnerSubject, text: partnerBody });
+      const okPartner = await sendMail({
+        to: partnerEmail,
+        subject: partnerSubject,
+        text: partnerBody,
+      });
       if (okPartner) sent += 1;
       else failed += 1;
     } else {
       skipped += 1;
     }
-
-    // 片方失敗しても再送ループを避けるため sent にする（ログは failed カウント）
-    await markSessionReminderJobSent(job.id);
   }
 
   return {
