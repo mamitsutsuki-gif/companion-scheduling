@@ -91,6 +91,13 @@ function buildMatchUrl(matchId: string) {
   return origin ? `${origin}${path}` : path;
 }
 
+function buildSessionDetailUrl(matchId: string, sessionNumber: number) {
+  const origin = appOriginFromEnv();
+  const sn = Math.max(1, sessionNumber);
+  const path = `/match/${matchId}/sessions/${sn}`;
+  return origin ? `${origin}${path}` : path;
+}
+
 function isSlotStartTomorrowInTimeZone(now: Date, slotStart: Date, timeZone: string): boolean {
   const tz = resolveAppTimeZone(timeZone);
   const nowP = zonedDateTimeParts(now, tz);
@@ -185,6 +192,8 @@ export async function runSessionReminderEmailCron(now = new Date()) {
     const endLabel = formatJaDateTime(end, displayTz);
     const meet = meetingBlock(negotiation.confirmedZoomUrl);
     const roomUrl = buildMatchUrl(job.matchId);
+    const sessionNumber = Math.max(1, negotiation.sessionNumber ?? 1);
+    const guidelineUrl = buildSessionDetailUrl(job.matchId, sessionNumber);
     const clientName = match.client.displayName || "クライアント";
     const partnerName = match.partner.displayName || "パートナー";
 
@@ -205,8 +214,7 @@ export async function runSessionReminderEmailCron(now = new Date()) {
       `相手: ${clientName}さん\n` +
       `日時: ${startLabel} 〜 ${endLabel}\n` +
       (meet ? `${meet}\n` : "") +
-      `セッションガイドラインは、モチベイジクラウドのルームからご確認ください。\n` +
-      `ルームを開く: ${roomUrl}\n\n` +
+      `ガイドラインはこちら: ${guidelineUrl}\n\n` +
       `モチベイジクラウド`;
 
     let okClient = true;
