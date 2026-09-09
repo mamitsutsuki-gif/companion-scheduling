@@ -9,3 +9,4 @@ alwaysApply: true
 - 「デプロイして」と言われなくても、作業完了の一部としてデプロイする
 - デプロイしない例外: ユーザーが「デプロイしない」「ローカルのみ」「コミットだけ」等と明示した場合、または secrets / 未追跡の実験コードのみの変更で意図が不明な場合（その場合は確認する）
 - mood-pdf 等、意図的に除外しているローカル作業はコミットに含めない
+- **GitHub Actions の `schedule` cron**（`.github/workflows/cron-*.yml`）は default branch（`main`）上でのみ動く。新規・変更したら **staging だけでなく `main` にも同じ workflow を置く**（アプリ本体のデプロイ先は staging のままでよい）

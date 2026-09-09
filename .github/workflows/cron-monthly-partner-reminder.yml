@@ -2,6 +2,7 @@ name: cron-monthly-partner-reminder
 
 # 毎日 01:00 JST（= 前日 16:00 UTC）に実行し、
 # 日本時間の 12日 / 27日のみ予定登録リマインドメールを送る。
+# IMPORTANT: GitHub schedule は default branch (main) 上のこのファイルでのみ動く。staging だけに置いても送信されない。
 on:
   schedule:
     - cron: "0 16 * * *"
