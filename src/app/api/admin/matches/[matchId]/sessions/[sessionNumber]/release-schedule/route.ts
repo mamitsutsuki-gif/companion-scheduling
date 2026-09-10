@@ -13,6 +13,7 @@ import { upsertSessionAbandonment } from "@/lib/repositories/session-abandonment
 import { reconcilePartnerInvoiceAfterScheduleRelease } from "@/lib/invoice-schedule-release";
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
 import { cancelSessionReminderEmailJobsForNegotiation } from "@/lib/repositories/session-reminder-job-repository";
+import { cancelSessionFeedbackEmailJobsForNegotiation } from "@/lib/repositories/session-feedback-job-repository";
 import { readSession } from "@/lib/session";
 
 const bodySchema = z.object({
@@ -48,6 +49,7 @@ export async function POST(request: Request, context: RouteContext) {
   if (!released.ok) return jsonError(released.error, 409);
 
   await cancelSessionReminderEmailJobsForNegotiation(released.negotiationId).catch(() => null);
+  await cancelSessionFeedbackEmailJobsForNegotiation(released.negotiationId).catch(() => null);
 
   const partnerBillable = parsed.data.partnerBillable === true;
   const excludeFromPartnerInvoice = !partnerBillable;

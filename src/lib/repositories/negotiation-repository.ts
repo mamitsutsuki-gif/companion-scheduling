@@ -250,7 +250,11 @@ export async function markNegotiationSuperseded(negotiationId: string) {
   const { cancelSessionReminderEmailJobsForNegotiation } = await import(
     "@/lib/repositories/session-reminder-job-repository"
   );
+  const { cancelSessionFeedbackEmailJobsForNegotiation } = await import(
+    "@/lib/repositories/session-feedback-job-repository"
+  );
   await cancelSessionReminderEmailJobsForNegotiation(negotiationId).catch(() => null);
+  await cancelSessionFeedbackEmailJobsForNegotiation(negotiationId).catch(() => null);
 }
 
 export async function getNegotiationById(negotiationId: string) {

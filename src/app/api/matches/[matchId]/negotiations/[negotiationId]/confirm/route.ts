@@ -17,6 +17,7 @@ import { clearAdminRescheduleAbandonmentIfPresent } from "@/lib/repositories/ses
 import { enqueueSessionFeedbackEmailJob } from "@/lib/repositories/session-feedback-job-repository";
 import { enqueueSessionReminderEmailJob } from "@/lib/repositories/session-reminder-job-repository";
 import { computeSessionReminderAt } from "@/lib/session-reminder-cron";
+import { computeClientFeedbackFollowupAt } from "@/lib/session-feedback-cron";
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
 import { appendMemberNotification } from "@/lib/repositories/member-notification-repository";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
@@ -181,6 +182,10 @@ export async function POST(request: Request, context: RouteContext) {
     matchId,
     clientId: matchFull.clientId,
     slotEndAt: finalEnd,
+    clientFollowupRemindAts: {
+      day1: computeClientFeedbackFollowupAt(finalEnd, 1, displayTz),
+      day3: computeClientFeedbackFollowupAt(finalEnd, 3, displayTz),
+    },
   });
 
   await enqueueSessionReminderEmailJob({

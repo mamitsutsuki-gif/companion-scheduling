@@ -355,14 +355,21 @@ model Slot {
   isConfirmed   Boolean     @default(false)
 }
 
-/// 1on1終了後にクライアント＆パートナー宛て案内（チャット投稿＋通知メール）を送るジョブ
+/// 1on1終了後の振り返り／レポート案内ジョブ（初回双方＋クライアント追っかけ）
 model SessionFeedbackEmailJob {
   id             String    @id
-  negotiationId String
+  negotiationId  String
   matchId        String
   clientId       String
+  slotId         String?
   slotEndAt      DateTime
+  /// 送信予定時刻（初回は slotEndAt、追っかけは翌日/3日後 08:30）
+  remindAt       DateTime?
+  /// initial | client_followup
+  kind           String    @default("initial")
+  followupIndex  Int?
   sentAt         DateTime?
+  cancelledAt    DateTime?
   createdAt      DateTime  @default(now())
 }
 
