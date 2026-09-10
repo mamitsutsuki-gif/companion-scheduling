@@ -327,10 +327,15 @@ async function processOneFeedbackJob(
   const sessionUrl = buildSessionUrl(job.matchId, sessionNumber);
 
   if (isFollowup) {
+    const clientName = match.client.displayName || "お客さま";
     const clientBody =
-      `第${sessionNumber}回の1on1の振り返りがまだ提出されていないようです。\n` +
-      `お手すきの際に、こちらのフォームからご記入をお願いいたします。\n\n${sessionUrl}`;
-    const subject = `【ご案内】第${sessionNumber}回の振り返り提出のお願い`;
+      `${clientName}さん\n\n` +
+      `先日の第${sessionNumber}回1on1セッションについてご連絡です。\n` +
+      `振り返りのご記入がまだのようですので、お手数ですが下記よりご提出をお願いいたします。\n\n` +
+      `${sessionUrl}\n\n` +
+      `ご不明点がございましたら、お気軽にお問い合わせください。\n\n` +
+      `モチベイジクラウド`;
+    const subject = `第${sessionNumber}回1on1の振り返りご記入のお願い`;
 
     try {
       await createMessage({
