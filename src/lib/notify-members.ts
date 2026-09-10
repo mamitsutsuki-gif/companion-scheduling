@@ -283,3 +283,51 @@ export async function notifyRoleplayPeerSubmitted(input: {
     console.error("[notify] notifyRoleplayPeerSubmitted failed", input.matchId, e);
   }
 }
+
+/**
+ * 通常セッションでクライアントが振り返りを初回提出したとき、パートナーへ通知。
+ * （ロールプレイ評価の相手入力通知とは別。過去分の遡及送信はしない）
+ */
+export async function notifyClientFeedbackSubmitted(input: {
+  matchId: string;
+  sessionNumber: number;
+  appOrigin?: string;
+}) {
+  try {
+    const m = await getMatchById(input.matchId);
+    if (!m?.partner?.id || !m.client?.id) return;
+    const sn = input.sessionNumber;
+    const roomPath = `/match/${encodeURIComponent(input.matchId)}/sessions/${sn}`;
+    const appBase = (process.env.APP_ORIGIN || input.appOrigin || "").replace(/\/$/, "");
+    const absLink = appBase ? `${appBase}${roomPath}` : roomPath;
+    const partnerId = m.partner.id;
+    const clientName = m.client.displayName || "クライアント";
+    const partnerName = m.partner.displayName || "パートナー";
+
+    const summary = `${clientName}さんが第 ${sn} 回の振り返り（フィードバック）を提出しました。`;
+    const emailSubject = `クライアント振り返りが届きました（第 ${sn} 回）`;
+    const emailBody =
+      `${clientName}さんが第 ${sn} 回の1on1振り返りを提出しました。\n` +
+      `内容はセッション詳細からご確認ください。\n\n${absLink}`;
+
+    await appendMemberNotification({
+      recipientUserId: partnerId,
+      type: "CLIENT_FEEDBACK_SUBMITTED",
+      matchId: input.matchId,
+      sessionNumber: sn,
+      summary,
+      link: roomPath,
+    });
+
+    const email = await resolveUserEmailForNotifications(partnerId);
+    if (email?.trim()) {
+      await sendMail({
+        to: email.trim(),
+        subject: emailSubject,
+        text: `${partnerName}さん\n\n${emailBody}`,
+      });
+    }
+  } catch (e) {
+    console.error("[notify] notifyClientFeedbackSubmitted failed", input.matchId, e);
+  }
+}

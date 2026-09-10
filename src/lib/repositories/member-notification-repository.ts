@@ -16,6 +16,7 @@ export type MemberNotificationType =
   | "MATCH_ASSIGNED"
   | "ROLEPLAY_REVEALED"
   | "ROLEPLAY_PEER_SUBMITTED"
+  | "CLIENT_FEEDBACK_SUBMITTED"
   | "INQUIRY_REPLIED";
 
 export type MemberNotificationRow = {
@@ -44,6 +45,7 @@ function isType(value: unknown): value is MemberNotificationType {
     value === "MATCH_ASSIGNED" ||
     value === "ROLEPLAY_REVEALED" ||
     value === "ROLEPLAY_PEER_SUBMITTED" ||
+    value === "CLIENT_FEEDBACK_SUBMITTED" ||
     value === "INQUIRY_REPLIED"
   );
 }

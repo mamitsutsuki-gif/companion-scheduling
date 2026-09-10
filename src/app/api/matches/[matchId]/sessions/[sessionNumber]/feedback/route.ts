@@ -6,9 +6,10 @@ import {
   isSessionEnded,
   listSessionPlanForMatch,
 } from "@/lib/repositories/match-sessions-repository";
-import { upsertSessionFeedback } from "@/lib/repositories/session-feedback-repository";
+import { upsertSessionFeedback, getSessionFeedback } from "@/lib/repositories/session-feedback-repository";
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
+import { notifyClientFeedbackSubmitted } from "@/lib/notify-members";
 
 const requiredAnswer = z.string().trim().min(1, "必須項目です。").max(4000);
 
@@ -66,6 +67,9 @@ export async function PUT(request: Request, context: RouteContext) {
     return jsonError(first ?? "入力内容が不正です。必須項目をご記入ください。");
   }
 
+  const existing = await getSessionFeedback(matchId, n);
+  const isFirstSubmit = existing == null;
+
   const saved = await upsertSessionFeedback({
     matchId,
     sessionNumber: n,
@@ -87,6 +91,15 @@ export async function PUT(request: Request, context: RouteContext) {
     summary: `${sender?.displayName ?? "クライアント"}さんが ${n} 回目のフィードバックを提出しました。`,
     link: `/match/${matchId}/sessions/${n}`,
   });
+
+  if (isFirstSubmit) {
+    const origin = new URL(request.url).origin;
+    await notifyClientFeedbackSubmitted({
+      matchId,
+      sessionNumber: n,
+      appOrigin: origin,
+    }).catch(() => null);
+  }
 
   return jsonOk({ ok: true, feedback: saved });
 }
