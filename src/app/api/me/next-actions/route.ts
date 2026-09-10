@@ -172,6 +172,16 @@ export async function GET() {
     myInvoice = { status: inv ? inv.status : "MISSING" };
   }
 
+  const coachingMetaByMatch: ComputeInput["coachingMetaByMatch"] = {};
+  for (const row of perMatch) {
+    if (row.effective.companyPlan !== "coaching_management_training") continue;
+    coachingMetaByMatch[row.m.matchId] = {
+      companyPlan: row.effective.companyPlan,
+      totalSessions: row.effective.totalSessions,
+      coachingSessionModesByRound: row.effective.coachingSessionModesByRound,
+    };
+  }
+
   const computeInput: ComputeInput = {
     me: { id: me.id, role: me.role },
     matches,
@@ -182,6 +192,7 @@ export async function GET() {
     abandonmentsByMatch,
     unreadByMatch,
     messageCountByMatch,
+    coachingMetaByMatch,
     myFta,
     ftaPromptMatchId,
     myInvoice,

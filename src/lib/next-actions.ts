@@ -9,6 +9,12 @@
  * - 1 つのマッチに対して複数のアクションが同時に成り立つ場合があるので
  *   配列で返す（例: 「未読チャット 3 件」と「振り返り未提出」の同時発生）。
  */
+import {
+  coachingSessionModeContextFromEffective,
+  isCoachingRoleplaySession,
+  type CoachingSessionModesByRound,
+} from "@/lib/coaching-session-mode";
+
 export type ActionSeverity = "info" | "todo" | "warn" | "critical";
 
 export type ActionKind =
@@ -99,6 +105,13 @@ export type InvoiceSnapshot = {
   status: "DRAFT" | "SUBMITTED" | "RETURNED" | "CONFIRMED" | "MISSING";
 };
 
+/** コーチング研修のロールプレイ回判定用（通常レポート／振り返りと混同しないため） */
+export type CoachingMetaSnapshot = {
+  companyPlan: string;
+  totalSessions: number;
+  coachingSessionModesByRound: CoachingSessionModesByRound | null;
+};
+
 export type ComputeInput = {
   me: { id: string; role: "ADMIN" | "ADMIN_ASSISTANT" | "PARTNER" | "CLIENT" | "CLIENT_ADMIN" | "CLIENT_HR" };
   /** 自分が当事者であるマッチ一覧 */
@@ -117,6 +130,8 @@ export type ComputeInput = {
   unreadByMatch: Record<string, UnreadChatSnapshot>;
   /** 「初挨拶しているか」のためにメッセージ件数を見たい場合（>0 なら挨拶済みとみなす） */
   messageCountByMatch: Record<string, number>;
+  /** コーチング研修マッチのロールプレイ設定（無い／非コーチングは省略可） */
+  coachingMetaByMatch?: Record<string, CoachingMetaSnapshot>;
   /** 自分の FTA（CLIENT 系のときだけ意味がある） */
   myFta?: FtaSnapshot;
   /** FTA 入力促しを出す先のマッチ（プランで FTA が有効なペア） */
@@ -271,6 +286,17 @@ export function computeMatchActions(
   }
 
   // ----- 4. 実施済みセッションの振り返り／レポート未提出 -----
+  // ロールプレイ回は通常の SessionFeedback / SessionReport を使わない。
+  // 未入力は today-focus の「未入力のロールプレイ」で案内する。
+  const coachingMeta = input.coachingMetaByMatch?.[match.matchId];
+  const roleplayModeCtx =
+    coachingMeta?.companyPlan === "coaching_management_training"
+      ? coachingSessionModeContextFromEffective({
+          companyPlan: "coaching_management_training",
+          totalSessions: coachingMeta.totalSessions,
+          coachingSessionModesByRound: coachingMeta.coachingSessionModesByRound,
+        })
+      : null;
   const submittedFeedbackSet = new Set(feedbacks.map((f) => f.sessionNumber));
   const submittedReportSet = new Set(reports.map((r) => r.sessionNumber));
   const abandonedSet = new Set(abandonments.map((a) => a.sessionNumber));
@@ -278,6 +304,9 @@ export function computeMatchActions(
     .filter((s) => s.confirmed && s.endAt && new Date(s.endAt) <= now && !abandonedSet.has(s.sessionNumber))
     .sort((a, b) => a.sessionNumber - b.sessionNumber);
   for (const s of doneSessions) {
+    if (roleplayModeCtx && isCoachingRoleplaySession(roleplayModeCtx, s.sessionNumber)) {
+      continue;
+    }
     if (isClientSide && !submittedFeedbackSet.has(s.sessionNumber)) {
       items.push({
         kind: "WRITE_CLIENT_FEEDBACK",
