@@ -181,8 +181,9 @@ export async function POST(request: Request, context: RouteContext) {
     slotId: chosen.id,
     matchId,
     clientId: matchFull.clientId,
+    partnerId: matchFull.partnerId,
     slotEndAt: finalEnd,
-    clientFollowupRemindAts: {
+    followupRemindAts: {
       day1: computeClientFeedbackFollowupAt(finalEnd, 1, displayTz),
       day3: computeClientFeedbackFollowupAt(finalEnd, 3, displayTz),
     },

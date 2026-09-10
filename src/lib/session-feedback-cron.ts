@@ -6,6 +6,7 @@ import { getMatchById } from "@/lib/repositories/match-repository";
 import { getNegotiationById } from "@/lib/repositories/negotiation-repository";
 import { createMessage } from "@/lib/repositories/message-repository";
 import { getSessionFeedback } from "@/lib/repositories/session-feedback-repository";
+import { getSessionReport } from "@/lib/repositories/session-report-repository";
 import { getSessionAbandonment } from "@/lib/repositories/session-abandonment-repository";
 import { getRoleplayStore } from "@/lib/repositories/coaching-repository";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
@@ -13,7 +14,10 @@ import {
   coachingSessionModeContextFromEffective,
   isCoachingRoleplaySession,
 } from "@/lib/coaching-session-mode";
-import { roleplayClientSubmissionComplete } from "@/lib/coaching-roleplay";
+import {
+  roleplayClientSubmissionComplete,
+  roleplayPartnerSubmissionComplete,
+} from "@/lib/coaching-roleplay";
 import {
   enqueueSessionFeedbackEmailJob,
   isInitialFeedbackJobSettled,
@@ -129,6 +133,40 @@ export async function isClientSessionFeedbackSubmitted(
   return fb != null;
 }
 
+/**
+ * パートナー側の提出済みか。
+ * ロールプレイ回は roleplay のパートナー提出、それ以外は SessionReport。
+ */
+export async function isPartnerSessionReportSubmitted(
+  matchId: string,
+  sessionNumber: number,
+): Promise<boolean> {
+  const settings = await getEffectiveAppSettingsForMatch(matchId);
+  const modeCtx = coachingSessionModeContextFromEffective({
+    companyPlan: settings.companyPlan,
+    totalSessions: settings.totalSessions,
+    coachingSessionModesByRound: settings.coachingSessionModesByRound,
+  });
+  if (isCoachingRoleplaySession(modeCtx, sessionNumber)) {
+    const store = await getRoleplayStore(matchId);
+    const session = store?.sessions[sessionNumber - 1];
+    if (!session) return false;
+    return roleplayPartnerSubmissionComplete(session);
+  }
+  const report = await getSessionReport(matchId, sessionNumber);
+  return report != null;
+}
+
+async function isRoleplaySessionRound(matchId: string, sessionNumber: number): Promise<boolean> {
+  const settings = await getEffectiveAppSettingsForMatch(matchId);
+  const modeCtx = coachingSessionModeContextFromEffective({
+    companyPlan: settings.companyPlan,
+    totalSessions: settings.totalSessions,
+    coachingSessionModesByRound: settings.coachingSessionModesByRound,
+  });
+  return isCoachingRoleplaySession(modeCtx, sessionNumber);
+}
+
 export async function runSessionFeedbackEmailCron(now = new Date()) {
   const secretOk = Boolean(process.env.CRON_SECRET?.trim());
   const ensured = await ensureFeedbackJobsForConfirmedSessions(now);
@@ -218,8 +256,9 @@ async function ensureFeedbackJobsForConfirmedSessions(now: Date): Promise<number
       slotId: row.slotId,
       matchId: row.matchId,
       clientId: match.clientId,
+      partnerId: match.partnerId,
       slotEndAt: row.endAt,
-      clientFollowupRemindAts: {
+      followupRemindAts: {
         day1: computeClientFeedbackFollowupAt(row.endAt, 1, tz),
         day3: computeClientFeedbackFollowupAt(row.endAt, 3, tz),
       },
@@ -250,8 +289,13 @@ async function processOneFeedbackJob(
     return { sent: 0, posted: 0, skipped: 1, failed: 0 };
   }
 
-  // 宛先はマッチの現在の clientId を正とする（ジョブ上の ID と不一致なら送らない）
-  if (match.clientId !== job.clientId) {
+  // 宛先はマッチの現在の当事者 ID を正とする
+  if (job.kind === "partner_followup") {
+    if (job.partnerId && match.partnerId !== job.partnerId) {
+      await markSessionFeedbackJobCancelled(job.id);
+      return { sent: 0, posted: 0, skipped: 1, failed: 0 };
+    }
+  } else if (match.clientId !== job.clientId) {
     await markSessionFeedbackJobCancelled(job.id);
     return { sent: 0, posted: 0, skipped: 1, failed: 0 };
   }
@@ -283,28 +327,29 @@ async function processOneFeedbackJob(
     return { sent: 0, posted: 0, skipped: 1, failed: 0 };
   }
 
-  const isFollowup = job.kind === "client_followup";
+  const isClientFollowup = job.kind === "client_followup";
+  const isPartnerFollowup = job.kind === "partner_followup";
+  const isFollowup = isClientFollowup || isPartnerFollowup;
+
   if (isFollowup) {
-    // 初回が未処理のまま追っかけだけ飛ぶのを防ぐ（ensure 直後の同一 cron など）
     const initialSettled = await isInitialFeedbackJobSettled(job.negotiationId, job.slotId);
     if (!initialSettled) {
-      // キャンセルせず次回へ回す
       return { sent: 0, posted: 0, skipped: 1, failed: 0 };
     }
-    const already = await isClientSessionFeedbackSubmitted(job.matchId, sessionNumber);
+    const already = isPartnerFollowup
+      ? await isPartnerSessionReportSubmitted(job.matchId, sessionNumber)
+      : await isClientSessionFeedbackSubmitted(job.matchId, sessionNumber);
     if (already) {
       await markSessionFeedbackJobCancelled(job.id);
       return { sent: 0, posted: 0, skipped: 1, failed: 0 };
     }
   }
 
-  // 二重送信防止: 送信直前に claim
   const claimed = await tryClaimSessionFeedbackJob(job.id);
   if (!claimed) {
     return { sent: 0, posted: 0, skipped: 1, failed: 0 };
   }
 
-  // claim 後に再検証（記入・消化・確定解除との競合）
   const abandonmentAfter = await getSessionAbandonment(job.matchId, sessionNumber);
   if (abandonmentAfter) {
     return { sent: 0, posted: 0, skipped: 1, failed: 0 };
@@ -318,7 +363,9 @@ async function processOneFeedbackJob(
     return { sent: 0, posted: 0, skipped: 1, failed: 0 };
   }
   if (isFollowup) {
-    const already = await isClientSessionFeedbackSubmitted(job.matchId, sessionNumber);
+    const already = isPartnerFollowup
+      ? await isPartnerSessionReportSubmitted(job.matchId, sessionNumber)
+      : await isClientSessionFeedbackSubmitted(job.matchId, sessionNumber);
     if (already) {
       return { sent: 0, posted: 0, skipped: 1, failed: 0 };
     }
@@ -326,7 +373,7 @@ async function processOneFeedbackJob(
 
   const sessionUrl = buildSessionUrl(job.matchId, sessionNumber);
 
-  if (isFollowup) {
+  if (isClientFollowup) {
     const clientName = match.client.displayName || "お客さま";
     const clientBody =
       `${clientName}さん\n\n` +
@@ -353,6 +400,46 @@ async function processOneFeedbackJob(
     const clientEmail = await resolveUserEmailForNotifications(match.clientId);
     if (clientEmail) {
       const ok = await sendMail({ to: clientEmail, subject, text: clientBody });
+      if (ok) sent += 1;
+      else failed += 1;
+    } else {
+      skipped += 1;
+    }
+    return { sent, posted, skipped, failed };
+  }
+
+  if (isPartnerFollowup) {
+    const partnerName = match.partner.displayName || "パートナー";
+    const clientName = match.client.displayName || "クライアント";
+    const roleplay = await isRoleplaySessionRound(job.matchId, sessionNumber);
+    const formLabel = roleplay ? "ロールプレイ評価" : "セッションレポート";
+    const partnerBody =
+      `${partnerName}さん\n\n` +
+      `先日の第${sessionNumber}回1on1セッション（${clientName}さん）についてご連絡です。\n` +
+      `${formLabel}のご記入がまだのようですので、お手数ですが下記よりご提出をお願いいたします。\n\n` +
+      `${sessionUrl}\n\n` +
+      `ご不明点がございましたら、お気軽にお問い合わせください。\n\n` +
+      `モチベイジクラウド`;
+    const subject = roleplay
+      ? `第${sessionNumber}回1on1のロールプレイ評価ご記入のお願い`
+      : `第${sessionNumber}回1on1のセッションレポートご記入のお願い`;
+
+    try {
+      await createMessage({
+        matchId: job.matchId,
+        senderId: match.clientId,
+        body: partnerBody,
+        kind: "STANDARD",
+        audience: "PARTNER",
+      });
+      posted += 1;
+    } catch {
+      /* email へ */
+    }
+
+    const partnerEmail = await resolveUserEmailForNotifications(match.partnerId);
+    if (partnerEmail) {
+      const ok = await sendMail({ to: partnerEmail, subject, text: partnerBody });
       if (ok) sent += 1;
       else failed += 1;
     } else {

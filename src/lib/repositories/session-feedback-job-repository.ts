@@ -3,7 +3,7 @@ import { getFirebaseFirestoreClient, isFirebaseDataBackend } from "@/lib/firebas
 
 const COL = "sessionFeedbackEmailJobs";
 
-export type SessionFeedbackEmailJobKind = "initial" | "client_followup";
+export type SessionFeedbackEmailJobKind = "initial" | "client_followup" | "partner_followup";
 
 function baseJobDocId(negotiationId: string, slotId: string) {
   return `${negotiationId}_${slotId}`.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 360);
@@ -18,6 +18,7 @@ function jobDocId(
   const base = baseJobDocId(negotiationId, slotId);
   if (kind === "initial") return base;
   const n = followupIndex === 2 ? 2 : 1;
+  if (kind === "partner_followup") return `${base}_pfu${n}`.slice(0, 400);
   return `${base}_cfu${n}`.slice(0, 400);
 }
 
@@ -46,7 +47,9 @@ export async function isInitialFeedbackJobSettled(
 }
 
 function parseKind(raw: unknown): SessionFeedbackEmailJobKind {
-  return raw === "client_followup" ? "client_followup" : "initial";
+  if (raw === "client_followup") return "client_followup";
+  if (raw === "partner_followup") return "partner_followup";
+  return "initial";
 }
 
 function parseFollowupIndex(raw: unknown): 1 | 2 | null {
@@ -60,11 +63,12 @@ export async function enqueueSessionFeedbackEmailJob(input: {
   slotId: string;
   matchId: string;
   clientId: string;
+  partnerId: string;
   slotEndAt: Date;
   /** initial 用。省略時は slotEndAt */
   initialRemindAt?: Date;
-  /** クライアント追加リマインド（翌日・3日後） */
-  clientFollowupRemindAts: { day1: Date; day3: Date };
+  /** クライアント／パートナー追加リマインド（翌日・3日後） */
+  followupRemindAts: { day1: Date; day3: Date };
 }) {
   const specs: Array<{
     kind: SessionFeedbackEmailJobKind;
@@ -72,8 +76,10 @@ export async function enqueueSessionFeedbackEmailJob(input: {
     remindAt: Date;
   }> = [
     { kind: "initial", remindAt: input.initialRemindAt ?? input.slotEndAt },
-    { kind: "client_followup", followupIndex: 1, remindAt: input.clientFollowupRemindAts.day1 },
-    { kind: "client_followup", followupIndex: 2, remindAt: input.clientFollowupRemindAts.day3 },
+    { kind: "client_followup", followupIndex: 1, remindAt: input.followupRemindAts.day1 },
+    { kind: "client_followup", followupIndex: 2, remindAt: input.followupRemindAts.day3 },
+    { kind: "partner_followup", followupIndex: 1, remindAt: input.followupRemindAts.day1 },
+    { kind: "partner_followup", followupIndex: 2, remindAt: input.followupRemindAts.day3 },
   ];
 
   for (const spec of specs) {
@@ -83,6 +89,7 @@ export async function enqueueSessionFeedbackEmailJob(input: {
       slotId: input.slotId,
       matchId: input.matchId,
       clientId: input.clientId,
+      partnerId: input.partnerId,
       slotEndAt: input.slotEndAt,
       remindAt: spec.remindAt,
       kind: spec.kind,
@@ -97,6 +104,7 @@ async function upsertOneFeedbackEmailJob(input: {
   slotId: string;
   matchId: string;
   clientId: string;
+  partnerId: string;
   slotEndAt: Date;
   remindAt: Date;
   kind: SessionFeedbackEmailJobKind;
@@ -121,6 +129,7 @@ async function upsertOneFeedbackEmailJob(input: {
         slotId: input.slotId,
         matchId: input.matchId,
         clientId: input.clientId,
+        partnerId: input.partnerId,
         slotEndAt: endIso,
         remindAt: remindIso,
         kind: input.kind,
@@ -155,6 +164,7 @@ async function upsertOneFeedbackEmailJob(input: {
         negotiationId: input.negotiationId,
         matchId: input.matchId,
         clientId: input.clientId,
+        partnerId: input.partnerId,
         slotId: input.slotId,
         slotEndAt: input.slotEndAt,
         remindAt: input.remindAt,
@@ -165,11 +175,11 @@ async function upsertOneFeedbackEmailJob(input: {
         slotEndAt: input.slotEndAt,
         remindAt: input.remindAt,
         clientId: input.clientId,
+        partnerId: input.partnerId,
         matchId: input.matchId,
         slotId: input.slotId,
         kind: input.kind,
         followupIndex: input.followupIndex,
-        // sentAt / cancelledAt は触らない（二重送信・キャンセル復活を防ぐ）
       },
     });
   } catch {
@@ -202,6 +212,7 @@ export type PendingFeedbackJob = {
   slotId: string;
   matchId: string;
   clientId: string;
+  partnerId: string;
   slotEndAt: Date;
   remindAt: Date;
   kind: SessionFeedbackEmailJobKind;
@@ -230,6 +241,7 @@ export async function listPendingSessionFeedbackJobs(now: Date): Promise<Pending
         slotId: String(raw.slotId ?? ""),
         matchId: String(raw.matchId ?? ""),
         clientId: String(raw.clientId ?? ""),
+        partnerId: String(raw.partnerId ?? ""),
         slotEndAt: end,
         remindAt: remind,
         kind: parseKind(raw.kind),
@@ -270,6 +282,7 @@ export async function listPendingSessionFeedbackJobs(now: Date): Promise<Pending
         slotId: String(r.slotId ?? ""),
         matchId: String(r.matchId ?? ""),
         clientId: String(r.clientId ?? ""),
+        partnerId: String(r.partnerId ?? ""),
         slotEndAt: end,
         remindAt: remind,
         kind: parseKind(r.kind),
@@ -290,6 +303,7 @@ export async function listPendingSessionFeedbackJobs(now: Date): Promise<Pending
           slotId: "",
           matchId: r.matchId,
           clientId: r.clientId,
+          partnerId: "",
           slotEndAt: r.slotEndAt,
           remindAt: r.slotEndAt,
           kind: "initial",
