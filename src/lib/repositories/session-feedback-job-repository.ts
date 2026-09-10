@@ -21,6 +21,30 @@ function jobDocId(
   return `${base}_cfu${n}`.slice(0, 400);
 }
 
+/** 追っかけ送信前に、初回ジョブが処理済みか確認する（同一 cron での同時送付を防ぐ） */
+export async function isInitialFeedbackJobSettled(
+  negotiationId: string,
+  slotId: string,
+): Promise<boolean> {
+  if (!slotId) return true;
+  const id = jobDocId(negotiationId, slotId, "initial");
+  if (isFirebaseDataBackend()) {
+    const db = getFirebaseFirestoreClient();
+    if (!db) return true;
+    const snap = await db.collection(COL).doc(id).get();
+    if (!snap.exists) return true; // 旧データのみ追っかけ、など
+    const raw = (snap.data() ?? {}) as Record<string, unknown>;
+    return raw.sent === true || raw.cancelled === true;
+  }
+  try {
+    const row = await prisma.sessionFeedbackEmailJob.findUnique({ where: { id } });
+    if (!row) return true;
+    return Boolean(row.sentAt);
+  } catch {
+    return true;
+  }
+}
+
 function parseKind(raw: unknown): SessionFeedbackEmailJobKind {
   return raw === "client_followup" ? "client_followup" : "initial";
 }
@@ -88,8 +112,8 @@ async function upsertOneFeedbackEmailJob(input: {
     const existing = await ref.get();
     if (existing.exists) {
       const raw = (existing.data() ?? {}) as Record<string, unknown>;
-      // 送信済みは再スケジュールしない（二重送信防止）
-      if (raw.sent === true) return;
+      // 送信済み・キャンセル済みは再スケジュール／復活させない
+      if (raw.sent === true || raw.cancelled === true) return;
     }
     await ref.set(
       {
@@ -113,11 +137,17 @@ async function upsertOneFeedbackEmailJob(input: {
 
   const delegate = (
     prisma as unknown as {
-      sessionFeedbackEmailJob?: { upsert?: Function };
+      sessionFeedbackEmailJob?: { findUnique?: Function; upsert?: Function; update?: Function };
     }
   ).sessionFeedbackEmailJob;
   if (!delegate?.upsert) return;
   try {
+    if (delegate.findUnique) {
+      const existing = (await delegate.findUnique({ where: { id: input.id } })) as
+        | { sentAt?: Date | null; cancelledAt?: Date | null }
+        | null;
+      if (existing?.sentAt || existing?.cancelledAt) return;
+    }
     await delegate.upsert({
       where: { id: input.id },
       create: {
@@ -139,13 +169,14 @@ async function upsertOneFeedbackEmailJob(input: {
         slotId: input.slotId,
         kind: input.kind,
         followupIndex: input.followupIndex,
-        sentAt: null,
-        cancelledAt: null,
+        // sentAt / cancelledAt は触らない（二重送信・キャンセル復活を防ぐ）
       },
     });
   } catch {
     // 旧スキーマ向けフォールバック（kind 等カラム無し）
     try {
+      const existing = await prisma.sessionFeedbackEmailJob.findUnique({ where: { id: input.id } });
+      if (existing?.sentAt) return;
       await prisma.sessionFeedbackEmailJob.upsert({
         where: { id: input.id },
         create: {
@@ -157,7 +188,6 @@ async function upsertOneFeedbackEmailJob(input: {
         },
         update: {
           slotEndAt: input.slotEndAt,
-          sentAt: null,
         },
       });
     } catch {

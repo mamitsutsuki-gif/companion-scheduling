@@ -16,6 +16,7 @@ import {
 import { roleplayClientSubmissionComplete } from "@/lib/coaching-roleplay";
 import {
   enqueueSessionFeedbackEmailJob,
+  isInitialFeedbackJobSettled,
   listPendingSessionFeedbackJobs,
   markSessionFeedbackJobCancelled,
   tryClaimSessionFeedbackJob,
@@ -284,6 +285,12 @@ async function processOneFeedbackJob(
 
   const isFollowup = job.kind === "client_followup";
   if (isFollowup) {
+    // 初回が未処理のまま追っかけだけ飛ぶのを防ぐ（ensure 直後の同一 cron など）
+    const initialSettled = await isInitialFeedbackJobSettled(job.negotiationId, job.slotId);
+    if (!initialSettled) {
+      // キャンセルせず次回へ回す
+      return { sent: 0, posted: 0, skipped: 1, failed: 0 };
+    }
     const already = await isClientSessionFeedbackSubmitted(job.matchId, sessionNumber);
     if (already) {
       await markSessionFeedbackJobCancelled(job.id);
@@ -297,7 +304,19 @@ async function processOneFeedbackJob(
     return { sent: 0, posted: 0, skipped: 1, failed: 0 };
   }
 
-  // claim 後にもう一度未記入を確認（race: 記入と cron の競合）
+  // claim 後に再検証（記入・消化・確定解除との競合）
+  const abandonmentAfter = await getSessionAbandonment(job.matchId, sessionNumber);
+  if (abandonmentAfter) {
+    return { sent: 0, posted: 0, skipped: 1, failed: 0 };
+  }
+  const negotiationAfter = await getNegotiationById(job.negotiationId);
+  if (
+    !negotiationAfter ||
+    negotiationAfter.matchId !== job.matchId ||
+    negotiationAfter.status !== "CONFIRMED"
+  ) {
+    return { sent: 0, posted: 0, skipped: 1, failed: 0 };
+  }
   if (isFollowup) {
     const already = await isClientSessionFeedbackSubmitted(job.matchId, sessionNumber);
     if (already) {

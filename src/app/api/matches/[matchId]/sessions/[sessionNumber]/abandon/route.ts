@@ -8,6 +8,8 @@ import {
 } from "@/lib/repositories/session-abandonment-repository";
 import { appendAdminNotification } from "@/lib/repositories/admin-notification-repository";
 import { getUserMapByIds } from "@/lib/repositories/user-repository";
+import { listNegotiationsForMatch } from "@/lib/repositories/negotiation-repository";
+import { cancelSessionFeedbackEmailJobsForNegotiation } from "@/lib/repositories/session-feedback-job-repository";
 
 const bodySchema = z.object({
   reason: z.union([z.literal("no_show"), z.literal("late_cancel")]),
@@ -41,6 +43,14 @@ export async function POST(request: Request, context: RouteContext) {
     reason: parsed.data.reason,
     markedBy: session.sub,
   });
+
+  // 未実施マーク後は振り返りリマインドを止める
+  const negs = await listNegotiationsForMatch(matchId).catch(() => []);
+  for (const neg of negs) {
+    if (neg.sessionNumber === n && neg.status === "CONFIRMED") {
+      await cancelSessionFeedbackEmailJobsForNegotiation(neg.id).catch(() => null);
+    }
+  }
 
   const usersMap = await getUserMapByIds([session.sub]);
   const sender = usersMap.get(session.sub);
