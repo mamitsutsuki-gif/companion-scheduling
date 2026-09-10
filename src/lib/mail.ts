@@ -16,6 +16,32 @@ export type MailInput = {
 
 const DEFAULT_MAIL_FROM = "モチベイジクラウド <customer@motive-iji.com>";
 
+/** 全送信メール末尾に付ける自動送信の注記 */
+export const AUTO_SEND_MAIL_NOTICE = "※このメールはモチベイジクラウドからの自動送信です。";
+
+/**
+ * 本文末尾に自動送信注記を付ける（既にあれば二重に付けない）。
+ * sendMail 経由の送信はすべてこの処理を通る。
+ */
+export function withAutoSendMailNotice(input: {
+  text: string;
+  html?: string;
+}): { text: string; html?: string } {
+  const text = input.text.trimEnd();
+  const nextText = text.includes(AUTO_SEND_MAIL_NOTICE)
+    ? text
+    : `${text}\n\n${AUTO_SEND_MAIL_NOTICE}`;
+  if (!input.html) return { text: nextText };
+
+  const html = input.html.trimEnd();
+  if (html.includes(AUTO_SEND_MAIL_NOTICE)) return { text: nextText, html };
+  const escaped = AUTO_SEND_MAIL_NOTICE.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return {
+    text: nextText,
+    html: `${html}<p style="margin-top:1.25em;color:#64748b;font-size:12px;">${escaped}</p>`,
+  };
+}
+
 /**
  * メール差出人を解決する。優先順位: SMTP_FROM > MAIL_FROM > 既定値。
  * staging / Firebase App Hosting で SMTP_FROM 未設定でも、必ず
@@ -90,7 +116,10 @@ async function sendViaResend(input: MailInput): Promise<boolean> {
 
 /** 開発時や SMTP 未設定時はコンソールに出す */
 export async function sendMail(input: MailInput): Promise<boolean> {
-  const resendOk = await sendViaResend(input);
+  const noticed = withAutoSendMailNotice({ text: input.text, html: input.html });
+  const payload: MailInput = { ...input, text: noticed.text, html: noticed.html };
+
+  const resendOk = await sendViaResend(payload);
   if (resendOk) return true;
 
   const transport = await getSmtpTransport();
@@ -100,11 +129,11 @@ export async function sendMail(input: MailInput): Promise<boolean> {
     try {
       await transport.sendMail({
         from,
-        to: input.to,
-        subject: input.subject,
-        text: input.text,
-        html: input.html,
-        attachments: input.attachments?.map((a) => ({
+        to: payload.to,
+        subject: payload.subject,
+        text: payload.text,
+        html: payload.html,
+        attachments: payload.attachments?.map((a) => ({
           filename: a.filename,
           content: a.content,
           contentType: a.contentType,
@@ -119,9 +148,9 @@ export async function sendMail(input: MailInput): Promise<boolean> {
 
   const origin = process.env.APP_ORIGIN ?? "http://localhost:3000";
   // eslint-disable-next-line no-console
-  console.log(`[mail] (SMTP未設定・コンソールのみ) → ${input.to} | ${input.subject}\n${input.text}`, {
+  console.log(`[mail] (SMTP未設定・コンソールのみ) → ${payload.to} | ${payload.subject}\n${payload.text}`, {
     origin,
-    attachments: input.attachments?.map((a) => a.filename),
+    attachments: payload.attachments?.map((a) => a.filename),
   });
   return false;
 }
