@@ -228,20 +228,7 @@ export async function resolveCoachingMatchParticipantAccess(
       canEditPartner: false,
     };
   }
-  if (isClientAdminLike(actor.role)) {
-    const actorUser = await getUserById(actor.id);
-    const actorCompanyId = ((actorUser as { companyId?: string | null } | null)?.companyId ?? "").trim();
-    if (actorCompanyId && actorCompanyId === companyId) {
-      return {
-        targetUserId: match.clientId,
-        companyId,
-        matchId,
-        canView: true,
-        canEditClient: false,
-        canEditPartner: false,
-      };
-    }
-  }
-
+  // 同社 CLIENT_HR / CLIENT_ADMIN はロールプレイ本体 API を直接読めない。
+  // 人事向けは公開ゲート付き hr-reflection のみ（スコア・パートナー評価を漏らさない）。
   return { error: "forbidden" };
 }

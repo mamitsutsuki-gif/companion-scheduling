@@ -72,7 +72,7 @@ export async function GET(_request: Request, context: RouteContext) {
   // - CLIENT: own feedback only (cannot read partner report)
   // - PARTNER / 上司マッチ（partnerId）: client feedback + own report
   // - ADMIN / ADMIN_ASSISTANT: both
-  // - sheets-only（人事・紐づけ上司）: 振り返り・ガイドライン・追加質問は返さない（公開ゲート経由のみ）
+  // - sheets-only（人事・紐づけ上司）: 振り返り・ガイドライン・追加質問・会議URLは返さない（公開ゲート経由のみ）
   const includeFeedback =
     !sheetsOnly &&
     (session.role === "ADMIN" ||
@@ -88,12 +88,22 @@ export async function GET(_request: Request, context: RouteContext) {
       session.role === "PARTNER" ||
       (session.role === "CLIENT_ADMIN" && gate.match.partnerId === session.sub));
 
+  const planForViewer = sheetsOnly
+    ? {
+        ...target,
+        zoomUrl: null,
+        zoomMeetingId: null,
+        zoomPass: null,
+        meetingProvider: null,
+      }
+    : target;
+
   return jsonOk({
     matchId,
     sessionNumber: n,
     companyPlan: settings.companyPlan,
     isCoachingRoleplaySession: isCoachingRoleplaySession(modeCtx, n),
-    plan: target,
+    plan: planForViewer,
     openable: true,
     postSessionOpenable,
     viewerRole: session.role,
@@ -104,18 +114,25 @@ export async function GET(_request: Request, context: RouteContext) {
     partnerExtraQuestions: sheetsOnly ? [] : partnerExtraQuestions,
     clientExtraQuestions: sheetsOnly ? [] : clientExtraQuestions,
     guideline: sheetsOnly ? null : guideline,
-    abandonment: abandonmentRow
-      ? {
-          reason: abandonmentRow.reason,
-          markedAt: abandonmentRow.markedAt,
-          markedBy: abandonmentRow.markedBy,
-          excludeFromPartnerInvoice: abandonmentRow.excludeFromPartnerInvoice,
-        }
-      : null,
+    abandonment:
+      abandonmentRow && !sheetsOnly
+        ? {
+            reason: abandonmentRow.reason,
+            markedAt: abandonmentRow.markedAt,
+            markedBy: abandonmentRow.markedBy,
+            excludeFromPartnerInvoice: abandonmentRow.excludeFromPartnerInvoice,
+          }
+        : abandonmentRow && sheetsOnly
+          ? {
+              reason: abandonmentRow.reason,
+              markedAt: abandonmentRow.markedAt,
+              markedBy: abandonmentRow.markedBy,
+            }
+          : null,
     feedback: includeFeedback ? feedbackRow : null,
     report: includeReport ? reportRow : null,
     match: {
-      partnerId: gate.match.partnerId,
+      partnerId: sheetsOnly ? "" : gate.match.partnerId,
       clientId: gate.match.clientId,
     },
   });
