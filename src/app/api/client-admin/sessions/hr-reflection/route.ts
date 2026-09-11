@@ -2,11 +2,21 @@ import {
   getRoleplaySessionForNumber,
   validateRoleplayClientSaveFields,
 } from "@/lib/coaching-roleplay";
+import {
+  coachingSessionModeContextFromEffective,
+  isCoachingRoleplaySession,
+} from "@/lib/coaching-session-mode";
+import { isIndividualCompanionPlan } from "@/lib/company-plan";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { jsonError, jsonOk } from "@/lib/json";
 import { getRoleplayStore } from "@/lib/repositories/coaching-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
+import { getSessionFeedback } from "@/lib/repositories/session-feedback-repository";
 import { getSessionHrPublish } from "@/lib/repositories/session-hr-publish-repository";
+import {
+  isStandardFeedbackReadyForHrPublish,
+  standardFeedbackHrReflectionPayload,
+} from "@/lib/session-hr-reflection";
 import { getUserById, isDeletedUser } from "@/lib/repositories/user-repository";
 import { readSession } from "@/lib/session";
 
@@ -14,13 +24,9 @@ export const dynamic = "force-dynamic";
 
 /**
  * 企業人事向け：公開済みクライアント振り返りのホワイトリスト読取専用 API。
- * 既存の roleplay GET/PUT は緩めない。公開ゲート＋同一企業＋コーチング研修のみ。
+ * 公開ゲート＋同一企業。コーチング（ロールプレイ）または個別伴走（通常フィードバック）。
  *
- * 返却フィールドは固定:
- * - good（良かったところ）
- * - improve（もっと良くなるところ）
- * - satisfactionScore（満足度）
- * - satisfactionReason（理由）
+ * 返却は振り返り本文のみ（ガイドライン・チャット・パートナーレポート・変更希望は含めない）。
  */
 export async function GET(request: Request) {
   const session = await readSession();
@@ -65,34 +71,57 @@ export async function GET(request: Request) {
   }
 
   const settings = await getEffectiveAppSettingsForMatch(matchId);
-  if (settings.companyPlan !== "coaching_management_training") {
-    return jsonError("このプランでは振り返り閲覧を利用できません。", 403);
-  }
-
   const published = await getSessionHrPublish(matchId, sessionNumber);
   if (!published) {
     return jsonError("この振り返りは現在ご確認いただけません。", 404);
   }
 
-  const store = await getRoleplayStore(matchId);
-  const roleplaySession = getRoleplaySessionForNumber(store, sessionNumber);
-  if (
-    !roleplaySession.clientSubmittedAt ||
-    validateRoleplayClientSaveFields(roleplaySession) !== null
-  ) {
-    return jsonError("表示できる振り返りがありません。", 409);
-  }
-
-  return jsonOk({
+  const base = {
     matchId,
     sessionNumber,
     publishedAt: published.publishedAt,
     clientDisplayName: client.displayName ?? "クライアント",
-    reflection: {
-      good: roleplaySession.clientReflection.good,
-      improve: roleplaySession.clientReflection.improve,
-      satisfactionScore: roleplaySession.sessionFeedback.satisfactionScore,
-      satisfactionReason: roleplaySession.sessionFeedback.satisfactionReason,
-    },
-  });
+  };
+
+  if (settings.companyPlan === "coaching_management_training") {
+    const store = await getRoleplayStore(matchId);
+    const roleplaySession = getRoleplaySessionForNumber(store, sessionNumber);
+    if (
+      !roleplaySession.clientSubmittedAt ||
+      validateRoleplayClientSaveFields(roleplaySession) !== null
+    ) {
+      return jsonError("表示できる振り返りがありません。", 409);
+    }
+
+    return jsonOk({
+      ...base,
+      source: "roleplay" as const,
+      reflection: {
+        good: roleplaySession.clientReflection.good,
+        improve: roleplaySession.clientReflection.improve,
+        satisfactionScore: roleplaySession.sessionFeedback.satisfactionScore,
+        satisfactionReason: roleplaySession.sessionFeedback.satisfactionReason,
+      },
+    });
+  }
+
+  if (isIndividualCompanionPlan(settings.companyPlan)) {
+    const modeCtx = coachingSessionModeContextFromEffective(settings);
+    if (isCoachingRoleplaySession(modeCtx, sessionNumber)) {
+      return jsonError("表示できる振り返りがありません。", 409);
+    }
+
+    const feedback = await getSessionFeedback(matchId, sessionNumber);
+    if (!isStandardFeedbackReadyForHrPublish(feedback)) {
+      return jsonError("表示できる振り返りがありません。", 409);
+    }
+
+    return jsonOk({
+      ...base,
+      source: "standard" as const,
+      reflection: standardFeedbackHrReflectionPayload(feedback!),
+    });
+  }
+
+  return jsonError("このプランでは振り返り閲覧を利用できません。", 403);
 }

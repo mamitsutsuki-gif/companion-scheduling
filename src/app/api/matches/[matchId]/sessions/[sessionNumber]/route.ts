@@ -1,5 +1,5 @@
 import { readSession } from "@/lib/session";
-import { getMatchIfAllowed } from "@/lib/match-access";
+import { getMatchIfAllowed, isSupervisorSheetsOnly } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
 import {
   isSessionEnded,
@@ -63,26 +63,30 @@ export async function GET(_request: Request, context: RouteContext) {
       : { partner: "", client: guidelineRaw.client ?? "" }
     : null;
 
-  const feedbackRow = await getSessionFeedback(matchId, n);
+  const sheetsOnly = isSupervisorSheetsOnly(gate);
+  const feedbackRow = sheetsOnly ? null : await getSessionFeedback(matchId, n);
   const reportRow = await getSessionReport(matchId, n);
   const abandonmentRow = await getSessionAbandonment(matchId, n);
 
   // Visibility:
   // - CLIENT: own feedback only (cannot read partner report)
-  // - PARTNER / 上司マッチ: client feedback + own report（所感はクライアント非公開）
+  // - PARTNER / 上司マッチ（partnerId）: client feedback + own report
   // - ADMIN / ADMIN_ASSISTANT: both
+  // - sheets-only（人事・紐づけ上司）: 振り返り・ガイドライン・追加質問は返さない（公開ゲート経由のみ）
   const includeFeedback =
-    session.role === "ADMIN" ||
-    session.role === "ADMIN_ASSISTANT" ||
-    session.role === "CLIENT" ||
-    session.role === "PARTNER" ||
-    session.role === "CLIENT_ADMIN" ||
-    session.role === "CLIENT_HR";
+    !sheetsOnly &&
+    (session.role === "ADMIN" ||
+      session.role === "ADMIN_ASSISTANT" ||
+      session.role === "CLIENT" ||
+      session.role === "PARTNER" ||
+      session.role === "CLIENT_ADMIN" ||
+      session.role === "CLIENT_HR");
   const includeReport =
-    session.role === "ADMIN" ||
-    session.role === "ADMIN_ASSISTANT" ||
-    session.role === "PARTNER" ||
-    (session.role === "CLIENT_ADMIN" && gate.match.partnerId === session.sub);
+    !sheetsOnly &&
+    (session.role === "ADMIN" ||
+      session.role === "ADMIN_ASSISTANT" ||
+      session.role === "PARTNER" ||
+      (session.role === "CLIENT_ADMIN" && gate.match.partnerId === session.sub));
 
   return jsonOk({
     matchId,
@@ -95,9 +99,11 @@ export async function GET(_request: Request, context: RouteContext) {
     viewerRole: session.role,
     /** ログイン中のユーザーがこのマッチの受講者（clientId）本人か */
     viewerIsMatchClient: session.sub === gate.match.clientId,
-    partnerExtraQuestions,
-    clientExtraQuestions,
-    guideline,
+    /** シート専用閲覧（人事・紐づけ上司）。チャット・日程・振り返り本文は不可 */
+    supervisorSheetsOnly: sheetsOnly,
+    partnerExtraQuestions: sheetsOnly ? [] : partnerExtraQuestions,
+    clientExtraQuestions: sheetsOnly ? [] : clientExtraQuestions,
+    guideline: sheetsOnly ? null : guideline,
     abandonment: abandonmentRow
       ? {
           reason: abandonmentRow.reason,

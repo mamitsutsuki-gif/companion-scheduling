@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { AdminHrReflectionPublishControls } from "@/components/admin-hr-reflection-publish-controls";
 import { CoachingSessionRoleplayPanel } from "@/components/coaching-session-roleplay-panel";
+import { isIndividualCompanionPlan } from "@/lib/company-plan";
 import {
   emptySessionReportAnswers,
   parsePartnerQuestionAnswers,
@@ -54,6 +56,8 @@ type SessionDetail = {
   postSessionOpenable: boolean;
   viewerRole: Role;
   viewerIsMatchClient?: boolean;
+  /** シート専用閲覧（人事・紐づけ上司）。振り返り本文は公開ゲート経由のみ */
+  supervisorSheetsOnly?: boolean;
   partnerExtraQuestions: string[];
   /**
    * 管理者が「企業ごとの設定 → クライアント振り返りの追加質問」で
@@ -406,14 +410,16 @@ export function SessionWorkspace({
   const isCoachingRoleplay = detail.isCoachingRoleplaySession === true;
   const viewerIsMatchClient =
     detail.viewerIsMatchClient ?? (role === "CLIENT" && detail.match.clientId !== "");
+  const sheetsOnly = detail.supervisorSheetsOnly === true;
   // 人事・上司ロールでも、このマッチの受講者本人なら自己評価を入力できる（API と同じ判定）
   const roleplayReadOnly =
     role === "ADMIN_ASSISTANT" ||
     ((role === "CLIENT_ADMIN" || role === "CLIENT_HR") && !viewerIsMatchClient);
-  const formPreview = !postSessionOpenable && !isAbandoned && !isCoachingRoleplay;
+  const formPreview = !postSessionOpenable && !isAbandoned && !isCoachingRoleplay && !sheetsOnly;
   const showClientFeedbackSection =
     !isCoachingRoleplay &&
     !isAbandoned &&
+    !sheetsOnly &&
     ((postSessionOpenable &&
       (role === "CLIENT" ||
         role === "CLIENT_ADMIN" ||
@@ -430,8 +436,14 @@ export function SessionWorkspace({
   const showPartnerReportSection =
     !isCoachingRoleplay &&
     !isAbandoned &&
+    !sheetsOnly &&
     ((postSessionOpenable && (role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT")) ||
       (formPreview && (role === "PARTNER" || role === "ADMIN" || role === "ADMIN_ASSISTANT")));
+  const showIcHrPublish =
+    !isCoachingRoleplay &&
+    !isAbandoned &&
+    (role === "ADMIN" || role === "ADMIN_ASSISTANT") &&
+    isIndividualCompanionPlan(detail.companyPlan);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-3 py-5 sm:gap-8 sm:px-6 sm:py-8">
@@ -842,6 +854,16 @@ export function SessionWorkspace({
             )
           ) : null}
         </section>
+      ) : null}
+
+      {showIcHrPublish ? (
+        <AdminHrReflectionPublishControls
+          matchId={matchId}
+          sessionNumber={detail.sessionNumber}
+          viewerRole={role}
+          clientSubmitted={Boolean(detail.feedback)}
+          description="クライアント振り返りの本文（気づき・気持ち・次回までの取り組み・満足度と理由・その他・追加質問）だけを、企業人事の1on1一覧から閲覧可能にします。ガイドライン・チャット・パートナーレポート・パートナー変更希望は含めません。"
+        />
       ) : null}
 
       {showPartnerReportSection ? (

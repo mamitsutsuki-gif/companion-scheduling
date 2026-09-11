@@ -2,21 +2,23 @@ import { requireAdminish, requireAdminWriter } from "@/lib/admin-access";
 import {
   getRoleplaySessionForNumber,
   validateRoleplayClientSaveFields,
-  type RoleplaySession,
 } from "@/lib/coaching-roleplay";
 import {
   coachingSessionModeContextFromEffective,
   isCoachingRoleplaySession,
 } from "@/lib/coaching-session-mode";
+import { isIndividualCompanionPlan } from "@/lib/company-plan";
 import { getEffectiveAppSettingsForMatch } from "@/lib/effective-app-settings";
 import { jsonError, jsonOk } from "@/lib/json";
 import { getRoleplayStore } from "@/lib/repositories/coaching-repository";
 import { getMatchById } from "@/lib/repositories/match-repository";
+import { getSessionFeedback } from "@/lib/repositories/session-feedback-repository";
 import {
   deleteSessionHrPublish,
   getSessionHrPublish,
   upsertSessionHrPublish,
 } from "@/lib/repositories/session-hr-publish-repository";
+import { isStandardFeedbackReadyForHrPublish } from "@/lib/session-hr-reflection";
 import { readSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +26,7 @@ export const dynamic = "force-dynamic";
 type RouteContext = { params: Promise<{ matchId: string; sessionNumber: string }> };
 
 type PublishContext =
-  | { ok: true; roleplaySession: RoleplaySession; clientReady: boolean }
+  | { ok: true; kind: "roleplay" | "standard"; clientReady: boolean; clientSubmitted: boolean }
   | { ok: false; response: Response };
 
 async function resolvePublishContext(
@@ -35,28 +37,52 @@ async function resolvePublishContext(
   if (!match) return { ok: false, response: jsonError("マッチが見つかりません。", 404) };
 
   const settings = await getEffectiveAppSettingsForMatch(matchId);
-  if (settings.companyPlan !== "coaching_management_training") {
+
+  if (settings.companyPlan === "coaching_management_training") {
+    const modeCtx = coachingSessionModeContextFromEffective(settings);
+    if (!isCoachingRoleplaySession(modeCtx, sessionNumber)) {
+      return {
+        ok: false,
+        response: jsonError("この回はロールプレイ評価の対象ではありません。", 403),
+      };
+    }
+
+    const store = await getRoleplayStore(matchId);
+    const roleplaySession = getRoleplaySessionForNumber(store, sessionNumber);
+    const clientReady =
+      Boolean(roleplaySession.clientSubmittedAt) &&
+      validateRoleplayClientSaveFields(roleplaySession) === null;
+
     return {
-      ok: false,
-      response: jsonError("このプランでは人事向け振り返り公開を利用できません。", 403),
+      ok: true,
+      kind: "roleplay",
+      clientReady,
+      clientSubmitted: Boolean(roleplaySession.clientSubmittedAt),
     };
   }
 
-  const modeCtx = coachingSessionModeContextFromEffective(settings);
-  if (!isCoachingRoleplaySession(modeCtx, sessionNumber)) {
+  if (isIndividualCompanionPlan(settings.companyPlan)) {
+    const modeCtx = coachingSessionModeContextFromEffective(settings);
+    if (isCoachingRoleplaySession(modeCtx, sessionNumber)) {
+      return {
+        ok: false,
+        response: jsonError("この回は個別伴走の通常振り返り公開の対象ではありません。", 403),
+      };
+    }
+
+    const feedback = await getSessionFeedback(matchId, sessionNumber);
     return {
-      ok: false,
-      response: jsonError("この回はロールプレイ評価の対象ではありません。", 403),
+      ok: true,
+      kind: "standard",
+      clientReady: isStandardFeedbackReadyForHrPublish(feedback),
+      clientSubmitted: Boolean(feedback),
     };
   }
 
-  const store = await getRoleplayStore(matchId);
-  const roleplaySession = getRoleplaySessionForNumber(store, sessionNumber);
-  const clientReady =
-    Boolean(roleplaySession.clientSubmittedAt) &&
-    validateRoleplayClientSaveFields(roleplaySession) === null;
-
-  return { ok: true, roleplaySession, clientReady };
+  return {
+    ok: false,
+    response: jsonError("このプランでは人事向け振り返り公開を利用できません。", 403),
+  };
 }
 
 function parseSessionNumber(raw: string) {
@@ -82,11 +108,12 @@ export async function GET(_request: Request, context: RouteContext) {
   return jsonOk({
     matchId,
     sessionNumber: n,
+    kind: ctx.kind,
     published: Boolean(published),
     publishedAt: published?.publishedAt ?? null,
     publishedBy: published?.publishedBy ?? null,
     canPublish: ctx.clientReady,
-    clientSubmitted: Boolean(ctx.roleplaySession.clientSubmittedAt),
+    clientSubmitted: ctx.clientSubmitted,
   });
 }
 
@@ -105,7 +132,9 @@ export async function POST(_request: Request, context: RouteContext) {
 
   if (!ctx.clientReady) {
     return jsonError(
-      "クライアントのロールプレイ振り返り（提出済み・必須項目完了）が揃っていないため公開できません。",
+      ctx.kind === "roleplay"
+        ? "クライアントのロールプレイ振り返り（提出済み・必須項目完了）が揃っていないため公開できません。"
+        : "クライアント振り返り（提出済み・必須項目完了）が揃っていないため公開できません。",
       409,
     );
   }
@@ -120,6 +149,7 @@ export async function POST(_request: Request, context: RouteContext) {
     ok: true,
     matchId,
     sessionNumber: n,
+    kind: ctx.kind,
     published: true,
     publishedAt: row.publishedAt,
     publishedBy: row.publishedBy,

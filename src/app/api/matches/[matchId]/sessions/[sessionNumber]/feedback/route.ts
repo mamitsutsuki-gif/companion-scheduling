@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { readSession } from "@/lib/session";
-import { getMatchIfAllowed } from "@/lib/match-access";
+import { getMatchIfAllowed, isSupervisorSheetsOnly } from "@/lib/match-access";
 import { jsonError, jsonOk } from "@/lib/json";
 import {
   isSessionEnded,
@@ -52,6 +52,9 @@ export async function PUT(request: Request, context: RouteContext) {
   if ("error" in gate) {
     const status = gate.error === "not_found" ? 404 : 403;
     return jsonError(status === 404 ? "見つかりません。" : "送信できません。", status);
+  }
+  if (isSupervisorSheetsOnly(gate) || gate.match.clientId !== session.sub) {
+    return jsonError("このフォームはマッチの受講者本人のみ送信できます。", 403);
   }
 
   const plan = await listSessionPlanForMatch(matchId);

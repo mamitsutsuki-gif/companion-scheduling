@@ -12,12 +12,26 @@ type Row = {
   hrReflectionPublished?: boolean;
 };
 
-type HrReflection = {
+type RoleplayReflection = {
+  source: "roleplay";
   good: string;
   improve: string;
   satisfactionScore: number | null;
   satisfactionReason: string;
 };
+
+type StandardReflection = {
+  source: "standard";
+  insight: string;
+  feeling: string;
+  nextActions: string;
+  satisfactionScore: number | null;
+  satisfactionReason: string;
+  other: string;
+  extraAnswers: Record<string, string>;
+};
+
+type HrReflection = RoleplayReflection | StandardReflection;
 
 function formatJa(iso: string) {
   try {
@@ -38,6 +52,17 @@ type ProgramOption = {
   id: string;
   name: string;
 };
+
+function ReflectionBlock({ title, body }: { title: string; body: string }) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4">
+      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+      <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
+        {body.trim() || "（未入力）"}
+      </p>
+    </section>
+  );
+}
 
 function HrReflectionPanel({
   row,
@@ -75,14 +100,39 @@ function HrReflectionPanel({
           setClientDisplayName(data.clientDisplayName);
         }
         const r = data?.reflection;
-        setReflection({
-          good: typeof r?.good === "string" ? r.good : "",
-          improve: typeof r?.improve === "string" ? r.improve : "",
-          satisfactionScore:
-            typeof r?.satisfactionScore === "number" ? r.satisfactionScore : null,
-          satisfactionReason:
-            typeof r?.satisfactionReason === "string" ? r.satisfactionReason : "",
-        });
+        const source = data?.source === "standard" ? "standard" : "roleplay";
+        if (source === "standard") {
+          const extras =
+            r?.extraAnswers && typeof r.extraAnswers === "object" && !Array.isArray(r.extraAnswers)
+              ? (r.extraAnswers as Record<string, unknown>)
+              : {};
+          const extraAnswers: Record<string, string> = {};
+          for (const [k, v] of Object.entries(extras)) {
+            if (typeof v === "string") extraAnswers[k] = v;
+          }
+          setReflection({
+            source: "standard",
+            insight: typeof r?.insight === "string" ? r.insight : "",
+            feeling: typeof r?.feeling === "string" ? r.feeling : "",
+            nextActions: typeof r?.nextActions === "string" ? r.nextActions : "",
+            satisfactionScore:
+              typeof r?.satisfactionScore === "number" ? r.satisfactionScore : null,
+            satisfactionReason:
+              typeof r?.satisfactionReason === "string" ? r.satisfactionReason : "",
+            other: typeof r?.other === "string" ? r.other : "",
+            extraAnswers,
+          });
+        } else {
+          setReflection({
+            source: "roleplay",
+            good: typeof r?.good === "string" ? r.good : "",
+            improve: typeof r?.improve === "string" ? r.improve : "",
+            satisfactionScore:
+              typeof r?.satisfactionScore === "number" ? r.satisfactionScore : null,
+            satisfactionReason:
+              typeof r?.satisfactionReason === "string" ? r.satisfactionReason : "",
+          });
+        }
       } catch {
         if (!cancelled) setError("ネットワークエラーが発生しました。");
       } finally {
@@ -131,20 +181,10 @@ function HrReflectionPanel({
         {loading ? <p className="mt-6 text-slate-600">読込中…</p> : null}
         {error ? <p className="mt-6 text-sm font-medium text-red-700">{error}</p> : null}
 
-        {!loading && !error && reflection ? (
+        {!loading && !error && reflection?.source === "roleplay" ? (
           <div className="mt-6 space-y-4">
-            <section className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4">
-              <h3 className="text-base font-semibold text-indigo-950">良かったところ</h3>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
-                {reflection.good.trim() || "（未入力）"}
-              </p>
-            </section>
-            <section className="rounded-xl border border-slate-200 bg-white p-4">
-              <h3 className="text-base font-semibold text-slate-900">もっと良くなるところ</h3>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
-                {reflection.improve.trim() || "（未入力）"}
-              </p>
-            </section>
+            <ReflectionBlock title="良かったところ" body={reflection.good} />
+            <ReflectionBlock title="もっと良くなるところ" body={reflection.improve} />
             <section className="rounded-xl border border-violet-100 bg-violet-50/40 p-4">
               <h3 className="text-base font-semibold text-slate-900">満足度</h3>
               <p className="mt-2 text-sm text-slate-800">
@@ -153,12 +193,36 @@ function HrReflectionPanel({
                   : "（未入力）"}
               </p>
             </section>
-            <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <h3 className="text-base font-semibold text-slate-900">理由</h3>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
-                {reflection.satisfactionReason.trim() || "（未入力）"}
+            <ReflectionBlock title="理由" body={reflection.satisfactionReason} />
+          </div>
+        ) : null}
+
+        {!loading && !error && reflection?.source === "standard" ? (
+          <div className="mt-6 space-y-4">
+            <ReflectionBlock title="気づき" body={reflection.insight} />
+            <ReflectionBlock title="終わっての気持ち" body={reflection.feeling} />
+            <ReflectionBlock title="次回まで取り組みたいこと" body={reflection.nextActions} />
+            <section className="rounded-xl border border-violet-100 bg-violet-50/40 p-4">
+              <h3 className="text-base font-semibold text-slate-900">満足度</h3>
+              <p className="mt-2 text-sm text-slate-800">
+                {reflection.satisfactionScore != null
+                  ? `${reflection.satisfactionScore} / 10`
+                  : "（未入力）"}
               </p>
             </section>
+            <ReflectionBlock title="理由" body={reflection.satisfactionReason} />
+            {reflection.other.trim() ? (
+              <ReflectionBlock title="その他" body={reflection.other} />
+            ) : null}
+            {Object.keys(reflection.extraAnswers)
+              .sort((a, b) => Number(a) - Number(b))
+              .map((key) => (
+                <ReflectionBlock
+                  key={key}
+                  title={`追加の振り返り ${Number(key) + 1}`}
+                  body={reflection.extraAnswers[key] ?? ""}
+                />
+              ))}
           </div>
         ) : null}
       </div>
@@ -224,7 +288,7 @@ export default function ClientAdminSessionsPage() {
           1on1セッション一覧
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          自社メンバーの確定済み1on1日程を一覧で確認できます。ロールプレイ振り返りがある場合のみ、「振り返りを見る」から確認できます。
+          自社メンバーの確定済み1on1日程を一覧で確認できます。管理者が公開したクライアント振り返りがある場合のみ、「振り返りを見る」から本文を確認できます（ガイドライン・チャット・パートナーレポートは表示されません）。
         </p>
         <div className="mt-4 flex flex-wrap items-end gap-3">
           {programs.length > 1 ? (
